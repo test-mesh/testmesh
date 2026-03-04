@@ -15,10 +15,11 @@ var validateCmd = &cobra.Command{
 	Long: `Validate a test flow definition without executing it.
 
 Checks for:
-- Valid YAML syntax
+- Valid YAML syntax and flow: root key
 - Required fields (name, steps)
 - Valid action types
-- Step structure`,
+- Required config fields per action type
+- Template variable references resolve to prior output: definitions`,
 	Args: cobra.ExactArgs(1),
 	RunE: validateFlow,
 }
@@ -27,37 +28,37 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 }
 
-var validActions = map[string]bool{
-	"http_request":          true,
-	"database_query":        true,
-	"log":                   true,
-	"delay":                 true,
-	"assert":                true,
-	"transform":             true,
-	"condition":             true,
-	"for_each":              true,
-	"mock_server_start":     true,
-	"mock_server_stop":      true,
-	"mock_server_configure": true,
-	"contract_generate":     true,
-	"contract_verify":       true,
-	"websocket":             true,
-	"grpc":                  true,
-	"kafka":                 true,
-	"kafka.produce":         true,
-	"kafka.consume":         true,
+// validActions maps action name → required config keys
+var validActions = map[string][]string{
+	"http_request":          {"url"},
+	"database_query":        {"connection", "query"},
+	"kafka_producer":        {"brokers", "topic"},
+	"kafka_consumer":        {"brokers", "topic"},
+	"delay":                 {"duration"},
+	"log":                   {},
+	"assert":                {},
+	"transform":             {},
+	"condition":             {},
+	"for_each":              {},
+	"mock_server_start":     {},
+	"mock_server_stop":      {},
+	"mock_server_configure": {},
+	"contract_generate":     {},
+	"contract_verify":       {},
+	"websocket":             {"url"},
+	"grpc":                  {"host", "method"},
+	"wait_for":              {},
+	"db_poll":               {"connection", "query"},
 }
 
 func validateFlow(cmd *cobra.Command, args []string) error {
 	filePath := args[0]
 
-	// Read flow file
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Parse YAML
 	var flowWrapper struct {
 		Flow struct {
 			Name        string                   `yaml:"name"`
@@ -73,43 +74,75 @@ func validateFlow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid YAML: %w", err)
 	}
 
+	// Ensure flow: wrapper exists
+	var raw map[string]interface{}
+	_ = yaml.Unmarshal(data, &raw)
+	if _, hasFlow := raw["flow"]; !hasFlow {
+		return fmt.Errorf("missing 'flow:' root key — wrap your definition under 'flow:'")
+	}
+
 	flow := flowWrapper.Flow
-	errors := []string{}
+	var errs []string
 
-	// Check required fields
 	if flow.Name == "" {
-		errors = append(errors, "flow.name is required")
+		errs = append(errs, "flow.name is required")
 	}
-
 	if len(flow.Steps) == 0 {
-		errors = append(errors, "flow.steps must have at least one step")
+		errs = append(errs, "flow.steps must have at least one step")
 	}
 
-	// Validate steps
+	// Track output variables defined so far for reference checking
+	definedVars := map[string]bool{}
+
 	validateSteps := func(steps []map[string]interface{}, phase string) {
 		for i, step := range steps {
-			// Check for action
+			prefix := fmt.Sprintf("%s step %d", phase, i+1)
+
 			action, ok := step["action"].(string)
 			if !ok || action == "" {
-				errors = append(errors, fmt.Sprintf("%s step %d: action is required", phase, i+1))
+				errs = append(errs, prefix+": action is required")
 				continue
 			}
 
-			// Check valid action type (allow plugin actions with dots)
-			isValid := validActions[action]
-			if !isValid && strings.Contains(action, ".") {
-				prefix := action[:strings.Index(action, ".")]
-				isValid = validActions[prefix]
-			}
-			if !isValid {
-				errors = append(errors, fmt.Sprintf("%s step %d: unknown action type '%s'", phase, i+1, action))
+			// Normalize action aliases
+			action = strings.TrimSpace(action)
+
+			// Check action is known
+			requiredKeys, known := validActions[action]
+			if !known {
+				errs = append(errs, fmt.Sprintf("%s: unknown action '%s'", prefix, action))
 			}
 
-			// Check for id or name
-			_, hasID := step["id"]
-			_, hasName := step["name"]
-			if !hasID && !hasName {
-				errors = append(errors, fmt.Sprintf("%s step %d: step should have 'id' or 'name'", phase, i+1))
+			// Add step id to prefix for clearer messages
+			if id, ok := step["id"].(string); ok && id != "" {
+				prefix = fmt.Sprintf("%s '%s' (%s)", phase, id, action)
+			} else if name, ok := step["name"].(string); ok && name != "" {
+				prefix = fmt.Sprintf("%s '%s' (%s)", phase, name, action)
+			} else {
+				errs = append(errs, fmt.Sprintf("%s (%s): missing 'id' field", prefix, action))
+			}
+
+			// Check required config fields
+			config, _ := step["config"].(map[string]interface{})
+			for _, key := range requiredKeys {
+				if config == nil {
+					errs = append(errs, fmt.Sprintf("%s: config is required (missing '%s')", prefix, key))
+					break
+				}
+				v, exists := config[key]
+				if !exists || v == nil || v == "" {
+					errs = append(errs, fmt.Sprintf("%s: config.%s is required", prefix, key))
+				}
+			}
+
+			// Check {{variable}} references in config against known defined vars
+			checkTemplateRefs(config, definedVars, prefix, &errs)
+
+			// Register output variables defined by this step
+			if output, ok := step["output"].(map[string]interface{}); ok {
+				for varName := range output {
+					definedVars[varName] = true
+				}
 			}
 		}
 	}
@@ -118,12 +151,11 @@ func validateFlow(cmd *cobra.Command, args []string) error {
 	validateSteps(flow.Steps, "steps")
 	validateSteps(flow.Teardown, "teardown")
 
-	// Print results
 	fmt.Println()
-	if len(errors) > 0 {
-		fmt.Printf("❌ Validation failed with %d error(s):\n\n", len(errors))
-		for _, err := range errors {
-			fmt.Printf("   • %s\n", err)
+	if len(errs) > 0 {
+		fmt.Printf("❌ Validation failed with %d error(s):\n\n", len(errs))
+		for _, e := range errs {
+			fmt.Printf("   • %s\n", e)
 		}
 		fmt.Println()
 		return fmt.Errorf("validation failed")
@@ -138,29 +170,103 @@ func validateFlow(cmd *cobra.Command, args []string) error {
 	if flow.Suite != "" {
 		fmt.Printf("   Suite: %s\n", flow.Suite)
 	}
-	fmt.Printf("   Setup steps: %d\n", len(flow.Setup))
-	fmt.Printf("   Main steps: %d\n", len(flow.Steps))
+	fmt.Printf("   Setup steps:    %d\n", len(flow.Setup))
+	fmt.Printf("   Main steps:     %d\n", len(flow.Steps))
 	fmt.Printf("   Teardown steps: %d\n", len(flow.Teardown))
 	fmt.Println()
 
-	// List steps
 	if verbose {
-		fmt.Println("   Steps:")
-		for i, step := range flow.Steps {
-			action, _ := step["action"].(string)
-			id, _ := step["id"].(string)
-			name, _ := step["name"].(string)
-			stepLabel := id
-			if stepLabel == "" {
-				stepLabel = name
-			}
-			if stepLabel == "" {
-				stepLabel = fmt.Sprintf("step_%d", i+1)
-			}
-			fmt.Printf("   %d. %s (%s)\n", i+1, stepLabel, action)
-		}
-		fmt.Println()
+		printStepList("Setup", flow.Setup)
+		printStepList("Steps", flow.Steps)
+		printStepList("Teardown", flow.Teardown)
 	}
 
 	return nil
+}
+
+// checkTemplateRefs scans config values for {{var}} references not yet defined.
+func checkTemplateRefs(config map[string]interface{}, definedVars map[string]bool, prefix string, errs *[]string) {
+	if config == nil {
+		return
+	}
+	for _, v := range config {
+		checkValueRefs(v, definedVars, prefix, errs)
+	}
+}
+
+func checkValueRefs(v interface{}, definedVars map[string]bool, prefix string, errs *[]string) {
+	switch val := v.(type) {
+	case string:
+		refs := extractTemplateVars(val)
+		for _, ref := range refs {
+			// Skip built-in variables
+			if isBuiltinVar(ref) {
+				continue
+			}
+			if !definedVars[ref] {
+				*errs = append(*errs, fmt.Sprintf("%s: references '{{%s}}' but it is not defined in any prior output:", prefix, ref))
+			}
+		}
+	case map[string]interface{}:
+		for _, child := range val {
+			checkValueRefs(child, definedVars, prefix, errs)
+		}
+	case []interface{}:
+		for _, item := range val {
+			checkValueRefs(item, definedVars, prefix, errs)
+		}
+	}
+}
+
+// extractTemplateVars extracts variable names from {{var}} patterns.
+func extractTemplateVars(s string) []string {
+	var vars []string
+	for {
+		start := strings.Index(s, "{{")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(s[start:], "}}")
+		if end == -1 {
+			break
+		}
+		inner := strings.TrimSpace(s[start+2 : start+end])
+		// Only simple variable names (no dots = not step.output references)
+		if !strings.Contains(inner, ".") && inner != "" {
+			vars = append(vars, inner)
+		}
+		s = s[start+end+2:]
+	}
+	return vars
+}
+
+var builtinVars = map[string]bool{
+	"RANDOM_ID": true, "UUID": true, "TIMESTAMP": true, "ISO_TIMESTAMP": true,
+	"DATE": true, "TIME": true, "DATETIME": true,
+	"YEAR": true, "MONTH": true, "DAY": true, "HOUR": true, "MINUTE": true, "SECOND": true,
+}
+
+func isBuiltinVar(name string) bool {
+	return builtinVars[strings.ToUpper(name)]
+}
+
+func printStepList(title string, steps []map[string]interface{}) {
+	if len(steps) == 0 {
+		return
+	}
+	fmt.Printf("   %s:\n", title)
+	for i, step := range steps {
+		action, _ := step["action"].(string)
+		id, _ := step["id"].(string)
+		name, _ := step["name"].(string)
+		label := id
+		if label == "" {
+			label = name
+		}
+		if label == "" {
+			label = fmt.Sprintf("step_%d", i+1)
+		}
+		fmt.Printf("   %d. %s (%s)\n", i+1, label, action)
+	}
+	fmt.Println()
 }

@@ -537,6 +537,94 @@ func (a *PluginActionAdapter) Execute(ctx context.Context, config map[string]int
 	return result, nil
 }
 
+// InlineStepResult holds the result of a single step in an inline execution.
+type InlineStepResult struct {
+	StepID     string            `json:"step_id"`
+	StepName   string            `json:"step_name,omitempty"`
+	Action     string            `json:"action"`
+	Phase      string            `json:"phase"`
+	Status     string            `json:"status"`
+	DurationMs int64             `json:"duration_ms"`
+	Error      string            `json:"error,omitempty"`
+}
+
+// InlineResult holds the result of an inline (non-persisted) flow execution.
+type InlineResult struct {
+	Status     string             `json:"status"`
+	DurationMs int64              `json:"duration_ms"`
+	TotalSteps int                `json:"total_steps"`
+	Passed     int                `json:"passed"`
+	Failed     int                `json:"failed"`
+	Error      string             `json:"error,omitempty"`
+	Steps      []InlineStepResult `json:"steps"`
+}
+
+// ExecuteInline runs a flow definition synchronously without persisting anything to the database.
+func (e *Executor) ExecuteInline(definition *models.FlowDefinition, variables map[string]string) (*InlineResult, error) {
+	ctx := context.Background()
+	start := time.Now()
+	execCtx := NewContext(variables, definition.Env)
+	result := &InlineResult{Status: "passed"}
+
+	type phase struct {
+		name  string
+		steps []models.Step
+	}
+	phases := []phase{
+		{"setup", definition.Setup},
+		{"main", definition.Steps},
+		{"teardown", definition.Teardown},
+	}
+
+	for _, ph := range phases {
+		for i, step := range ph.steps {
+			stepID := step.ID
+			if stepID == "" {
+				stepID = fmt.Sprintf("step_%d", i+1)
+			}
+
+			stepStart := time.Now()
+			output, err := e.executeStep(ctx, &step, execCtx)
+			sr := InlineStepResult{
+				StepID:     stepID,
+				StepName:   step.Name,
+				Action:     step.Action,
+				Phase:      ph.name,
+				DurationMs: time.Since(stepStart).Milliseconds(),
+			}
+
+			if err != nil {
+				sr.Status = "failed"
+				sr.Error = err.Error()
+				result.Failed++
+				result.Steps = append(result.Steps, sr)
+				if ph.name != "teardown" {
+					result.Status = "failed"
+					result.Error = fmt.Sprintf("[%s] step '%s' (%s): %s", ph.name, stepID, step.Action, err.Error())
+					result.TotalSteps = len(result.Steps)
+					result.DurationMs = time.Since(start).Milliseconds()
+					return result, nil
+				}
+				continue
+			}
+
+			sr.Status = "passed"
+			result.Passed++
+			// Store outputs so subsequent steps can reference them
+			for key, path := range step.Output {
+				value := extractValue(output, path)
+				execCtx.SetStepOutput(stepID, key, value)
+				execCtx.Set(key, fmt.Sprintf("%v", value))
+			}
+			result.Steps = append(result.Steps, sr)
+		}
+	}
+
+	result.TotalSteps = len(result.Steps)
+	result.DurationMs = time.Since(start).Milliseconds()
+	return result, nil
+}
+
 // extractValue extracts a value from result using JSONPath
 func extractValue(result models.OutputData, path string) interface{} {
 	if path == "" || path == "$" {

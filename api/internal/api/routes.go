@@ -407,6 +407,9 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 			history.DELETE("", historyHandler.Clear)
 		}
 
+		// Inline execution — runs a flow definition without saving it to the database
+		v1.POST("/executions/run-definition", executionHandler.RunDefinition)
+
 		// Collection runner routes (data-driven testing)
 		runnerRoutes := v1.Group("/runner")
 		{

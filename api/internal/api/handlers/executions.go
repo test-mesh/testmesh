@@ -330,3 +330,30 @@ func (h *ExecutionHandler) mergeEnvironmentVariables(environmentRef string, work
 
 	return merged
 }
+
+// RunDefinition handles POST /api/v1/executions/run-definition
+// Executes a flow definition synchronously without persisting to the database.
+func (h *ExecutionHandler) RunDefinition(c *gin.Context) {
+	var req struct {
+		Definition models.FlowDefinition `json:"definition" binding:"required"`
+		Variables  map[string]string     `json:"variables"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	executor := runner.NewExecutor(h.execRepo, h.contractRepo, h.logger, h.wsHub, h.mockManager)
+	result, err := executor.ExecuteInline(&req.Definition, req.Variables)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	status := http.StatusOK
+	if result.Status == "failed" {
+		status = http.StatusUnprocessableEntity
+	}
+	c.JSON(status, result)
+}
