@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/georgi-georgiev/testmesh-cli/cmd"
+	"github.com/georgi-georgiev/testmesh/cli/cmd"
 )
 
 func main() {

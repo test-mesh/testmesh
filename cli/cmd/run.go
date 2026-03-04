@@ -9,20 +9,25 @@ import (
 	"os"
 	"time"
 
+	"github.com/georgi-georgiev/testmesh/internal/runner"
+	"github.com/georgi-georgiev/testmesh/internal/storage/models"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
-var runEnv string
+var (
+	runEnv    string
+	runRemote bool
+)
 
 var runCmd = &cobra.Command{
 	Use:   "run <flow.yaml>",
-	Short: "Execute a flow via the TestMesh API",
+	Short: "Execute a flow",
 	Long: `Execute a test flow defined in a YAML file.
 
-The flow is submitted to the TestMesh API for execution.
-Use --api-url to point to a different API instance (default: http://localhost:5016).
-Use --env to specify the environment (default: development).`,
+By default, the flow runs locally using the embedded runner — no API server required.
+Use --remote to submit to the TestMesh API instead (requires API running).`,
 	Args: cobra.ExactArgs(1),
 	RunE: runFlow,
 }
@@ -30,26 +35,7 @@ Use --env to specify the environment (default: development).`,
 func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().StringVarP(&runEnv, "env", "e", "development", "Environment name")
-}
-
-type inlineStepResult struct {
-	StepID     string `json:"step_id"`
-	StepName   string `json:"step_name"`
-	Action     string `json:"action"`
-	Phase      string `json:"phase"`
-	Status     string `json:"status"`
-	DurationMs int64  `json:"duration_ms"`
-	Error      string `json:"error"`
-}
-
-type inlineResult struct {
-	Status     string             `json:"status"`
-	DurationMs int64              `json:"duration_ms"`
-	TotalSteps int                `json:"total_steps"`
-	Passed     int                `json:"passed"`
-	Failed     int                `json:"failed"`
-	Error      string             `json:"error"`
-	Steps      []inlineStepResult `json:"steps"`
+	runCmd.Flags().BoolVar(&runRemote, "remote", false, "Submit to the TestMesh API instead of running locally")
 }
 
 func runFlow(cmd *cobra.Command, args []string) error {
@@ -60,39 +46,59 @@ func runFlow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to read flow file: %w", err)
 	}
 
-	// Parse YAML into a generic map to preserve the full definition
 	var flowWrapper struct {
-		Flow interface{} `yaml:"flow"`
+		Flow models.FlowDefinition `yaml:"flow"`
 	}
 	if err := yaml.Unmarshal(data, &flowWrapper); err != nil {
 		return fmt.Errorf("failed to parse YAML: %w", err)
 	}
-	if flowWrapper.Flow == nil {
-		return fmt.Errorf("invalid flow file: missing 'flow:' root key")
+	if flowWrapper.Flow.Name == "" {
+		return fmt.Errorf("invalid flow file: missing 'flow:' root key or flow.name")
 	}
 
-	// Re-encode to JSON so the API can deserialize into FlowDefinition
-	flowJSON, err := json.Marshal(flowWrapper.Flow)
+	definition := &flowWrapper.Flow
+
+	fmt.Println()
+	fmt.Printf("🚀 Running flow: %s\n", definition.Name)
+	if definition.Description != "" {
+		fmt.Printf("   %s\n", definition.Description)
+	}
+
+	if runRemote {
+		return runViaAPI(definition)
+	}
+	return runLocally(definition)
+}
+
+// runLocally executes the flow using the embedded runner — no API server needed.
+func runLocally(definition *models.FlowDefinition) error {
+	fmt.Printf("   Mode: local\n\n")
+
+	logger := zap.NewNop()
+
+	exec := runner.NewExecutor(nil, nil, logger, nil, nil)
+	result, err := exec.ExecuteInline(definition, nil)
+	if err != nil {
+		return fmt.Errorf("execution error: %w", err)
+	}
+
+	printResult(result.Steps, result.Status, result.Error, result.TotalSteps, result.Passed, result.Failed, result.DurationMs)
+
+	if result.Status == "failed" {
+		return fmt.Errorf("flow failed")
+	}
+	return nil
+}
+
+// runViaAPI submits the flow to the TestMesh API for execution.
+func runViaAPI(definition *models.FlowDefinition) error {
+	fmt.Printf("   API: %s\n\n", apiURL)
+
+	flowJSON, err := json.Marshal(definition)
 	if err != nil {
 		return fmt.Errorf("failed to encode flow: %w", err)
 	}
 
-	// Get flow name for display
-	var flowMeta struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
-	}
-	_ = json.Unmarshal(flowJSON, &flowMeta)
-
-	fmt.Println()
-	fmt.Printf("🚀 Running flow: %s\n", flowMeta.Name)
-	if flowMeta.Description != "" {
-		fmt.Printf("   %s\n", flowMeta.Description)
-	}
-	fmt.Printf("   API: %s\n", apiURL)
-	fmt.Println()
-
-	// Build request body
 	reqBody, err := json.Marshal(map[string]interface{}{
 		"definition": json.RawMessage(flowJSON),
 		"variables":  map[string]string{},
@@ -101,7 +107,6 @@ func runFlow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to build request: %w", err)
 	}
 
-	// POST to API
 	start := time.Now()
 	resp, err := http.Post(
 		apiURL+"/api/v1/executions/run-definition",
@@ -124,14 +129,23 @@ func runFlow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid flow definition: %s", errResp.Error)
 	}
 
-	var result inlineResult
+	var result runner.InlineResult
 	if err := json.Unmarshal(body, &result); err != nil {
 		return fmt.Errorf("unexpected API response (%d): %s", resp.StatusCode, string(body))
 	}
 
-	// Print step results grouped by phase
+	elapsed := time.Since(start).Milliseconds()
+	printResult(result.Steps, result.Status, result.Error, result.TotalSteps, result.Passed, result.Failed, elapsed)
+
+	if result.Status == "failed" {
+		return fmt.Errorf("flow failed")
+	}
+	return nil
+}
+
+func printResult(steps []runner.InlineStepResult, status, errMsg string, total, passed, failed int, durationMs int64) {
 	currentPhase := ""
-	for _, step := range result.Steps {
+	for _, step := range steps {
 		if step.Phase != currentPhase {
 			currentPhase = step.Phase
 			switch currentPhase {
@@ -148,7 +162,6 @@ func runFlow(cmd *cobra.Command, args []string) error {
 		if step.StepName != "" {
 			label = step.StepName
 		}
-
 		if step.Status == "passed" {
 			fmt.Printf("   ✅ %s (%s) — %dms\n", label, step.Action, step.DurationMs)
 		} else {
@@ -157,24 +170,18 @@ func runFlow(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	duration := time.Since(start)
 	fmt.Println()
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	if result.Status == "passed" {
-		fmt.Printf("✅ Flow completed successfully in %s\n", duration.Round(time.Millisecond))
+	if status == "passed" {
+		fmt.Printf("✅ Flow completed successfully in %dms\n", durationMs)
 	} else {
-		fmt.Printf("❌ Flow failed in %s\n", duration.Round(time.Millisecond))
-		if result.Error != "" {
-			fmt.Printf("   Error: %s\n", result.Error)
+		fmt.Printf("❌ Flow failed in %dms\n", durationMs)
+		if errMsg != "" {
+			fmt.Printf("   Error: %s\n", errMsg)
 		}
 	}
-	fmt.Printf("   Total steps: %d\n", result.TotalSteps)
-	fmt.Printf("   Passed: %d\n", result.Passed)
-	fmt.Printf("   Failed: %d\n", result.Failed)
+	fmt.Printf("   Total steps: %d\n", total)
+	fmt.Printf("   Passed: %d\n", passed)
+	fmt.Printf("   Failed: %d\n", failed)
 	fmt.Println()
-
-	if result.Status == "failed" {
-		return fmt.Errorf("flow failed")
-	}
-	return nil
 }
