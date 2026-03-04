@@ -72,7 +72,10 @@
       "Bash(docker stop:*)",
       "Bash(docker rm:*)",
       "Bash(./cli/main.go run:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(chmod +x /Users/ggeorgiev/Dev/testmesh/infra.sh)",
+      "Bash(nc -z localhost 9092 && echo \"port open\" || echo \"port closed\")",
+      "Bash(git rm --cached api/testmesh api/testmesh-api api/seed)"
     ]
   }
 }
