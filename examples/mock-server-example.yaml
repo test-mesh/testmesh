@@ -89,7 +89,7 @@ steps:
         Accept: application/json
     assert:
       - status == 200
-      - body.users.length == 2
+      - len(body.users) == 2
       - body.users[0].name == "Alice"
     output:
       first_user_id: $.body.users[0].id

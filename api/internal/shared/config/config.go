@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -96,7 +97,8 @@ func Load() (*Config, error) {
 	viper.SetDefault("logger.level", "info")
 	viper.SetDefault("logger.output_path", "stdout")
 
-	// Auto-load environment variables
+	// Auto-load environment variables (map DATABASE_HOST → database.host)
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	// Try to load config file (optional)

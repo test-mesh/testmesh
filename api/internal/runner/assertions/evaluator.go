@@ -11,12 +11,18 @@ import (
 
 // Evaluator evaluates assertions against step output
 type Evaluator struct {
-	output models.OutputData
+	output    models.OutputData
+	variables map[string]string
 }
 
 // NewEvaluator creates a new assertion evaluator
 func NewEvaluator(output models.OutputData) *Evaluator {
 	return &Evaluator{output: output}
+}
+
+// NewEvaluatorWithVars creates a new assertion evaluator with context variables
+func NewEvaluatorWithVars(output models.OutputData, variables map[string]string) *Evaluator {
+	return &Evaluator{output: output, variables: variables}
 }
 
 // Evaluate evaluates a list of assertion expressions
@@ -101,6 +107,13 @@ func (e *Evaluator) prepareEnvironment() map[string]interface{} {
 
 	if durationMs, ok := e.output["duration_ms"]; ok {
 		env["duration_ms"] = durationMs
+	}
+
+	// Add context variables (e.g. user_id, product_id captured from previous steps)
+	for k, v := range e.variables {
+		if _, exists := env[k]; !exists {
+			env[k] = v
+		}
 	}
 
 	return env

@@ -258,7 +258,7 @@ kubectl logs -f deployment/testmesh-api
 
 - **Architecture**: [/docs/architecture/ARCHITECTURE.md](/docs/architecture/ARCHITECTURE.md)
 - **YAML Schema**: [/docs/features/YAML_SCHEMA.md](/docs/features/YAML_SCHEMA.md)
-- **Microservices**: [/services/README.md](/services/README.md)
+- **Microservices**: [/demo-services/README.md](/demo-services/README.md)
 - **Project Guide**: [/CLAUDE.md](/CLAUDE.md)
 
 ## Support

@@ -1,8 +1,8 @@
 version: '3.8'
 
-# Production-ready Docker Compose for TestMesh
-# Assumes external PostgreSQL, Redis, and optionally Kafka
-# For local development with bundled services, use: docker-compose -f docker-compose.dev.yml up
+# Development Docker Compose for TestMesh
+# Requires infra (postgres, redis, kafka) running via ./infra.sh up
+# Usage: docker-compose -f docker-compose.dev.yml up --build
 
 services:
   # TestMesh API
@@ -10,20 +10,20 @@ services:
     image: testmesh/api:latest
     build:
       context: ./api
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: testmesh-api
     ports:
       - "${API_PORT:-5016}:5016"
     environment:
       # Environment
-      ENV: ${ENV:-production}
+      ENV: ${ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-info}
 
       # Server
       PORT: 5016
 
-      # Database (external - REQUIRED)
-      DATABASE_HOST: ${DATABASE_HOST:-localhost}
+      # Database
+      DATABASE_HOST: ${DATABASE_HOST:-postgres}
       DATABASE_PORT: ${DATABASE_PORT:-5432}
       DATABASE_USER: ${DATABASE_USER:-root}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-admin}
@@ -32,16 +32,16 @@ services:
       DATABASE_MAX_CONNS: ${DATABASE_MAX_CONNS:-25}
       DATABASE_MAX_IDLE: ${DATABASE_MAX_IDLE:-5}
 
-      # Redis (external - REQUIRED)
-      REDIS_HOST: ${REDIS_HOST:-localhost}
+      # Redis
+      REDIS_HOST: ${REDIS_HOST:-redis}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       REDIS_DB: ${REDIS_DB:-0}
       REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
 
-      # Kafka (external - OPTIONAL)
+      # Kafka (optional)
       KAFKA_ENABLED: ${KAFKA_ENABLED:-false}
-      KAFKA_BROKERS: ${KAFKA_BROKERS:-localhost:9092}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:9092}
       KAFKA_SASL_ENABLED: ${KAFKA_SASL_ENABLED:-false}
       KAFKA_SASL_MECHANISM: ${KAFKA_SASL_MECHANISM:-PLAIN}
       KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:-}
@@ -63,28 +63,28 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - testmesh
+      - local-infra
 
   # TestMesh Dashboard
   dashboard:
     image: testmesh/dashboard:latest
     build:
       context: ./dashboard
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: testmesh-dashboard
     ports:
       - "${DASHBOARD_PORT:-3000}:3000"
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5016}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:5016}
-      NODE_ENV: production
+      NODE_ENV: development
     depends_on:
       - api
     restart: unless-stopped
     networks:
-      - testmesh
+      - local-infra
 
 networks:
-  testmesh:
-    driver: bridge
-    name: testmesh-network
+  local-infra:
+    external: true
+    name: local-infra

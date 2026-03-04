@@ -121,6 +121,8 @@ func (e *Executor) executeStepsWithoutPersistence(ctx context.Context, steps []m
 		for key, path := range step.Output {
 			value := extractValue(result, path)
 			execCtx.SetStepOutput(stepID, key, value)
+			// Also store as flat variable so {{key}} works in subsequent steps
+			execCtx.Set(key, fmt.Sprintf("%v", value))
 		}
 	}
 	return nil
@@ -275,6 +277,8 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 		for key, path := range step.Output {
 			value := extractValue(result, path)
 			execCtx.SetStepOutput(stepID, key, value)
+			// Also store as flat variable so {{key}} works in subsequent steps
+			execCtx.Set(key, fmt.Sprintf("%v", value))
 		}
 	}
 
@@ -404,7 +408,7 @@ func (e *Executor) executeStepWithDebug(ctx context.Context, step *models.Step, 
 
 	// Run assertions if any
 	if len(step.Assert) > 0 {
-		evaluator := assertions.NewEvaluator(result)
+		evaluator := assertions.NewEvaluatorWithVars(result, execCtx.variables)
 		if err := evaluator.Evaluate(step.Assert); err != nil {
 			assertErr := fmt.Errorf("assertion failed: %w", err)
 			e.notifyDebugAfterStep(executionID, step.ID, result, assertErr, time.Since(startTime))
@@ -542,7 +546,7 @@ func extractValue(result models.OutputData, path string) interface{} {
 	// Try JSONPath extraction (works for HTTP steps with body)
 	evaluator := assertions.NewEvaluator(result)
 	value, err := evaluator.EvaluateJSONPath(path)
-	if err == nil {
+	if err == nil && value != nil {
 		return value
 	}
 
@@ -556,7 +560,13 @@ func extractValue(result models.OutputData, path string) interface{} {
 }
 
 // extractDotPath traverses a nested map using dot-separated path segments.
+// Strips leading "$." or "$" prefix (JSONPath root notation).
 func extractDotPath(data map[string]interface{}, path string) interface{} {
+	path = strings.TrimPrefix(path, "$.")
+	path = strings.TrimPrefix(path, "$")
+	if path == "" {
+		return data
+	}
 	parts := strings.SplitN(path, ".", 2)
 	val, ok := data[parts[0]]
 	if !ok || val == nil {

@@ -428,7 +428,7 @@ See [docs/architecture/ARCHITECTURE.md](./docs/architecture/ARCHITECTURE.md) for
 - **[More...](./docs/README.md)** - Full documentation index
 
 ### Microservices Demo
-- **[services/README.md](./services/README.md)** - Demo microservices architecture guide
+- **[services/README.md](./demo-services/README.md)** - Demo microservices architecture guide
 - Complete e-commerce example with User, Product, Order, and Notification services
 - Shows HTTP, Kafka, Redis, and PostgreSQL integration patterns
 

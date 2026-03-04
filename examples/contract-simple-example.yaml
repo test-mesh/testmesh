@@ -60,7 +60,7 @@ steps:
         Accept: application/json
     assert:
       - status == 200
-      - body.users != null
+      - body.users != nil
     output:
       first_user_id: $.body.users[0].id
 
@@ -75,7 +75,7 @@ steps:
     assert:
       - status == 200
       - body.id == 1
-      - body.name != null
+      - body.name != nil
 
   - id: create_user
     action: http_request

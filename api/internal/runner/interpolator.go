@@ -182,12 +182,12 @@ func (i *Interpolator) navigateNestedValue(value interface{}, path []string) int
 func (i *Interpolator) replaceContextVariables(input string) string {
 	result := input
 
-	// Pattern to match ${VAR_NAME}
-	dollarPattern := regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)\}`)
+	// Pattern to match ${VAR_NAME} (case-insensitive variable names)
+	dollarPattern := regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
 	result = i.replaceVarWithPattern(result, dollarPattern)
 
-	// Pattern to match {{VAR_NAME}}
-	bracePattern := regexp.MustCompile(`\{\{([A-Z_][A-Z0-9_]*)\}\}`)
+	// Pattern to match {{VAR_NAME}} (case-insensitive variable names, no dot = not a step output)
+	bracePattern := regexp.MustCompile(`\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}`)
 	result = i.replaceVarWithPattern(result, bracePattern)
 
 	return result

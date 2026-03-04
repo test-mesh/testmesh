@@ -58,7 +58,7 @@ export default function FlowConfigDialog({
   onOpenChange,
 }: FlowConfigDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [localDefinition, setLocalDefinition] = useState<FlowDefinition>(definition);
+  const [localDefinition, setLocalDefinition] = useState<FlowDefinition>({ ...definition, tags: definition.tags ?? [] });
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
   const [tagInput, setTagInput] = useState('');
 
@@ -77,7 +77,7 @@ export default function FlowConfigDialog({
     } else {
       setEnvVars([]);
     }
-    setLocalDefinition(definition);
+    setLocalDefinition({ ...definition, tags: definition.tags ?? [] });
   }, [definition, open]);
 
   const handleSave = () => {
@@ -99,7 +99,7 @@ export default function FlowConfigDialog({
   };
 
   const handleCancel = () => {
-    setLocalDefinition(definition);
+    setLocalDefinition({ ...definition, tags: definition.tags ?? [] });
     setOpen(false);
   };
 

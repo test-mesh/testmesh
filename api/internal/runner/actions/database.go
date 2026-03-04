@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/georgi-georgiev/testmesh/internal/storage/models"
@@ -149,9 +150,23 @@ func (h *DatabaseHandler) executeSelect(db *gorm.DB, query string, params []inte
 		for i, col := range columns {
 			val := values[i]
 
-			// Convert byte arrays to strings
-			if b, ok := val.([]byte); ok {
-				val = string(b)
+			// Normalize DB values: byte slices and strings that look numeric
+			// get converted to int64 or float64 for use in assertions.
+			var s string
+			switch v := val.(type) {
+			case []byte:
+				s = string(v)
+			case string:
+				s = v
+			}
+			if s != "" {
+				if i64, err := strconv.ParseInt(s, 10, 64); err == nil {
+					val = i64
+				} else if f64, err := strconv.ParseFloat(s, 64); err == nil {
+					val = f64
+				} else {
+					val = s
+				}
 			}
 
 			row[col] = val

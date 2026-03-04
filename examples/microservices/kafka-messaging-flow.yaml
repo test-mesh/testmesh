@@ -1,192 +1,198 @@
-name: "Kafka Event Streaming Flow"
-description: "Test Kafka pub/sub patterns across microservices"
+flow:
+  name: "Kafka Event Streaming Flow"
+  description: "Test Kafka pub/sub patterns across microservices"
 
-steps:
-  # Step 1: Create a user and capture event
-  - id: create_user
-    action: http_request
-    config:
-      method: POST
-      url: "http://localhost:5001/api/v1/users"
-      headers:
-        Content-Type: application/json
-      body:
-        name: "Bob Johnson"
-        email: "bob@example.com"
-    assert:
-      - status == 201
-    output:
-      user_id: $.body.id
+  steps:
+    # Step 1: Create a user and capture event
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Bob Johnson"
+          email: "bob@example.com"
+      assert:
+        - status == 201
+      output:
+        user_id: $.body.id
 
-  # Step 2: Consume user.created event
-  - id: consume_user_created
-    action: kafka_consumer
-    config:
-      brokers: "localhost:9093"
-      topic: user.created
-      group_id: testmesh-kafka-test
-      timeout: 10s
-    assert:
-      - messages.length > 0
-      - messages[0].value.event_type == "user.created"
-      - messages[0].value.user_id == user_id
-      - messages[0].value.email == "bob@example.com"
-      - messages[0].value.name == "Bob Johnson"
+    # Step 2: Consume user.created event
+    - id: consume_user_created
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9092"
+        topic: user.created
+        group_id: testmesh-kafka-test
+        timeout: 10s
+        from_beginning: true
+      assert:
+        - len(messages) > 0
+        - messages[0].value.event_type == "user.created"
+        - messages[0].value.user_id == user_id
+        - messages[0].value.email == "bob@example.com"
+        - messages[0].value.name == "Bob Johnson"
 
-  # Step 3: Login to trigger user.login event
-  - id: login
-    action: http_request
-    config:
-      method: POST
-      url: "http://localhost:5001/api/v1/auth/login"
-      headers:
-        Content-Type: application/json
-      body:
-        email: "bob@example.com"
-    assert:
-      - status == 200
+    # Step 3: Login to trigger user.login event
+    - id: login
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/api/v1/auth/login"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "bob@example.com"
+      assert:
+        - status == 200
 
-  # Step 4: Consume user.login event
-  - id: consume_user_login
-    action: kafka_consumer
-    config:
-      brokers: "localhost:9093"
-      topic: user.login
-      group_id: testmesh-kafka-test
-      timeout: 10s
-    assert:
-      - messages.length > 0
-      - messages[0].value.event_type == "user.login"
-      - messages[0].value.user_id == user_id
+    # Step 4: Consume user.login event
+    - id: consume_user_login
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9092"
+        topic: user.login
+        group_id: testmesh-kafka-test
+        timeout: 10s
+        from_beginning: true
+      assert:
+        - len(messages) > 0
+        - messages[0].value.event_type == "user.login"
+        - messages[0].value.user_id == user_id
 
-  # Step 5: Create a product
-  - id: create_product
-    action: http_request
-    config:
-      method: POST
-      url: "http://localhost:5002/api/v1/products"
-      headers:
-        Content-Type: application/json
-      body:
-        name: "Mechanical Keyboard"
-        price: 149.99
-        inventory: 75
-    assert:
-      - status == 201
-    output:
-      product_id: $.body.id
+    # Step 5: Create a product
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5002/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Mechanical Keyboard"
+          price: 149.99
+          inventory: 75
+      assert:
+        - status == 201
+      output:
+        product_id: $.body.id
 
-  # Step 6: Consume product.created event
-  - id: consume_product_created
-    action: kafka_consumer
-    config:
-      brokers: "localhost:9093"
-      topic: product.created
-      group_id: testmesh-kafka-test
-      timeout: 10s
-    assert:
-      - messages.length > 0
-      - messages[0].value.event_type == "product.created"
-      - messages[0].value.product_id == product_id
-      - messages[0].value.name == "Mechanical Keyboard"
-      - messages[0].value.price == 149.99
+    # Step 6: Consume product.created event
+    - id: consume_product_created
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9092"
+        topic: product.created
+        group_id: testmesh-kafka-test
+        timeout: 10s
+        from_beginning: true
+      assert:
+        - len(messages) > 0
+        - messages[0].value.event_type == "product.created"
+        - messages[0].value.product_id == product_id
+        - messages[0].value.name == "Mechanical Keyboard"
+        - messages[0].value.price == 149.99
 
-  # Step 7: Update product inventory
-  - id: update_inventory
-    action: http_request
-    config:
-      method: PUT
-      url: "http://localhost:5002/api/v1/products/{{product_id}}/inventory"
-      headers:
-        Content-Type: application/json
-      body:
-        inventory: 60
-    assert:
-      - status == 200
+    # Step 7: Update product inventory
+    - id: update_inventory
+      action: http_request
+      config:
+        method: PUT
+        url: "http://localhost:5002/api/v1/products/{{product_id}}/inventory"
+        headers:
+          Content-Type: application/json
+        body:
+          inventory: 60
+      assert:
+        - status == 200
 
-  # Step 8: Consume product.inventory.changed event
-  - id: consume_inventory_changed
-    action: kafka_consumer
-    config:
-      brokers: "localhost:9093"
-      topic: product.inventory.changed
-      group_id: testmesh-kafka-test
-      timeout: 10s
-    assert:
-      - messages.length > 0
-      - messages[0].value.event_type == "product.inventory.changed"
-      - messages[0].value.product_id == product_id
-      - messages[0].value.old_inventory == 75
-      - messages[0].value.new_inventory == 60
+    # Step 8: Consume product.inventory.changed event
+    - id: consume_inventory_changed
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9092"
+        topic: product.inventory.changed
+        group_id: testmesh-kafka-test
+        timeout: 10s
+        from_beginning: true
+      assert:
+        - len(messages) > 0
+        - messages[0].value.event_type == "product.inventory.changed"
+        - messages[0].value.product_id == product_id
+        - messages[0].value.old_inventory == 75
+        - messages[0].value.new_inventory == 60
 
-  # Step 9: Create an order
-  - id: create_order
-    action: http_request
-    config:
-      method: POST
-      url: "http://localhost:5003/api/v1/orders"
-      headers:
-        Content-Type: application/json
-      body:
-        user_id: "{{user_id}}"
-        items:
-          - product_id: "{{product_id}}"
-            quantity: 3
-    assert:
-      - status == 201
-    output:
-      order_id: $.body.id
+    # Step 9: Create an order
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5003/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 3
+      assert:
+        - status == 201
+      output:
+        order_id: $.body.id
 
-  # Step 10: Consume order.placed event
-  - id: consume_order_placed
-    action: kafka_consumer
-    config:
-      brokers: "localhost:9093"
-      topic: order.placed
-      group_id: testmesh-kafka-test
-      timeout: 10s
-    assert:
-      - messages.length > 0
-      - messages[0].value.event_type == "order.placed"
-      - messages[0].value.order_id == order_id
-      - messages[0].value.user_id == user_id
-      - messages[0].value.items.length == 1
-      - messages[0].value.items[0].product_id == product_id
-      - messages[0].value.items[0].quantity == 3
+    # Step 10: Consume order.placed event
+    - id: consume_order_placed
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9092"
+        topic: order.placed
+        group_id: testmesh-kafka-test
+        timeout: 10s
+        from_beginning: true
+      assert:
+        - len(messages) > 0
+        - messages[0].value.event_type == "order.placed"
+        - messages[0].value.order_id == order_id
+        - messages[0].value.user_id == user_id
+        - len(messages[0].value.items) == 1
+        - messages[0].value.items[0].product_id == product_id
+        - messages[0].value.items[0].quantity == 3
 
-  # Step 11: Wait for notification service to consume events
-  - id: wait_for_notifications
-    action: wait
-    config:
-      duration: 3s
+    # Step 11: Wait for notification service to consume events
+    - id: wait_for_notifications
+      action: delay
+      config:
+        duration: 3s
 
-  # Step 12: Verify notifications were created via event consumption
-  - id: verify_notifications
-    action: database_query
-    config:
-      connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
-      query: "SELECT * FROM notification_service.notifications WHERE user_id = $1 ORDER BY created_at"
-      params: ["{{user_id}}"]
-    assert:
-      - row_count >= 2
-      # Welcome notification from user.created event
-      - rows[0].type == "user.created"
-      # Order confirmation from order.placed event
-      - rows[1].type == "order.placed"
+    # Step 12: Verify notifications were created via event consumption
+    - id: verify_notifications
+      action: database_query
+      config:
+        connection: "postgresql://root:admin@localhost:5432/postgres"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = $1 ORDER BY created_at"
+        params: ["{{user_id}}"]
+      assert:
+        - row_count >= 2
+        # Welcome notification from user.created event
+        - rows[0].type == "user.created"
+        # Order confirmation from order.placed event
+        - rows[1].type == "order.placed"
 
-  # Step 13: Wait for product service to consume order.placed event
-  - id: wait_for_inventory_update
-    action: wait
-    config:
-      duration: 2s
+    # Step 13: Wait for product service to consume order.placed event
+    - id: wait_for_inventory_update
+      action: delay
+      config:
+        duration: 2s
 
-  # Step 14: Verify inventory was decreased by product service consumer
-  - id: verify_inventory_consumed
-    action: database_query
-    config:
-      connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
-      query: "SELECT inventory FROM product_service.products WHERE id = $1"
-      params: ["{{product_id}}"]
-    assert:
-      - row_count == 1
-      - rows[0].inventory == 57  # Started 60, ordered 3
+    # Step 14: Verify inventory was decreased by product service consumer
+    - id: verify_inventory_consumed
+      action: database_query
+      config:
+        connection: "postgresql://root:admin@localhost:5432/postgres"
+        query: "SELECT inventory FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].inventory == 57  # Started 60, ordered 3

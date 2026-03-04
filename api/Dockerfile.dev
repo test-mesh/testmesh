@@ -1,7 +1,7 @@
-FROM golang:1.21-alpine
+FROM golang:1.24-alpine
 
-# Install air for hot reload
-RUN go install github.com/cosmtrek/air@latest
+# Install build tools
+RUN apk add --no-cache git
 
 # Set working directory
 WORKDIR /app
@@ -15,8 +15,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Build binary
+RUN go build -o testmesh-api .
+
 # Expose port
 EXPOSE 5016
 
-# Run with air for hot reload
-CMD ["air", "-c", ".air.toml"]
+# Run binary
+CMD ["./testmesh-api"]

@@ -24,7 +24,7 @@ steps:
         Accept: application/json
     assert:
       - status == 200
-      - body.users != null
+      - body.users != nil
     output:
       first_user_id: $.body.users[0].id
 
@@ -39,8 +39,8 @@ steps:
     assert:
       - status == 200
       - body.id == first_user_id
-      - body.name != null
-      - body.email != null
+      - body.name != nil
+      - body.email != nil
 
   - id: create_user
     action: http_request
@@ -56,7 +56,7 @@ steps:
         email: alice.smith@example.com
     assert:
       - status == 201
-      - body.id != null
+      - body.id != nil
       - body.name == "Alice Smith"
       - body.email == "alice.smith@example.com"
     output:

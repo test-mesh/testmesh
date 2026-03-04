@@ -27,7 +27,7 @@ testmesh/
 │   └── cmd/          # Commands: run, debug, generate, watch, etc.
 ├── dashboard/        # Next.js frontend (port 3000)
 ├── web/              # Documentation site (port 3001)
-├── services/         # Demo microservices for testing
+├── demo-services/    # Demo microservices for testing
 │   ├── user-service/
 │   ├── product-service/
 │   ├── order-service/
@@ -209,7 +209,7 @@ Each action handler expects specific config structure:
 
 ### Microservices Architecture
 
-The demo microservices (`services/`) follow consistent patterns:
+The demo microservices (`demo-services/`) follow consistent patterns:
 
 **Database**: Each service has its own PostgreSQL schema (e.g., `user_service.users`)
 ```go
@@ -329,7 +329,7 @@ KAFKA_TLS_ENABLED=true
 - `docs/architecture/ARCHITECTURE.md` - Complete system design
 - `docs/features/YAML_SCHEMA.md` - Flow definition specification
 - `docs/deployment/EXTERNAL_SERVICES.md` - External PostgreSQL/Redis/Kafka configuration
-- `services/README.md` - Microservices architecture guide
+- `demo-services/README.md` - Microservices architecture guide
 
 ## Testing Approach
 
@@ -376,7 +376,7 @@ TestMesh integrates with AI via Model Context Protocol:
 5. Document in `docs/features/YAML_SCHEMA.md`
 
 **Adding a New Microservice**:
-1. Copy structure from existing service (e.g., `services/user-service/`)
+1. Copy structure from existing service (e.g., `demo-services/user-service/`)
 2. Update `docker-compose.yml` with new service
 3. Use unique port and database schema
 4. Follow naming: `{service}-service` container, `{service}_service` schema

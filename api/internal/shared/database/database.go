@@ -1,17 +1,50 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/georgi-georgiev/testmesh/internal/shared/config"
+	_ "github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-// New creates a new database connection
+// ensureDatabase connects to the default "postgres" database and creates the
+// target database if it does not exist yet.
+func ensureDatabase(cfg config.DatabaseConfig) error {
+	dsn := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.SSLMode,
+	)
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return fmt.Errorf("failed to connect to postgres: %w", err)
+	}
+	defer db.Close()
+
+	var exists bool
+	err = db.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", cfg.DBName).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("failed to check database existence: %w", err)
+	}
+	if !exists {
+		if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %q", cfg.DBName)); err != nil {
+			return fmt.Errorf("failed to create database %q: %w", cfg.DBName, err)
+		}
+		fmt.Printf("Created database %q\n", cfg.DBName)
+	}
+	return nil
+}
+
+// New creates a new database connection, auto-creating the database if it doesn't exist.
 func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
+	if err := ensureDatabase(cfg); err != nil {
+		return nil, err
+	}
+
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
