@@ -1,0 +1,79 @@
+name: "Place Order Flow"
+description: "Login, create order via Order Service mock, pay via Payment Service mock, verify in Postgres"
+suite: "e-commerce"
+tags: [critical, integration]
+collection: "E-commerce Flows"
+steps:
+  - id: login
+    action: http_request
+    name: "POST /api/login — Get auth token"
+    config:
+      method: POST
+      url: "${USER_SERVICE_URL}/api/login"
+      headers:
+        Content-Type: application/json
+      body:
+        email: "alice@example.com"
+        password: "secret123"
+    assert:
+      - "status == 200"
+    output:
+      token: "login.body.token"
+      user_id: "login.body.user_id"
+
+  - id: create_order
+    action: http_request
+    name: "POST /api/orders — Create order"
+    config:
+      method: POST
+      url: "${ORDER_SERVICE_URL}/api/orders"
+      headers:
+        Content-Type: application/json
+        Authorization: "Bearer ${login.body.token}"
+      body:
+        user_id: "${login.body.user_id}"
+        items:
+          - sku: "PROD-001"
+            qty: 2
+            price: 49.99
+        total: 99.98
+    assert:
+      - "status == 201"
+    output:
+      order_id: "create_order.body.id"
+
+  - id: pay
+    action: http_request
+    name: "POST /api/payments — Process payment"
+    config:
+      method: POST
+      url: "${PAYMENT_SERVICE_URL}/api/payments"
+      headers:
+        Content-Type: application/json
+        Authorization: "Bearer ${login.body.token}"
+      body:
+        order_id: "${create_order.body.id}"
+        amount: 99.98
+        currency: USD
+        method: card
+    assert:
+      - "status == 200"
+      - "body.status == 'succeeded'"
+    output:
+      payment_id: "pay.body.id"
+
+  - id: verify_order
+    action: database_query
+    name: "SELECT order count from Postgres"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT COUNT(*) AS cnt FROM orders WHERE external_id = $1"
+      params:
+        - "${create_order.body.id}"
+
+  - id: done
+    action: log
+    name: "Log order summary"
+    config:
+      message: "Order complete: order_id=${create_order.body.id} payment_id=${pay.body.id} status=${pay.body.status}"
+      level: info

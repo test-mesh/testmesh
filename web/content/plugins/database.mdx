@@ -1,0 +1,239 @@
+---
+title: Database Plugin
+description: Query and manage databases from your test flows.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+The Database plugin allows TestMesh to connect to and query various database systems.
+
+## Supported Databases
+
+- PostgreSQL
+- MySQL / MariaDB
+- SQLite
+- Microsoft SQL Server
+
+## Installation
+
+```bash
+testmesh plugin install @testmesh/plugin-database
+```
+
+## Connection Setup
+
+Create a database connection in **Settings > Connections**:
+
+<Tabs items={["PostgreSQL", "MySQL", "SQLite"]}>
+  <Tab value="PostgreSQL">
+    | Field | Description |
+    |-------|-------------|
+    | **Host** | Database server address |
+    | **Port** | Connection port (default: 5432) |
+    | **Database** | Database name |
+    | **Username** | Database user |
+    | **Password** | User password |
+    | **SSL Mode** | SSL connection mode |
+
+    ```json
+    {
+      "type": "postgresql",
+      "host": "localhost",
+      "port": 5432,
+      "database": "testmesh",
+      "username": "postgres",
+      "password": "secret",
+      "ssl": "prefer"
+    }
+    ```
+  </Tab>
+  <Tab value="MySQL">
+    | Field | Description |
+    |-------|-------------|
+    | **Host** | Database server address |
+    | **Port** | Connection port (default: 3306) |
+    | **Database** | Database name |
+    | **Username** | Database user |
+    | **Password** | User password |
+
+    ```json
+    {
+      "type": "mysql",
+      "host": "localhost",
+      "port": 3306,
+      "database": "testmesh",
+      "username": "root",
+      "password": "secret"
+    }
+    ```
+  </Tab>
+  <Tab value="SQLite">
+    | Field | Description |
+    |-------|-------------|
+    | **Path** | Path to SQLite file |
+
+    ```json
+    {
+      "type": "sqlite",
+      "path": "/data/test.db"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Actions
+
+### Query
+
+Executes a SQL query and returns results.
+
+**Inputs:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | Yes | SQL query to execute |
+| `params` | array | No | Query parameters (for prepared statements) |
+
+**Example:**
+
+```sql
+SELECT * FROM users WHERE status = $1 AND created_at > $2
+```
+
+With parameters: `["active", "2024-01-01"]`
+
+**Output:**
+
+```typescript
+declare const $dbQuery: {
+  rows: Array<Record<string, unknown>>;
+  rowCount: number;
+  fields: Array<{ name: string; type: string }>;
+};
+// ---cut---
+const result = $dbQuery;
+// {
+//   rows: [{ id: 1, name: "John", email: "john@example.com" }],
+//   rowCount: 1,
+//   fields: [{ name: "id", type: "integer" }, ...]
+// }
+```
+
+<Callout type="warn">
+  Always use parameterized queries to prevent SQL injection. Never interpolate user input directly into SQL strings.
+</Callout>
+
+### Execute
+
+Executes a SQL statement (INSERT, UPDATE, DELETE) without returning rows.
+
+**Inputs:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `query` | string | Yes | SQL statement |
+| `params` | array | No | Query parameters |
+
+**Output:**
+
+```typescript
+{
+  affectedRows: number;
+  insertId?: number;  // For INSERT with auto-increment
+}
+```
+
+### Transaction
+
+Executes multiple queries in a transaction.
+
+**Inputs:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `queries` | array | Yes | Array of query objects |
+
+**Example:**
+
+```json
+{
+  "queries": [
+    { "query": "UPDATE accounts SET balance = balance - $1 WHERE id = $2", "params": [100, 1] },
+    { "query": "UPDATE accounts SET balance = balance + $1 WHERE id = $2", "params": [100, 2] },
+    { "query": "INSERT INTO transfers (from_id, to_id, amount) VALUES ($1, $2, $3)", "params": [1, 2, 100] }
+  ]
+}
+```
+
+All queries succeed or all are rolled back.
+
+## Common Patterns
+
+### Verify Data Exists
+
+```typescript
+declare const $checkUser: { rowCount: number };
+// ---cut---
+// Query node checks for user
+// Assertion node verifies
+const assertion = $checkUser.rowCount > 0;  // "User should exist"
+```
+
+### Setup Test Data
+
+Use the transaction action in a setup flow:
+
+```json
+{
+  "queries": [
+    { "query": "DELETE FROM test_data WHERE test_id = $1", "params": ["test-123"] },
+    { "query": "INSERT INTO test_data (test_id, value) VALUES ($1, $2)", "params": ["test-123", "initial"] }
+  ]
+}
+```
+
+### Compare Before/After
+
+```
+[Query: Get Initial State]
+    ↓
+[Action: Perform Change]
+    ↓
+[Query: Get Final State]
+    ↓
+[Script: Compare]
+    ↓
+[Assert: Verify Changes]
+```
+
+## Best Practices
+
+1. **Use read-only connections for tests** - Create a read-only database user when you only need to verify data
+
+2. **Clean up test data** - Use transactions to create and clean up test data atomically
+
+3. **Avoid production databases** - Point test connections at staging or dedicated test databases
+
+4. **Use connection pooling** - The plugin uses connection pools automatically; configure pool size in advanced settings
+
+5. **Monitor query performance** - Enable query logging to identify slow queries in your test flows
+
+## Troubleshooting
+
+### Connection Timeout
+
+- Verify the database is reachable from TestMesh
+- Check firewall rules
+- Ensure connection string is correct
+
+### Permission Denied
+
+- Verify the database user has required permissions
+- Check table-level grants for SELECT/INSERT/UPDATE/DELETE
+
+### Query Errors
+
+- Test queries directly in a database client first
+- Check parameter types match column types
+- Review server logs for detailed error messages

@@ -1,0 +1,199 @@
+---
+title: Flows API
+description: Create, manage, and run test flows via the API.
+---
+
+## List Flows
+
+```http
+GET /api/flows
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `page` | integer | Page number |
+| `perPage` | integer | Items per page (max 100) |
+| `search` | string | Search by name |
+| `sort` | string | Sort field (prefix `-` for descending) |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "flow_abc123",
+      "name": "API Health Check",
+      "description": "Verifies API endpoints are responding",
+      "status": "active",
+      "nodeCount": 5,
+      "lastRun": "2024-01-15T10:30:00Z",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-15T10:30:00Z"
+    }
+  ],
+  "meta": {
+    "total": 50,
+    "page": 1,
+    "perPage": 20
+  }
+}
+```
+
+## Get Flow
+
+```http
+GET /api/flows/:id
+```
+
+### Response
+
+```json
+{
+  "data": {
+    "id": "flow_abc123",
+    "name": "API Health Check",
+    "description": "Verifies API endpoints are responding",
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "trigger:manual",
+        "position": { "x": 100, "y": 100 },
+        "data": {}
+      },
+      {
+        "id": "http_1",
+        "type": "action:http",
+        "position": { "x": 300, "y": 100 },
+        "data": {
+          "method": "GET",
+          "url": "https://api.example.com/health"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge_1",
+        "source": "trigger_1",
+        "target": "http_1"
+      }
+    ],
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+## Create Flow
+
+```http
+POST /api/flows
+```
+
+### Request Body
+
+```json
+{
+  "name": "My New Flow",
+  "description": "Optional description",
+  "nodes": [
+    {
+      "id": "trigger_1",
+      "type": "trigger:manual",
+      "position": { "x": 100, "y": 100 },
+      "data": {}
+    }
+  ],
+  "edges": []
+}
+```
+
+### Response
+
+```json
+{
+  "data": {
+    "id": "flow_xyz789",
+    "name": "My New Flow",
+    ...
+  }
+}
+```
+
+## Update Flow
+
+```http
+PATCH /api/flows/:id
+```
+
+### Request Body
+
+```json
+{
+  "name": "Updated Name",
+  "nodes": [ ... ],
+  "edges": [ ... ]
+}
+```
+
+## Delete Flow
+
+```http
+DELETE /api/flows/:id
+```
+
+Returns `204 No Content` on success.
+
+## Run Flow
+
+```http
+POST /api/flows/:id/run
+```
+
+### Request Body
+
+```json
+{
+  "parameters": {
+    "userId": "user_123",
+    "environment": "staging"
+  },
+  "async": true
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `parameters` | object | `{}` | Input parameters for the flow |
+| `async` | boolean | `true` | Return immediately or wait for completion |
+
+### Response
+
+```json
+{
+  "data": {
+    "executionId": "exec_abc123",
+    "flowId": "flow_xyz789",
+    "status": "running",
+    "startedAt": "2024-01-15T10:30:00Z"
+  }
+}
+```
+
+## Duplicate Flow
+
+```http
+POST /api/flows/:id/duplicate
+```
+
+### Request Body
+
+```json
+{
+  "name": "Copy of My Flow"
+}
+```
+
+Creates a copy of the flow with a new ID and the specified name.

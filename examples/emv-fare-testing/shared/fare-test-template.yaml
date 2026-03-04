@@ -1,0 +1,141 @@
+flow:
+  name: "Fare Test Template"
+  description: "Reusable sub-flow for testing fare calculation scenarios"
+
+  # This flow expects input variables from parent flow
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+
+  steps:
+    # Clean previous test data for this card
+    - id: cleanup_previous
+      name: "Cleanup Previous Test Data"
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+        params: ["${input.pan}"]
+
+    # Send tap events
+    - id: send_taps
+      name: "Send Tap Events"
+      action: for_each
+      config:
+        range:
+          start: 1
+          end: "${input.taps}"
+        item_name: "tap_num"
+
+        steps:
+          # Determine tap type (alternating entry/exit)
+          - id: send_tap
+            action: kafka_publish
+            config:
+              brokers: ["${KAFKA_BROKERS}"]
+              topic: "matches"
+              key: "${input.pan}"
+              value:
+                pan: "${input.pan}"
+                timestamp: "${TIMESTAMP}"
+                tap_number: "${tap_num}"
+                tap_type: "${tap_num % 2 == 1 ? 'entry' : 'exit'}"
+                station_id: "STATION_${tap_num}"
+                vehicle_id: "VEHICLE_${tap_num}"
+                product_id: "${input.product_id}"
+                batch_type: "${input.batch_type}"
+                transaction_id: "${RANDOM_ID}"
+
+          # Delay between taps if specified
+          - id: delay_between_taps
+            action: delay
+            when: "${tap_num < input.taps}"
+            config:
+              duration: "1s"
+
+    # Wait for all fares to be calculated
+    - id: wait_for_fares
+      name: "Wait for Fare Calculations"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 30s
+        max_messages: "${input.taps}"
+        match:
+          json_path:
+            - "$.pan == '${input.pan}'"
+
+    # Query final fare results from database
+    - id: query_fare_results
+      name: "Query Fare Results"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            SUM(amount) as total_amount,
+            COUNT(*) as tap_count,
+            MAX(rule) as applied_rule,
+            MAX(product_id) as product_id,
+            BOOL_OR(cap_reached) as cap_reached,
+            MAX(created_at) as last_transaction
+          FROM emv_sales
+          WHERE pan = $1
+          AND created_at >= CURRENT_DATE
+        params: ["${input.pan}"]
+        poll:
+          enabled: true
+          timeout: 20s
+          interval: 2s
+      output:
+        actual_fare: "$.rows[0].total_amount"
+        actual_tap_count: "$.rows[0].tap_count"
+        fare_rule: "$.rows[0].applied_rule"
+        product_id: "$.rows[0].product_id"
+
+    # Verify results match expected
+    - id: verify_fare_amount
+      name: "Verify Fare Amount"
+      action: assert
+      config:
+        assertions:
+          - expression: "${query_fare_results.actual_fare} == ${input.expected_fare}"
+            message: "Expected fare ${input.expected_fare}, got ${query_fare_results.actual_fare}"
+
+    - id: verify_fare_rule
+      name: "Verify Fare Rule"
+      action: assert
+      config:
+        assertions:
+          - expression: "${query_fare_results.fare_rule} == '${input.fare_rule}'"
+            message: "Expected rule '${input.fare_rule}', got '${query_fare_results.fare_rule}'"
+
+    - id: verify_tap_count
+      name: "Verify Tap Count"
+      action: assert
+      config:
+        assertions:
+          - expression: "${query_fare_results.actual_tap_count} == ${input.taps}"
+            message: "Expected ${input.taps} taps, got ${query_fare_results.actual_tap_count}"
+
+  output:
+    # Return results to parent flow
+    actual_fare: "${query_fare_results.actual_fare}"
+    fare_rule: "${query_fare_results.fare_rule}"
+    tap_count: "${query_fare_results.actual_tap_count}"
+    success: true
+
+  teardown:
+    - id: cleanup
+      name: "Cleanup Test Data"
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+        params: ["${input.pan}"]
+      on_error: "continue"
+
+  config:
+    timeout: "5m"

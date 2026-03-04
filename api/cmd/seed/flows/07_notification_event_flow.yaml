@@ -1,0 +1,83 @@
+name: "Notification Event Flow"
+description: "Create an order then send email and SMS via Notification Service mock, audit in Postgres"
+suite: "integration"
+tags: [notifications, integration]
+collection: ""
+steps:
+  - id: create_order
+    action: http_request
+    name: "POST /api/orders — Create order"
+    config:
+      method: POST
+      url: "${ORDER_SERVICE_URL}/api/orders"
+      headers:
+        Content-Type: application/json
+      body:
+        user_id: "user-001"
+        total: 59.99
+    assert:
+      - "status == 201"
+    output:
+      order_id: "create_order.body.id"
+
+  - id: send_email
+    action: http_request
+    name: "POST /api/notifications/email — Send confirmation"
+    config:
+      method: POST
+      url: "${NOTIFICATION_SERVICE_URL}/api/notifications/email"
+      headers:
+        Content-Type: application/json
+      body:
+        to: "alice@example.com"
+        subject: "Order ${create_order.body.id} Confirmed"
+        body: "Your order has been placed."
+    assert:
+      - "status == 202"
+    output:
+      email_msg_id: "send_email.body.message_id"
+
+  - id: send_sms
+    action: http_request
+    name: "POST /api/notifications/sms — Send SMS"
+    config:
+      method: POST
+      url: "${NOTIFICATION_SERVICE_URL}/api/notifications/sms"
+      headers:
+        Content-Type: application/json
+      body:
+        to: "+1234567890"
+        body: "Order confirmed: ${create_order.body.id}"
+    assert:
+      - "status == 202"
+    output:
+      sms_msg_id: "send_sms.body.message_id"
+
+  - id: audit
+    action: database_query
+    name: "INSERT notification audit to Postgres"
+    config:
+      connection: "${DB_DSN}"
+      query: "INSERT INTO notification_log (order_id, email_id, sms_id, sent_at) VALUES ($1, $2, $3, NOW()) ON CONFLICT DO NOTHING"
+      params:
+        - "${create_order.body.id}"
+        - "${send_email.body.message_id}"
+        - "${send_sms.body.message_id}"
+
+  - id: assert_sent
+    action: assert
+    name: "Assert notifications delivered"
+    config:
+      data:
+        email_status: "${send_email.status}"
+        sms_status: "${send_sms.status}"
+      assertions:
+        - "email_status == '202'"
+        - "sms_status == '202'"
+
+  - id: done
+    action: log
+    name: "Log notification result"
+    config:
+      message: "Notifications sent: order=${create_order.body.id} email=${send_email.body.message_id} sms=${send_sms.body.message_id}"
+      level: info

@@ -1,0 +1,10 @@
+{
+  "id": "scraper",
+  "name": "Web Scraper Plugin",
+  "version": "1.0.0",
+  "description": "HTML parsing and web scraping using cheerio - extract data from HTML responses",
+  "author": "TestMesh",
+  "type": "action",
+  "entry_point": "plugin.js",
+  "permissions": ["network"]
+}

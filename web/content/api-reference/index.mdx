@@ -1,0 +1,138 @@
+---
+title: API Overview
+description: REST API reference for TestMesh.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+TestMesh provides a REST API for programmatic access to all features. The API is designed to be intuitive and follows REST conventions.
+
+## Base URL
+
+```
+http://localhost:8080/api
+```
+
+For production deployments, replace with your TestMesh server URL.
+
+## Authentication
+
+All API requests require authentication using an API key:
+
+```bash
+curl -H "Authorization: Bearer tm_your_api_key" \
+  http://localhost:8080/api/flows
+```
+
+<Callout type="warn">
+  Keep your API keys secure. Never expose them in client-side code or public repositories.
+</Callout>
+
+### Creating API Keys
+
+1. Navigate to **Settings > API Keys** in the web UI
+2. Click **Create New Key**
+3. Give your key a descriptive name
+4. Copy the key immediately (it won't be shown again)
+
+## Request Format
+
+- All request bodies should be JSON with `Content-Type: application/json`
+- Query parameters use standard URL encoding
+- Dates are ISO 8601 format (`2024-01-15T09:30:00Z`)
+
+## Response Format
+
+All responses follow a consistent structure:
+
+```json
+// Success response
+{
+  "data": { ... },
+  "meta": {
+    "requestId": "req_abc123"
+  }
+}
+
+// List response with pagination
+{
+  "data": [ ... ],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "perPage": 20,
+    "requestId": "req_abc123"
+  }
+}
+
+// Error response
+{
+  "error": {
+    "code": "not_found",
+    "message": "Flow not found",
+    "details": { ... }
+  },
+  "meta": {
+    "requestId": "req_abc123"
+  }
+}
+```
+
+## Status Codes
+
+| Code | Description |
+|------|-------------|
+| `200` | Success |
+| `201` | Created |
+| `204` | No Content (successful delete) |
+| `400` | Bad Request - Invalid parameters |
+| `401` | Unauthorized - Missing or invalid API key |
+| `403` | Forbidden - Insufficient permissions |
+| `404` | Not Found |
+| `409` | Conflict - Resource already exists |
+| `422` | Unprocessable Entity - Validation error |
+| `429` | Too Many Requests - Rate limited |
+| `500` | Internal Server Error |
+
+## Rate Limiting
+
+The API is rate limited to prevent abuse:
+
+- **Default**: 100 requests per minute per API key
+- **Burst**: Up to 20 requests per second
+
+Rate limit headers are included in all responses:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1705312800
+```
+
+## Pagination
+
+List endpoints support pagination:
+
+```bash
+GET /api/flows?page=2&perPage=50
+```
+
+| Parameter | Default | Max | Description |
+|-----------|---------|-----|-------------|
+| `page` | 1 | - | Page number (1-indexed) |
+| `perPage` | 20 | 100 | Items per page |
+
+## Filtering & Sorting
+
+Most list endpoints support filtering and sorting:
+
+```bash
+# Filter by status
+GET /api/executions?status=completed
+
+# Sort by creation date (descending)
+GET /api/flows?sort=-createdAt
+
+# Combine filters
+GET /api/executions?status=failed&flowId=flow_abc123&sort=-createdAt
+```

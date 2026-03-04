@@ -1,0 +1,104 @@
+flow:
+  name: "All Fare Scenarios - Data-Driven"
+  description: "Run multiple fare scenarios from JSON test data files"
+  suite: "comprehensive"
+  tags: ["data_driven", "all_scenarios", "regression"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+
+  # Load all test scenarios from JSON file
+  data_source:
+    type: "json"
+    file: "data/all_fare_scenarios.json"
+    # File contains array of test cases with different configurations
+
+  setup:
+    - id: setup_test_run
+      name: "Setup Test Run"
+      action: log
+      config:
+        message: "Starting data-driven fare calculation tests"
+        data:
+          execution_id: "${EXECUTION_ID}"
+          total_scenarios: "${data.length}"
+
+  steps:
+    # For each test scenario
+    - id: run_all_scenarios
+      name: "Execute All Test Scenarios"
+      action: for_each
+      config:
+        items: "${data}"
+        item_name: "scenario"
+        index_name: "scenario_index"
+
+        steps:
+          # Log scenario info
+          - id: log_scenario
+            action: log
+            config:
+              level: info
+              message: "Running scenario ${scenario_index}: ${scenario.name}"
+
+          # Run the fare test sub-flow
+          - id: execute_fare_test
+            action: run_flow
+            config:
+              flow: "fare-test-template"
+              input:
+                # Pass scenario data to sub-flow
+                test_name: "${scenario.name}"
+                pan: "${scenario.pan}"
+                taps: "${scenario.taps}"
+                expected_fare: "${scenario.expected_fare}"
+                intervals_minutes: "${scenario.intervals_minutes}"
+                product_id: "${scenario.product_id}"
+                batch_type: "${scenario.batch_type}"
+                fare_rule: "${scenario.expected_rule}"
+                stations: "${scenario.stations}"
+            output:
+              scenario_result: "flow.status"
+              actual_fare: "flow.output.actual_fare"
+              fare_rule: "flow.output.fare_rule"
+
+          # Verify scenario passed
+          - id: verify_scenario_passed
+            action: assert
+            config:
+              assertions:
+                - expression: "${execute_fare_test.scenario_result} == 'success'"
+                  message: "Scenario '${scenario.name}' failed"
+
+          # Log scenario result
+          - id: log_scenario_result
+            action: log
+            config:
+              level: info
+              message: "✓ Scenario ${scenario_index} passed: ${scenario.name}"
+              data:
+                expected_fare: "${scenario.expected_fare}"
+                actual_fare: "${execute_fare_test.actual_fare}"
+                rule: "${execute_fare_test.fare_rule}"
+
+    # Summary of all scenarios
+    - id: generate_summary
+      name: "Generate Test Summary"
+      action: log
+      config:
+        level: info
+        message: "All ${data.length} scenarios completed"
+
+  teardown:
+    - id: cleanup_all
+      name: "Cleanup All Test Data"
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan LIKE 'TEST_%';
+          DELETE FROM emv_sales WHERE pan LIKE 'TEST_%';
+      on_error: "continue"
+
+  config:
+    timeout: "30m"
+    fail_fast: false  # Continue even if one scenario fails

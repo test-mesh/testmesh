@@ -1,0 +1,149 @@
+flow:
+  name: "Fare Test Template V2"
+  description: "Accepts entire data object or file reference - no field mapping needed"
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+
+  steps:
+    # Load test data (if input_file is provided)
+    - id: load_test_data
+      name: "Load Test Data"
+      when: "${input_file exists}"
+      action: transform
+      config:
+        input_file: "${input_file}"
+      output:
+        test_data: "$"
+
+    # Use test data from input or loaded file
+    - id: set_test_params
+      name: "Set Test Parameters"
+      action: transform
+      config:
+        input: "${test_data exists ? test_data : input}"
+      output:
+        pan: "$.pan"
+        taps: "$.taps"
+        expected_fare: "$.expected_fare"
+        expected_rule: "$.expected_rule"
+        product_id: "$.product_id"
+        batch_type: "$.batch_type"
+
+    # Clean previous test data
+    - id: cleanup_previous
+      name: "Cleanup Previous Test Data"
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+        params: ["${set_test_params.pan}"]
+
+    # Send tap events
+    - id: send_taps
+      name: "Send Tap Events"
+      action: for_each
+      config:
+        range:
+          start: 1
+          end: "${set_test_params.taps}"
+        item_name: "tap_num"
+
+        steps:
+          - id: send_tap
+            action: kafka_publish
+            config:
+              brokers: ["${KAFKA_BROKERS}"]
+              topic: "matches"
+              key: "${set_test_params.pan}"
+              value:
+                # Access all fields from input automatically
+                pan: "${set_test_params.pan}"
+                timestamp: "${TIMESTAMP}"
+                tap_number: "${tap_num}"
+                tap_type: "${tap_num % 2 == 1 ? 'entry' : 'exit'}"
+                station_id: "STATION_${tap_num}"
+                vehicle_id: "VEHICLE_${tap_num}"
+                product_id: "${set_test_params.product_id}"
+                batch_type: "${set_test_params.batch_type}"
+                transaction_id: "${RANDOM_ID}"
+
+          - id: delay_between_taps
+            action: delay
+            when: "${tap_num < set_test_params.taps}"
+            config:
+              duration: "1s"
+
+    # Wait for fares
+    - id: wait_for_fares
+      name: "Wait for Fare Calculations"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 30s
+        max_messages: "${set_test_params.taps}"
+        match:
+          json_path:
+            - "$.pan == '${set_test_params.pan}'"
+
+    # Query results
+    - id: query_results
+      name: "Query Fare Results"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            SUM(amount) as total_amount,
+            COUNT(*) as tap_count,
+            MAX(rule) as applied_rule,
+            MAX(product_id) as product_id
+          FROM emv_sales
+          WHERE pan = $1
+          AND created_at >= CURRENT_DATE
+        params: ["${set_test_params.pan}"]
+        poll:
+          enabled: true
+          timeout: 20s
+          interval: 2s
+      output:
+        actual_fare: "$.rows[0].total_amount"
+        fare_rule: "$.rows[0].applied_rule"
+        tap_count: "$.rows[0].tap_count"
+
+    # Verify results
+    - id: verify_results
+      name: "Verify All Results"
+      action: assert
+      config:
+        assertions:
+          - expression: "${query_results.actual_fare} == ${set_test_params.expected_fare}"
+            message: "Fare mismatch: expected ${set_test_params.expected_fare}, got ${query_results.actual_fare}"
+
+          - expression: "${query_results.fare_rule} == '${set_test_params.expected_rule}'"
+            message: "Rule mismatch: expected '${set_test_params.expected_rule}', got '${query_results.fare_rule}'"
+
+          - expression: "${query_results.tap_count} == ${set_test_params.taps}"
+            message: "Tap count mismatch: expected ${set_test_params.taps}, got ${query_results.tap_count}"
+
+  output:
+    # Return results
+    actual_fare: "${query_results.actual_fare}"
+    fare_rule: "${query_results.fare_rule}"
+    tap_count: "${query_results.tap_count}"
+    success: true
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+        params: ["${set_test_params.pan}"]
+      on_error: "continue"
+
+  config:
+    timeout: "5m"

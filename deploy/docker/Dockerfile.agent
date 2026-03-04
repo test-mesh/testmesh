@@ -1,0 +1,55 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Copy go mod files
+COPY agent/go.mod agent/go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY agent/ ./
+
+# Build binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s -X main.Version=${VERSION:-dev}" \
+    -o /testmesh-agent ./cmd/agent
+
+# Runtime stage
+FROM alpine:3.19
+
+WORKDIR /app
+
+# Install runtime dependencies including browsers for browser automation
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    chromium \
+    chromium-chromedriver \
+    curl
+
+# Set Chrome path for chromedp
+ENV CHROME_PATH=/usr/bin/chromium-browser
+
+# Copy binary from builder
+COPY --from=builder /testmesh-agent /app/testmesh-agent
+
+# Create non-root user (but chromium needs some permissions)
+RUN addgroup -g 1000 testmesh && \
+    adduser -u 1000 -G testmesh -s /bin/sh -D testmesh && \
+    chown -R testmesh:testmesh /app
+
+USER testmesh
+
+# Expose ports (agent doesn't listen, but for debugging)
+EXPOSE 8080
+
+# Health check via exit code
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD pgrep testmesh-agent || exit 1
+
+# Run
+ENTRYPOINT ["/app/testmesh-agent"]

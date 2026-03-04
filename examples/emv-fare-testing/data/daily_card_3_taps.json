@@ -1,0 +1,36 @@
+{
+  "test_name": "Daily Fare Cap - 3 Taps",
+  "description": "Test daily fare cap with 3 tap events",
+  "pan": "TEST_CARD_001",
+  "expected_fare": 5.00,
+  "expected_rule": "daily_cap",
+  "taps": 3,
+  "product_id": "daily_cap",
+  "intervals_minutes": [30, 60],
+  "batch_type": "regular",
+  "stations": [
+    {
+      "station_id": "STATION_A",
+      "tap_type": "entry",
+      "vehicle_id": "BUS_101"
+    },
+    {
+      "station_id": "STATION_B",
+      "tap_type": "exit",
+      "vehicle_id": "BUS_101",
+      "delay_minutes": 30
+    },
+    {
+      "station_id": "STATION_C",
+      "tap_type": "entry",
+      "vehicle_id": "TRAM_205",
+      "delay_minutes": 60
+    }
+  ],
+  "assertions": {
+    "total_amount": 5.00,
+    "tap_count": 3,
+    "rule": "daily_cap",
+    "cap_reached": true
+  }
+}

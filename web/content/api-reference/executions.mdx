@@ -1,0 +1,201 @@
+---
+title: Executions API
+description: Monitor and manage flow executions.
+---
+
+## List Executions
+
+```http
+GET /api/executions
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `flowId` | string | Filter by flow ID |
+| `status` | string | Filter by status: `pending`, `running`, `completed`, `failed`, `cancelled` |
+| `startedAfter` | string | ISO 8601 datetime |
+| `startedBefore` | string | ISO 8601 datetime |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "exec_abc123",
+      "flowId": "flow_xyz789",
+      "flowName": "API Health Check",
+      "status": "completed",
+      "trigger": "manual",
+      "startedAt": "2024-01-15T10:30:00Z",
+      "completedAt": "2024-01-15T10:30:05Z",
+      "duration": 5000
+    }
+  ],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "perPage": 20
+  }
+}
+```
+
+## Get Execution
+
+```http
+GET /api/executions/:id
+```
+
+### Response
+
+```json
+{
+  "data": {
+    "id": "exec_abc123",
+    "flowId": "flow_xyz789",
+    "flowName": "API Health Check",
+    "status": "completed",
+    "trigger": "manual",
+    "triggeredBy": "user_john",
+    "parameters": {
+      "environment": "staging"
+    },
+    "nodeResults": [
+      {
+        "nodeId": "http_1",
+        "nodeName": "Check API",
+        "status": "completed",
+        "startedAt": "2024-01-15T10:30:01Z",
+        "completedAt": "2024-01-15T10:30:02Z",
+        "duration": 1000,
+        "output": {
+          "status": 200,
+          "data": { "healthy": true }
+        }
+      },
+      {
+        "nodeId": "assert_1",
+        "nodeName": "Verify Status",
+        "status": "completed",
+        "startedAt": "2024-01-15T10:30:02Z",
+        "completedAt": "2024-01-15T10:30:02Z",
+        "duration": 5,
+        "output": {
+          "passed": true
+        }
+      }
+    ],
+    "outputs": {
+      "apiHealthy": true
+    },
+    "startedAt": "2024-01-15T10:30:00Z",
+    "completedAt": "2024-01-15T10:30:05Z",
+    "duration": 5000
+  }
+}
+```
+
+## Get Execution Logs
+
+```http
+GET /api/executions/:id/logs
+```
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "timestamp": "2024-01-15T10:30:00.000Z",
+      "level": "info",
+      "nodeId": "http_1",
+      "message": "Executing HTTP request to https://api.example.com/health"
+    },
+    {
+      "timestamp": "2024-01-15T10:30:01.234Z",
+      "level": "info",
+      "nodeId": "http_1",
+      "message": "Received response: 200 OK"
+    }
+  ]
+}
+```
+
+## Cancel Execution
+
+```http
+POST /api/executions/:id/cancel
+```
+
+Cancels a running execution. Returns `409 Conflict` if the execution has already completed.
+
+### Response
+
+```json
+{
+  "data": {
+    "id": "exec_abc123",
+    "status": "cancelled",
+    "cancelledAt": "2024-01-15T10:30:03Z"
+  }
+}
+```
+
+## Retry Execution
+
+```http
+POST /api/executions/:id/retry
+```
+
+Creates a new execution with the same parameters as the original.
+
+### Request Body
+
+```json
+{
+  "fromNode": "http_1"
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `fromNode` | string | Optional. Retry from a specific node, keeping results from earlier nodes |
+
+### Response
+
+```json
+{
+  "data": {
+    "executionId": "exec_def456",
+    "originalExecutionId": "exec_abc123",
+    "status": "running"
+  }
+}
+```
+
+## Stream Execution Events
+
+```http
+GET /api/executions/:id/stream
+```
+
+Server-Sent Events (SSE) stream for real-time execution updates.
+
+### Events
+
+```
+event: node:started
+data: {"nodeId":"http_1","timestamp":"2024-01-15T10:30:01Z"}
+
+event: node:completed
+data: {"nodeId":"http_1","output":{"status":200},"duration":1000}
+
+event: node:failed
+data: {"nodeId":"http_1","error":"Connection timeout"}
+
+event: flow:completed
+data: {"status":"completed","duration":5000}
+```

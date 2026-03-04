@@ -1,0 +1,240 @@
+flow:
+  name: "Weekly Fare Cap Test"
+  description: "Test weekly fare cap across multiple days with multiple trips"
+  suite: "weekly_cap"
+  tags: ["weekly_cap", "multi_day", "fare_calculation"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+    TEST_PAN: "WEEKLY_CARD_001"
+    WEEKLY_CAP_AMOUNT: "25.00"
+
+  setup:
+    - id: clean_test_data
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = '${TEST_PAN}';
+          DELETE FROM emv_sales WHERE pan = '${TEST_PAN}';
+          DELETE FROM weekly_fare_summary WHERE pan = '${TEST_PAN}';
+
+  steps:
+    # Day 1: Monday - Multiple trips
+    - id: monday_trips
+      name: "Monday - 5 Trips"
+      action: for_each
+      config:
+        range:
+          start: 1
+          end: 5
+        item_name: "trip_num"
+
+        steps:
+          - id: monday_entry
+            action: kafka_publish
+            config:
+              brokers: ["${KAFKA_BROKERS}"]
+              topic: "matches"
+              key: "${TEST_PAN}"
+              value:
+                pan: "${TEST_PAN}"
+                timestamp: "${TIMESTAMP}"
+                day: "monday"
+                trip: "${trip_num}"
+                station_id: "STATION_${trip_num}"
+                tap_type: "entry"
+                transaction_id: "MON_${trip_num}_${RANDOM_ID}"
+
+          - id: monday_delay
+            action: delay
+            config:
+              duration: "500ms"
+
+          - id: monday_exit
+            action: kafka_publish
+            config:
+              brokers: ["${KAFKA_BROKERS}"]
+              topic: "matches"
+              key: "${TEST_PAN}"
+              value:
+                pan: "${TEST_PAN}"
+                timestamp: "${TIMESTAMP}"
+                day: "monday"
+                trip: "${trip_num}"
+                tap_type: "exit"
+                station_id: "STATION_${trip_num}_EXIT"
+
+    # Wait for all Monday fares to be calculated
+    - id: verify_monday_fares
+      name: "Verify Monday Fares"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 30s
+        max_messages: 5
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+
+    # Day 2: Tuesday - More trips
+    - id: tuesday_trips
+      name: "Tuesday - 4 Trips"
+      action: for_each
+      config:
+        range:
+          start: 1
+          end: 4
+        item_name: "trip_num"
+
+        steps:
+          - action: kafka_publish
+            config:
+              brokers: ["${KAFKA_BROKERS}"]
+              topic: "matches"
+              key: "${TEST_PAN}"
+              value:
+                pan: "${TEST_PAN}"
+                day: "tuesday"
+                trip: "${trip_num}"
+                tap_type: "entry"
+                station_id: "STATION_${trip_num}"
+
+          - action: delay
+            config:
+              duration: "500ms"
+
+    # Days 3-5: Continue until weekly cap
+    - id: remaining_days
+      name: "Wednesday-Friday Trips"
+      action: for_each
+      config:
+        items: ["wednesday", "thursday", "friday"]
+        item_name: "day"
+
+        steps:
+          - id: daily_trips
+            action: for_each
+            config:
+              range:
+                start: 1
+                end: 4
+              item_name: "trip"
+
+              steps:
+                - action: kafka_publish
+                  config:
+                    brokers: ["${KAFKA_BROKERS}"]
+                    topic: "matches"
+                    key: "${TEST_PAN}"
+                    value:
+                      pan: "${TEST_PAN}"
+                      day: "${day}"
+                      trip: "${trip}"
+                      tap_type: "entry"
+                      station_id: "STATION_${trip}"
+
+          - action: delay
+            config:
+              duration: "1s"
+
+    # Verify weekly cap reached
+    - id: verify_weekly_cap_reached
+      name: "Verify Weekly Cap Reached"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            SUM(amount) as weekly_total,
+            COUNT(*) as total_trips,
+            MIN(created_at) as first_trip,
+            MAX(created_at) as last_trip,
+            CASE
+              WHEN SUM(amount) >= ${WEEKLY_CAP_AMOUNT} THEN true
+              ELSE false
+            END as cap_reached
+          FROM emv_sales
+          WHERE pan = $1
+          AND created_at >= date_trunc('week', CURRENT_DATE)
+        params: ["${TEST_PAN}"]
+        poll:
+          enabled: true
+          timeout: 30s
+          interval: 2s
+      output:
+        weekly_total: "$.rows[0].weekly_total"
+        total_trips: "$.rows[0].total_trips"
+        cap_reached: "$.rows[0].cap_reached"
+      assert:
+        - result.rows[0].cap_reached == true
+        - result.rows[0].weekly_total <= ${WEEKLY_CAP_AMOUNT}
+        - result.rows[0].total_trips >= 15
+
+    # Verify weekly summary record
+    - id: verify_weekly_summary
+      name: "Verify Weekly Fare Summary"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            weekly_total,
+            cap_reached,
+            cap_date,
+            trip_count
+          FROM weekly_fare_summary
+          WHERE pan = $1
+          AND week_start = date_trunc('week', CURRENT_DATE)
+        params: ["${TEST_PAN}"]
+        poll:
+          enabled: true
+          timeout: 20s
+          interval: 2s
+      assert:
+        - result.count == 1
+        - result.rows[0].cap_reached == true
+        - result.rows[0].cap_date exists
+
+    # Test that additional trips don't charge more
+    - id: test_no_additional_charge
+      name: "Test Additional Trip After Cap"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          day: "friday"
+          trip: "extra"
+          tap_type: "entry"
+          station_id: "STATION_EXTRA"
+          after_cap: true
+
+    - id: verify_no_charge
+      name: "Verify No Additional Charge"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 10s
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+            - "$.amount == 0"
+            - "$.cap_applied == true"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+          DELETE FROM weekly_fare_summary WHERE pan = $1;
+        params: ["${TEST_PAN}"]
+      on_error: "continue"
+
+  config:
+    timeout: "10m"

@@ -1,0 +1,184 @@
+---
+title: TypeScript SDK
+description: Use the TestMesh TypeScript SDK to create and manage flows programmatically.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+The TestMesh SDK provides a type-safe way to interact with TestMesh from your TypeScript applications.
+
+## Installation
+
+```bash
+npm install @testmesh/sdk
+```
+
+## Quick Start
+
+```typescript
+import { TestMesh } from "@testmesh/sdk";
+
+// Initialize the client
+const client = new TestMesh({
+  apiUrl: "http://localhost:8080",
+  apiKey: process.env.TESTMESH_API_KEY,
+});
+
+// List all flows
+const flows = await client.flows.list();
+
+// Run a flow
+const execution = await client.flows.run("flow_abc123", {
+  parameters: {
+    environment: "staging",
+  },
+});
+
+console.log(`Execution started: ${execution.id}`);
+```
+
+## Working with Flows
+
+### Create a Flow
+
+```typescript
+import { TestMesh, FlowBuilder } from "@testmesh/sdk";
+
+const flow = new FlowBuilder("API Health Check")
+  .addTrigger("manual")
+  .addHttpRequest({
+    id: "checkApi",
+    url: "https://api.example.com/health",
+    method: "GET",
+  })
+  .addAssertion({
+    id: "verifyStatus",
+    expression: "$checkApi.status === 200",
+    message: "API should return 200",
+  })
+  .build();
+
+const created = await client.flows.create(flow);
+```
+
+### Run with Parameters
+
+```typescript
+interface FlowParams {
+  userId: string;
+  includeProfile: boolean;
+}
+
+const execution = await client.flows.run<FlowParams>("flow_user_tests", {
+  parameters: {
+    userId: "user_123",
+    includeProfile: true,
+  },
+  // Wait for completion
+  waitForCompletion: true,
+  timeout: 60000,
+});
+
+if (execution.status === "completed") {
+  console.log("Results:", execution.outputs);
+} else {
+  console.error("Failed:", execution.error);
+}
+```
+
+### Watch Execution
+
+```typescript
+const execution = await client.flows.run("flow_long_running");
+
+// Stream execution events
+for await (const event of client.executions.watch(execution.id)) {
+  switch (event.type) {
+    case "node:started":
+      console.log(`Node ${event.nodeId} started`);
+      break;
+    case "node:completed":
+      console.log(`Node ${event.nodeId} completed:`, event.output);
+      break;
+    case "node:failed":
+      console.error(`Node ${event.nodeId} failed:`, event.error);
+      break;
+    case "flow:completed":
+      console.log("Flow completed successfully");
+      break;
+  }
+}
+```
+
+## Managing Schedules
+
+```typescript
+// Create a schedule
+const schedule = await client.schedules.create({
+  flowId: "flow_abc123",
+  cron: "0 9 * * 1-5",
+  timezone: "America/New_York",
+  parameters: {
+    environment: "production",
+  },
+});
+
+// Pause a schedule
+await client.schedules.pause(schedule.id);
+
+// Resume a schedule
+await client.schedules.resume(schedule.id);
+
+// Get upcoming runs
+const upcoming = await client.schedules.getUpcoming(schedule.id, {
+  count: 5,
+});
+```
+
+## Error Handling
+
+```typescript
+import { TestMesh, TestMeshError, ValidationError, NotFoundError } from "@testmesh/sdk";
+
+try {
+  await client.flows.run("flow_nonexistent");
+} catch (error) {
+  if (error instanceof NotFoundError) {
+    console.error("Flow not found:", error.resourceId);
+  } else if (error instanceof ValidationError) {
+    console.error("Invalid parameters:", error.details);
+  } else if (error instanceof TestMeshError) {
+    console.error("API error:", error.message, error.code);
+  }
+}
+```
+
+<Callout type="tip">
+  Enable debug logging with `TESTMESH_DEBUG=true` environment variable to see detailed request/response logs.
+</Callout>
+
+## TypeScript Types
+
+The SDK exports all types for full type safety:
+
+```typescript
+import type {
+  Flow,
+  FlowExecution,
+  Schedule,
+  Node,
+  Trigger,
+  HttpRequestNode,
+  AssertionNode,
+} from "@testmesh/sdk";
+
+// Type-safe flow definition
+const myFlow: Flow = {
+  id: "flow_123",
+  name: "My Test Flow",
+  nodes: [],
+  edges: [],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+```

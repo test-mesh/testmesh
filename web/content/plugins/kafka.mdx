@@ -1,0 +1,226 @@
+---
+title: Kafka Plugin
+description: Produce and consume messages from Apache Kafka.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+The Kafka plugin enables TestMesh to interact with Apache Kafka clusters for event-driven testing scenarios.
+
+## Installation
+
+```bash
+testmesh plugin install @testmesh/plugin-kafka
+```
+
+## Connection Setup
+
+Create a Kafka connection in **Settings > Connections**:
+
+| Field | Description |
+|-------|-------------|
+| **Brokers** | Comma-separated list of broker addresses |
+| **Client ID** | Optional client identifier |
+| **SASL Username** | Username for SASL authentication |
+| **SASL Password** | Password for SASL authentication |
+| **SSL** | Enable SSL/TLS connection |
+
+### Example Configuration
+
+```json
+{
+  "brokers": "localhost:9092,localhost:9093",
+  "clientId": "testmesh-client",
+  "ssl": true,
+  "sasl": {
+    "mechanism": "plain",
+    "username": "my-user",
+    "password": "my-password"
+  }
+}
+```
+
+## Actions
+
+### Produce Message
+
+Sends a message to a Kafka topic.
+
+**Inputs:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `topic` | string | Yes | Target topic name |
+| `message` | any | Yes | Message payload (will be JSON serialized) |
+| `key` | string | No | Message key for partitioning |
+| `headers` | object | No | Message headers |
+| `partition` | number | No | Specific partition to send to |
+
+**Example:**
+
+```typescript
+// In a script node, you can access the output
+declare const $kafkaProduce: { offset: string; partition: number; timestamp: string };
+// ---cut---
+// Message sent successfully
+const result = $kafkaProduce;
+// { offset: "42", partition: 0, timestamp: "2024-01-15T10:30:00Z" }
+```
+
+### Consume Messages
+
+Reads messages from a Kafka topic.
+
+**Inputs:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `topic` | string | Yes | Topic to consume from |
+| `groupId` | string | No | Consumer group ID |
+| `maxMessages` | number | No | Maximum messages to read (default: 10) |
+| `timeout` | number | No | Timeout in ms (default: 5000) |
+| `fromBeginning` | boolean | No | Start from earliest offset |
+
+**Outputs:**
+
+```typescript
+{
+  messages: Array<{
+    key: string | null;
+    value: any;
+    offset: string;
+    partition: number;
+    timestamp: string;
+    headers: Record<string, string>;
+  }>;
+  count: number;
+}
+```
+
+## Triggers
+
+### On Kafka Message
+
+Triggers a flow when a message is received on a topic.
+
+**Configuration:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `topic` | string | Yes | Topic to subscribe to |
+| `groupId` | string | Yes | Consumer group ID |
+| `fromBeginning` | boolean | No | Process existing messages |
+
+<Callout type="info">
+  Each flow with a Kafka trigger creates a dedicated consumer. Use unique group IDs to avoid conflicts.
+</Callout>
+
+**Trigger Output:**
+
+The flow receives the message data in `$trigger`:
+
+```typescript
+declare const $trigger: {
+  key: string | null;
+  value: any;
+  offset: string;
+  partition: number;
+  timestamp: string;
+  topic: string;
+  headers: Record<string, string>;
+};
+// ---cut---
+const message = $trigger;
+console.log(`Received: ${message.value}`);
+```
+
+## Example Flow
+
+A complete flow that consumes messages, processes them, and produces results:
+
+<Tabs items={["Visual", "JSON"]}>
+  <Tab value="Visual">
+    ```
+    [Kafka Trigger: orders]
+        ↓
+    [Script: Process Order]
+        ↓
+    [Condition: Is Valid?]
+        ↓              ↓
+    [Kafka: processed] [Kafka: errors]
+    ```
+  </Tab>
+  <Tab value="JSON">
+    ```json
+    {
+      "nodes": [
+        {
+          "id": "trigger",
+          "type": "trigger:kafka",
+          "data": {
+            "topic": "orders",
+            "groupId": "order-processor"
+          }
+        },
+        {
+          "id": "process",
+          "type": "action:script",
+          "data": {
+            "code": "const order = $trigger.value;\nreturn { valid: order.amount > 0, order };"
+          }
+        },
+        {
+          "id": "check",
+          "type": "control:condition",
+          "data": {
+            "expression": "$process.valid === true"
+          }
+        },
+        {
+          "id": "success",
+          "type": "action:kafka-produce",
+          "data": {
+            "topic": "processed-orders",
+            "message": "$process.order"
+          }
+        },
+        {
+          "id": "failure",
+          "type": "action:kafka-produce",
+          "data": {
+            "topic": "order-errors",
+            "message": { "error": "Invalid order", "original": "$trigger.value" }
+          }
+        }
+      ]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+### Connection Failed
+
+- Verify broker addresses are reachable
+- Check firewall rules allow Kafka ports (default: 9092)
+- Ensure SASL credentials are correct
+
+### Consumer Lag
+
+- Increase `maxMessages` for batch processing
+- Use parallel processing in your flow
+- Monitor partition assignment with `testmesh kafka status`
+
+### Message Serialization
+
+Messages are JSON serialized by default. For binary data:
+
+```typescript
+// Send as base64
+{
+  message: Buffer.from(binaryData).toString('base64'),
+  headers: { 'content-encoding': 'base64' }
+}
+```

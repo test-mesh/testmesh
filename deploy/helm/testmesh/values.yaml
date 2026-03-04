@@ -1,0 +1,194 @@
+# Default values for testmesh
+replicaCount:
+  api: 2
+  web: 2
+
+image:
+  api:
+    repository: testmesh/api
+    tag: latest
+    pullPolicy: IfNotPresent
+  web:
+    repository: testmesh/dashboard
+    tag: latest
+    pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  api:
+    type: ClusterIP
+    port: 5016
+    wsPort: 5017
+  web:
+    type: ClusterIP
+    port: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "testmesh-api"
+  hosts:
+    - host: testmesh.local
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /ws
+          pathType: Prefix
+          service: api
+        - path: /
+          pathType: Prefix
+          service: dashboard
+  tls: []
+
+resources:
+  api:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  web:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# API configuration
+api:
+  logLevel: info
+  maxConcurrentExecutions: 10
+  executionTimeout: 300s
+  scheduler:
+    enabled: true
+  plugins:
+    enabled: true
+    path: /plugins
+
+# Database configuration
+database:
+  # External PostgreSQL (AWS RDS, GCP Cloud SQL, Azure Database, etc.)
+  external:
+    enabled: false
+    host: ""
+    port: 5432
+    username: testmesh
+    password: ""
+    database: testmesh
+    sslmode: require
+    maxConns: 25
+    maxIdle: 5
+    # Alternative: Connection URL (takes precedence if set)
+    url: ""
+  # Bundled PostgreSQL (for development/testing)
+  postgresql:
+    enabled: true
+    auth:
+      postgresPassword: testmesh
+      username: testmesh
+      password: testmesh
+      database: testmesh
+    primary:
+      persistence:
+        enabled: true
+        size: 8Gi
+
+# Redis configuration
+redis:
+  # External Redis (AWS ElastiCache, GCP Memorystore, Azure Cache, etc.)
+  external:
+    enabled: false
+    host: ""
+    port: 6379
+    password: ""
+    db: 0
+    tls:
+      enabled: false
+    # Alternative: Connection URL (takes precedence if set)
+    url: ""
+  # Bundled Redis (for development/testing)
+  bundled:
+    enabled: true
+    auth:
+      enabled: false
+    master:
+      persistence:
+        enabled: true
+        size: 1Gi
+
+# Kafka configuration (optional - for async testing)
+kafka:
+  # External Kafka (AWS MSK, Confluent Cloud, Azure Event Hubs, etc.)
+  external:
+    enabled: false
+    brokers:
+      - "broker1:9092"
+      - "broker2:9092"
+    sasl:
+      enabled: false
+      mechanism: PLAIN  # PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, AWS_MSK_IAM
+      username: ""
+      password: ""
+    tls:
+      enabled: false
+      skipVerify: false
+  # Bundled Kafka (not recommended for production)
+  bundled:
+    enabled: false
+    replicas: 1
+    persistence:
+      enabled: true
+      size: 5Gi
+
+# Secrets
+secrets:
+  jwtSecret: ""
+  openaiApiKey: ""
+  anthropicApiKey: ""
+
+# Persistence
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+# Monitoring
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+    interval: 30s

@@ -1,0 +1,132 @@
+name: "User Service Test Flow"
+description: "Test user CRUD operations with PostgreSQL and Redis session management"
+
+steps:
+  # Step 1: Create a user
+  - id: create_user
+    action: http_request
+    config:
+      method: POST
+      url: "http://localhost:5001/api/v1/users"
+      headers:
+        Content-Type: application/json
+      body:
+        name: "Alice Smith"
+        email: "alice@example.com"
+    assert:
+      - status == 201
+      - body.id != null
+      - body.email == "alice@example.com"
+      - body.name == "Alice Smith"
+    output:
+      user_id: $.body.id
+
+  # Step 2: Verify user is stored in PostgreSQL
+  - id: verify_user_in_db
+    action: database_query
+    config:
+      connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
+      query: "SELECT * FROM user_service.users WHERE id = $1"
+      params: ["{{user_id}}"]
+    assert:
+      - row_count == 1
+      - rows[0].email == "alice@example.com"
+      - rows[0].name == "Alice Smith"
+
+  # Step 3: Verify user is cached in Redis
+  - id: verify_user_cache
+    action: redis_get
+    config:
+      host: localhost
+      port: 6379
+      key: "user:{{user_id}}"
+    assert:
+      - value != null
+
+  # Step 4: Get user by ID (should come from cache)
+  - id: get_user
+    action: http_request
+    config:
+      method: GET
+      url: "http://localhost:5001/api/v1/users/{{user_id}}"
+    assert:
+      - status == 200
+      - body.id == user_id
+      - body.email == "alice@example.com"
+
+  # Step 5: List all users
+  - id: list_users
+    action: http_request
+    config:
+      method: GET
+      url: "http://localhost:5001/api/v1/users"
+    assert:
+      - status == 200
+      - body.users != null
+      - body.users.length > 0
+
+  # Step 6: Login (create session)
+  - id: login
+    action: http_request
+    config:
+      method: POST
+      url: "http://localhost:5001/api/v1/auth/login"
+      headers:
+        Content-Type: application/json
+      body:
+        email: "alice@example.com"
+    assert:
+      - status == 200
+      - body.token != null
+      - body.user.id == user_id
+    output:
+      session_token: $.body.token
+
+  # Step 7: Verify session is stored in Redis
+  - id: verify_session_cache
+    action: redis_get
+    config:
+      host: localhost
+      port: 6379
+      key: "session:{{session_token}}"
+    assert:
+      - value != null
+      - value == user_id
+
+  # Step 8: Verify session token
+  - id: verify_session
+    action: http_request
+    config:
+      method: GET
+      url: "http://localhost:5001/api/v1/auth/verify"
+      headers:
+        Authorization: "{{session_token}}"
+    assert:
+      - status == 200
+      - body.valid == true
+      - body.user_id == user_id
+
+  # Step 9: Verify user.login event was published
+  - id: verify_login_event
+    action: kafka_consumer
+    config:
+      brokers: "localhost:9093"
+      topic: user.login
+      group_id: testmesh-test
+      timeout: 10s
+    assert:
+      - messages.length > 0
+      - messages[0].value.user_id == user_id
+      - messages[0].value.event_type == "user.login"
+
+  # Step 10: Test invalid session token
+  - id: verify_invalid_session
+    action: http_request
+    config:
+      method: GET
+      url: "http://localhost:5001/api/v1/auth/verify"
+      headers:
+        Authorization: "invalid-token"
+    assert:
+      - status == 200
+      - body.valid == false

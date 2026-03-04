@@ -1,0 +1,95 @@
+---
+title: Configuration
+description: Configure TestMesh for your environment and requirements.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+## Configuration Overview
+
+TestMesh uses environment variables for configuration. You can set these in a `.env` file or through your deployment platform.
+
+## Core Settings
+
+### Database
+
+```bash
+# PostgreSQL connection string
+DATABASE_URL=postgresql://user:password@host:5432/testmesh
+
+# Connection pool settings
+DATABASE_MAX_CONNECTIONS=20
+DATABASE_IDLE_TIMEOUT=30s
+```
+
+### Redis
+
+```bash
+# Redis connection for job queues and caching
+REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=optional-password
+
+# Queue settings
+REDIS_JOB_CONCURRENCY=10
+```
+
+### API Server
+
+```bash
+# Server configuration
+API_PORT=8080
+API_HOST=0.0.0.0
+
+# Security
+API_SECRET=your-secret-key-min-32-chars
+API_CORS_ORIGINS=http://localhost:3000
+
+# Rate limiting
+API_RATE_LIMIT=100
+API_RATE_WINDOW=60s
+```
+
+## Plugin Configuration
+
+Plugins are configured through the web UI or via YAML files:
+
+```yaml title="plugins/kafka.yaml"
+name: kafka
+version: 1.0.0
+config:
+  brokers:
+    - localhost:9092
+  sasl:
+    enabled: false
+```
+
+<Callout type="warn">
+  Store sensitive plugin configuration (passwords, API keys) in environment variables and reference them in your config files.
+</Callout>
+
+## Logging
+
+```bash
+# Log level: debug, info, warn, error
+LOG_LEVEL=info
+
+# Log format: json, text
+LOG_FORMAT=json
+
+# Log output: stdout, file
+LOG_OUTPUT=stdout
+LOG_FILE=/var/log/testmesh/app.log
+```
+
+## Feature Flags
+
+Enable or disable optional features:
+
+```bash
+# Enable experimental features
+FEATURE_AI_ASSIST=true
+FEATURE_FLOW_TEMPLATES=true
+
+# Disable telemetry
+TELEMETRY_ENABLED=false
+```

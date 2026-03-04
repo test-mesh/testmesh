@@ -1,0 +1,363 @@
+flow:
+  name: "HTTP API Patterns"
+  description: "Common HTTP request patterns for testing fare calculation system"
+  suite: "examples"
+  tags: ["http", "api", "patterns"]
+
+  env:
+    FARE_API_URL: "${FARE_API_URL}"
+    FARE_API_KEY: "${FARE_API_KEY}"
+    ADMIN_API_URL: "${ADMIN_API_URL}"
+
+  steps:
+    # ============================================================================
+    # Pattern 1: Simple GET Request
+    # ============================================================================
+    - id: get_health_check
+      name: "Health Check - Simple GET"
+      action: http_request
+      config:
+        method: GET
+        url: "${FARE_API_URL}/health"
+      output:
+        health_status: "$.status"
+        version: "$.version"
+
+    - id: verify_healthy
+      action: assert
+      config:
+        assertions:
+          - expression: "${get_health_check.health_status} == 'healthy'"
+            message: "Service is not healthy"
+
+    # ============================================================================
+    # Pattern 2: POST with JSON Body and Headers
+    # ============================================================================
+    - id: trigger_daily_cutoff
+      name: "Trigger Daily Cutoff - POST with Auth"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/admin/cutoff/trigger"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+          X-Request-ID: "${EXECUTION_ID}"
+        body:
+          cutoff_type: "daily"
+          date: "${TODAY}"
+          force: true
+        timeout: 30s
+      output:
+        job_id: "$.job_id"
+        status: "$.status"
+
+    # ============================================================================
+    # Pattern 3: PUT to Update Resource
+    # ============================================================================
+    - id: update_fare_rules
+      name: "Update Fare Rules - PUT"
+      action: http_request
+      config:
+        method: PUT
+        url: "${ADMIN_API_URL}/fare-rules/daily-cap"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+        body:
+          rule_id: "daily-cap"
+          max_fare: 5.00
+          applicable_hours: "00:00-23:59"
+          enabled: true
+      output:
+        updated: "$.success"
+
+    # ============================================================================
+    # Pattern 4: GET with Query Parameters
+    # ============================================================================
+    - id: query_transactions
+      name: "Query Transactions - GET with Params"
+      action: http_request
+      config:
+        method: GET
+        url: "${FARE_API_URL}/transactions"
+        query_params:
+          pan: "4111111111111111"
+          from_date: "${TODAY}"
+          to_date: "${TODAY}"
+          limit: 100
+          status: "completed"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+      output:
+        transactions: "$.data"
+        total_count: "$.total"
+
+    # ============================================================================
+    # Pattern 5: Polling with HTTP (Async Job Status)
+    # ============================================================================
+    - id: poll_job_completion
+      name: "Poll Job Status - Async Processing"
+      action: http_request
+      config:
+        method: GET
+        url: "${FARE_API_URL}/admin/jobs/${trigger_daily_cutoff.job_id}"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+        poll:
+          enabled: true
+          timeout: 120s
+          interval: 5s
+          success_condition: "$.status == 'completed' || $.status == 'failed'"
+      output:
+        final_status: "$.status"
+        result: "$.result"
+        error: "$.error"
+
+    # ============================================================================
+    # Pattern 6: DELETE Request
+    # ============================================================================
+    - id: delete_test_data
+      name: "Delete Test Data - DELETE"
+      action: http_request
+      config:
+        method: DELETE
+        url: "${ADMIN_API_URL}/test-data/batch-${EXECUTION_ID}"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+      output:
+        deleted: "$.deleted_count"
+
+    # ============================================================================
+    # Pattern 7: POST with Form Data (URL Encoded)
+    # ============================================================================
+    - id: enroll_card_form
+      name: "Enroll Card - Form Data"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/enrollment"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/x-www-form-urlencoded"
+        form_data:
+          pan: "4111111111111111"
+          program: "green_ticket"
+          start_date: "${TODAY}"
+      output:
+        enrollment_id: "$.enrollment_id"
+
+    # ============================================================================
+    # Pattern 8: Batch Operations - Multiple Cards
+    # ============================================================================
+    - id: batch_enroll_cards
+      name: "Batch Enroll Cards - POST Array"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/enrollment/batch"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+        body:
+          cards:
+            - pan: "4111111111111111"
+              program: "green_ticket"
+            - pan: "4222222222222222"
+              program: "green_ticket"
+            - pan: "4333333333333333"
+              program: "senior_discount"
+          effective_date: "${TODAY}"
+      output:
+        batch_result: "$.results"
+        success_count: "$.success_count"
+
+    # ============================================================================
+    # Pattern 9: Conditional Request (if-then)
+    # ============================================================================
+    - id: trigger_weekly_cutoff_if_needed
+      name: "Trigger Weekly Cutoff (Conditional)"
+      when: "${DAY_OF_WEEK == 'Sunday'}"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/admin/cutoff/trigger"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+        body:
+          cutoff_type: "weekly"
+          week_ending: "${TODAY}"
+
+    # ============================================================================
+    # Pattern 10: Error Handling - Retry on Failure
+    # ============================================================================
+    - id: trigger_cutoff_with_retry
+      name: "Trigger Cutoff with Retry"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/admin/cutoff/trigger"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+        body:
+          cutoff_type: "daily"
+          date: "${TODAY}"
+        retry:
+          max_attempts: 3
+          backoff: exponential
+          initial_delay: 2s
+          max_delay: 30s
+          retry_on_status: [500, 502, 503, 504]
+      output:
+        cutoff_id: "$.job_id"
+
+    # ============================================================================
+    # Pattern 11: Get with Response Validation
+    # ============================================================================
+    - id: get_fare_config
+      name: "Get Fare Configuration - Validate Response"
+      action: http_request
+      config:
+        method: GET
+        url: "${FARE_API_URL}/config/fares"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+      output:
+        config: "$"
+
+    - id: validate_fare_config
+      name: "Validate Fare Config Schema"
+      action: assert
+      config:
+        assertions:
+          - expression: "${get_fare_config.config.daily_cap exists}"
+            message: "daily_cap not found in config"
+
+          - expression: "${get_fare_config.config.daily_cap} > 0"
+            message: "daily_cap must be positive"
+
+          - response: "${get_fare_config}"
+            matches_schema:
+              type: object
+              required: [daily_cap, weekly_cap, base_fare]
+              properties:
+                daily_cap:
+                  type: number
+                  minimum: 0
+                weekly_cap:
+                  type: number
+                  minimum: 0
+                base_fare:
+                  type: number
+                  minimum: 0
+
+    # ============================================================================
+    # Pattern 12: Webhook Simulation - Send Test Event
+    # ============================================================================
+    - id: send_webhook_event
+      name: "Send Webhook Test Event"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/webhooks/test"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+          X-Webhook-Signature: "${WEBHOOK_SIGNATURE}"
+        body:
+          event_type: "fare.calculated"
+          event_id: "${RANDOM_ID}"
+          timestamp: "${TIMESTAMP}"
+          data:
+            pan: "4111111111111111"
+            amount: 2.50
+            rule: "single_journey"
+
+    # ============================================================================
+    # Pattern 13: Download Report (Binary Response)
+    # ============================================================================
+    - id: download_fare_report
+      name: "Download Daily Fare Report"
+      action: http_request
+      config:
+        method: GET
+        url: "${FARE_API_URL}/reports/daily/${TODAY}"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Accept: "application/pdf"
+        save_to_file: "reports/daily-fare-${TODAY}.pdf"
+
+    # ============================================================================
+    # Pattern 14: Loop Through Multiple HTTP Calls
+    # ============================================================================
+    - id: trigger_multiple_cutoffs
+      name: "Trigger Cutoffs for Multiple Batch Types"
+      action: for_each
+      config:
+        items:
+          - type: "daily"
+            date: "${TODAY}"
+          - type: "weekly"
+            date: "${TODAY}"
+          - type: "monthly"
+            date: "${TODAY}"
+        item_name: "cutoff"
+
+        steps:
+          - id: trigger_cutoff
+            action: http_request
+            config:
+              method: POST
+              url: "${FARE_API_URL}/admin/cutoff/trigger"
+              headers:
+                Authorization: "Bearer ${FARE_API_KEY}"
+                Content-Type: "application/json"
+              body:
+                cutoff_type: "${cutoff.type}"
+                date: "${cutoff.date}"
+            output:
+              job_id: "$.job_id"
+
+          - id: log_triggered
+            action: log
+            config:
+              message: "Triggered ${cutoff.type} cutoff: ${trigger_cutoff.job_id}"
+
+    # ============================================================================
+    # Pattern 15: GraphQL Request
+    # ============================================================================
+    - id: query_fares_graphql
+      name: "Query Fares via GraphQL"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/graphql"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+        body:
+          query: |
+            query GetFares($pan: String!, $date: Date!) {
+              fares(pan: $pan, date: $date) {
+                amount
+                rule
+                timestamp
+                status
+              }
+            }
+          variables:
+            pan: "4111111111111111"
+            date: "${TODAY}"
+      output:
+        fares: "$.data.fares"
+
+  output:
+    health_status: "${get_health_check.health_status}"
+    cutoff_triggered: true
+    transactions_count: "${query_transactions.total_count}"
+    success: true
+
+  config:
+    timeout: "15m"

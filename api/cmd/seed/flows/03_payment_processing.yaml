@@ -1,0 +1,78 @@
+name: "Payment Processing"
+description: "Create payment via Payment Service mock, assert status, write audit to Postgres, refund"
+suite: "payments"
+tags: [critical, api]
+collection: "Payment Gateway"
+steps:
+  - id: create_payment
+    action: http_request
+    name: "POST /api/payments — Create payment"
+    config:
+      method: POST
+      url: "${PAYMENT_SERVICE_URL}/api/payments"
+      headers:
+        Content-Type: application/json
+        X-API-Key: "${API_KEY}"
+      body:
+        order_id: "${RANDOM_ID}"
+        amount: 149.99
+        currency: USD
+        method: card
+    assert:
+      - "status == 200"
+    output:
+      payment_id: "create_payment.body.id"
+
+  - id: get_payment
+    action: http_request
+    name: "GET /api/payments/:id — Fetch payment"
+    config:
+      method: GET
+      url: "${PAYMENT_SERVICE_URL}/api/payments/${create_payment.body.id}"
+      headers:
+        X-API-Key: "${API_KEY}"
+    assert:
+      - "status == 200"
+
+  - id: assert_payment
+    action: assert
+    name: "Assert payment succeeded"
+    config:
+      data:
+        status: "${get_payment.body.status}"
+        http_status: "${create_payment.status}"
+      assertions:
+        - "status == 'succeeded'"
+        - "http_status == '200'"
+
+  - id: audit
+    action: database_query
+    name: "INSERT payment audit to Postgres"
+    config:
+      connection: "${DB_DSN}"
+      query: "INSERT INTO payment_audit (payment_id, amount, recorded_at) VALUES ($1, $2, NOW()) ON CONFLICT DO NOTHING"
+      params:
+        - "${create_payment.body.id}"
+        - 149.99
+
+  - id: refund
+    action: http_request
+    name: "POST /api/refunds — Refund payment"
+    config:
+      method: POST
+      url: "${PAYMENT_SERVICE_URL}/api/refunds"
+      headers:
+        Content-Type: application/json
+      body:
+        payment_id: "${create_payment.body.id}"
+        amount: 149.99
+        reason: test
+    assert:
+      - "status == 200"
+
+  - id: done
+    action: log
+    name: "Log payment result"
+    config:
+      message: "Payment ${create_payment.body.id} processed, audited, and refunded"
+      level: info

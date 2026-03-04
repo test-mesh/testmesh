@@ -1,0 +1,27 @@
+apiVersion: v2
+name: testmesh
+description: TestMesh - E2E Integration Testing Platform
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - testing
+  - api-testing
+  - integration-testing
+  - e2e
+  - automation
+home: https://github.com/georgi-georgiev/testmesh
+sources:
+  - https://github.com/georgi-georgiev/testmesh
+maintainers:
+  - name: TestMesh Team
+    email: team@testmesh.io
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "17.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled

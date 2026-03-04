@@ -1,0 +1,220 @@
+flow:
+  name: "Daily Fare Cap - 3 Taps"
+  description: "Test daily fare cap calculation with 3 tap events"
+  suite: "daily_fare"
+  tags: ["daily_cap", "fare_calculation", "single_card"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+    POSTGRES_HOST: "${DB_HOST}"
+    API_URL: "${FARE_API_URL}"
+    TEST_PAN: "TEST_CARD_001"
+
+  setup:
+    - id: clean_test_data
+      name: "Clean Previous Test Data"
+      action: database_query
+      config:
+        query: "DELETE FROM matches WHERE pan = '${TEST_PAN}'"
+
+    - id: reset_fare_state
+      name: "Reset Fare State"
+      action: database_query
+      config:
+        query: "DELETE FROM emv_sales WHERE pan = '${TEST_PAN}'"
+
+  steps:
+    # Load test data
+    - id: load_test_data
+      name: "Load Test Configuration"
+      action: transform
+      config:
+        input:
+          expected_fare: 5.00
+          num_taps: 3
+          product_id: "daily_cap"
+          intervals_minutes: [30, 60]
+          batch_type: "regular"
+      output:
+        expected_fare: "$.expected_fare"
+        num_taps: "$.num_taps"
+        product_id: "$.product_id"
+
+    # Tap 1: Entry at Station A
+    - id: send_tap_1
+      name: "Tap 1 - Entry at Station A"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          timestamp: "${TIMESTAMP}"
+          station_id: "STATION_A"
+          vehicle_id: "BUS_101"
+          tap_type: "entry"
+          batch_type: "regular"
+          transaction_id: "${RANDOM_ID}"
+      output:
+        tap1_time: "${TIMESTAMP}"
+        tap1_tx_id: "$.transaction_id"
+
+    # Wait 30 minutes (simulated or actual)
+    - id: simulate_time_1
+      name: "Wait 30 Minutes"
+      action: delay
+      config:
+        duration: "1s"  # In real test, could be 30m or use time manipulation
+
+    # Tap 2: Exit at Station B (30 min later)
+    - id: send_tap_2
+      name: "Tap 2 - Exit at Station B"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          timestamp: "${TIMESTAMP}"
+          station_id: "STATION_B"
+          vehicle_id: "BUS_101"
+          tap_type: "exit"
+          elapsed_minutes: 30
+          transaction_id: "${RANDOM_ID}"
+          related_entry: "${send_tap_1.tap1_tx_id}"
+      output:
+        tap2_tx_id: "$.transaction_id"
+
+    # Wait for first fare calculation
+    - id: verify_first_fare
+      name: "Verify First Fare Calculated"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 10s
+        match:
+          key: "${TEST_PAN}"
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+            - "$.amount > 0"
+      output:
+        first_fare_amount: "$.amount"
+        first_fare_rule: "$.rule"
+        first_fare_tx_id: "$.transaction_id"
+
+    - id: simulate_time_2
+      name: "Wait 60 Minutes"
+      action: delay
+      config:
+        duration: "1s"
+
+    # Tap 3: Entry at Station C (60 min later - should trigger daily cap)
+    - id: send_tap_3
+      name: "Tap 3 - Entry at Station C"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          timestamp: "${TIMESTAMP}"
+          station_id: "STATION_C"
+          vehicle_id: "TRAM_205"
+          tap_type: "entry"
+          elapsed_minutes: 60
+          transaction_id: "${RANDOM_ID}"
+      output:
+        tap3_tx_id: "$.transaction_id"
+
+    # Wait for daily cap to be applied
+    - id: verify_daily_cap
+      name: "Verify Daily Cap Applied"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 10s
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+            - "$.rule == 'daily_cap' || $.cap_applied == true"
+      output:
+        cap_amount: "$.total_amount"
+        cap_rule: "$.rule"
+
+    # Verify all fares in database
+    - id: verify_database
+      name: "Verify Fares in Database"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            SUM(amount) as total_amount,
+            COUNT(*) as tap_count,
+            MAX(rule) as applied_rule,
+            MAX(created_at) as last_transaction
+          FROM emv_sales
+          WHERE pan = $1
+          AND created_at >= CURRENT_DATE
+        params: ["${TEST_PAN}"]
+        poll:
+          enabled: true
+          timeout: 15s
+          interval: 2s
+      output:
+        db_total: "$.rows[0].total_amount"
+        db_count: "$.rows[0].tap_count"
+        db_rule: "$.rows[0].applied_rule"
+      assert:
+        - result.rows[0].total_amount == ${load_test_data.expected_fare}
+        - result.rows[0].tap_count == ${load_test_data.num_taps}
+        - result.rows[0].applied_rule == "daily_cap"
+
+    # Verify match records
+    - id: verify_matches
+      name: "Verify Match Records"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            COUNT(*) as match_count,
+            COUNT(DISTINCT station_id) as station_count
+          FROM matches
+          WHERE pan = $1
+          AND DATE(timestamp) = CURRENT_DATE
+        params: ["${TEST_PAN}"]
+      assert:
+        - result.rows[0].match_count >= 3
+        - result.rows[0].station_count >= 2
+
+  teardown:
+    - id: send_cutoff
+      name: "Send End-of-Day Cutoff"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "cutoff"
+        value:
+          cutoff_time: "${TIMESTAMP}"
+          batch_id: "TEST_BATCH_${EXECUTION_ID}"
+          cutoff_type: "end_of_day"
+
+    - id: cleanup_test_data
+      name: "Cleanup Test Data"
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+        params: ["${TEST_PAN}"]
+      on_error: "continue"
+
+  config:
+    timeout: "5m"
+    fail_fast: true

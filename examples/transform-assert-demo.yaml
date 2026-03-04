@@ -1,0 +1,82 @@
+flow:
+  name: "Transform & Assert Demo"
+  description: "Demonstrates transform and assert actions working correctly"
+  suite: "examples"
+
+  steps:
+    # 1. Fetch user data from API
+    - id: fetch_user
+      name: "Fetch user from JSONPlaceholder"
+      action: http_request
+      config:
+        method: GET
+        url: "https://jsonplaceholder.typicode.com/users/1"
+      assert:
+        - status == 200
+        - body.id == 1
+      output:
+        user_id: "$.id"
+        user_name: "$.name"
+        user_email: "$.email"
+        user_phone: "$.phone"
+        user_website: "$.website"
+
+    # 2. Transform - Extract and reshape data with direct field access
+    - id: transform_user
+      name: "Transform user data"
+      action: transform
+      config:
+        input: ${fetch_user}
+        transforms:
+          # Direct field access (from output)
+          id: "$user_id"
+          name: "$user_name"
+          email: "$user_email"
+          # JSONPath access (from body)
+          phone: "$.body.phone"
+          website: "$.body.website"
+          # Static values
+          status: "active"
+          verified: true
+
+    # 3. Assert - Validate transformed data
+    - id: validate_transformed
+      name: "Validate transformed data"
+      action: assert
+      config:
+        data: ${transform_user}
+        assertions:
+          - id == 1
+          - name == "Leanne Graham"
+          - email != ""
+          - status == "active"
+          - verified == true
+
+    # 4. Transform with JSONPath from HTTP body
+    - id: transform_address
+      name: "Extract address details"
+      action: transform
+      config:
+        input: ${fetch_user}
+        transforms:
+          city: "$.body.address.city"
+          street: "$.body.address.street"
+          zipcode: "$.body.address.zipcode"
+
+    # 5. Assert on address data
+    - id: validate_address
+      name: "Validate address data"
+      action: assert
+      config:
+        data: ${transform_address}
+        assertions:
+          - city != ""
+          - street != ""
+          - zipcode != ""
+
+    # 6. Log success
+    - name: "Log completion"
+      action: log
+      config:
+        message: "Transform and assert actions work correctly!"
+        level: "info"

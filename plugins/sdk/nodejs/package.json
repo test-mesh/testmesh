@@ -1,0 +1,8 @@
+{
+  "name": "@testmesh/plugin-sdk",
+  "version": "1.0.0",
+  "description": "TestMesh Plugin SDK for Node.js",
+  "main": "index.js",
+  "keywords": ["testmesh", "plugin", "sdk", "api-testing"],
+  "license": "MIT"
+}

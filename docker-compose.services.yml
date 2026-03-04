@@ -1,0 +1,105 @@
+version: '3.8'
+
+# Demo Microservices for Testing TestMesh
+# Use this to run the example microservices for E2E testing
+# Run with: docker-compose -f docker-compose.services.yml up
+
+services:
+  # User Service (Microservice)
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: testmesh-user-service
+    ports:
+      - "${USER_SERVICE_PORT:-5001}:5001"
+    environment:
+      PORT: 5001
+      DB_HOST: ${DATABASE_HOST:-localhost}
+      DB_PORT: ${DATABASE_PORT:-5432}
+      DB_USER: ${DATABASE_USER:-testmesh}
+      DB_PASSWORD: ${DATABASE_PASSWORD:-testmesh_dev}
+      DB_NAME: ${DATABASE_DBNAME:-testmesh}
+      DB_SCHEMA: user_service
+      DB_SSLMODE: ${DATABASE_SSLMODE:-disable}
+      REDIS_HOST: ${REDIS_HOST:-localhost}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-localhost:9092}
+    networks:
+      - testmesh-network
+
+  # Product Service (Microservice)
+  product-service:
+    build:
+      context: ./services/product-service
+      dockerfile: Dockerfile
+    container_name: testmesh-product-service
+    ports:
+      - "${PRODUCT_SERVICE_PORT:-5002}:5002"
+    environment:
+      PORT: 5002
+      DB_HOST: ${DATABASE_HOST:-localhost}
+      DB_PORT: ${DATABASE_PORT:-5432}
+      DB_USER: ${DATABASE_USER:-testmesh}
+      DB_PASSWORD: ${DATABASE_PASSWORD:-testmesh_dev}
+      DB_NAME: ${DATABASE_DBNAME:-testmesh}
+      DB_SCHEMA: product_service
+      DB_SSLMODE: ${DATABASE_SSLMODE:-disable}
+      REDIS_HOST: ${REDIS_HOST:-localhost}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-localhost:9092}
+    networks:
+      - testmesh-network
+
+  # Order Service (Microservice)
+  order-service:
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+    container_name: testmesh-order-service
+    ports:
+      - "${ORDER_SERVICE_PORT:-5003}:5003"
+    environment:
+      PORT: 5003
+      DB_HOST: ${DATABASE_HOST:-localhost}
+      DB_PORT: ${DATABASE_PORT:-5432}
+      DB_USER: ${DATABASE_USER:-testmesh}
+      DB_PASSWORD: ${DATABASE_PASSWORD:-testmesh_dev}
+      DB_NAME: ${DATABASE_DBNAME:-testmesh}
+      DB_SCHEMA: order_service
+      DB_SSLMODE: ${DATABASE_SSLMODE:-disable}
+      REDIS_HOST: ${REDIS_HOST:-localhost}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-localhost:9092}
+      USER_SERVICE_URL: http://${USER_SERVICE_HOST:-localhost}:${USER_SERVICE_PORT:-5001}
+      PRODUCT_SERVICE_URL: http://${PRODUCT_SERVICE_HOST:-localhost}:${PRODUCT_SERVICE_PORT:-5002}
+    networks:
+      - testmesh-network
+
+  # Notification Service (Microservice)
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: testmesh-notification-service
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-5004}:5004"
+    environment:
+      PORT: 5004
+      DB_HOST: ${DATABASE_HOST:-localhost}
+      DB_PORT: ${DATABASE_PORT:-5432}
+      DB_USER: ${DATABASE_USER:-testmesh}
+      DB_PASSWORD: ${DATABASE_PASSWORD:-testmesh_dev}
+      DB_NAME: ${DATABASE_DBNAME:-testmesh}
+      DB_SCHEMA: notification_service
+      DB_SSLMODE: ${DATABASE_SSLMODE:-disable}
+      REDIS_HOST: ${REDIS_HOST:-localhost}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-localhost:9092}
+    networks:
+      - testmesh-network
+
+networks:
+  testmesh-network:
+    external: true
+    name: testmesh-network

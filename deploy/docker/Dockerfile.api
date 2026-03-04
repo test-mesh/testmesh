@@ -1,0 +1,47 @@
+# Build stage
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Copy go mod files
+COPY api/go.mod api/go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY api/ ./
+
+# Build binary
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s -X main.Version=${VERSION:-dev}" \
+    -o /testmesh-api ./cmd/api
+
+# Runtime stage
+FROM alpine:3.19
+
+WORKDIR /app
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
+
+# Copy binary from builder
+COPY --from=builder /testmesh-api /app/testmesh-api
+
+# Create non-root user
+RUN addgroup -g 1000 testmesh && \
+    adduser -u 1000 -G testmesh -s /bin/sh -D testmesh && \
+    chown -R testmesh:testmesh /app
+
+USER testmesh
+
+# Expose ports
+EXPOSE 5016 5017
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:5016/health || exit 1
+
+# Run
+ENTRYPOINT ["/app/testmesh-api"]

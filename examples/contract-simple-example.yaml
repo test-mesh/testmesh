@@ -1,0 +1,132 @@
+name: Simple Contract Example
+description: Minimal contract testing example for web UI
+suite: examples
+tags:
+  - contract-testing
+  - example
+
+env:
+  CONSUMER_NAME: web-client
+  PROVIDER_NAME: user-api
+  CONTRACT_VERSION: 1.0.0
+
+setup:
+  # Start a mock provider for testing
+  - id: start_provider
+    action: mock_server_start
+    name: Start mock provider API
+    config:
+      name: user-api-provider
+      endpoints:
+        - path: /api/users
+          method: GET
+          response:
+            status_code: 200
+            body_json:
+              users:
+                - id: 1
+                  name: John Doe
+                  email: john@example.com
+        - path: /api/users/*
+          method: GET
+          match:
+            path_pattern: ^/api/users/[0-9]+$
+          response:
+            status_code: 200
+            body_json:
+              id: 1
+              name: John Doe
+              email: john@example.com
+        - path: /api/users
+          method: POST
+          response:
+            status_code: 201
+            body_json:
+              id: 2
+              name: "{{request.body.name}}"
+              email: "{{request.body.email}}"
+    output:
+      provider_url: $.base_url
+
+steps:
+  # Consumer makes requests
+  - id: get_users
+    action: http_request
+    name: Consumer - Get users
+    config:
+      method: GET
+      url: "{{provider_url}}/api/users"
+      headers:
+        Accept: application/json
+    assert:
+      - status == 200
+      - body.users != null
+    output:
+      first_user_id: $.body.users[0].id
+
+  - id: get_user
+    action: http_request
+    name: Consumer - Get user by ID
+    config:
+      method: GET
+      url: "{{provider_url}}/api/users/{{first_user_id}}"
+      headers:
+        Accept: application/json
+    assert:
+      - status == 200
+      - body.id == 1
+      - body.name != null
+
+  - id: create_user
+    action: http_request
+    name: Consumer - Create user
+    config:
+      method: POST
+      url: "{{provider_url}}/api/users"
+      headers:
+        Content-Type: application/json
+      body:
+        name: Alice Smith
+        email: alice@example.com
+    assert:
+      - status == 201
+      - body.name == "Alice Smith"
+
+  # Generate contract from interactions
+  - id: generate_contract
+    action: contract_generate
+    name: Generate Pact contract
+    config:
+      consumer: "{{CONSUMER_NAME}}"
+      provider: "{{PROVIDER_NAME}}"
+      version: "{{CONTRACT_VERSION}}"
+      export_json: true
+    output:
+      contract_id: $.contract_id
+
+  # Verify provider against contract
+  - id: verify_contract
+    action: contract_verify
+    name: Verify provider
+    config:
+      contract_id: "{{contract_id}}"
+      provider_base_url: "{{provider_url}}"
+      provider_version: 1.0.0
+    output:
+      verification_status: $.status
+
+  - id: log_result
+    action: log
+    name: Log contract result
+    config:
+      message: "Contract testing completed!"
+      data:
+        contract_id: "{{contract_id}}"
+        status: "{{verification_status}}"
+
+teardown:
+  - id: stop_provider
+    action: mock_server_stop
+    name: Stop mock provider
+    config:
+      server_id: "{{start_provider.server_id}}"

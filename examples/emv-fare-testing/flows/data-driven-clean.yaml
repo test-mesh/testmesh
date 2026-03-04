@@ -1,0 +1,47 @@
+flow:
+  name: "Data-Driven Tests - Clean Approach"
+  description: "Cleaner data-driven testing by passing entire data objects"
+  suite: "comprehensive"
+  tags: ["data_driven", "clean_approach"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+
+  # Approach 1: Load single file and pass entire objects
+  data_source:
+    type: "json"
+    file: "data/all_fare_scenarios.json"
+
+  steps:
+    - id: run_all_scenarios
+      name: "Run All Scenarios from Data File"
+      action: for_each
+      config:
+        items: "${data}"
+        item_name: "scenario"
+
+        steps:
+          - id: log_scenario
+            action: log
+            config:
+              message: "Running: ${scenario.name}"
+
+          # ✅ Pass entire scenario object - no field mapping!
+          - id: execute_test
+            action: run_flow
+            config:
+              flow: "fare-test-template-v2"
+              input: "${scenario}"  # All fields passed automatically
+            output:
+              result: "flow.status"
+
+          - id: verify_passed
+            action: assert
+            config:
+              assertions:
+                - expression: "${execute_test.result} == 'success'"
+                  message: "Test '${scenario.name}' failed"
+
+  config:
+    timeout: "30m"
+    fail_fast: false

@@ -1,0 +1,80 @@
+flow:
+  name: "Control Flow Demo"
+  description: "Demonstrates new control flow actions: log, delay, for_each, and http_request assertions"
+  suite: "examples"
+
+  steps:
+  # 1. Log action - Simple logging at info level
+  - id: log_start
+    name: "Log workflow start"
+    action: log
+    config:
+      message: "Starting control flow demonstration"
+      level: "info"
+
+  # 2. Delay action - Wait for 1 second
+  - id: wait_a_bit
+    name: "Wait 1 second"
+    action: delay
+    config:
+      duration: "1s"
+
+  # 3. HTTP request to get data with assertions
+  - id: fetch_user
+    name: "Fetch user data"
+    action: http_request
+    config:
+      method: GET
+      url: "https://jsonplaceholder.typicode.com/users/1"
+    assert:
+      - status == 200
+      - body.id == 1
+      - body.name != ""
+      - body.email != ""
+    output:
+      user_id: "$.id"
+      user_name: "$.name"
+      user_email: "$.email"
+
+  # 4. Log fetched data (variable interpolation)
+  - id: log_user
+    name: "Log user information"
+    action: log
+    config:
+      message: "Fetched user with ID ${fetch_user.user_id}"
+      level: "info"
+
+  # 5. Delay again
+  - id: wait_again
+    name: "Wait 500ms"
+    action: delay
+    config:
+      duration: "500ms"
+
+  # 6. For_each action - Loop over user IDs
+  - id: process_users
+    name: "Process multiple user IDs"
+    action: for_each
+    config:
+      items: [1, 2, 3]
+      item_name: "user_id"
+
+  # 7. Another HTTP request to demonstrate multiple requests
+  - id: fetch_posts
+    name: "Fetch posts"
+    action: http_request
+    config:
+      method: GET
+      url: "https://jsonplaceholder.typicode.com/posts?userId=1"
+    assert:
+      - status == 200
+      - len(body) > 0
+
+  # 8. Log completion with success message
+  - id: log_end
+    name: "Log workflow completion"
+    action: log
+    config:
+      message: "Control flow demonstration completed successfully!"
+      level: "info"
+

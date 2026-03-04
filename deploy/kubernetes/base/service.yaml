@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: testmesh-api
+  labels:
+    app: testmesh
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5016
+      targetPort: http
+      protocol: TCP
+    - name: ws
+      port: 5017
+      targetPort: ws
+      protocol: TCP
+  selector:
+    app: testmesh
+    component: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: testmesh-dashboard
+  labels:
+    app: testmesh
+    component: dashboard
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: testmesh
+    component: dashboard
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: testmesh
+  labels:
+    app: testmesh
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testmesh-config
+  labels:
+    app: testmesh
+data:
+  config.yaml: |
+    server:
+      port: 5016
+      ws_port: 5017
+    execution:
+      max_concurrent: 10
+      timeout: 300s
+    scheduler:
+      enabled: true
+    plugins:
+      enabled: true
+      path: /plugins
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: testmesh
+  labels:
+    app: testmesh
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "testmesh-api"
+spec:
+  rules:
+    - host: testmesh.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: testmesh-api
+                port:
+                  number: 5016
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: testmesh-api
+                port:
+                  number: 5017
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: testmesh-dashboard
+                port:
+                  number: 3000

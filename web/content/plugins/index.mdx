@@ -1,0 +1,79 @@
+---
+title: Plugins Overview
+description: Extend TestMesh with plugins for any integration.
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+
+TestMesh's plugin system allows you to extend the platform with custom integrations, actions, and triggers.
+
+## How Plugins Work
+
+Plugins are self-contained packages that add new node types to the flow editor. Each plugin can provide:
+
+- **Actions** - New operations your flows can perform
+- **Triggers** - New ways to start flows
+- **Connections** - Reusable authentication/configuration for services
+
+## Available Plugins
+
+<Cards>
+  <Card
+    title="Kafka"
+    href="/docs/plugins/kafka"
+    description="Produce and consume messages from Apache Kafka"
+  />
+  <Card
+    title="Database"
+    href="/docs/plugins/database"
+    description="Query PostgreSQL, MySQL, and other databases"
+  />
+</Cards>
+
+## Installing Plugins
+
+Plugins can be installed from the TestMesh plugin registry or loaded locally:
+
+### From Registry
+
+```bash
+testmesh plugin install @testmesh/plugin-kafka
+```
+
+### Local Plugin
+
+```bash
+testmesh plugin install ./path/to/my-plugin
+```
+
+### Via Docker
+
+Add plugins to your `docker-compose.yml`:
+
+```yaml
+services:
+  testmesh:
+    image: testmesh/testmesh:latest
+    environment:
+      TESTMESH_PLUGINS: "@testmesh/plugin-kafka,@testmesh/plugin-database"
+```
+
+## Plugin Configuration
+
+Plugins are configured through **Connections** in the UI:
+
+1. Go to **Settings > Connections**
+2. Click **New Connection**
+3. Select the plugin type
+4. Enter the required configuration
+5. Test the connection
+6. Save
+
+<Callout type="info">
+  Connections can be shared across multiple flows. Update the connection once, and all flows using it will use the new configuration.
+</Callout>
+
+## Plugin SDK
+
+Want to build your own plugin? Check out the [Creating Plugins](/docs/plugins/creating-plugins) guide.

@@ -1,0 +1,59 @@
+version: '3.8'
+
+# Development overrides
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.api
+      args:
+        - BUILD_MODE=development
+    volumes:
+      - ../../api:/app/src
+    environment:
+      - LOG_LEVEL=debug
+      - GO_ENV=development
+    ports:
+      - "5016:5016"
+      - "5017:5017"
+      - "40000:40000"  # Delve debugger port
+    command: ["dlv", "exec", "/app/testmesh-api", "--headless", "--listen=:40000", "--api-version=2"]
+
+  dashboard:
+    build:
+      context: ../../dashboard
+      dockerfile: ../deploy/docker/Dockerfile.dashboard
+      target: deps  # Use deps stage for development
+    volumes:
+      - ../../dashboard:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:5016
+    command: ["npm", "run", "dev"]
+
+  postgres:
+    ports:
+      - "5432:5432"  # Expose for local tools
+
+  redis:
+    ports:
+      - "6379:6379"  # Expose for local tools
+
+  # Mail catcher for email testing
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+
+  # Mock server for external APIs
+  mockserver:
+    image: mockserver/mockserver:5.15.0
+    ports:
+      - "1080:1080"
+    environment:
+      - MOCKSERVER_LOG_LEVEL=INFO

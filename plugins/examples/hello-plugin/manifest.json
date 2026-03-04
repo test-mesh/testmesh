@@ -1,0 +1,11 @@
+{
+  "id": "hello",
+  "name": "Hello World Plugin",
+  "version": "1.0.0",
+  "description": "A simple example plugin that demonstrates the TestMesh plugin system",
+  "author": "TestMesh",
+  "type": "action",
+  "entry_point": "plugin.js",
+  "config": {},
+  "permissions": []
+}

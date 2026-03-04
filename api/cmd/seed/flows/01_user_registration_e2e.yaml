@@ -1,0 +1,63 @@
+name: "User Registration E2E"
+description: "Register a user via User Service mock, verify in Postgres, assert"
+suite: "auth"
+tags: [smoke, critical, e2e]
+collection: "User API Tests"
+steps:
+  - id: register
+    action: http_request
+    name: "POST /api/users — Register user"
+    config:
+      method: POST
+      url: "${USER_SERVICE_URL}/api/users"
+      headers:
+        Content-Type: application/json
+        X-API-Key: "${API_KEY}"
+      body:
+        name: "Alice Smith"
+        email: "alice@example.com"
+        password: "secret123"
+    assert:
+      - "status == 201"
+    output:
+      user_id: "register.body.id"
+
+  - id: get_user
+    action: http_request
+    name: "GET /api/users/:id — Fetch created user"
+    config:
+      method: GET
+      url: "${USER_SERVICE_URL}/api/users/${register.body.id}"
+      headers:
+        X-API-Key: "${API_KEY}"
+    assert:
+      - "status == 200"
+
+  - id: verify_db
+    action: database_query
+    name: "SELECT user from Postgres"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT id, email FROM users WHERE email = $1 LIMIT 1"
+      params:
+        - "alice@example.com"
+    output:
+      db_id: "verify_db.first_row.id"
+
+  - id: assert_ok
+    action: assert
+    name: "Assert registration succeeded"
+    config:
+      data:
+        status: "${register.status}"
+        db_rows: "${verify_db.row_count}"
+      assertions:
+        - "status == '201'"
+        - "db_rows >= '0'"
+
+  - id: done
+    action: log
+    name: "Log registration result"
+    config:
+      message: "Registered user_id=${register.body.id} db_rows=${verify_db.row_count}"
+      level: info

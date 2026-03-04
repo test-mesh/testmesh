@@ -1,0 +1,33 @@
+@import "tailwindcss";
+@import "fumadocs-ui/style.css";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-twoslash/twoslash.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* TestMesh brand colors - synced with main app */
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+:root {
+  /* Override Fumadocs primary with TestMesh blue */
+  --fd-primary: oklch(0.59 0.14 242);
+  --fd-primary-foreground: oklch(0.98 0.01 237);
+
+  /* TestMesh accent colors */
+  --color-testmesh-accent: oklch(0.68 0.15 237);
+  --color-testmesh-muted: oklch(0.556 0 0);
+}
+
+.dark {
+  --fd-primary: oklch(0.68 0.15 237);
+  --fd-primary-foreground: oklch(0.29 0.06 243);
+}
+
+/* Custom code block styling */
+.shiki {
+  padding: 1rem;
+  border-radius: 0.5rem;
+}

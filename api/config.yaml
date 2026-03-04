@@ -1,0 +1,26 @@
+environment: development
+
+server:
+  port: 5016
+  read_timeout: 15s
+  write_timeout: 15s
+
+database:
+  host: localhost
+  port: 5432
+  user: root
+  password: admin
+  dbname: testmesh
+  sslmode: disable
+  max_conns: 25
+  max_idle: 5
+
+redis:
+  host: localhost
+  port: 6379
+  password: ""
+  db: 0
+
+logger:
+  level: info
+  output_path: stdout

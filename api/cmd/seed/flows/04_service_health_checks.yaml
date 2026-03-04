@@ -1,0 +1,67 @@
+name: "Service Health Check Suite"
+description: "Ping all four mock services and Postgres, assert all healthy"
+suite: "smoke"
+tags: [smoke, health, monitoring]
+collection: "Regression Suite"
+steps:
+  - id: user_health
+    action: http_request
+    name: "GET /api/health — User service"
+    config:
+      method: GET
+      url: "${USER_SERVICE_URL}/api/health"
+    output:
+      user_ok: "user_health.body.status"
+
+  - id: order_health
+    action: http_request
+    name: "GET /api/health — Order service"
+    config:
+      method: GET
+      url: "${ORDER_SERVICE_URL}/api/health"
+    output:
+      order_ok: "order_health.body.status"
+
+  - id: payment_health
+    action: http_request
+    name: "GET /api/health — Payment service"
+    config:
+      method: GET
+      url: "${PAYMENT_SERVICE_URL}/api/health"
+    output:
+      payment_ok: "payment_health.body.status"
+
+  - id: notify_health
+    action: http_request
+    name: "GET /api/health — Notification service"
+    config:
+      method: GET
+      url: "${NOTIFICATION_SERVICE_URL}/api/health"
+    output:
+      notify_ok: "notify_health.body.status"
+
+  - id: db_health
+    action: database_query
+    name: "SELECT 1 — Postgres connectivity"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT 1 AS ok"
+    assert:
+      - "row_count == 1"
+    output:
+      db_ok: "db_health.first_row.ok"
+
+  - id: assert_all
+    action: assert
+    name: "Assert all services healthy"
+    config:
+      data:
+        user: "${user_health.status}"
+        order: "${order_health.status}"
+        payment: "${payment_health.status}"
+        notify: "${notify_health.status}"
+      assertions:
+        - "user == '200'"
+        - "order == '200'"
+        - "payment == '200'"
+        - "notify == '200'"

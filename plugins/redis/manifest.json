@@ -1,0 +1,11 @@
+{
+  "id": "redis",
+  "name": "Redis Plugin",
+  "version": "1.0.0",
+  "description": "Redis integration for TestMesh - strings, hashes, lists, sets, pub/sub, and more",
+  "author": "TestMesh",
+  "type": "action",
+  "entry_point": "redis-plugin",
+  "runtime": "go",
+  "permissions": ["network"]
+}

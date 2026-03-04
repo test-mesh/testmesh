@@ -1,0 +1,14 @@
+name: "Simple HTTP Test"
+description: "Test basic HTTP request functionality"
+suite: "smoke-tests"
+tags: ["http", "basic"]
+
+steps:
+  - id: get_users
+    action: http_request
+    name: "Get JSONPlaceholder users"
+    config:
+      method: GET
+      url: "https://jsonplaceholder.typicode.com/users/1"
+    output:
+      user_name: "$.name"

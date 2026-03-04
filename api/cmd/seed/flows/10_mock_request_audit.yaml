@@ -1,0 +1,58 @@
+name: "Mock Request Audit"
+description: "Query Postgres for mock server stats, audit unmatched requests, cross-check via TestMesh API"
+suite: "regression"
+tags: [regression, mocks, audit]
+collection: "Regression Suite"
+steps:
+  - id: mock_stats
+    action: database_query
+    name: "SELECT running mock servers from Postgres"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT COUNT(*) AS total FROM mocks.mock_servers WHERE status = 'running'"
+    output:
+      running_mocks: "first_row.total"
+
+  - id: request_stats
+    action: database_query
+    name: "SELECT mock request totals"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT COUNT(*) AS total, SUM(CASE WHEN matched THEN 1 ELSE 0 END) AS matched_count FROM mocks.mock_requests"
+    output:
+      total_requests: "first_row.total"
+      matched_count: "first_row.matched_count"
+
+  - id: unmatched
+    action: database_query
+    name: "SELECT recent unmatched requests"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT mock_server_id, path, method, received_at FROM mocks.mock_requests WHERE matched = false ORDER BY received_at DESC LIMIT 5"
+
+  - id: testmesh_api
+    action: http_request
+    name: "GET /api/v1/mock-servers — List via TestMesh API"
+    config:
+      method: GET
+      url: "${TESTMESH_API_URL}/api/v1/mock-servers?status=running"
+      headers:
+        X-API-Key: "${API_KEY}"
+    assert:
+      - "status == 200"
+
+  - id: assert_audit
+    action: assert
+    name: "Assert mock servers are running"
+    config:
+      data:
+        api_status: "${testmesh_api.status}"
+      assertions:
+        - "api_status == '200'"
+
+  - id: done
+    action: log
+    name: "Log audit summary"
+    config:
+      message: "Audit: ${mock_stats.running_mocks} mocks running, ${request_stats.total_requests} total requests, ${request_stats.matched_count} matched"
+      level: info

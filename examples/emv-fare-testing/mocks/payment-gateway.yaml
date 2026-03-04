@@ -1,0 +1,211 @@
+mock_server:
+  name: "Payment Gateway Mock"
+  description: "Mock payment gateway for fare testing"
+  port: 9000
+
+  # Default headers for all responses
+  default_headers:
+    Content-Type: "application/json"
+    X-API-Version: "2024-01"
+    X-Mock-Server: "TestMesh"
+
+  endpoints:
+    # ============================================================================
+    # Create Charge
+    # ============================================================================
+
+    # Test card: Always succeeds
+    - path: /v1/charges
+      method: POST
+      match:
+        body_matches:
+          - "$.card.number == '4242424242424242'"
+      response:
+        status: 200
+        delay: 250ms
+        body:
+          id: "ch_{{random.string(24)}}"
+          object: "charge"
+          amount: "{{request.body.amount}}"
+          currency: "{{request.body.currency}}"
+          status: "succeeded"
+          paid: true
+          card:
+            last4: "4242"
+            brand: "visa"
+            exp_month: "{{request.body.card.exp_month}}"
+            exp_year: "{{request.body.card.exp_year}}"
+          created: "{{timestamp_unix}}"
+          receipt_url: "https://pay.example.com/receipts/{{random.uuid}}"
+
+    # Test card: Always declined
+    - path: /v1/charges
+      method: POST
+      match:
+        body_matches:
+          - "$.card.number == '4000000000000002'"
+      response:
+        status: 402
+        body:
+          error:
+            type: "card_error"
+            code: "card_declined"
+            decline_code: "generic_decline"
+            message: "Your card was declined."
+
+    # Test card: Insufficient funds
+    - path: /v1/charges
+      method: POST
+      match:
+        body_matches:
+          - "$.card.number == '4000000000009995'"
+      response:
+        status: 402
+        body:
+          error:
+            type: "card_error"
+            code: "card_declined"
+            decline_code: "insufficient_funds"
+            message: "Your card has insufficient funds."
+
+    # Test card: Expired
+    - path: /v1/charges
+      method: POST
+      match:
+        body_matches:
+          - "$.card.number == '4000000000000069'"
+      response:
+        status: 402
+        body:
+          error:
+            type: "card_error"
+            code: "expired_card"
+            message: "Your card has expired."
+
+    # Amount validation: Decline if > $10
+    - path: /v1/charges
+      method: POST
+      priority: 5
+      match:
+        body_matches:
+          - "$.amount > 10.00"
+      response:
+        status: 402
+        body:
+          error:
+            type: "card_error"
+            code: "card_declined"
+            decline_code: "amount_too_large"
+            message: "Transaction amount exceeds card limit."
+
+    # Default success for other cards (small amounts)
+    - path: /v1/charges
+      method: POST
+      priority: 10
+      response:
+        status: 200
+        delay: 300ms
+        body:
+          id: "ch_{{random.string(24)}}"
+          object: "charge"
+          amount: "{{request.body.amount}}"
+          currency: "{{request.body.currency}}"
+          status: "succeeded"
+          paid: true
+          card:
+            last4: "{{request.body.card.last4}}"
+            brand: "visa"
+          created: "{{timestamp_unix}}"
+
+    # ============================================================================
+    # Refunds
+    # ============================================================================
+
+    - path: /v1/refunds
+      method: POST
+      response:
+        status: 200
+        delay: 200ms
+        body:
+          id: "re_{{random.string(24)}}"
+          object: "refund"
+          amount: "{{request.body.amount}}"
+          charge: "{{request.body.charge}}"
+          currency: "usd"
+          status: "succeeded"
+          created: "{{timestamp_unix}}"
+
+    # ============================================================================
+    # Retrieve Charge
+    # ============================================================================
+
+    - path: /v1/charges/:id
+      method: GET
+      response:
+        status: 200
+        body:
+          id: "{{path.id}}"
+          object: "charge"
+          amount: 500
+          currency: "usd"
+          status: "succeeded"
+          paid: true
+
+    # ============================================================================
+    # List Charges
+    # ============================================================================
+
+    - path: /v1/charges
+      method: GET
+      response:
+        status: 200
+        body:
+          object: "list"
+          has_more: false
+          data:
+            - id: "ch_{{random.string(24)}}"
+              amount: 500
+              currency: "usd"
+              status: "succeeded"
+
+    # ============================================================================
+    # Webhooks (for testing webhook handling)
+    # ============================================================================
+
+    - path: /v1/webhook-test
+      method: POST
+      response:
+        status: 200
+        body:
+          received: true
+          timestamp: "{{timestamp}}"
+
+    # ============================================================================
+    # Health Check
+    # ============================================================================
+
+    - path: /health
+      method: GET
+      response:
+        status: 200
+        delay: 10ms
+        body:
+          status: "healthy"
+          version: "1.0.0"
+          timestamp: "{{timestamp}}"
+
+  # Chaos engineering rules (optional)
+  chaos:
+    enabled: false
+    rules:
+      - probability: 0.05  # 5% of requests fail
+        response:
+          status: 503
+          body:
+            error:
+              type: "api_error"
+              message: "Service temporarily unavailable"
+
+      - probability: 0.02  # 2% timeout
+        response:
+          delay: 30s

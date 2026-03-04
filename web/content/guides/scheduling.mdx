@@ -1,0 +1,172 @@
+---
+title: Scheduling
+description: Set up automated test runs with cron schedules and triggers.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+
+TestMesh supports flexible scheduling options to run your flows automatically on recurring schedules.
+
+## Creating a Schedule
+
+### Via the UI
+
+1. Navigate to **Schedules** in the sidebar
+2. Click **New Schedule**
+3. Select the flow you want to run
+4. Configure the schedule using the cron builder or expression
+5. Set optional parameters and save
+
+### Via the API
+
+```bash
+curl -X POST http://localhost:8080/api/schedules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "flowId": "flow_abc123",
+    "cron": "0 9 * * 1-5",
+    "timezone": "America/New_York",
+    "enabled": true
+  }'
+```
+
+## Cron Expressions
+
+TestMesh uses standard cron syntax with an optional seconds field:
+
+```
+┌───────────── second (0-59) [optional]
+│ ┌─────────── minute (0-59)
+│ │ ┌───────── hour (0-23)
+│ │ │ ┌─────── day of month (1-31)
+│ │ │ │ ┌───── month (1-12)
+│ │ │ │ │ ┌─── day of week (0-6, Sun-Sat)
+│ │ │ │ │ │
+* * * * * *
+```
+
+### Common Examples
+
+| Schedule | Cron Expression | Description |
+|----------|-----------------|-------------|
+| Every minute | `* * * * *` | Runs every minute |
+| Hourly | `0 * * * *` | At minute 0 of every hour |
+| Daily at 9 AM | `0 9 * * *` | Every day at 9:00 AM |
+| Weekdays at 9 AM | `0 9 * * 1-5` | Monday-Friday at 9:00 AM |
+| Weekly on Monday | `0 9 * * 1` | Every Monday at 9:00 AM |
+| Monthly | `0 9 1 * *` | 1st of every month at 9:00 AM |
+| Every 15 minutes | `*/15 * * * *` | At 0, 15, 30, 45 minutes |
+
+## Timezone Handling
+
+<Callout type="info">
+  All schedules use the timezone you specify. If no timezone is set, UTC is used by default.
+</Callout>
+
+```typescript
+// Schedule in a specific timezone
+{
+  cron: "0 9 * * *",
+  timezone: "Europe/London"  // Runs at 9 AM London time
+}
+```
+
+## Schedule Parameters
+
+Pass parameters to scheduled flow runs:
+
+```json
+{
+  "flowId": "flow_abc123",
+  "cron": "0 9 * * *",
+  "parameters": {
+    "environment": "production",
+    "notifyOnFailure": true
+  }
+}
+```
+
+Access these in your flow using `$input`:
+
+```typescript
+declare const $input: { environment: string; notifyOnFailure: boolean };
+// ---cut---
+const env = $input.environment; // "production"
+```
+
+## Monitoring Schedules
+
+### View Run History
+
+Navigate to **Schedules > [Your Schedule] > History** to see:
+
+- Past executions with status
+- Execution duration
+- Output and logs
+- Next scheduled run time
+
+### Notifications
+
+Configure alerts for schedule failures:
+
+<Tabs items={["Email", "Slack", "Webhook"]}>
+  <Tab value="Email">
+    ```json
+    {
+      "notifications": {
+        "email": {
+          "to": ["team@example.com"],
+          "onFailure": true,
+          "onSuccess": false
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Slack">
+    ```json
+    {
+      "notifications": {
+        "slack": {
+          "webhookUrl": "https://hooks.slack.com/...",
+          "channel": "#testing-alerts"
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Webhook">
+    ```json
+    {
+      "notifications": {
+        "webhook": {
+          "url": "https://your-api.com/alerts",
+          "headers": {
+            "Authorization": "Bearer token"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Concurrency Control
+
+Prevent overlapping runs with concurrency settings:
+
+```json
+{
+  "concurrency": {
+    "maxConcurrent": 1,
+    "behavior": "skip"  // "skip" | "queue" | "cancel"
+  }
+}
+```
+
+| Behavior | Description |
+|----------|-------------|
+| `skip` | Skip the new run if another is in progress |
+| `queue` | Queue the new run to execute after current completes |
+| `cancel` | Cancel the running execution and start new |

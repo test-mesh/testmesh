@@ -1,0 +1,108 @@
+---
+title: Flow Editor
+description: Master the visual flow editor to create powerful test workflows.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+The Flow Editor is TestMesh's visual interface for building test workflows. It uses a node-based approach where you connect triggers, actions, and conditions to create complex automation flows.
+
+## Interface Overview
+
+The Flow Editor consists of four main areas:
+
+1. **Canvas** - The central area where you build your flow
+2. **Sidebar** - Contains available nodes you can drag onto the canvas
+3. **Toolbar** - Actions like Run, Save, and Undo/Redo
+4. **Properties Panel** - Configure the selected node
+
+## Node Types
+
+### Triggers
+
+Triggers start your flow execution. Every flow needs at least one trigger.
+
+| Trigger | Description |
+|---------|-------------|
+| **Manual** | Run the flow on-demand from the UI or API |
+| **Schedule** | Run on a cron schedule |
+| **Webhook** | Triggered by incoming HTTP requests |
+| **Event** | Triggered by system events |
+
+### Actions
+
+Actions perform operations in your flow:
+
+| Action | Description |
+|--------|-------------|
+| **HTTP Request** | Make REST API calls |
+| **Script** | Execute JavaScript/TypeScript code |
+| **Database** | Query databases |
+| **Assert** | Validate conditions |
+| **Delay** | Wait for a specified duration |
+
+### Control Flow
+
+Control flow nodes manage execution paths:
+
+| Node | Description |
+|------|-------------|
+| **Condition** | Branch based on expressions |
+| **Loop** | Iterate over arrays or ranges |
+| **Parallel** | Execute branches concurrently |
+| **Try/Catch** | Handle errors gracefully |
+
+## Working with Data
+
+### Variables
+
+Access data from previous nodes using the `$` syntax:
+
+```typescript
+// Access the response from an HTTP request node
+const response = $httpRequest1.data;
+const statusCode = $httpRequest1.status;
+
+// Access input parameters
+const userId = $input.userId;
+```
+
+### Expressions
+
+Use JavaScript expressions in node configurations:
+
+```javascript
+// Conditional expression
+$httpRequest1.status === 200 && $httpRequest1.data.success
+
+// String interpolation
+`Hello, ${$input.name}!`
+
+// Array operations
+$fetchUsers.data.users.filter(u => u.active)
+```
+
+## Best Practices
+
+<Callout type="tip">
+  **Keep flows focused** - Each flow should have a single purpose. Create multiple flows for different test scenarios.
+</Callout>
+
+1. **Name nodes descriptively** - Use clear names like "Fetch User Profile" instead of "HTTP Request 1"
+2. **Add comments** - Right-click nodes to add notes explaining their purpose
+3. **Handle errors** - Use Try/Catch nodes for operations that might fail
+4. **Use variables** - Store reusable values in flow variables
+5. **Test incrementally** - Run partial flows while building to catch issues early
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl + S` | Save flow |
+| `Cmd/Ctrl + Z` | Undo |
+| `Cmd/Ctrl + Shift + Z` | Redo |
+| `Delete` | Delete selected node |
+| `Cmd/Ctrl + D` | Duplicate node |
+| `Cmd/Ctrl + Enter` | Run flow |
+| `Space` (hold) | Pan canvas |
+| `Cmd/Ctrl + Scroll` | Zoom in/out |

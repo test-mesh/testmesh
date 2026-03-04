@@ -1,0 +1,125 @@
+---
+title: Installation
+description: Detailed installation instructions for various environments.
+---
+
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Callout } from "fumadocs-ui/components/callout";
+
+## System Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| CPU | 2 cores | 4 cores |
+| RAM | 4 GB | 8 GB |
+| Storage | 10 GB | 50 GB |
+| Docker | 20.10+ | Latest |
+| Node.js | 20+ | 22 LTS |
+
+## Docker Installation
+
+<Callout type="info">
+  Docker is the recommended installation method for production deployments.
+</Callout>
+
+### Using Docker Compose
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/testmesh.git
+cd testmesh
+
+# Copy environment template
+cp .env.example .env
+
+# Start all services
+docker-compose up -d
+```
+
+### Environment Variables
+
+Create a `.env` file with the following configuration:
+
+```bash title=".env"
+# Database
+DATABASE_URL=postgresql://testmesh:password@localhost:5432/testmesh
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# API Server
+API_PORT=8080
+API_SECRET=your-secret-key-here
+
+# Web UI
+NEXT_PUBLIC_API_URL=http://localhost:8080
+```
+
+## Manual Installation
+
+For development or when Docker isn't available:
+
+<Tabs items={["macOS", "Linux", "Windows"]}>
+  <Tab value="macOS">
+    ```bash
+    # Install dependencies with Homebrew
+    brew install node@22 go postgresql redis
+
+    # Start services
+    brew services start postgresql
+    brew services start redis
+
+    # Clone and setup
+    git clone https://github.com/yourusername/testmesh.git
+    cd testmesh
+    make setup
+    make dev
+    ```
+  </Tab>
+  <Tab value="Linux">
+    ```bash
+    # Ubuntu/Debian
+    sudo apt update
+    sudo apt install -y nodejs npm golang-go postgresql redis-server
+
+    # Start services
+    sudo systemctl start postgresql redis
+
+    # Clone and setup
+    git clone https://github.com/yourusername/testmesh.git
+    cd testmesh
+    make setup
+    make dev
+    ```
+  </Tab>
+  <Tab value="Windows">
+    ```powershell
+    # Using winget
+    winget install OpenJS.NodeJS.LTS
+    winget install GoLang.Go
+    winget install PostgreSQL.PostgreSQL
+    winget install Redis.Redis
+
+    # Clone and setup
+    git clone https://github.com/yourusername/testmesh.git
+    cd testmesh
+    npm run setup
+    npm run dev
+    ```
+  </Tab>
+</Tabs>
+
+## Verify Installation
+
+After installation, verify everything is working:
+
+```bash
+# Check web UI
+curl http://localhost:3000
+
+# Check API health
+curl http://localhost:8080/health
+
+# You should see:
+# {"status": "healthy", "version": "0.1.0"}
+```

@@ -1,0 +1,233 @@
+---
+title: Schedules API
+description: Create and manage automated flow schedules.
+---
+
+## List Schedules
+
+```http
+GET /api/schedules
+```
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `flowId` | string | Filter by flow ID |
+| `enabled` | boolean | Filter by enabled status |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "id": "sched_abc123",
+      "flowId": "flow_xyz789",
+      "flowName": "Daily Health Check",
+      "cron": "0 9 * * *",
+      "timezone": "America/New_York",
+      "enabled": true,
+      "nextRun": "2024-01-16T14:00:00Z",
+      "lastRun": "2024-01-15T14:00:00Z",
+      "lastRunStatus": "completed",
+      "createdAt": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+## Get Schedule
+
+```http
+GET /api/schedules/:id
+```
+
+### Response
+
+```json
+{
+  "data": {
+    "id": "sched_abc123",
+    "flowId": "flow_xyz789",
+    "flowName": "Daily Health Check",
+    "cron": "0 9 * * *",
+    "cronDescription": "At 09:00 AM",
+    "timezone": "America/New_York",
+    "enabled": true,
+    "parameters": {
+      "environment": "production"
+    },
+    "concurrency": {
+      "maxConcurrent": 1,
+      "behavior": "skip"
+    },
+    "notifications": {
+      "onFailure": ["email:team@example.com"]
+    },
+    "nextRun": "2024-01-16T14:00:00Z",
+    "upcomingRuns": [
+      "2024-01-16T14:00:00Z",
+      "2024-01-17T14:00:00Z",
+      "2024-01-18T14:00:00Z"
+    ],
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  }
+}
+```
+
+## Create Schedule
+
+```http
+POST /api/schedules
+```
+
+### Request Body
+
+```json
+{
+  "flowId": "flow_xyz789",
+  "cron": "0 9 * * 1-5",
+  "timezone": "America/New_York",
+  "enabled": true,
+  "parameters": {
+    "environment": "production"
+  },
+  "concurrency": {
+    "maxConcurrent": 1,
+    "behavior": "skip"
+  },
+  "notifications": {
+    "onFailure": ["email:team@example.com"],
+    "onSuccess": []
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `flowId` | string | Yes | The flow to run |
+| `cron` | string | Yes | Cron expression |
+| `timezone` | string | No | IANA timezone (default: UTC) |
+| `enabled` | boolean | No | Whether schedule is active (default: true) |
+| `parameters` | object | No | Parameters to pass to the flow |
+| `concurrency` | object | No | Concurrency settings |
+| `notifications` | object | No | Notification configuration |
+
+### Response
+
+```json
+{
+  "data": {
+    "id": "sched_new123",
+    "nextRun": "2024-01-16T14:00:00Z",
+    ...
+  }
+}
+```
+
+## Update Schedule
+
+```http
+PATCH /api/schedules/:id
+```
+
+### Request Body
+
+```json
+{
+  "cron": "0 10 * * *",
+  "enabled": false
+}
+```
+
+## Delete Schedule
+
+```http
+DELETE /api/schedules/:id
+```
+
+Returns `204 No Content` on success.
+
+## Pause Schedule
+
+```http
+POST /api/schedules/:id/pause
+```
+
+Sets `enabled: false` and returns the updated schedule.
+
+## Resume Schedule
+
+```http
+POST /api/schedules/:id/resume
+```
+
+Sets `enabled: true` and returns the updated schedule.
+
+## Trigger Immediate Run
+
+```http
+POST /api/schedules/:id/trigger
+```
+
+Triggers an immediate run of the scheduled flow, independent of the cron schedule.
+
+### Request Body
+
+```json
+{
+  "parameterOverrides": {
+    "environment": "staging"
+  }
+}
+```
+
+### Response
+
+```json
+{
+  "data": {
+    "executionId": "exec_triggered123",
+    "triggeredBy": "schedule:manual",
+    "status": "running"
+  }
+}
+```
+
+## Get Schedule History
+
+```http
+GET /api/schedules/:id/history
+```
+
+Returns recent executions triggered by this schedule.
+
+### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `limit` | integer | Number of executions to return (default: 10, max: 100) |
+| `status` | string | Filter by status |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "executionId": "exec_abc123",
+      "status": "completed",
+      "startedAt": "2024-01-15T14:00:00Z",
+      "duration": 5000
+    },
+    {
+      "executionId": "exec_abc122",
+      "status": "completed",
+      "startedAt": "2024-01-14T14:00:00Z",
+      "duration": 4800
+    }
+  ]
+}
+```

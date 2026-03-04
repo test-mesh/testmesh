@@ -1,0 +1,67 @@
+name: "Kafka Consumer Validation"
+description: "Create an order, wait for async processing, consume the event from Kafka, assert"
+suite: "integration"
+tags: [kafka, integration, async]
+collection: ""
+steps:
+  - id: create_order
+    action: http_request
+    name: "POST /api/orders — Trigger order event"
+    config:
+      method: POST
+      url: "${ORDER_SERVICE_URL}/api/orders"
+      headers:
+        Content-Type: application/json
+      body:
+        user_id: "user-kafka-test"
+        total: 29.99
+    assert:
+      - "status == 201"
+    output:
+      order_id: "body.id"
+
+  - id: wait
+    action: delay
+    name: "Wait for event propagation"
+    config:
+      duration: "500ms"
+
+  - id: consume
+    action: kafka_consumer
+    name: "Consume order.created from Kafka"
+    config:
+      brokers:
+        - "${KAFKA_BROKERS}"
+      topic: "order.created"
+      group_id: "${KAFKA_GROUP_ID}"
+      timeout: "10s"
+      count: 1
+    output:
+      msg_count: "count"
+
+  - id: verify_db
+    action: database_query
+    name: "SELECT order from Postgres after Kafka event"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT COUNT(*) AS cnt FROM orders WHERE external_id = $1"
+      params:
+        - "${create_order.body.id}"
+    output:
+      db_cnt: "first_row.cnt"
+
+  - id: assert_event
+    action: assert
+    name: "Assert order created and Kafka consumed"
+    config:
+      data:
+        order_status: "${create_order.status}"
+      assertions:
+        - "order_status == '201'"
+
+  - id: done
+    action: log
+    name: "Log Kafka validation result"
+    config:
+      message: "Kafka validation: kafka_messages=${consume.msg_count} db_rows=${verify_db.db_cnt}"
+      level: info

@@ -1,0 +1,512 @@
+flow:
+  name: "Fare Testing with Mock External APIs"
+  description: "Test fare calculation with mocked payment gateway and fraud detection service"
+  suite: "integration"
+  tags: ["mock", "payment_gateway", "fraud_detection"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+    FARE_API_URL: "${FARE_API_URL}"
+
+  setup:
+    # ============================================================================
+    # Mock 1: Payment Gateway
+    # ============================================================================
+    - id: start_payment_gateway_mock
+      name: "Start Payment Gateway Mock"
+      action: mock_server_start
+      config:
+        name: "payment-gateway"
+        port: 9000
+
+        endpoints:
+          # Successful charge (amount <= $10)
+          - path: /v1/charges
+            method: POST
+            match:
+              body_matches:
+                - "$.amount <= 10.00"
+            response:
+              status: 200
+              delay: 300ms  # Simulate network latency
+              headers:
+                X-Request-ID: "{{random.uuid}}"
+              body:
+                id: "ch_{{random.string(24)}}"
+                status: "succeeded"
+                amount: "{{request.body.amount}}"
+                currency: "{{request.body.currency}}"
+                card_last4: "{{request.body.card.last4}}"
+                created: "{{timestamp_unix}}"
+                receipt_url: "https://pay.example.com/receipts/{{random.uuid}}"
+
+          # Decline if amount exceeds limit
+          - path: /v1/charges
+            method: POST
+            match:
+              body_matches:
+                - "$.amount > 10.00"
+            response:
+              status: 402
+              body:
+                error:
+                  type: "card_error"
+                  code: "card_declined"
+                  message: "Your card was declined"
+                  decline_code: "insufficient_funds"
+
+          # Card declined - specific test card
+          - path: /v1/charges
+            method: POST
+            match:
+              body_matches:
+                - "$.card.number == '4000000000000002'"
+            response:
+              status: 402
+              body:
+                error:
+                  type: "card_error"
+                  code: "card_declined"
+                  message: "Your card was declined"
+
+          # Refund endpoint
+          - path: /v1/refunds
+            method: POST
+            response:
+              status: 200
+              delay: 200ms
+              body:
+                id: "re_{{random.string(24)}}"
+                status: "succeeded"
+                amount: "{{request.body.amount}}"
+                charge_id: "{{request.body.charge_id}}"
+                created: "{{timestamp_unix}}"
+
+      output:
+        payment_gateway_url: "$.base_url"
+
+    # ============================================================================
+    # Mock 2: Fraud Detection Service
+    # ============================================================================
+    - id: start_fraud_detection_mock
+      name: "Start Fraud Detection Mock"
+      action: mock_server_start
+      config:
+        name: "fraud-detection"
+        port: 9001
+
+        endpoints:
+          # Low risk transactions
+          - path: /api/v1/analyze
+            method: POST
+            match:
+              body_matches:
+                - "$.amount <= 5.00"
+            response:
+              status: 200
+              delay: 100ms
+              body:
+                transaction_id: "{{request.body.transaction_id}}"
+                risk_score: "{{random.int(0, 30)}}"
+                risk_level: "low"
+                decision: "approve"
+                factors:
+                  - "Low transaction amount"
+                  - "Known device"
+
+          # Medium risk transactions
+          - path: /api/v1/analyze
+            method: POST
+            match:
+              body_matches:
+                - "$.amount > 5.00"
+                - "$.amount <= 10.00"
+            response:
+              status: 200
+              delay: 150ms
+              body:
+                transaction_id: "{{request.body.transaction_id}}"
+                risk_score: "{{random.int(30, 70)}}"
+                risk_level: "medium"
+                decision: "review"
+                factors:
+                  - "Medium transaction amount"
+                  - "Unusual time"
+
+          # High risk transactions
+          - path: /api/v1/analyze
+            method: POST
+            match:
+              body_matches:
+                - "$.amount > 10.00"
+            response:
+              status: 200
+              delay: 200ms
+              body:
+                transaction_id: "{{request.body.transaction_id}}"
+                risk_score: "{{random.int(70, 100)}}"
+                risk_level: "high"
+                decision: "decline"
+                factors:
+                  - "High transaction amount"
+                  - "Velocity check failed"
+                  - "Location mismatch"
+
+      output:
+        fraud_detection_url: "$.base_url"
+
+    # ============================================================================
+    # Mock 3: Card Enrollment Service
+    # ============================================================================
+    - id: start_enrollment_service_mock
+      name: "Start Card Enrollment Mock"
+      action: mock_server_start
+      config:
+        name: "enrollment-service"
+        port: 9002
+
+        # Stateful mock - track enrolled cards
+        state:
+          enrolled_cards: []
+
+        endpoints:
+          # Enroll card in program
+          - path: /api/enrollments
+            method: POST
+            response:
+              status: 201
+              headers:
+                Location: "/api/enrollments/{{random.uuid}}"
+              body:
+                id: "{{random.uuid}}"
+                pan: "{{request.body.pan}}"
+                program: "{{request.body.program}}"
+                status: "active"
+                discount_rate: 0.50
+                enrolled_at: "{{timestamp}}"
+              state_changes:
+                - action: append
+                  path: enrolled_cards
+                  value:
+                    pan: "{{request.body.pan}}"
+                    program: "{{request.body.program}}"
+
+          # Check enrollment status
+          - path: /api/enrollments/check
+            method: POST
+            response:
+              status: 200
+              body:
+                pan: "{{request.body.pan}}"
+                enrolled: "{{state.enrolled_cards.length > 0}}"
+                programs: "{{state.enrolled_cards}}"
+
+          # Unenroll
+          - path: /api/enrollments/:id
+            method: DELETE
+            response:
+              status: 204
+
+      output:
+        enrollment_service_url: "$.base_url"
+
+    # ============================================================================
+    # Configure Fare Service to Use Mock APIs
+    # ============================================================================
+    - id: configure_fare_service
+      name: "Configure Fare Service with Mock URLs"
+      action: http_request
+      config:
+        method: PUT
+        url: "${FARE_API_URL}/admin/config"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+        body:
+          payment_gateway:
+            url: "${start_payment_gateway_mock.payment_gateway_url}"
+            api_key: "mock_key_123"
+          fraud_detection:
+            url: "${start_fraud_detection_mock.fraud_detection_url}"
+            enabled: true
+          enrollment_service:
+            url: "${start_enrollment_service_mock.enrollment_service_url}"
+
+    # Clean test data
+    - id: cleanup_test_data
+      name: "Clean Test Data"
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+        params: ["4111111111111111"]
+
+  steps:
+    # ============================================================================
+    # Test 1: Successful Payment Flow
+    # ============================================================================
+    - id: test_successful_payment
+      name: "Test Successful Payment (Low Amount)"
+      action: for_each
+      config:
+        range:
+          start: 1
+          end: 2
+        item_name: "tap_num"
+
+        steps:
+          - id: send_tap
+            action: kafka_publish
+            config:
+              brokers: ["${KAFKA_BROKERS}"]
+              topic: "matches"
+              value:
+                pan: "4111111111111111"
+                timestamp: "{{TIMESTAMP}}"
+                tap_type: "{{tap_num == 1 ? 'entry' : 'exit'}}"
+                station_id: "STATION_{{tap_num}}"
+
+    - id: wait_for_payment
+      name: "Wait for Payment Processing"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "payments"
+        timeout: 15s
+        match:
+          json_path:
+            - "$.pan == '4111111111111111'"
+            - "$.status == 'succeeded'"
+      output:
+        payment: "$"
+
+    # Verify payment gateway was called
+    - id: verify_payment_gateway_called
+      name: "Verify Payment Gateway Received Charge Request"
+      action: mock_server_verify
+      config:
+        server: "payment-gateway"
+        assertions:
+          - path: /v1/charges
+            method: POST
+            count_min: 1
+            body_matches:
+              - "$.amount > 0"
+              - "$.currency == 'USD'"
+
+    # Verify fraud detection was called
+    - id: verify_fraud_check_called
+      name: "Verify Fraud Detection Was Called"
+      action: mock_server_verify
+      config:
+        server: "fraud-detection"
+        assertions:
+          - path: /api/v1/analyze
+            method: POST
+            count: 1
+            body_matches:
+              - "$.amount > 0"
+
+    # ============================================================================
+    # Test 2: Declined Payment (Amount Too High)
+    # ============================================================================
+    - id: test_declined_payment
+      name: "Test Declined Payment"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "manual_charges"
+        value:
+          pan: "4111111111111111"
+          amount: 15.00  # Exceeds $10 limit in mock
+          reason: "manual_adjustment"
+
+    - id: wait_for_decline
+      name: "Wait for Payment Decline Event"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "payment_failures"
+        timeout: 10s
+        match:
+          json_path:
+            - "$.pan == '4111111111111111'"
+            - "$.error.code == 'card_declined'"
+      output:
+        decline_event: "$"
+
+    - id: verify_decline_reason
+      name: "Verify Decline Reason"
+      action: assert
+      config:
+        assertions:
+          - expression: "${wait_for_decline.decline_event.error.decline_code} == 'insufficient_funds'"
+            message: "Expected insufficient_funds decline code"
+
+    # ============================================================================
+    # Test 3: Enrollment and Discount
+    # ============================================================================
+    - id: enroll_card
+      name: "Enroll Card in Green Ticket Program"
+      action: http_request
+      config:
+        method: POST
+        url: "${start_enrollment_service_mock.enrollment_service_url}/api/enrollments"
+        body:
+          pan: "4111111111111111"
+          program: "green_ticket"
+      output:
+        enrollment: "$.body"
+
+    - id: verify_enrollment
+      name: "Verify Enrollment Created"
+      action: assert
+      config:
+        assertions:
+          - expression: "${enroll_card.enrollment.status} == 'active'"
+          - expression: "${enroll_card.enrollment.discount_rate} == 0.50"
+
+    # Send taps and verify discount applied
+    - id: send_discounted_taps
+      name: "Send Taps for Discounted Fare"
+      action: for_each
+      config:
+        range:
+          start: 1
+          end: 2
+        item_name: "tap_num"
+        steps:
+          - action: kafka_publish
+            config:
+              brokers: ["${KAFKA_BROKERS}"]
+              topic: "matches"
+              value:
+                pan: "4111111111111111"
+                tap_type: "{{tap_num == 1 ? 'entry' : 'exit'}}"
+
+    - id: query_discounted_fare
+      name: "Query Discounted Fare"
+      action: database_query
+      config:
+        query: |
+          SELECT amount, discount_applied, original_amount
+          FROM emv_sales
+          WHERE pan = $1
+          ORDER BY created_at DESC
+          LIMIT 1
+        params: ["4111111111111111"]
+        poll:
+          enabled: true
+          timeout: 15s
+          interval: 2s
+      output:
+        fare: "$.rows[0]"
+
+    - id: verify_discount_applied
+      name: "Verify 50% Discount Applied"
+      action: assert
+      config:
+        assertions:
+          - expression: "${query_discounted_fare.fare.discount_applied} == true"
+          - expression: "${query_discounted_fare.fare.amount} == ${query_discounted_fare.fare.original_amount} * 0.5"
+
+    # ============================================================================
+    # Test 4: Simulate Payment Gateway Failure
+    # ============================================================================
+    - id: update_mock_to_fail
+      name: "Update Mock to Simulate Failures"
+      action: mock_server_update
+      config:
+        server: "payment-gateway"
+        endpoint:
+          path: /v1/charges
+          method: POST
+          response:
+            status: 503
+            body:
+              error:
+                type: "api_error"
+                message: "Service temporarily unavailable"
+
+    - id: test_payment_retry
+      name: "Test Payment with Failing Gateway"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "manual_charges"
+        value:
+          pan: "4111111111111111"
+          amount: 5.00
+
+    - id: wait_for_retry_event
+      name: "Wait for Retry Event"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "payment_retries"
+        timeout: 30s
+        match:
+          json_path:
+            - "$.pan == '4111111111111111'"
+      output:
+        retry_event: "$"
+
+    # Verify retry attempts
+    - id: verify_retries
+      name: "Verify Payment Retry Attempts"
+      action: mock_server_verify
+      config:
+        server: "payment-gateway"
+        assertions:
+          - path: /v1/charges
+            method: POST
+            count_min: 2  # Should retry at least once
+            count_max: 5  # Should not exceed max retries
+
+  output:
+    payment_gateway_url: "${start_payment_gateway_mock.payment_gateway_url}"
+    fraud_detection_url: "${start_fraud_detection_mock.fraud_detection_url}"
+    enrollment_service_url: "${start_enrollment_service_mock.enrollment_service_url}"
+    tests_passed: true
+
+  teardown:
+    # Reset mock configurations
+    - id: reset_payment_mock
+      name: "Reset Payment Gateway Mock"
+      action: mock_server_reset_state
+      config:
+        server: "payment-gateway"
+      on_error: "continue"
+
+    # Stop all mock servers
+    - id: stop_payment_gateway
+      action: mock_server_stop
+      config:
+        server: "payment-gateway"
+      on_error: "continue"
+
+    - id: stop_fraud_detection
+      action: mock_server_stop
+      config:
+        server: "fraud-detection"
+      on_error: "continue"
+
+    - id: stop_enrollment_service
+      action: mock_server_stop
+      config:
+        server: "enrollment-service"
+      on_error: "continue"
+
+    # Clean test data
+    - id: cleanup
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+        params: ["4111111111111111"]
+      on_error: "continue"
+
+  config:
+    timeout: "10m"

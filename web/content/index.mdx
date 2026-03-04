@@ -1,0 +1,57 @@
+---
+title: Welcome to TestMesh
+description: Build, manage, and execute tests at scale with TestMesh's open-source test automation platform.
+---
+
+import { Card, Cards } from "fumadocs-ui/components/card";
+import { Callout } from "fumadocs-ui/components/callout";
+
+<Callout type="info">
+  TestMesh is currently in active development. We welcome contributions and feedback!
+</Callout>
+
+## What is TestMesh?
+
+TestMesh is an open-source test automation platform designed for teams that need to build, manage, and execute tests at scale. It provides a visual flow editor for creating test workflows, a plugin system for extending functionality, and powerful scheduling capabilities.
+
+## Key Features
+
+<Cards>
+  <Card
+    title="Visual Flow Editor"
+    href="/docs/guides/flow-editor"
+    description="Create complex test workflows with a drag-and-drop interface"
+  />
+  <Card
+    title="Plugin System"
+    href="/docs/plugins"
+    description="Extend TestMesh with custom plugins for any integration"
+  />
+  <Card
+    title="Scheduling"
+    href="/docs/guides/scheduling"
+    description="Run tests on schedules with cron expressions"
+  />
+  <Card
+    title="REST API"
+    href="/docs/api-reference"
+    description="Integrate TestMesh with your existing tools and pipelines"
+  />
+</Cards>
+
+## Quick Start
+
+Get up and running with TestMesh in minutes:
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/testmesh.git
+
+# Start with Docker Compose
+docker-compose up -d
+
+# Open the web UI
+open http://localhost:3000
+```
+
+Ready to dive deeper? Check out the [Getting Started guide](/docs/getting-started).

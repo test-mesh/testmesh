@@ -1,0 +1,218 @@
+flow:
+  name: "E2E Order Creation Flow"
+  description: "Complete end-to-end test of order flow across all microservices with PostgreSQL, Redis, and Kafka"
+
+  steps:
+    # Step 1: Create a user
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "John Doe"
+          email: "john@example.com"
+      assert:
+        - status == 201
+        - body.id != null
+        - body.email == "john@example.com"
+        - body.name == "John Doe"
+      output:
+        user_id: $.body.id
+  
+    # Step 2: Verify user is cached in Redis
+    - id: verify_user_cache
+      action: redis_get
+      config:
+        host: localhost
+        port: 6379
+        key: "user:{{user_id}}"
+      assert:
+        - value != null
+  
+    # Step 3: Verify user.created event in Kafka
+    - id: verify_user_event
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9093"
+        topic: user.created
+        group_id: testmesh-test
+        timeout: 10s
+      assert:
+        - messages.length > 0
+        - messages[0].value.user_id == user_id
+        - messages[0].value.event_type == "user.created"
+  
+    # Step 4: Verify user in PostgreSQL database
+    - id: verify_user_in_db
+      action: database_query
+      config:
+        connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
+        query: "SELECT * FROM user_service.users WHERE id = $1"
+        params: ["{{user_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].email == "john@example.com"
+        - rows[0].name == "John Doe"
+  
+    # Step 5: Create a product
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5002/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Test Widget"
+          description: "A test product"
+          price: 29.99
+          inventory: 100
+      assert:
+        - status == 201
+        - body.id != null
+        - body.name == "Test Widget"
+        - body.price == 29.99
+        - body.inventory == 100
+      output:
+        product_id: $.body.id
+  
+    # Step 6: Verify product.created event in Kafka
+    - id: verify_product_event
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9093"
+        topic: product.created
+        group_id: testmesh-test
+        timeout: 10s
+      assert:
+        - messages.length > 0
+        - messages[0].value.product_id == product_id
+        - messages[0].value.event_type == "product.created"
+  
+    # Step 7: Verify product in PostgreSQL database
+    - id: verify_product_in_db
+      action: database_query
+      config:
+        connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
+        query: "SELECT * FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].name == "Test Widget"
+        - rows[0].price == 29.99
+        - rows[0].inventory == 100
+  
+    # Step 8: Create an order (tests inter-service HTTP communication)
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5003/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 2
+      assert:
+        - status == 201
+        - body.id != null
+        - body.user_id == user_id
+        - body.total == 59.98
+        - body.items.length == 1
+        - body.items[0].product_id == product_id
+        - body.items[0].quantity == 2
+      output:
+        order_id: $.body.id
+  
+    # Step 9: Verify order.placed event in Kafka
+    - id: verify_order_event
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9093"
+        topic: order.placed
+        group_id: testmesh-test
+        timeout: 10s
+      assert:
+        - messages.length > 0
+        - messages[0].value.order_id == order_id
+        - messages[0].value.user_id == user_id
+        - messages[0].value.event_type == "order.placed"
+        - messages[0].value.total == 59.98
+  
+    # Step 10: Verify order in PostgreSQL database
+    - id: verify_order_in_db
+      action: database_query
+      config:
+        connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
+        query: "SELECT * FROM order_service.orders WHERE id = $1"
+        params: ["{{order_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].user_id == user_id
+        - rows[0].total == 59.98
+        - rows[0].status == "pending"
+  
+    # Step 11: Verify order items in database
+    - id: verify_order_items_in_db
+      action: database_query
+      config:
+        connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
+        query: "SELECT * FROM order_service.order_items WHERE order_id = $1"
+        params: ["{{order_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].product_id == product_id
+        - rows[0].quantity == 2
+  
+    # Step 12: Wait for notification service to process events
+    - id: wait_for_notifications
+      action: wait
+      config:
+        duration: 3s
+  
+    # Step 13: Check notifications were created
+    - id: check_notifications
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5004/api/v1/notifications/{{user_id}}"
+      assert:
+        - status == 200
+        - body.count >= 2
+        # Should have welcome notification and order confirmation
+  
+    # Step 14: Verify notifications in PostgreSQL
+    - id: verify_notifications_in_db
+      action: database_query
+      config:
+        connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = $1 ORDER BY created_at"
+        params: ["{{user_id}}"]
+      assert:
+        - row_count >= 2
+        # First notification: user.created (welcome)
+        - rows[0].type == "user.created"
+        # Second notification: order.placed
+        - rows[1].type == "order.placed"
+  
+    # Step 15: Verify product inventory was updated (via Kafka consumer in product-service)
+    - id: wait_for_inventory_update
+      action: wait
+      config:
+        duration: 2s
+  
+    # Step 16: Check product inventory decreased
+    - id: verify_inventory_decreased
+      action: database_query
+      config:
+        connection_string: "postgresql://testmesh:testmesh_dev@localhost:5432/testmesh"
+        query: "SELECT inventory FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].inventory == 98  # Started with 100, ordered 2

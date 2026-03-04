@@ -1,0 +1,90 @@
+---
+title: Getting Started
+description: Get up and running with TestMesh in just a few minutes.
+---
+
+import { Steps, Step } from "fumadocs-ui/components/steps";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
+import { Callout } from "fumadocs-ui/components/callout";
+
+This guide will help you install TestMesh and create your first test flow.
+
+## Prerequisites
+
+- **Docker** (recommended) or Node.js 20+
+- A modern web browser (Chrome, Firefox, Safari, or Edge)
+
+## Installation
+
+<Tabs items={["Docker (Recommended)", "Manual"]}>
+  <Tab value="Docker (Recommended)">
+    The fastest way to get started is with Docker Compose:
+
+    ```bash
+    # Clone the repository
+    git clone https://github.com/yourusername/testmesh.git
+    cd testmesh
+
+    # Start all services
+    docker-compose up -d
+    ```
+
+    This starts:
+    - **Web UI** on `http://localhost:3000`
+    - **API Server** on `http://localhost:8080`
+    - **PostgreSQL** database
+    - **Redis** for job queues
+  </Tab>
+  <Tab value="Manual">
+    For development or custom deployments:
+
+    ```bash
+    # Clone the repository
+    git clone https://github.com/yourusername/testmesh.git
+    cd testmesh
+
+    # Install web dependencies
+    cd web && pnpm install
+
+    # Install API dependencies
+    cd ../api && go mod download
+
+    # Start the development servers
+    make dev
+    ```
+  </Tab>
+</Tabs>
+
+## Create Your First Flow
+
+<Steps>
+  <Step>
+    ### Open the Flow Editor
+
+    Navigate to `http://localhost:3000` and click **"New Flow"** to open the visual flow editor.
+  </Step>
+  <Step>
+    ### Add a Trigger
+
+    Every flow starts with a trigger. Drag a **Manual Trigger** from the sidebar to the canvas. This lets you run the flow on-demand.
+  </Step>
+  <Step>
+    ### Add an Action
+
+    Drag an **HTTP Request** action and connect it to the trigger. Configure it to make a GET request to `https://httpbin.org/get`.
+  </Step>
+  <Step>
+    ### Run the Flow
+
+    Click the **Run** button in the toolbar. You'll see the flow execute in real-time with results displayed in the output panel.
+  </Step>
+</Steps>
+
+## Next Steps
+
+Now that you have TestMesh running:
+
+- Learn about the [Flow Editor](/docs/guides/flow-editor) interface
+- Explore available [Plugins](/docs/plugins) for integrations
+- Set up [Scheduled Runs](/docs/guides/scheduling) for automated testing
+- Check the [API Reference](/docs/api-reference) for programmatic access

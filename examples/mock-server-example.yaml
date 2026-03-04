@@ -1,0 +1,158 @@
+name: Mock Server Example
+description: Demonstrates using mock servers for isolated testing
+suite: examples
+tags:
+  - mock-server
+  - example
+
+env:
+  API_BASE_URL: http://api.example.com
+
+setup:
+  - id: start_mock_server
+    action: mock_server_start
+    name: Start mock API server
+    config:
+      name: example-api
+      endpoints:
+        # Simple GET endpoint
+        - path: /api/users
+          method: GET
+          response:
+            status_code: 200
+            body_json:
+              users:
+                - id: 1
+                  name: Alice
+                  email: alice@example.com
+                - id: 2
+                  name: Bob
+                  email: bob@example.com
+
+        # POST endpoint with JSON body matching
+        - path: /api/users
+          method: POST
+          match:
+            headers:
+              Content-Type: application/json
+          response:
+            status_code: 201
+            body_json:
+              id: 3
+              name: "{{request.body.name}}"
+              email: "{{request.body.email}}"
+              created_at: "2026-02-11T12:00:00Z"
+
+        # GET endpoint with path parameter
+        - path: /api/users/*
+          method: GET
+          match:
+            path_pattern: ^/api/users/[0-9]+$
+          response:
+            status_code: 200
+            body_json:
+              id: 1
+              name: Alice
+              email: alice@example.com
+
+        # Endpoint with delay
+        - path: /api/slow
+          method: GET
+          response:
+            status_code: 200
+            delay_ms: 2000
+            body_text: This response is delayed by 2 seconds
+
+        # Stateful endpoint (counter)
+        - path: /api/counter
+          method: POST
+          state:
+            state_key: counter
+            initial_value: 0
+            update_rule: increment
+          response:
+            status_code: 200
+            body_json:
+              count: "{{state.counter}}"
+    output:
+      mock_base_url: $.base_url
+      mock_server_id: $.server_id
+
+steps:
+  - id: test_list_users
+    action: http_request
+    name: Test GET /api/users
+    config:
+      method: GET
+      url: "{{mock_base_url}}/api/users"
+      headers:
+        Accept: application/json
+    assert:
+      - status == 200
+      - body.users.length == 2
+      - body.users[0].name == "Alice"
+    output:
+      first_user_id: $.body.users[0].id
+
+  - id: test_create_user
+    action: http_request
+    name: Test POST /api/users
+    config:
+      method: POST
+      url: "{{mock_base_url}}/api/users"
+      headers:
+        Content-Type: application/json
+      body:
+        name: Charlie
+        email: charlie@example.com
+    assert:
+      - status == 201
+      - body.id == 3
+      - body.name == "Charlie"
+      - body.email == "charlie@example.com"
+
+  - id: test_get_user
+    action: http_request
+    name: Test GET /api/users/:id
+    config:
+      method: GET
+      url: "{{mock_base_url}}/api/users/{{first_user_id}}"
+    assert:
+      - status == 200
+      - body.name == "Alice"
+
+  - id: test_stateful_counter_1
+    action: http_request
+    name: Test stateful counter (call 1)
+    config:
+      method: POST
+      url: "{{mock_base_url}}/api/counter"
+    assert:
+      - status == 200
+      - body.count == 1
+
+  - id: test_stateful_counter_2
+    action: http_request
+    name: Test stateful counter (call 2)
+    config:
+      method: POST
+      url: "{{mock_base_url}}/api/counter"
+    assert:
+      - status == 200
+      - body.count == 2
+
+  - id: log_summary
+    action: log
+    name: Log test summary
+    config:
+      message: "Mock server testing completed successfully!"
+      data:
+        mock_server: "{{mock_server_id}}"
+        tests_passed: 5
+
+teardown:
+  - id: stop_mock_server
+    action: mock_server_stop
+    name: Stop mock API server
+    config:
+      server_id: "{{mock_server_id}}"

@@ -1,0 +1,219 @@
+---
+title: Creating Plugins
+description: Build custom plugins to extend TestMesh.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+import { Steps, Step } from "fumadocs-ui/components/steps";
+
+This guide walks you through creating a custom TestMesh plugin from scratch.
+
+## Plugin Structure
+
+A TestMesh plugin is a TypeScript/JavaScript package with the following structure:
+
+```
+my-plugin/
+├── package.json
+├── src/
+│   ├── index.ts        # Plugin entry point
+│   ├── actions/        # Action implementations
+│   └── triggers/       # Trigger implementations
+└── manifest.json       # Plugin metadata
+```
+
+## Quick Start
+
+<Steps>
+  <Step>
+    ### Initialize the Plugin
+
+    ```bash
+    npx @testmesh/create-plugin my-plugin
+    cd my-plugin
+    npm install
+    ```
+  </Step>
+  <Step>
+    ### Define the Manifest
+
+    ```json title="manifest.json"
+    {
+      "name": "my-plugin",
+      "version": "1.0.0",
+      "displayName": "My Plugin",
+      "description": "Does something awesome",
+      "author": "Your Name",
+      "icon": "plug",
+      "connection": {
+        "fields": [
+          {
+            "name": "apiKey",
+            "type": "secret",
+            "label": "API Key",
+            "required": true
+          }
+        ]
+      }
+    }
+    ```
+  </Step>
+  <Step>
+    ### Implement an Action
+
+    ```typescript title="src/actions/fetch-data.ts"
+    import { defineAction, z } from "@testmesh/plugin-sdk";
+
+    export const fetchData = defineAction({
+      id: "fetch-data",
+      name: "Fetch Data",
+      description: "Fetches data from the external API",
+      icon: "download",
+
+      // Input schema (Zod)
+      input: z.object({
+        endpoint: z.string().describe("API endpoint to call"),
+        limit: z.number().optional().default(10),
+      }),
+
+      // Output schema
+      output: z.object({
+        items: z.array(z.unknown()),
+        count: z.number(),
+      }),
+
+      // Implementation
+      async execute({ input, connection, context }) {
+        const response = await fetch(`https://api.example.com/${input.endpoint}`, {
+          headers: {
+            Authorization: `Bearer ${connection.apiKey}`,
+          },
+        });
+
+        const data = await response.json();
+
+        return {
+          items: data.items.slice(0, input.limit),
+          count: data.items.length,
+        };
+      },
+    });
+    ```
+  </Step>
+  <Step>
+    ### Export the Plugin
+
+    ```typescript title="src/index.ts"
+    import { definePlugin } from "@testmesh/plugin-sdk";
+    import { fetchData } from "./actions/fetch-data";
+
+    export default definePlugin({
+      actions: [fetchData],
+      triggers: [],
+    });
+    ```
+  </Step>
+</Steps>
+
+## Input Types
+
+The plugin SDK provides several input field types:
+
+| Type | Description | UI Component |
+|------|-------------|--------------|
+| `string` | Text input | Text field |
+| `number` | Numeric input | Number field |
+| `boolean` | True/false | Toggle |
+| `secret` | Sensitive data | Password field |
+| `select` | Choose from options | Dropdown |
+| `json` | JSON data | Code editor |
+| `expression` | Dynamic value | Expression editor |
+
+### Example with Select
+
+```typescript
+import { z } from "zod";
+
+const input = z.object({
+  method: z.enum(["GET", "POST", "PUT", "DELETE"]).describe("HTTP method"),
+  body: z.string().optional().describe("Request body (for POST/PUT)"),
+});
+```
+
+## Creating Triggers
+
+Triggers start flow execution based on external events:
+
+```typescript
+import { defineTrigger, z } from "@testmesh/plugin-sdk";
+
+export const onWebhook = defineTrigger({
+  id: "on-webhook",
+  name: "On Webhook",
+  description: "Triggers when a webhook is received",
+
+  // Configuration schema
+  config: z.object({
+    path: z.string().describe("Webhook URL path"),
+    secret: z.string().optional().describe("Webhook secret for validation"),
+  }),
+
+  // Output schema (what the trigger provides to the flow)
+  output: z.object({
+    headers: z.record(z.string()),
+    body: z.unknown(),
+    method: z.string(),
+  }),
+
+  // Setup is called when the flow is deployed
+  async setup({ config, emit }) {
+    // Register the webhook handler
+    const handler = async (req: Request) => {
+      emit({
+        headers: Object.fromEntries(req.headers),
+        body: await req.json(),
+        method: req.method,
+      });
+    };
+
+    return { handler };
+  },
+
+  // Cleanup when the flow is undeployed
+  async teardown({ state }) {
+    // Unregister the handler
+  },
+});
+```
+
+## Testing Plugins
+
+```typescript title="src/actions/fetch-data.test.ts"
+import { testAction } from "@testmesh/plugin-sdk/testing";
+import { fetchData } from "./fetch-data";
+
+describe("fetchData", () => {
+  it("fetches data from the API", async () => {
+    const result = await testAction(fetchData, {
+      input: { endpoint: "users", limit: 5 },
+      connection: { apiKey: "test-key" },
+    });
+
+    expect(result.items).toHaveLength(5);
+  });
+});
+```
+
+## Publishing
+
+```bash
+# Build the plugin
+npm run build
+
+# Publish to npm (or TestMesh registry)
+npm publish
+```
+
+<Callout type="tip">
+  Use the `@testmesh` scope for official plugins. Third-party plugins should use your own npm scope.
+</Callout>

@@ -1,0 +1,74 @@
+flow:
+  name: "Data-Driven Tests - File References"
+  description: "Run tests by referencing data file paths directly"
+  suite: "comprehensive"
+  tags: ["data_driven", "file_references"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+
+  steps:
+    # Approach 1: Run individual test files
+    - id: daily_cap_test
+      name: "Daily Cap Test"
+      action: run_flow
+      config:
+        flow: "fare-test-template-v2"
+        input_file: "data/daily_card_3_taps.json"  # ✅ Load entire file
+
+    - id: weekly_cap_test
+      name: "Weekly Cap Test"
+      action: run_flow
+      config:
+        flow: "fare-test-template-v2"
+        input_file: "data/weekly_fare_scenarios.json"
+
+    # Approach 2: Loop through multiple test files
+    - id: run_all_test_files
+      name: "Run All Test Data Files"
+      action: for_each
+      config:
+        items:
+          - name: "Daily Cap - 3 Taps"
+            file: "data/daily_card_3_taps.json"
+          - name: "Daily Cap - 5 Taps"
+            file: "data/daily_card_5_taps.json"
+          - name: "Weekly Cap"
+            file: "data/weekly_fare_scenarios.json"
+          - name: "Compensation"
+            file: "data/compensation_scenario.json"
+          - name: "Green Ticket"
+            file: "data/green_ticket_scenario.json"
+        item_name: "test"
+
+        steps:
+          - id: log_test
+            action: log
+            config:
+              message: "Running test: ${test.name} from ${test.file}"
+
+          - id: execute_test
+            action: run_flow
+            config:
+              flow: "fare-test-template-v2"
+              input_file: "${test.file}"  # ✅ Dynamic file reference
+            output:
+              status: "flow.status"
+
+    # Approach 3: Glob pattern to run all JSON files in directory
+    - id: run_all_json_files
+      name: "Run All JSON Test Files"
+      action: for_each
+      config:
+        items_from_glob: "data/*.json"  # ✅ Load all JSON files
+        item_name: "file_path"
+
+        steps:
+          - id: run_test_from_file
+            action: run_flow
+            config:
+              flow: "fare-test-template-v2"
+              input_file: "${file_path}"
+
+  config:
+    timeout: "30m"

@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://testmesh:password@localhost:5432/testmesh"
+      ],
+      "description": "PostgreSQL MCP server for direct database access during development",
+      "disabled": false
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "description": "GitHub MCP server for repository management and PR automation",
+      "disabled": false
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/ggeorgiev/Dev/testmesh"
+      ],
+      "description": "Enhanced filesystem operations for project",
+      "disabled": false
+    },
+    "docker": {
+      "command": "docker-mcp-server",
+      "description": "Docker container management (install separately if needed)",
+      "disabled": true
+    }
+  },
+  "globalShortcut": "CommandOrControl+Shift+.",
+  "settings": {
+    "autoApprove": {
+      "read": ["**/*.md", "**/*.go", "**/*.ts", "**/*.tsx", "**/*.yaml", "**/*.yml"],
+      "glob": ["**/*"],
+      "grep": ["**/*"]
+    }
+  }
+}

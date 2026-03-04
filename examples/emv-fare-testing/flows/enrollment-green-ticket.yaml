@@ -1,0 +1,301 @@
+flow:
+  name: "Green Ticket Enrollment and Discounted Fare"
+  description: "Test green ticket program enrollment and discounted fare calculation"
+  suite: "enrollment"
+  tags: ["enrollment", "green_ticket", "discount", "special_program"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+    API_URL: "${FARE_API_URL}"
+    TEST_PAN: "GREEN_CARD_001"
+    DISCOUNT_RATE: "0.50"  # 50% discount
+
+  setup:
+    - id: clean_test_data
+      action: database_query
+      config:
+        query: |
+          DELETE FROM enrollments WHERE pan = '${TEST_PAN}';
+          DELETE FROM matches WHERE pan = '${TEST_PAN}';
+          DELETE FROM emv_sales WHERE pan = '${TEST_PAN}';
+
+  steps:
+    # Check enrollment status (should not be enrolled)
+    - id: check_enrollment_status
+      name: "Check Initial Enrollment Status"
+      action: database_query
+      config:
+        query: |
+          SELECT enrolled, program
+          FROM cards
+          WHERE pan = $1
+        params: ["${TEST_PAN}"]
+      output:
+        is_enrolled: "$.rows[0].enrolled"
+      assert:
+        - result.count == 0 || result.rows[0].enrolled == false
+
+    # Test fare without enrollment (full price)
+    - id: test_regular_fare
+      name: "Test Regular Fare Before Enrollment"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          tap_type: "entry"
+          station_id: "STATION_A"
+
+    - id: wait_and_exit_regular
+      action: delay
+      config:
+        duration: "1s"
+
+    - id: exit_regular
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          tap_type: "exit"
+          station_id: "STATION_B"
+
+    - id: verify_regular_fare
+      name: "Verify Regular Fare (No Discount)"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 10s
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+      output:
+        regular_fare: "$.amount"
+        discount_applied: "$.discount_applied"
+      assert:
+        - result.messages[0].value.discount_applied == false
+
+    # Enroll card in green ticket program via API
+    - id: enroll_card
+      name: "Enroll Card in Green Ticket Program"
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/enroll"
+        headers:
+          Content-Type: "application/json"
+        body:
+          pan: "${TEST_PAN}"
+          program: "green_ticket"
+          verification:
+            proof_of_eligibility: "student_id_123"
+            name: "Test Student"
+      output:
+        enrollment_id: "response.body.enrollment_id"
+        enrollment_status: "response.body.status"
+      assert:
+        - status == 201
+        - response.body.status == "active"
+        - response.body.program == "green_ticket"
+
+    # Verify enrollment in database
+    - id: verify_enrollment_db
+      name: "Verify Enrollment in Database"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            enrollment_id,
+            pan,
+            program,
+            status,
+            discount_rate,
+            enrolled_at
+          FROM enrollments
+          WHERE pan = $1
+        params: ["${TEST_PAN}"]
+        poll:
+          enabled: true
+          timeout: 10s
+          interval: 1s
+      output:
+        db_enrollment_id: "$.rows[0].enrollment_id"
+        db_discount_rate: "$.rows[0].discount_rate"
+      assert:
+        - result.count == 1
+        - result.rows[0].status == "active"
+        - result.rows[0].program == "green_ticket"
+        - result.rows[0].discount_rate == ${DISCOUNT_RATE}
+
+    # Test fare with enrollment (discounted price)
+    - id: test_discounted_fare
+      name: "Test Discounted Fare After Enrollment"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          tap_type: "entry"
+          station_id: "STATION_C"
+          enrollment_check: true
+
+    - id: wait_and_exit_discount
+      action: delay
+      config:
+        duration: "1s"
+
+    - id: exit_discount
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          tap_type: "exit"
+          station_id: "STATION_D"
+
+    - id: verify_discounted_fare
+      name: "Verify Discounted Fare Applied"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 10s
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+            - "$.discount_applied == true"
+      output:
+        discounted_fare: "$.amount"
+        discount_amount: "$.discount_amount"
+        original_fare: "$.original_fare"
+      assert:
+        - result.messages[0].value.discount_applied == true
+        - result.messages[0].value.program == "green_ticket"
+        - result.messages[0].value.amount < "${verify_regular_fare.regular_fare}"
+
+    # Verify discount calculation
+    - id: verify_discount_calculation
+      name: "Verify Discount Calculation"
+      action: assert
+      config:
+        assertions:
+          - expression: "${verify_discounted_fare.discounted_fare} == ${verify_discounted_fare.original_fare} * (1 - ${DISCOUNT_RATE})"
+            message: "Discount should be 50% of original fare"
+
+    # Verify discounted fare in database
+    - id: verify_discount_db
+      name: "Verify Discounted Fare in Database"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            amount,
+            original_fare,
+            discount_amount,
+            discount_rate,
+            program
+          FROM emv_sales
+          WHERE pan = $1
+          AND discount_applied = true
+          ORDER BY created_at DESC
+          LIMIT 1
+        params: ["${TEST_PAN}"]
+        poll:
+          enabled: true
+          timeout: 10s
+      assert:
+        - result.count == 1
+        - result.rows[0].program == "green_ticket"
+        - result.rows[0].discount_rate == ${DISCOUNT_RATE}
+
+    # Test enrollment verification endpoint
+    - id: check_enrollment_api
+      name: "Check Enrollment Status via API"
+      action: http_request
+      config:
+        method: GET
+        url: "${API_URL}/enrollments/${TEST_PAN}"
+      assert:
+        - status == 200
+        - response.body.enrolled == true
+        - response.body.program == "green_ticket"
+        - response.body.active == true
+
+    # Test unenrollment
+    - id: unenroll_card
+      name: "Unenroll Card from Program"
+      action: http_request
+      config:
+        method: DELETE
+        url: "${API_URL}/enrollments/${enroll_card.enrollment_id}"
+      assert:
+        - status == 200
+
+    # Verify unenrollment
+    - id: verify_unenrollment
+      name: "Verify Unenrollment"
+      action: database_query
+      config:
+        query: |
+          SELECT status, unenrolled_at
+          FROM enrollments
+          WHERE enrollment_id = $1
+        params: ["${enroll_card.enrollment_id}"]
+        poll:
+          enabled: true
+          timeout: 5s
+      assert:
+        - result.rows[0].status == "inactive"
+        - result.rows[0].unenrolled_at exists
+
+    # Test fare after unenrollment (back to regular price)
+    - id: test_fare_after_unenroll
+      name: "Test Regular Fare After Unenrollment"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          tap_type: "entry"
+          station_id: "STATION_E"
+
+    - id: verify_no_discount_after_unenroll
+      name: "Verify No Discount After Unenrollment"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 10s
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+      assert:
+        - result.messages[0].value.discount_applied == false
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        query: |
+          DELETE FROM enrollments WHERE pan = $1;
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+        params: ["${TEST_PAN}"]
+      on_error: "continue"
+
+  config:
+    timeout: "5m"

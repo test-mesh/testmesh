@@ -1,0 +1,49 @@
+version: '3.8'
+
+# Test configuration
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.test.yml up
+
+services:
+  api:
+    environment:
+      - DATABASE_URL=postgres://testmesh:testmesh@postgres:5432/testmesh_test?sslmode=disable
+      - LOG_LEVEL=warn
+      - GO_ENV=test
+
+  dashboard:
+    environment:
+      - NODE_ENV=test
+
+  postgres:
+    environment:
+      - POSTGRES_DB=testmesh_test
+
+  # E2E test runner
+  e2e:
+    build:
+      context: ../../e2e
+      dockerfile: Dockerfile
+    depends_on:
+      - dashboard
+      - api
+    environment:
+      - BASE_URL=http://dashboard:3000
+      - API_URL=http://api:5016
+      - CI=true
+    volumes:
+      - ../../e2e/playwright-report:/app/playwright-report
+      - ../../e2e/test-results:/app/test-results
+    command: ["npx", "playwright", "test"]
+
+  # API test runner
+  api-tests:
+    build:
+      context: ../../api
+      dockerfile: ../deploy/docker/Dockerfile.api
+      target: builder
+    depends_on:
+      - api
+      - postgres
+    environment:
+      - DATABASE_URL=postgres://testmesh:testmesh@postgres:5432/testmesh_test?sslmode=disable
+    command: ["go", "test", "-v", "./..."]

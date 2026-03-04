@@ -1,0 +1,57 @@
+name: "Database CRUD Verification"
+description: "Verify Postgres connectivity, count records across tables, assert data integrity"
+suite: "regression"
+tags: [infrastructure, database]
+collection: "Regression Suite"
+steps:
+  - id: health
+    action: database_query
+    name: "SELECT 1 — connectivity check"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT 1 AS ok"
+    assert:
+      - "row_count == 1"
+
+  - id: count_users
+    action: database_query
+    name: "SELECT COUNT(*) users"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT COUNT(*) AS total FROM users"
+    output:
+      user_count: "count_users.first_row.total"
+
+  - id: count_orders
+    action: database_query
+    name: "SELECT COUNT(*) orders"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT COUNT(*) AS total FROM orders"
+    output:
+      order_count: "count_orders.first_row.total"
+
+  - id: count_mocks
+    action: database_query
+    name: "SELECT running mock servers"
+    config:
+      connection: "${DB_DSN}"
+      query: "SELECT COUNT(*) AS total FROM mocks.mock_servers WHERE status = 'running'"
+    output:
+      mock_count: "count_mocks.first_row.total"
+
+  - id: assert_db
+    action: assert
+    name: "Assert Postgres is healthy"
+    config:
+      data:
+        ok: "${health.first_row.ok}"
+      assertions:
+        - "ok == '1'"
+
+  - id: done
+    action: log
+    name: "Log DB stats"
+    config:
+      message: "DB OK: users=${count_users.first_row.total} orders=${count_orders.first_row.total} mocks=${count_mocks.first_row.total}"
+      level: info

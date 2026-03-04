@@ -1,0 +1,212 @@
+flow:
+  name: "Compensation for Missed Tap-Out"
+  description: "Test compensation/refund when user forgets to tap out"
+  suite: "compensation"
+  tags: ["compensation", "refund", "missed_tap"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+    TEST_PAN: "COMP_CARD_001"
+    MAX_FARE: "10.00"
+
+  setup:
+    - id: clean_test_data
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = '${TEST_PAN}';
+          DELETE FROM emv_sales WHERE pan = '${TEST_PAN}';
+          DELETE FROM compensation WHERE pan = '${TEST_PAN}';
+
+  steps:
+    # Day 1: Entry tap only (user forgets to tap out)
+    - id: entry_tap_only
+      name: "Entry Tap Without Exit"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          timestamp: "${TIMESTAMP}"
+          tap_type: "entry"
+          station_id: "STATION_A"
+          vehicle_id: "BUS_101"
+          transaction_id: "ENTRY_${RANDOM_ID}"
+      output:
+        entry_tx_id: "$.transaction_id"
+        entry_time: "${TIMESTAMP}"
+
+    # Wait for timeout period (system should charge maximum fare)
+    - id: wait_for_timeout
+      name: "Wait for Tap-Out Timeout"
+      action: delay
+      config:
+        duration: "5s"  # In real system: 4 hours
+
+    # Verify maximum fare was charged
+    - id: verify_max_fare
+      name: "Verify Maximum Fare Charged"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "fares"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 10s
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+            - "$.rule == 'maximum_fare' || $.unmatched == true"
+      output:
+        charged_amount: "$.amount"
+        fare_rule: "$.rule"
+        fare_tx_id: "$.transaction_id"
+      assert:
+        - result.messages[0].value.amount == ${MAX_FARE}
+
+    # Verify in database
+    - id: verify_max_fare_db
+      name: "Verify Max Fare in Database"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            amount,
+            rule,
+            match_status
+          FROM emv_sales
+          WHERE pan = $1
+          AND transaction_id = $2
+        params:
+          - "${TEST_PAN}"
+          - "${verify_max_fare.fare_tx_id}"
+        poll:
+          enabled: true
+          timeout: 10s
+      assert:
+        - result.rows[0].amount == ${MAX_FARE}
+        - result.rows[0].rule == "maximum_fare"
+        - result.rows[0].match_status == "unmatched"
+
+    # Day 2: Customer taps out at destination (late exit)
+    - id: late_exit_tap
+      name: "Late Exit Tap Next Day"
+      action: kafka_publish
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "matches"
+        key: "${TEST_PAN}"
+        value:
+          pan: "${TEST_PAN}"
+          timestamp: "${TIMESTAMP}"
+          tap_type: "exit"
+          station_id: "STATION_B"
+          vehicle_id: "BUS_101"
+          late: true
+          related_entry: "${entry_tap_only.entry_tx_id}"
+          transaction_id: "EXIT_${RANDOM_ID}"
+      output:
+        exit_tx_id: "$.transaction_id"
+
+    # System calculates actual fare and compensation
+    - id: verify_compensation_calculated
+      name: "Verify Compensation Calculated"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "compensation"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 15s
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+            - "$.type == 'refund'"
+            - "$.amount < 0"  # Negative for refund
+      output:
+        compensation_amount: "$.amount"
+        compensation_reason: "$.reason"
+        actual_fare: "$.actual_fare"
+      assert:
+        - result.messages[0].value.type == "refund"
+        - result.messages[0].value.pan == "${TEST_PAN}"
+
+    # Verify compensation record in database
+    - id: verify_compensation_db
+      name: "Verify Compensation in Database"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            pan,
+            compensation_amount,
+            reason,
+            status,
+            original_amount,
+            actual_fare,
+            created_at
+          FROM compensation
+          WHERE pan = $1
+          AND compensation_date >= CURRENT_DATE - INTERVAL '1 day'
+        params: ["${TEST_PAN}"]
+        poll:
+          enabled: true
+          timeout: 15s
+          interval: 2s
+      output:
+        db_comp_amount: "$.rows[0].compensation_amount"
+        db_status: "$.rows[0].status"
+      assert:
+        - result.count == 1
+        - result.rows[0].status == "issued"
+        - result.rows[0].compensation_amount < 0  # Negative = refund
+        - result.rows[0].original_amount == ${MAX_FARE}
+
+    # Verify final balance
+    - id: verify_final_balance
+      name: "Verify Final Balance After Compensation"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            SUM(amount) as net_amount
+          FROM (
+            SELECT amount FROM emv_sales WHERE pan = $1
+            UNION ALL
+            SELECT compensation_amount as amount FROM compensation WHERE pan = $1
+          ) combined
+        params: ["${TEST_PAN}"]
+      output:
+        net_amount: "$.rows[0].net_amount"
+      assert:
+        - result.rows[0].net_amount < ${MAX_FARE}  # Should be less than max after refund
+
+    # Test customer notification sent
+    - id: verify_notification
+      name: "Verify Customer Notification"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "notifications"
+        group_id: "test-${EXECUTION_ID}"
+        timeout: 10s
+        match:
+          json_path:
+            - "$.pan == '${TEST_PAN}'"
+            - "$.notification_type == 'compensation_issued'"
+      assert:
+        - result.count > 0
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan = $1;
+          DELETE FROM emv_sales WHERE pan = $1;
+          DELETE FROM compensation WHERE pan = $1;
+        params: ["${TEST_PAN}"]
+      on_error: "continue"
+
+  config:
+    timeout: "5m"

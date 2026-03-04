@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "testmesh.fullname" . }}-api
+  labels:
+    {{- include "testmesh.labels" . | nindent 4 }}
+    component: api
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount.api }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "testmesh.selectorLabels" . | nindent 6 }}
+      component: api
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "testmesh.selectorLabels" . | nindent 8 }}
+        component: api
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "testmesh.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: api
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.api.repository }}:{{ .Values.image.api.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.api.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 5016
+              protocol: TCP
+            - name: ws
+              containerPort: 5017
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: {{ .Values.api.logLevel }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "testmesh.fullname" . }}-secrets
+                  key: database-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "testmesh.fullname" . }}-secrets
+                  key: jwt-secret
+            {{- if .Values.secrets.openaiApiKey }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "testmesh.fullname" . }}-secrets
+                  key: openai-api-key
+            {{- end }}
+            {{- if .Values.secrets.anthropicApiKey }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "testmesh.fullname" . }}-secrets
+                  key: anthropic-api-key
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources.api | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "testmesh.fullname" . }}-dashboard
+  labels:
+    {{- include "testmesh.labels" . | nindent 4 }}
+    component: dashboard
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount.dashboard }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "testmesh.selectorLabels" . | nindent 6 }}
+      component: dashboard
+  template:
+    metadata:
+      labels:
+        {{- include "testmesh.selectorLabels" . | nindent 8 }}
+        component: dashboard
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: dashboard
+          image: "{{ .Values.image.dashboard.repository }}:{{ .Values.image.dashboard.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.dashboard.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://{{ include "testmesh.fullname" . }}-api:{{ .Values.service.api.port }}"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources.dashboard | nindent 12 }}

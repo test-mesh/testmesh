@@ -1,0 +1,15 @@
+{
+  "name": "testmesh-plugin-scraper",
+  "version": "1.0.0",
+  "description": "Web scraping plugin for TestMesh using cheerio",
+  "main": "plugin.js",
+  "scripts": {
+    "start": "node plugin.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,90 @@
+version: '3.8'
+
+# Production-ready Docker Compose for TestMesh
+# Assumes external PostgreSQL, Redis, and optionally Kafka
+# For local development with bundled services, use: docker-compose -f docker-compose.dev.yml up
+
+services:
+  # TestMesh API
+  api:
+    image: testmesh/api:latest
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: testmesh-api
+    ports:
+      - "${API_PORT:-5016}:5016"
+    environment:
+      # Environment
+      ENV: ${ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+      # Server
+      PORT: 5016
+
+      # Database (external - REQUIRED)
+      DATABASE_HOST: ${DATABASE_HOST:-localhost}
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
+      DATABASE_USER: ${DATABASE_USER:-testmesh}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-testmesh}
+      DATABASE_DBNAME: ${DATABASE_DBNAME:-testmesh}
+      DATABASE_SSLMODE: ${DATABASE_SSLMODE:-disable}
+      DATABASE_MAX_CONNS: ${DATABASE_MAX_CONNS:-25}
+      DATABASE_MAX_IDLE: ${DATABASE_MAX_IDLE:-5}
+
+      # Redis (external - REQUIRED)
+      REDIS_HOST: ${REDIS_HOST:-localhost}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_TLS_ENABLED: ${REDIS_TLS_ENABLED:-false}
+
+      # Kafka (external - OPTIONAL)
+      KAFKA_ENABLED: ${KAFKA_ENABLED:-false}
+      KAFKA_BROKERS: ${KAFKA_BROKERS:-localhost:9092}
+      KAFKA_SASL_ENABLED: ${KAFKA_SASL_ENABLED:-false}
+      KAFKA_SASL_MECHANISM: ${KAFKA_SASL_MECHANISM:-PLAIN}
+      KAFKA_SASL_USERNAME: ${KAFKA_SASL_USERNAME:-}
+      KAFKA_SASL_PASSWORD: ${KAFKA_SASL_PASSWORD:-}
+      KAFKA_TLS_ENABLED: ${KAFKA_TLS_ENABLED:-false}
+
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+
+      # Secrets
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5016/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - testmesh
+
+  # TestMesh Dashboard
+  dashboard:
+    image: testmesh/dashboard:latest
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: testmesh-dashboard
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5016}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:5016}
+      NODE_ENV: production
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - testmesh
+
+networks:
+  testmesh:
+    driver: bridge
+    name: testmesh-network

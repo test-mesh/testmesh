@@ -1,0 +1,279 @@
+flow:
+  name: "Manual Cutoff Test"
+  description: "Test fare calculation by triggering cutoff via HTTP API instead of waiting for scheduled cutoff"
+  suite: "comprehensive"
+  tags: ["cutoff", "batch_processing", "http_trigger"]
+
+  env:
+    KAFKA_BROKERS: "${KAFKA_BROKERS}"
+    FARE_API_URL: "${FARE_API_URL}"
+    FARE_API_KEY: "${FARE_API_KEY}"
+
+  steps:
+    # Setup - Clean test data
+    - id: setup_cleanup
+      name: "Clean Previous Test Data"
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE pan IN ($1, $2);
+          DELETE FROM emv_sales WHERE pan IN ($1, $2);
+          DELETE FROM cutoff_batches WHERE batch_id = $3;
+        params:
+          - "4111111111111111"
+          - "4222222222222222"
+          - "test-batch-${EXECUTION_ID}"
+
+    # Send tap events for multiple cards
+    - id: send_test_taps
+      name: "Send Test Tap Events"
+      action: for_each
+      config:
+        items:
+          - pan: "4111111111111111"
+            station: "STATION_A"
+            tap_type: "entry"
+          - pan: "4111111111111111"
+            station: "STATION_B"
+            tap_type: "exit"
+          - pan: "4222222222222222"
+            station: "STATION_C"
+            tap_type: "entry"
+          - pan: "4222222222222222"
+            station: "STATION_D"
+            tap_type: "exit"
+        item_name: "tap"
+
+        steps:
+          - id: publish_tap
+            action: kafka_publish
+            config:
+              brokers: ["${KAFKA_BROKERS}"]
+              topic: "matches"
+              key: "${tap.pan}"
+              value:
+                pan: "${tap.pan}"
+                timestamp: "${TIMESTAMP}"
+                tap_type: "${tap.tap_type}"
+                station_id: "${tap.station}"
+                vehicle_id: "VEHICLE_001"
+                product_id: "DAILY_PASS"
+                batch_type: "test-batch-${EXECUTION_ID}"
+                transaction_id: "${RANDOM_ID}"
+
+          - id: delay_between_taps
+            action: delay
+            config:
+              duration: "500ms"
+
+    # Wait for tap events to be processed
+    - id: wait_for_tap_processing
+      name: "Wait for Taps to be Stored"
+      action: delay
+      config:
+        duration: "2s"
+
+    # Verify taps are in matches table (pre-cutoff)
+    - id: verify_taps_stored
+      name: "Verify Taps Stored in Matches"
+      action: database_query
+      config:
+        query: |
+          SELECT COUNT(*) as tap_count
+          FROM matches
+          WHERE batch_type = $1
+          AND created_at >= CURRENT_TIMESTAMP - INTERVAL '1 minute'
+        params: ["test-batch-${EXECUTION_ID}"]
+        poll:
+          enabled: true
+          timeout: 10s
+          interval: 1s
+      output:
+        stored_taps: "$.rows[0].tap_count"
+
+    - id: assert_taps_stored
+      name: "Assert All Taps Stored"
+      action: assert
+      config:
+        assertions:
+          - expression: "${verify_taps_stored.stored_taps} == 4"
+            message: "Expected 4 taps to be stored, got ${verify_taps_stored.stored_taps}"
+
+    # ✅ Trigger cutoff via HTTP POST
+    - id: trigger_cutoff
+      name: "Trigger Manual Cutoff via HTTP API"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/admin/cutoff/trigger"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+        body:
+          batch_id: "test-batch-${EXECUTION_ID}"
+          batch_type: "test-batch-${EXECUTION_ID}"
+          force: true
+          notify: true
+        timeout: 30s
+      output:
+        cutoff_job_id: "$.job_id"
+        cutoff_status: "$.status"
+
+    # Verify cutoff was accepted
+    - id: verify_cutoff_accepted
+      name: "Verify Cutoff Accepted"
+      action: assert
+      config:
+        assertions:
+          - expression: "${trigger_cutoff.cutoff_status} == 'accepted' || ${trigger_cutoff.cutoff_status} == 'processing'"
+            message: "Cutoff trigger failed: ${trigger_cutoff.cutoff_status}"
+
+    # Poll cutoff job status via HTTP GET
+    - id: poll_cutoff_status
+      name: "Poll Cutoff Job Status"
+      action: http_request
+      config:
+        method: GET
+        url: "${FARE_API_URL}/admin/cutoff/status/${trigger_cutoff.cutoff_job_id}"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+        poll:
+          enabled: true
+          timeout: 60s
+          interval: 3s
+          success_condition: "$.status == 'completed'"
+      output:
+        job_status: "$.status"
+        processed_count: "$.processed_count"
+        failed_count: "$.failed_count"
+
+    # Alternative: Wait for cutoff completion via Kafka event
+    - id: wait_for_cutoff_event
+      name: "Wait for Cutoff Completion Event"
+      action: kafka_consume
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "cutoff.events"
+        group_id: "test-cutoff-${EXECUTION_ID}"
+        timeout: 60s
+        max_messages: 1
+        match:
+          json_path:
+            - "$.batch_id == 'test-batch-${EXECUTION_ID}'"
+            - "$.status == 'completed'"
+      output:
+        cutoff_event: "$"
+
+    # Verify cutoff completed successfully
+    - id: verify_cutoff_completed
+      name: "Verify Cutoff Completed"
+      action: assert
+      config:
+        assertions:
+          - expression: "${poll_cutoff_status.job_status} == 'completed'"
+            message: "Cutoff did not complete: ${poll_cutoff_status.job_status}"
+
+          - expression: "${poll_cutoff_status.failed_count} == 0"
+            message: "Cutoff had ${poll_cutoff_status.failed_count} failures"
+
+    # Query final fare results after cutoff
+    - id: query_fare_results
+      name: "Query Fare Results After Cutoff"
+      action: database_query
+      config:
+        query: |
+          SELECT
+            pan,
+            SUM(amount) as total_amount,
+            COUNT(*) as transaction_count,
+            MAX(batch_id) as batch_id,
+            MAX(created_at) as last_transaction
+          FROM emv_sales
+          WHERE batch_type = $1
+          AND created_at >= CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+          GROUP BY pan
+          ORDER BY pan
+        params: ["test-batch-${EXECUTION_ID}"]
+        poll:
+          enabled: true
+          timeout: 15s
+          interval: 2s
+      output:
+        fare_results: "$.rows"
+
+    # Verify both cards have fares calculated
+    - id: verify_fares_calculated
+      name: "Verify Fares Calculated for Both Cards"
+      action: assert
+      config:
+        assertions:
+          - expression: "${query_fare_results.fare_results.length} == 2"
+            message: "Expected fares for 2 cards, got ${query_fare_results.fare_results.length}"
+
+    # Get cutoff batch summary via HTTP
+    - id: get_cutoff_summary
+      name: "Get Cutoff Batch Summary"
+      action: http_request
+      config:
+        method: GET
+        url: "${FARE_API_URL}/admin/cutoff/batch/test-batch-${EXECUTION_ID}/summary"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+      output:
+        batch_summary: "$"
+
+    # Log cutoff summary
+    - id: log_cutoff_summary
+      name: "Log Cutoff Summary"
+      action: log
+      config:
+        level: info
+        message: |
+          Cutoff Summary:
+          - Job ID: ${trigger_cutoff.cutoff_job_id}
+          - Status: ${poll_cutoff_status.job_status}
+          - Processed: ${poll_cutoff_status.processed_count}
+          - Failed: ${poll_cutoff_status.failed_count}
+          - Cards: ${query_fare_results.fare_results.length}
+          - Total Fares: ${batch_summary.total_amount}
+
+  output:
+    cutoff_job_id: "${trigger_cutoff.cutoff_job_id}"
+    cutoff_status: "${poll_cutoff_status.job_status}"
+    processed_count: "${poll_cutoff_status.processed_count}"
+    fare_results: "${query_fare_results.fare_results}"
+    success: true
+
+  teardown:
+    # Optional: Cancel/rollback cutoff if test fails
+    - id: rollback_cutoff
+      name: "Rollback Cutoff on Failure"
+      when: "${flow.status == 'failed'}"
+      action: http_request
+      config:
+        method: POST
+        url: "${FARE_API_URL}/admin/cutoff/rollback"
+        headers:
+          Authorization: "Bearer ${FARE_API_KEY}"
+          Content-Type: "application/json"
+        body:
+          batch_id: "test-batch-${EXECUTION_ID}"
+          reason: "Test failure - rollback"
+      on_error: "continue"
+
+    # Cleanup test data
+    - id: cleanup
+      name: "Cleanup Test Data"
+      action: database_query
+      config:
+        query: |
+          DELETE FROM matches WHERE batch_type = $1;
+          DELETE FROM emv_sales WHERE batch_type = $1;
+          DELETE FROM cutoff_batches WHERE batch_id = $1;
+        params: ["test-batch-${EXECUTION_ID}"]
+      on_error: "continue"
+
+  config:
+    timeout: "10m"
+    retry:
+      max_attempts: 1

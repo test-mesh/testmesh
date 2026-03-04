@@ -1,0 +1,115 @@
+[
+  {
+    "name": "Single Journey - 30 Minute Ticket",
+    "pan": "TEST_CARD_SINGLE_001",
+    "taps": 2,
+    "expected_fare": 2.50,
+    "expected_rule": "single_fare",
+    "intervals_minutes": [25],
+    "product_id": "30_min_ticket",
+    "batch_type": "regular",
+    "stations": ["STATION_A", "STATION_B"]
+  },
+  {
+    "name": "Single Journey - 60 Minute Ticket",
+    "pan": "TEST_CARD_SINGLE_002",
+    "taps": 2,
+    "expected_fare": 3.50,
+    "expected_rule": "single_fare",
+    "intervals_minutes": [45],
+    "product_id": "60_min_ticket",
+    "batch_type": "regular",
+    "stations": ["STATION_X", "STATION_Y"]
+  },
+  {
+    "name": "Daily Cap - 3 Taps",
+    "pan": "TEST_CARD_DAILY_001",
+    "taps": 3,
+    "expected_fare": 5.00,
+    "expected_rule": "daily_cap",
+    "intervals_minutes": [30, 60],
+    "product_id": "daily_cap",
+    "batch_type": "regular",
+    "stations": ["STATION_A", "STATION_B", "STATION_C"]
+  },
+  {
+    "name": "Daily Cap - 5 Taps",
+    "pan": "TEST_CARD_DAILY_002",
+    "taps": 5,
+    "expected_fare": 5.00,
+    "expected_rule": "daily_cap",
+    "intervals_minutes": [30, 45, 60, 90],
+    "product_id": "daily_cap",
+    "batch_type": "regular",
+    "stations": ["STATION_1", "STATION_2", "STATION_3", "STATION_4", "STATION_5"]
+  },
+  {
+    "name": "Weekly Cap - 20 Trips",
+    "pan": "TEST_CARD_WEEKLY_001",
+    "taps": 20,
+    "expected_fare": 25.00,
+    "expected_rule": "weekly_cap",
+    "intervals_minutes": [],
+    "product_id": "weekly_cap",
+    "batch_type": "regular",
+    "stations": []
+  },
+  {
+    "name": "Night Fare - Off Peak",
+    "pan": "TEST_CARD_NIGHT_001",
+    "taps": 2,
+    "expected_fare": 1.50,
+    "expected_rule": "night_fare",
+    "intervals_minutes": [20],
+    "product_id": "night_ticket",
+    "batch_type": "night",
+    "stations": ["STATION_NIGHT_A", "STATION_NIGHT_B"]
+  },
+  {
+    "name": "Green Ticket - 50% Discount",
+    "pan": "TEST_CARD_GREEN_001",
+    "taps": 2,
+    "expected_fare": 1.25,
+    "expected_rule": "green_ticket_discount",
+    "intervals_minutes": [30],
+    "product_id": "green_ticket",
+    "batch_type": "regular",
+    "stations": ["STATION_A", "STATION_B"],
+    "discount_rate": 0.50
+  },
+  {
+    "name": "Compensation - Missed Tap Out",
+    "pan": "TEST_CARD_COMP_001",
+    "taps": 1,
+    "expected_fare": 10.00,
+    "expected_rule": "maximum_fare",
+    "intervals_minutes": [],
+    "product_id": "unmatched",
+    "batch_type": "regular",
+    "stations": ["STATION_ENTRY_ONLY"],
+    "compensation_expected": true
+  },
+  {
+    "name": "Two Tickets - Same Card",
+    "pan": "TEST_CARD_DOUBLE_001",
+    "taps": 4,
+    "expected_fare": 7.00,
+    "expected_rule": "two_tickets",
+    "intervals_minutes": [25, 120, 25],
+    "product_id": "two_tickets",
+    "batch_type": "regular",
+    "stations": ["A", "B", "C", "D"]
+  },
+  {
+    "name": "Cross-Zone Fare",
+    "pan": "TEST_CARD_ZONE_001",
+    "taps": 2,
+    "expected_fare": 4.50,
+    "expected_rule": "cross_zone",
+    "intervals_minutes": [40],
+    "product_id": "zone_ticket",
+    "batch_type": "regular",
+    "stations": ["ZONE_1_A", "ZONE_3_B"],
+    "zone_crossing": true
+  }
+]
