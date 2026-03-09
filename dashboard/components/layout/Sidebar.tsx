@@ -26,6 +26,7 @@ import {
   Settings,
   Plug,
   Users,
+  Send,
 } from 'lucide-react';
 
 interface NavItem {
@@ -46,6 +47,7 @@ const navigation: NavItem[] = [
   { title: 'Collections', href: '/collections', icon: FolderTree },
   { title: 'Schedules', href: '/schedules', icon: Calendar },
   { title: 'Runner', href: '/runner', icon: Terminal },
+  { title: 'Request Builder', href: '/request-builder', icon: Send },
 
   // Infrastructure
   { title: 'Mock Servers', href: '/mocks', icon: Server },

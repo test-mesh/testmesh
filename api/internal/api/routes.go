@@ -137,6 +137,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler(db)
+	proxyHandler := handlers.NewProxyHandler(logger)
 	flowHandler := handlers.NewFlowHandler(flowRepo, logger)
 	executionHandler := handlers.NewExecutionHandler(executionRepo, flowRepo, envRepo, contractRepo, mockManager, logger, wsHub)
 	mockHandler := handlers.NewMockHandler(mockRepo, mockManager, logger)
@@ -580,6 +581,9 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 				integrations.GET("/:id/repos", integrationHandler.ListRepositories)
 			}
 		}
+
+		// Request builder proxy
+		v1.POST("/proxy/send", proxyHandler.Send)
 
 		// Public webhook endpoints (no auth - signature verified)
 		v1.POST("/webhooks/github", webhookHandler.HandleGitHub)
