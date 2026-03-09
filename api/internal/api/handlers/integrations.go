@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/test-mesh/testmesh/internal/ai"
+	"github.com/test-mesh/testmesh/internal/git"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"github.com/google/uuid"
@@ -439,6 +440,39 @@ func (h *IntegrationHandler) testGitIntegration(integration *models.SystemIntegr
 	// For GitHub, we can't really "test" the connection without making an API call
 	// For now, just validate the secret format
 	return fmt.Sprintf("Webhook secret configured for %s", integration.Provider), nil
+}
+
+// ListRepositories handles GET /api/v1/admin/integrations/:id/repos
+func (h *IntegrationHandler) ListRepositories(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid integration ID"})
+		return
+	}
+
+	integration, err := h.repo.GetWithSecrets(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Integration not found"})
+		return
+	}
+
+	provider, err := git.NewProvider(integration)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Unsupported git provider: %s", integration.Provider)})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+
+	repos, err := provider.ListRepositories(ctx, c.Query("search"))
+	if err != nil {
+		h.logger.Warn("Failed to list repositories", zap.Error(err), zap.String("integration_id", id.String()))
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to list repositories: %s", err.Error())})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"repositories": repos, "total": len(repos)})
 }
 
 // validateIntegration validates that the type and provider combination is valid

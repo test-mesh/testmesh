@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Copy, CheckCircle, XCircle, Loader2, AlertCircle, Plus } from 'lucide-react';
+import { Copy, CheckCircle, XCircle, Loader2, AlertCircle, Plus, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TriggerRulesTable } from './TriggerRulesTable';
 
@@ -19,14 +19,14 @@ export function GitIntegrationSection() {
   const { toast } = useToast();
 
   const [webhookSecret, setWebhookSecret] = useState('');
+  const [showSecret, setShowSecret] = useState(false);
+  const [accessToken, setAccessToken] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
   const integration = data?.integrations?.find(i => i.provider === 'github');
   const isConfigured = !!integration;
 
-  const webhookUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/api/v1/webhooks/github`
-    : '';
+  const webhookUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5016'}/api/v1/webhooks/github`;
 
   const generateSecret = () => {
     const array = new Uint8Array(32);
@@ -58,11 +58,11 @@ export function GitIntegrationSection() {
     try {
       if (isConfigured && integration) {
         // Update existing integration
+        const secrets: Record<string, string> = { webhook_secret: webhookSecret };
+        if (accessToken) secrets['access_token'] = accessToken;
         await updateSecrets.mutateAsync({
           id: integration.id,
-          data: {
-            secrets: { webhook_secret: webhookSecret },
-          },
+          data: { secrets },
         });
 
         toast({
@@ -71,16 +71,14 @@ export function GitIntegrationSection() {
         });
       } else {
         // Create new integration
+        const secrets: Record<string, string> = { webhook_secret: webhookSecret };
+        if (accessToken) secrets['access_token'] = accessToken;
         await createIntegration.mutateAsync({
           name: 'GitHub Webhooks',
           type: 'git',
           provider: 'github',
-          config: {
-            signature_header: 'X-Hub-Signature-256',
-          },
-          secrets: {
-            webhook_secret: webhookSecret,
-          },
+          config: { signature_header: 'X-Hub-Signature-256' },
+          secrets,
         });
 
         toast({
@@ -90,6 +88,7 @@ export function GitIntegrationSection() {
       }
 
       setWebhookSecret('');
+      setAccessToken('');
     } catch (error) {
       toast({
         title: 'Configuration failed',
@@ -130,7 +129,18 @@ export function GitIntegrationSection() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isConfigured ? (
+          {/* Webhook URL — always visible */}
+          <div className="space-y-2">
+            <Label>Webhook URL</Label>
+            <div className="flex gap-2">
+              <Input value={webhookUrl} readOnly className="font-mono text-sm" />
+              <Button variant="outline" size="sm" onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}>
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {!isConfigured && (
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
@@ -138,127 +148,81 @@ export function GitIntegrationSection() {
                 to verify webhook signatures from GitHub.
               </AlertDescription>
             </Alert>
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Webhook URL</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={webhookUrl}
-                    readOnly
-                    className="font-mono text-sm"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <Alert>
-                <AlertDescription className="space-y-2">
-                  <p className="font-medium">To configure webhooks in GitHub:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-sm">
-                    <li>Go to your repository Settings → Webhooks → Add webhook</li>
-                    <li>Paste the Webhook URL above</li>
-                    <li>Select <strong>application/json</strong> as Content type</li>
-                    <li>Enter the webhook secret you configured</li>
-                    <li>Choose events: <strong>Pushes</strong> and <strong>Pull requests</strong></li>
-                    <li>Click <strong>Add webhook</strong></li>
-                  </ol>
-                </AlertDescription>
-              </Alert>
-            </div>
           )}
 
-          {!isConfigured && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="webhook-secret">Webhook Secret</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="webhook-secret"
-                    type="password"
-                    value={webhookSecret}
-                    onChange={(e) => setWebhookSecret(e.target.value)}
-                    placeholder="Enter or generate a secret"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={generateSecret}
-                  >
-                    Generate
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  This secret will be used to verify webhook requests from GitHub
-                </p>
+          {/* Secret input — always visible so user can regenerate or enter manually */}
+          <div className="space-y-2">
+            <Label htmlFor="webhook-secret">{isConfigured ? 'New Webhook Secret' : 'Webhook Secret'}</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  id="webhook-secret"
+                  type={showSecret ? 'text' : 'password'}
+                  value={webhookSecret}
+                  onChange={e => setWebhookSecret(e.target.value)}
+                  placeholder="Enter or generate a secret"
+                  className="font-mono text-sm pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                  onClick={() => setShowSecret(v => !v)}
+                >
+                  {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
               </div>
-
-              <Button
-                onClick={handleEnableWebhook}
-                disabled={!webhookSecret || isGenerating}
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Enabling...
-                  </>
-                ) : (
-                  'Enable Webhook'
-                )}
-              </Button>
-            </div>
-          )}
-
-          {isConfigured && (
-            <div className="pt-4 border-t">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  generateSecret();
-                }}
-              >
-                Regenerate Secret
-              </Button>
+              <Button variant="outline" onClick={generateSecret}>Generate</Button>
               {webhookSecret && (
-                <div className="mt-4 space-y-2">
-                  <Label>New Secret (update in GitHub)</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={webhookSecret}
-                      readOnly
-                      type="password"
-                      className="font-mono text-sm"
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => copyToClipboard(webhookSecret, 'Secret')}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={handleEnableWebhook}
-                    disabled={isGenerating}
-                  >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Updating...
-                      </>
-                    ) : (
-                      'Save New Secret'
-                    )}
-                  </Button>
-                </div>
+                <Button variant="outline" size="sm" onClick={() => copyToClipboard(webhookSecret, 'Secret')}>
+                  <Copy className="h-4 w-4" />
+                </Button>
               )}
             </div>
+            <p className="text-xs text-muted-foreground">
+              {isConfigured
+                ? 'Enter a new secret to rotate it, then update the value in GitHub'
+                : 'This secret will be used to verify webhook requests from GitHub'}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="github-access-token">Personal Access Token (optional)</Label>
+            <Input
+              id="github-access-token"
+              type="password"
+              value={accessToken}
+              onChange={e => setAccessToken(e.target.value)}
+              placeholder="ghp_... (required to browse repositories)"
+            />
+            <p className="text-xs text-muted-foreground">
+              Required to browse repositories when adding a repository link. Needs <code className="bg-muted px-1 rounded">repo</code> scope.
+            </p>
+          </div>
+
+          <Button onClick={handleEnableWebhook} disabled={!webhookSecret || isGenerating}>
+            {isGenerating ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{isConfigured ? 'Updating...' : 'Enabling...'}</>
+            ) : (
+              isConfigured ? 'Save New Secret' : 'Enable Webhook'
+            )}
+          </Button>
+
+          {isConfigured && (
+            <Alert>
+              <AlertDescription className="space-y-2">
+                <p className="font-medium">To configure webhooks in GitHub:</p>
+                <ol className="list-decimal list-inside space-y-1 text-sm">
+                  <li>Go to your repository Settings → Webhooks → Add webhook</li>
+                  <li>Paste the Webhook URL above</li>
+                  <li>Select <strong>application/json</strong> as Content type</li>
+                  <li>Enter the webhook secret you configured</li>
+                  <li>Choose events: <strong>Pushes</strong> and <strong>Pull requests</strong></li>
+                  <li>Click <strong>Add webhook</strong></li>
+                </ol>
+              </AlertDescription>
+            </Alert>
           )}
         </CardContent>
       </Card>

@@ -123,6 +123,10 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 	aiSelfHealing := ai.NewSelfHealingEngine(db, aiProviders, flowRepo, executionRepo, logger)
 	aiRepo := repository.NewAIRepository(db)
 
+	// Repository link support
+	repoLinkRepo := repository.NewRepositoryLinkRepository(db)
+	aiDiffAnalyzer := ai.NewDiffAnalyzer(db, aiProviders, flowRepo, repoLinkRepo, logger)
+
 	// Initialize services
 	oauth2Service := auth.NewOAuth2Service(logger)
 
@@ -204,7 +208,8 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 	// Initialize integration handlers
 	integrationHandler := handlers.NewIntegrationHandler(integrationRepo, aiProviders, logger)
 	gitTriggerRuleHandler := handlers.NewGitTriggerRuleHandler(gitTriggerRuleRepo, logger)
-	webhookHandler := handlers.NewWebhookHandler(integrationRepo, gitTriggerRuleRepo, webhookDeliveryRepo, sched, logger)
+	webhookHandler := handlers.NewWebhookHandler(integrationRepo, gitTriggerRuleRepo, webhookDeliveryRepo, repoLinkRepo, aiDiffAnalyzer, aiSelfHealing, sched, logger)
+	repositoryLinkHandler := handlers.NewRepositoryLinkHandler(repoLinkRepo, logger)
 
 	// Health check
 	router.GET("/health", healthHandler.Check)
@@ -227,6 +232,16 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 				gitTriggerRules.GET("/:id", gitTriggerRuleHandler.Get)
 				gitTriggerRules.PUT("/:id", gitTriggerRuleHandler.Update)
 				gitTriggerRules.DELETE("/:id", gitTriggerRuleHandler.Delete)
+			}
+
+			// Repository links (workspace-scoped)
+			repoLinks := ws.Group("/repository-links")
+			{
+				repoLinks.GET("", repositoryLinkHandler.List)
+				repoLinks.POST("", repositoryLinkHandler.Create)
+				repoLinks.GET("/:link_id", repositoryLinkHandler.Get)
+				repoLinks.PUT("/:link_id", repositoryLinkHandler.Update)
+				repoLinks.DELETE("/:link_id", repositoryLinkHandler.Delete)
 			}
 
 			// Collection routes (workspace-scoped)
@@ -562,11 +577,13 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 				integrations.POST("/:id/test", integrationHandler.TestConnection)
 				integrations.GET("/:id/secrets", integrationHandler.GetSecrets)
 				integrations.PUT("/:id/secrets", integrationHandler.UpdateSecrets)
+				integrations.GET("/:id/repos", integrationHandler.ListRepositories)
 			}
 		}
 
-		// Public webhook endpoint (no auth - signature verified)
+		// Public webhook endpoints (no auth - signature verified)
 		v1.POST("/webhooks/github", webhookHandler.HandleGitHub)
+		v1.POST("/webhooks/gitea", webhookHandler.HandleGitea)
 
 	}
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   Building2,
   Plus,
@@ -294,9 +295,11 @@ function WorkspaceCard({ workspace, role, isPersonal, onDelete, isLoadingRole }:
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
+                <DropdownMenuItem asChild>
+                  <Link href={`/workspaces/${workspace.id}/settings`}>
+                    <Settings className="w-4 h-4 mr-2" />
+                    Settings
+                  </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <UserPlus className="w-4 h-4 mr-2" />
@@ -337,12 +340,12 @@ function WorkspaceCard({ workspace, role, isPersonal, onDelete, isLoadingRole }:
             )}
           </Badge>
 
-          {workspace.members && workspace.members.length > 0 && (
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Users className="w-4 h-4" />
-              {workspace.members.length}
-            </div>
-          )}
+          <Link href={`/workspaces/${workspace.id}/settings`}>
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
+              <Settings className="w-3 h-3 mr-1" />
+              Settings
+            </Button>
+          </Link>
         </div>
       </CardContent>
     </Card>

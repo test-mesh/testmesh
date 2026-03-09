@@ -17,6 +17,7 @@ import {
   Zap,
   Timer,
   AlertCircle,
+  GitCommit,
 } from 'lucide-react';
 import type { Suggestion, SuggestionType } from '@/lib/api/types';
 
@@ -34,6 +35,7 @@ const TYPE_ICONS: Record<SuggestionType, React.ReactNode> = {
   retry_strategy: <Timer className="h-4 w-4" />,
   assertion: <AlertCircle className="h-4 w-4" />,
   timeout: <Timer className="h-4 w-4" />,
+  code_sync: <GitCommit className="h-4 w-4" />,
 };
 
 const TYPE_LABELS: Record<SuggestionType, string> = {
@@ -42,6 +44,7 @@ const TYPE_LABELS: Record<SuggestionType, string> = {
   retry_strategy: 'Retry Strategy',
   assertion: 'Assertion',
   timeout: 'Timeout',
+  code_sync: 'Code Sync',
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -93,6 +96,31 @@ export function SuggestionCard({
             {confidencePercent}%
           </span>
         </div>
+
+        {/* Code Sync Context */}
+        {suggestion.type === 'code_sync' && suggestion.commit_sha && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <GitCommit className="h-4 w-4" />
+            <span>Triggered by commit:</span>
+            <code className="bg-muted px-1 rounded text-xs font-mono">{suggestion.commit_sha.slice(0, 8)}</code>
+          </div>
+        )}
+
+        {suggestion.type === 'code_sync' && suggestion.changed_files && suggestion.changed_files.length > 0 && (
+          <Collapsible>
+            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium hover:underline">
+              <ChevronDown className="h-4 w-4" />
+              Changed files ({suggestion.changed_files.length})
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <ul className="text-xs text-muted-foreground bg-muted p-3 rounded-lg space-y-0.5 font-mono">
+                {suggestion.changed_files.map(f => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Description */}
         {suggestion.description && (

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { integrationsApi, gitTriggerRulesApi, type SystemIntegration, type GitTriggerRule, type CreateIntegrationRequest, type UpdateIntegrationRequest, type UpdateSecretsRequest, type CreateGitTriggerRuleRequest, type UpdateGitTriggerRuleRequest } from '../api/integrations';
+import { integrationsApi, gitTriggerRulesApi, repositoryLinksApi, type SystemIntegration, type GitTriggerRule, type RepositoryLink, type CreateIntegrationRequest, type UpdateIntegrationRequest, type UpdateSecretsRequest, type CreateGitTriggerRuleRequest, type UpdateGitTriggerRuleRequest, type CreateRepositoryLinkRequest, type UpdateRepositoryLinkRequest } from '../api/integrations';
+export type { GitRepository } from '../api/integrations';
 
 // Query keys
 export const integrationKeys = {
@@ -93,6 +94,68 @@ export function useUpdateSecrets() {
     onSuccess: (_, { id }) => {
       queryClient.invalidateQueries({ queryKey: integrationKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: integrationKeys.secrets(id) });
+    },
+  });
+}
+
+export function useGitRepositories(integrationId: string, search?: string) {
+  return useQuery({
+    queryKey: ['git-repos', integrationId, search],
+    queryFn: () => integrationsApi.listRepos(integrationId, search),
+    enabled: !!integrationId,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+// Repository Link Query Keys
+export const repositoryLinkKeys = {
+  all: ['repository-links'] as const,
+  lists: () => [...repositoryLinkKeys.all, 'list'] as const,
+  list: (workspaceId: string) => [...repositoryLinkKeys.lists(), workspaceId] as const,
+  details: () => [...repositoryLinkKeys.all, 'detail'] as const,
+  detail: (workspaceId: string, id: string) => [...repositoryLinkKeys.details(), workspaceId, id] as const,
+};
+
+// Repository Link Hooks
+export function useRepositoryLinks(workspaceId: string) {
+  return useQuery({
+    queryKey: repositoryLinkKeys.list(workspaceId),
+    queryFn: () => repositoryLinksApi.list(workspaceId),
+    enabled: !!workspaceId,
+  });
+}
+
+export function useCreateRepositoryLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workspaceId, data }: { workspaceId: string; data: CreateRepositoryLinkRequest }) =>
+      repositoryLinksApi.create(workspaceId, data),
+    onSuccess: (_, { workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: repositoryLinkKeys.list(workspaceId) });
+    },
+  });
+}
+
+export function useUpdateRepositoryLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workspaceId, linkId, data }: { workspaceId: string; linkId: string; data: UpdateRepositoryLinkRequest }) =>
+      repositoryLinksApi.update(workspaceId, linkId, data),
+    onSuccess: (_, { workspaceId, linkId }) => {
+      queryClient.invalidateQueries({ queryKey: repositoryLinkKeys.detail(workspaceId, linkId) });
+      queryClient.invalidateQueries({ queryKey: repositoryLinkKeys.list(workspaceId) });
+    },
+  });
+}
+
+export function useDeleteRepositoryLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workspaceId, linkId }: { workspaceId: string; linkId: string }) =>
+      repositoryLinksApi.delete(workspaceId, linkId),
+    onSuccess: (_, { workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: repositoryLinkKeys.list(workspaceId) });
     },
   });
 }

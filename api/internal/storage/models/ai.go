@@ -96,6 +96,7 @@ const (
 	SuggestionTypeRetryStrategy SuggestionType = "retry_strategy"
 	SuggestionTypeAssertion     SuggestionType = "assertion"
 	SuggestionTypeTimeout       SuggestionType = "timeout"
+	SuggestionTypeCodeSync      SuggestionType = "code_sync"
 )
 
 // Suggestion stores AI-generated suggestions for fixing or improving flows
@@ -114,6 +115,8 @@ type Suggestion struct {
 	DiffPatch     string           `gorm:"type:text" json:"diff_patch,omitempty"`
 	Confidence    float64          `gorm:"type:decimal(5,4)" json:"confidence"` // 0.0 to 1.0
 	Reasoning     string           `gorm:"type:text" json:"reasoning"`
+	CommitSHA     string           `gorm:"type:varchar(64)" json:"commit_sha,omitempty"`
+	ChangedFiles  StringArray      `gorm:"type:text[]" json:"changed_files,omitempty"`
 	AppliedAt     *time.Time       `json:"applied_at,omitempty"`
 	CreatedAt     time.Time        `json:"created_at"`
 	UpdatedAt     time.Time        `json:"updated_at"`

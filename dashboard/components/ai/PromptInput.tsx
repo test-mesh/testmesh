@@ -42,12 +42,12 @@ export function PromptInput({
   showOptions = true,
 }: PromptInputProps) {
   const [prompt, setPrompt] = useState('');
-  const [provider, setProvider] = useState<AIProviderType | ''>('');
+  const [provider, setProvider] = useState<AIProviderType | 'auto'>('auto');
 
   const handleSubmit = () => {
     if (!prompt.trim()) return;
     onSubmit(prompt, {
-      provider: provider || undefined,
+      provider: provider === 'auto' ? undefined : provider,
     });
   };
 
@@ -73,12 +73,12 @@ export function PromptInput({
         <div className="flex items-center gap-4">
           <div className="space-y-2">
             <Label htmlFor="provider">AI Provider</Label>
-            <Select value={provider} onValueChange={(v) => setProvider(v as AIProviderType)}>
+            <Select value={provider} onValueChange={(v) => setProvider(v as AIProviderType | 'auto')}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Auto" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Auto (default)</SelectItem>
+                <SelectItem value="auto">Auto (default)</SelectItem>
                 {providers.map((p) => (
                   <SelectItem key={p} value={p}>
                     {p.charAt(0).toUpperCase() + p.slice(1)}

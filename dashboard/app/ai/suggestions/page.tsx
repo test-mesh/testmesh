@@ -22,11 +22,12 @@ import {
   useApplySuggestion,
 } from '@/lib/hooks/useAI';
 import { ArrowLeft, Lightbulb, Search, Loader2 } from 'lucide-react';
-import type { SuggestionStatus } from '@/lib/api/types';
+import type { SuggestionStatus, SuggestionType } from '@/lib/api/types';
 
 export default function SuggestionsPage() {
   const [selectedFlowId, setSelectedFlowId] = useState('');
   const [statusFilter, setStatusFilter] = useState<SuggestionStatus | ''>('');
+  const [typeFilter, setTypeFilter] = useState<SuggestionType | ''>('');
 
   const { data: flowsData, isLoading: flowsLoading } = useFlows({});
   const {
@@ -43,7 +44,10 @@ export default function SuggestionsPage() {
   const applySuggestion = useApplySuggestion();
 
   const flows = flowsData?.flows || [];
-  const suggestions = suggestionsData?.suggestions || [];
+  const allSuggestions = suggestionsData?.suggestions || [];
+  const suggestions = typeFilter
+    ? allSuggestions.filter(s => s.type === typeFilter)
+    : allSuggestions;
 
   const handleAccept = async (id: string) => {
     await acceptSuggestion.mutateAsync(id);
@@ -83,7 +87,7 @@ export default function SuggestionsPage() {
       {/* Filters */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
               <Label>Select Flow</Label>
               <Select value={selectedFlowId} onValueChange={setSelectedFlowId}>
@@ -125,6 +129,25 @@ export default function SuggestionsPage() {
                   <SelectItem value="accepted">Accepted</SelectItem>
                   <SelectItem value="applied">Applied</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select
+                value={typeFilter}
+                onValueChange={(v) => setTypeFilter(v as SuggestionType | '')}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="All types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All types</SelectItem>
+                  <SelectItem value="fix">Fix</SelectItem>
+                  <SelectItem value="optimization">Optimization</SelectItem>
+                  <SelectItem value="assertion">Assertion</SelectItem>
+                  <SelectItem value="code_sync">Code Sync</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -199,14 +222,25 @@ export default function SuggestionsPage() {
         <CardHeader>
           <CardTitle className="text-lg">How AI Suggestions Work</CardTitle>
         </CardHeader>
-        <CardContent>
-          <ol className="space-y-2 text-sm text-muted-foreground list-decimal list-inside">
-            <li>When a test execution fails, you can trigger AI analysis from the execution details page</li>
-            <li>The AI examines the error messages, outputs, and flow structure</li>
-            <li>It generates suggestions with fixes, optimizations, or improvements</li>
-            <li>Review each suggestion, accept or reject it, then apply accepted suggestions</li>
-            <li>Applied suggestions automatically update your flow definition</li>
-          </ol>
+        <CardContent className="space-y-4">
+          <div>
+            <p className="text-sm font-medium mb-1">Failure Fix Suggestions</p>
+            <ol className="space-y-1 text-sm text-muted-foreground list-decimal list-inside">
+              <li>When a test execution fails, trigger AI analysis from the execution details page</li>
+              <li>The AI examines error messages, outputs, and flow structure</li>
+              <li>It generates suggestions with fixes, optimizations, or improvements</li>
+              <li>Review each suggestion, accept or reject it, then apply accepted suggestions</li>
+            </ol>
+          </div>
+          <div>
+            <p className="text-sm font-medium mb-1">Code Sync Suggestions</p>
+            <ol className="space-y-1 text-sm text-muted-foreground list-decimal list-inside">
+              <li>When code is pushed to a linked repository, TestMesh fetches the diff</li>
+              <li>Flows tagged with <code className="bg-muted px-1 rounded text-xs">service:name</code> matching path mappings are analyzed</li>
+              <li>The AI determines if the test needs updating to match the new API contract</li>
+              <li>High-confidence suggestions can be auto-applied based on your threshold setting</li>
+            </ol>
+          </div>
         </CardContent>
       </Card>
     </div>

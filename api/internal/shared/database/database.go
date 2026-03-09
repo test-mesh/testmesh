@@ -548,6 +548,8 @@ func AutoMigrate(db *gorm.DB) error {
 			diff_patch TEXT,
 			confidence DECIMAL(5,4) DEFAULT 0,
 			reasoning TEXT,
+			commit_sha VARCHAR(64),
+			changed_files TEXT[] DEFAULT '{}',
 			applied_at TIMESTAMP WITH TIME ZONE,
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -702,6 +704,30 @@ func AutoMigrate(db *gorm.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_received ON webhook_deliveries(received_at DESC);
 		CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_status ON webhook_deliveries(status);
 	`)
+
+	// Create repository_links table (workspace-scoped, links repo to workspace with service mappings)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS repository_links (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			integration_id UUID NOT NULL REFERENCES system_integrations(id),
+			repository VARCHAR(500) NOT NULL,
+			default_branch VARCHAR(255) DEFAULT 'main',
+			service_mappings JSONB DEFAULT '[]',
+			auto_adapt BOOLEAN DEFAULT false,
+			auto_apply_threshold DECIMAL(5,4) DEFAULT 0,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			deleted_at TIMESTAMP WITH TIME ZONE
+		);
+		CREATE INDEX IF NOT EXISTS idx_repo_links_workspace ON repository_links(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_repo_links_integration ON repository_links(integration_id);
+		CREATE INDEX IF NOT EXISTS idx_repo_links_deleted_at ON repository_links(deleted_at);
+	`)
+
+	// Add code_sync columns to ai.suggestions if they don't exist
+	db.Exec(`ALTER TABLE ai.suggestions ADD COLUMN IF NOT EXISTS commit_sha VARCHAR(64)`)
+	db.Exec(`ALTER TABLE ai.suggestions ADD COLUMN IF NOT EXISTS changed_files TEXT[] DEFAULT '{}'`)
 
 	// Create schedules table
 	db.Exec(`

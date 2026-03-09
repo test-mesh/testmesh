@@ -17,7 +17,7 @@ export interface SystemIntegration {
 }
 
 export type IntegrationType = 'ai_provider' | 'git';
-export type IntegrationProvider = 'openai' | 'anthropic' | 'local' | 'github';
+export type IntegrationProvider = 'openai' | 'anthropic' | 'local' | 'github' | 'gitea';
 export type IntegrationStatus = 'active' | 'disabled' | 'error';
 
 export interface IntegrationConfig {
@@ -26,6 +26,50 @@ export interface IntegrationConfig {
   temperature?: number;
   max_tokens?: number;
   signature_header?: string;
+  base_url?: string; // Gitea: self-hosted base URL
+}
+
+export interface ServicePathMapping {
+  service_name: string;
+  path_patterns: string[]; // globs e.g. ["api/user-service/**"]
+}
+
+export interface RepositoryLink {
+  id: string;
+  workspace_id: string;
+  integration_id: string;
+  repository: string; // "owner/repo"
+  default_branch: string;
+  service_mappings: ServicePathMapping[];
+  auto_adapt: boolean;
+  auto_apply_threshold: number; // 0=manual, 0.9=apply if >=90%
+  created_at: string;
+  updated_at: string;
+  integration?: SystemIntegration;
+}
+
+export interface CreateRepositoryLinkRequest {
+  integration_id: string;
+  repository: string;
+  default_branch?: string;
+  service_mappings?: ServicePathMapping[];
+  auto_adapt?: boolean;
+  auto_apply_threshold?: number;
+}
+
+export interface UpdateRepositoryLinkRequest {
+  default_branch?: string;
+  service_mappings?: ServicePathMapping[];
+  auto_adapt?: boolean;
+  auto_apply_threshold?: number;
+}
+
+export interface GitRepository {
+  full_name: string;
+  name: string;
+  description: string;
+  private: boolean;
+  html_url: string;
 }
 
 export interface CreateIntegrationRequest {
@@ -160,6 +204,50 @@ export const integrationsApi = {
 
   updateSecrets: async (id: string, data: UpdateSecretsRequest) => {
     await apiClient.put(`/api/v1/admin/integrations/${id}/secrets`, data);
+  },
+
+  listRepos: async (id: string, search?: string) => {
+    const response = await apiClient.get<{ repositories: GitRepository[]; total: number }>(
+      `/api/v1/admin/integrations/${id}/repos`,
+      { params: search ? { search } : undefined }
+    );
+    return response.data;
+  },
+};
+
+export const repositoryLinksApi = {
+  list: async (workspaceId: string) => {
+    const response = await apiClient.get<{ repository_links: RepositoryLink[]; total: number }>(
+      `/api/v1/workspaces/${workspaceId}/repository-links`
+    );
+    return response.data;
+  },
+
+  create: async (workspaceId: string, data: CreateRepositoryLinkRequest) => {
+    const response = await apiClient.post<RepositoryLink>(
+      `/api/v1/workspaces/${workspaceId}/repository-links`,
+      data
+    );
+    return response.data;
+  },
+
+  get: async (workspaceId: string, linkId: string) => {
+    const response = await apiClient.get<RepositoryLink>(
+      `/api/v1/workspaces/${workspaceId}/repository-links/${linkId}`
+    );
+    return response.data;
+  },
+
+  update: async (workspaceId: string, linkId: string, data: UpdateRepositoryLinkRequest) => {
+    const response = await apiClient.put<RepositoryLink>(
+      `/api/v1/workspaces/${workspaceId}/repository-links/${linkId}`,
+      data
+    );
+    return response.data;
+  },
+
+  delete: async (workspaceId: string, linkId: string) => {
+    await apiClient.delete(`/api/v1/workspaces/${workspaceId}/repository-links/${linkId}`);
   },
 };
 

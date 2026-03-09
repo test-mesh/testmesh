@@ -26,6 +26,7 @@ const (
 
 	// Git Providers
 	IntegrationProviderGitHub IntegrationProvider = "github"
+	IntegrationProviderGitea  IntegrationProvider = "gitea"
 )
 
 // IntegrationStatus represents the status of an integration
@@ -65,8 +66,9 @@ type IntegrationConfig struct {
 	Temperature float64 `json:"temperature,omitempty"`
 	MaxTokens   int     `json:"max_tokens,omitempty"`
 
-	// GitHub config
-	SignatureHeader string `json:"signature_header,omitempty"` // "X-Hub-Signature-256"
+	// GitHub/Gitea config
+	SignatureHeader string `json:"signature_header,omitempty"` // "X-Hub-Signature-256" or "X-Gitea-Signature"
+	BaseURL         string `json:"base_url,omitempty"`         // For self-hosted Gitea: "https://gitea.example.com"
 }
 
 // BeforeCreate generates UUID if not set
@@ -167,6 +169,36 @@ type WebhookDelivery struct {
 func (d *WebhookDelivery) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == uuid.Nil {
 		d.ID = uuid.New()
+	}
+	return nil
+}
+
+// ServicePathMapping maps a service name to file path glob patterns
+type ServicePathMapping struct {
+	ServiceName  string   `json:"service_name"`
+	PathPatterns []string `json:"path_patterns"` // globs: ["api/user-service/**", "proto/user/**"]
+}
+
+// RepositoryLink links a workspace to a git repo with service-path mappings
+type RepositoryLink struct {
+	ID                 uuid.UUID            `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	WorkspaceID        uuid.UUID            `gorm:"type:uuid;not null;index" json:"workspace_id"`
+	IntegrationID      uuid.UUID            `gorm:"type:uuid;not null;index" json:"integration_id"`
+	Repository         string               `gorm:"not null" json:"repository"` // "owner/repo"
+	DefaultBranch      string               `gorm:"default:'main'" json:"default_branch"`
+	ServiceMappings    []ServicePathMapping `gorm:"type:jsonb;serializer:json;default:'[]'" json:"service_mappings"`
+	AutoAdapt          bool                 `gorm:"default:false" json:"auto_adapt"`
+	AutoApplyThreshold float64              `gorm:"default:0" json:"auto_apply_threshold"` // 0=never, 0.9=apply if >=90%
+	CreatedAt          time.Time            `json:"created_at"`
+	UpdatedAt          time.Time            `json:"updated_at"`
+	DeletedAt          gorm.DeletedAt       `gorm:"index" json:"deleted_at,omitempty"`
+	Integration        *SystemIntegration   `gorm:"foreignKey:IntegrationID" json:"integration,omitempty"`
+}
+
+// BeforeCreate generates UUID if not set
+func (r *RepositoryLink) BeforeCreate(tx *gorm.DB) error {
+	if r.ID == uuid.Nil {
+		r.ID = uuid.New()
 	}
 	return nil
 }

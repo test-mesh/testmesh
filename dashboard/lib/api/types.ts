@@ -562,7 +562,7 @@ export interface GetStepPerformanceResponse {
 export type AIProviderType = 'anthropic' | 'openai' | 'local';
 export type GenerationStatus = 'pending' | 'processing' | 'completed' | 'failed';
 export type SuggestionStatus = 'pending' | 'accepted' | 'rejected' | 'applied';
-export type SuggestionType = 'fix' | 'optimization' | 'retry_strategy' | 'assertion' | 'timeout';
+export type SuggestionType = 'fix' | 'optimization' | 'retry_strategy' | 'assertion' | 'timeout' | 'code_sync';
 
 export interface GenerationHistory {
   id: string;
@@ -595,6 +595,8 @@ export interface Suggestion {
   diff_patch?: string;
   confidence: number;
   reasoning: string;
+  commit_sha?: string;
+  changed_files?: string[];
   applied_at?: string;
   created_at: string;
   updated_at: string;

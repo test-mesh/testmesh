@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Plug, Bot, GitBranch } from 'lucide-react';
 import { AIProviderSection } from '@/components/integrations/AIProviderSection';
 import { GitIntegrationSection } from '@/components/integrations/GitIntegrationSection';
+import { GiteaIntegrationSection } from '@/components/integrations/GiteaIntegrationSection';
 
 export default function IntegrationsPage() {
   const [activeTab, setActiveTab] = useState('ai-providers');
@@ -23,14 +24,18 @@ export default function IntegrationsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-lg grid-cols-3">
           <TabsTrigger value="ai-providers" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             AI Providers
           </TabsTrigger>
           <TabsTrigger value="git-integration" className="flex items-center gap-2">
             <GitBranch className="h-4 w-4" />
-            Git Integration
+            GitHub
+          </TabsTrigger>
+          <TabsTrigger value="gitea-integration" className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4" />
+            Gitea
           </TabsTrigger>
         </TabsList>
 
@@ -59,6 +64,20 @@ export default function IntegrationsPage() {
             </CardHeader>
             <CardContent>
               <GitIntegrationSection />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="gitea-integration" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Gitea Integration</CardTitle>
+              <CardDescription>
+                Set up webhooks for self-hosted or cloud Gitea instances to trigger tests automatically.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <GiteaIntegrationSection />
             </CardContent>
           </Card>
         </TabsContent>

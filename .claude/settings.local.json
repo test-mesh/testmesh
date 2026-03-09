@@ -80,7 +80,8 @@
       "Bash(docker network ls 2>/dev/null)",
       "Bash(for url in \"http://localhost:5016/health\" \"http://localhost:5001/health\" \"http://localhost:5002/health\" \"http://localhost:5003/health\" \"http://localhost:5004/health\"; do echo -n \"$url: \"; curl -sf \"$url\" | python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('status','ok'\\)\\)\" 2>/dev/null || echo \"FAILED\"; done)",
       "Bash(WS=\"00000000-0000-0000-0000-000000000001\"\nEXEC_ID=\"fad382be-1626-4d7a-983d-444444cd2206\"\ncurl -sf \"http://localhost:5016/api/v1/workspaces/$WS/executions/$EXEC_ID\" | jq '{status, error, steps_total: \\(.steps|length\\)}' 2>/dev/null)",
-      "Bash(cd /Users/ggeorgiev/Dev/testmesh && docker compose -f docker-compose.dev.yml restart api 2>&1 | tail -5)"
+      "Bash(cd /Users/ggeorgiev/Dev/testmesh && docker compose -f docker-compose.dev.yml restart api 2>&1 | tail -5)",
+      "Bash(which ngrok && ngrok version 2>&1)"
     ]
   }
 }
