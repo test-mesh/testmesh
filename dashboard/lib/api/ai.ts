@@ -44,12 +44,12 @@ export const aiApi = {
     return response.data;
   },
 
-  importPostman: async (data: { collection: string; provider?: AIProviderType; model?: string; create_flows?: boolean }): Promise<ImportResponse> => {
+  importPostman: async (data: { collection: string; provider?: AIProviderType; model?: string; create_flows?: boolean; workspace_id?: string }): Promise<ImportResponse> => {
     const response = await apiClient.post<ImportResponse>('/api/v1/ai/import/postman', data);
     return response.data;
   },
 
-  importPact: async (data: { contract: string; provider?: AIProviderType; model?: string; create_flows?: boolean }): Promise<ImportResponse> => {
+  importPact: async (data: { contract: string; provider?: AIProviderType; model?: string; create_flows?: boolean; workspace_id?: string }): Promise<ImportResponse> => {
     const response = await apiClient.post<ImportResponse>('/api/v1/ai/import/pact', data);
     return response.data;
   },
@@ -61,8 +61,10 @@ export const aiApi = {
   },
 
   // Self-healing
-  analyzeFailure: async (executionId: string): Promise<AnalyzeFailureResponse> => {
-    const response = await apiClient.post<AnalyzeFailureResponse>(`/api/v1/ai/analyze/${executionId}`);
+  analyzeFailure: async (executionId: string, workspaceId: string): Promise<AnalyzeFailureResponse> => {
+    const response = await apiClient.post<AnalyzeFailureResponse>(`/api/v1/ai/analyze/${executionId}`, null, {
+      params: { workspace_id: workspaceId },
+    });
     return response.data;
   },
 
@@ -77,8 +79,9 @@ export const aiApi = {
     return response.data;
   },
 
-  applySuggestion: async (id: string): Promise<{ suggestion_id: string; flow_id: string; success: boolean; applied_yaml: string }> => {
-    const response = await apiClient.post(`/api/v1/ai/suggestions/${id}/apply`);
+  applySuggestion: async (id: string, workspaceId?: string): Promise<{ suggestion_id: string; flow_id: string; success: boolean; applied_yaml: string }> => {
+    const params = workspaceId ? { workspace_id: workspaceId } : {};
+    const response = await apiClient.post(`/api/v1/ai/suggestions/${id}/apply`, null, { params });
     return response.data;
   },
 

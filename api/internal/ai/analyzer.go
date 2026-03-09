@@ -226,7 +226,7 @@ func (a *Analyzer) extractFlowEndpoints(flows []models.Flow) []FlowEndpoint {
 
 	for _, flow := range flows {
 		for _, step := range flow.Definition.Steps {
-			if step.Action == "http" {
+			if step.Action == "http_request" || step.Action == "http" {
 				endpoint := FlowEndpoint{
 					FlowID:   flow.ID.String(),
 					FlowName: flow.Name,

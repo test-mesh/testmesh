@@ -118,7 +118,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 		logger.Warn("Failed to load AI providers from database, using environment variables", zap.Error(err))
 	}
 
-	aiGenerator := ai.NewGenerator(db, aiProviders, flowRepo, logger)
+	aiGenerator := ai.NewGenerator(db, aiProviders, flowRepo, envRepo, logger)
 	aiAnalyzer := ai.NewAnalyzer(db, aiProviders, flowRepo, logger)
 	aiSelfHealing := ai.NewSelfHealingEngine(db, aiProviders, flowRepo, executionRepo, logger)
 	aiRepo := repository.NewAIRepository(db)

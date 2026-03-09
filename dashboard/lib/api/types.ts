@@ -668,6 +668,7 @@ export interface ImportOpenAPIRequest {
   provider?: AIProviderType;
   model?: string;
   create_flows?: boolean;
+  workspace_id?: string;
 }
 
 export interface ImportResponse {
@@ -675,11 +676,14 @@ export interface ImportResponse {
   flows_generated: number;
   flow_ids: string[];
   flows: Flow[];
+  detected_base_url?: string;
+  service_var_name?: string;
 }
 
 export interface AnalyzeCoverageRequest {
   spec: string;
   base_url?: string;
+  workspace_id?: string;
 }
 
 export interface AnalyzeCoverageResponse {

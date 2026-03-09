@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/test-mesh/testmesh/internal/ai"
+	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"github.com/google/uuid"
@@ -93,6 +94,7 @@ func (h *AIHandler) ImportOpenAPI(c *gin.Context) {
 		Provider    string `json:"provider"`
 		Model       string `json:"model"`
 		CreateFlows bool   `json:"create_flows"`
+		WorkspaceID string `json:"workspace_id"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -100,10 +102,18 @@ func (h *AIHandler) ImportOpenAPI(c *gin.Context) {
 		return
 	}
 
+	workspaceID := middleware.GetWorkspaceID(c)
+	if workspaceID == uuid.Nil && req.WorkspaceID != "" {
+		if id, err := uuid.Parse(req.WorkspaceID); err == nil {
+			workspaceID = id
+		}
+	}
+
 	opts := ai.ImportOptions{
 		Provider:    models.AIProviderType(req.Provider),
 		Model:       req.Model,
 		CreateFlows: req.CreateFlows,
+		WorkspaceID: workspaceID,
 	}
 
 	result, err := h.generator.ImportFromOpenAPI(c.Request.Context(), req.Spec, opts)
@@ -114,10 +124,12 @@ func (h *AIHandler) ImportOpenAPI(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"import_id":       result.ImportID,
-		"flows_generated": result.FlowsGenerated,
-		"flow_ids":        result.FlowIDs,
-		"flows":           result.Flows,
+		"import_id":         result.ImportID,
+		"flows_generated":   result.FlowsGenerated,
+		"flow_ids":          result.FlowIDs,
+		"flows":             result.Flows,
+		"detected_base_url": result.DetectedBaseURL,
+		"service_var_name":  result.ServiceVarName,
 	})
 }
 
@@ -128,6 +140,7 @@ func (h *AIHandler) ImportPostman(c *gin.Context) {
 		Provider    string `json:"provider"`
 		Model       string `json:"model"`
 		CreateFlows bool   `json:"create_flows"`
+		WorkspaceID string `json:"workspace_id"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -135,10 +148,18 @@ func (h *AIHandler) ImportPostman(c *gin.Context) {
 		return
 	}
 
+	workspaceID := middleware.GetWorkspaceID(c)
+	if workspaceID == uuid.Nil && req.WorkspaceID != "" {
+		if id, err := uuid.Parse(req.WorkspaceID); err == nil {
+			workspaceID = id
+		}
+	}
+
 	opts := ai.ImportOptions{
 		Provider:    models.AIProviderType(req.Provider),
 		Model:       req.Model,
 		CreateFlows: req.CreateFlows,
+		WorkspaceID: workspaceID,
 	}
 
 	result, err := h.generator.ImportFromPostman(c.Request.Context(), req.Collection, opts)
@@ -163,6 +184,7 @@ func (h *AIHandler) ImportPact(c *gin.Context) {
 		Provider    string `json:"provider"`
 		Model       string `json:"model"`
 		CreateFlows bool   `json:"create_flows"`
+		WorkspaceID string `json:"workspace_id"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -170,10 +192,18 @@ func (h *AIHandler) ImportPact(c *gin.Context) {
 		return
 	}
 
+	workspaceID := middleware.GetWorkspaceID(c)
+	if workspaceID == uuid.Nil && req.WorkspaceID != "" {
+		if id, err := uuid.Parse(req.WorkspaceID); err == nil {
+			workspaceID = id
+		}
+	}
+
 	opts := ai.ImportOptions{
 		Provider:    models.AIProviderType(req.Provider),
 		Model:       req.Model,
 		CreateFlows: req.CreateFlows,
+		WorkspaceID: workspaceID,
 	}
 
 	result, err := h.generator.ImportFromPact(c.Request.Context(), req.Contract, opts)
@@ -194,8 +224,9 @@ func (h *AIHandler) ImportPact(c *gin.Context) {
 // AnalyzeCoverage handles POST /api/v1/ai/coverage/analyze
 func (h *AIHandler) AnalyzeCoverage(c *gin.Context) {
 	var req struct {
-		Spec    string `json:"spec" binding:"required"`
-		BaseURL string `json:"base_url"`
+		Spec        string `json:"spec" binding:"required"`
+		BaseURL     string `json:"base_url"`
+		WorkspaceID string `json:"workspace_id"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -203,8 +234,16 @@ func (h *AIHandler) AnalyzeCoverage(c *gin.Context) {
 		return
 	}
 
+	workspaceID := middleware.GetWorkspaceID(c)
+	if workspaceID == uuid.Nil && req.WorkspaceID != "" {
+		if id, err := uuid.Parse(req.WorkspaceID); err == nil {
+			workspaceID = id
+		}
+	}
+
 	opts := ai.AnalysisOptions{
-		BaseURL: req.BaseURL,
+		BaseURL:     req.BaseURL,
+		WorkspaceID: workspaceID,
 	}
 
 	result, err := h.analyzer.AnalyzeOpenAPICoverage(c.Request.Context(), req.Spec, opts)

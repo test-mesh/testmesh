@@ -70,7 +70,7 @@ func (e *Evaluator) evaluateOne(assertion string) error {
 	}
 
 	if !passed {
-		return fmt.Errorf("assertion failed")
+		return fmt.Errorf("got %s", describeActual(assertion, env))
 	}
 
 	return nil
@@ -92,13 +92,6 @@ func (e *Evaluator) prepareEnvironment() map[string]interface{} {
 
 	if body, ok := e.output["body"]; ok {
 		env["body"] = body
-
-		// If body is a map, add response.body alias
-		if bodyMap, ok := body.(map[string]interface{}); ok {
-			env["response"] = map[string]interface{}{
-				"body": bodyMap,
-			}
-		}
 	}
 
 	if headers, ok := e.output["headers"]; ok {
@@ -109,6 +102,15 @@ func (e *Evaluator) prepareEnvironment() map[string]interface{} {
 		env["duration_ms"] = durationMs
 	}
 
+	// Always build a response object with status, body, headers, duration_ms
+	response := map[string]interface{}{
+		"status":      env["status"],
+		"body":        env["body"],
+		"headers":     env["headers"],
+		"duration_ms": env["duration_ms"],
+	}
+	env["response"] = response
+
 	// Add context variables (e.g. user_id, product_id captured from previous steps)
 	for k, v := range e.variables {
 		if _, exists := env[k]; !exists {
@@ -117,6 +119,31 @@ func (e *Evaluator) prepareEnvironment() map[string]interface{} {
 	}
 
 	return env
+}
+
+// describeActual attempts to extract the actual value from the environment for a failed assertion,
+// producing a message like "response.status = 422" for "response.status == 201".
+func describeActual(assertion string, env map[string]interface{}) string {
+	// Strip common comparison operators to get the left-hand side expression
+	operators := []string{"==", "!=", ">=", "<=", ">", "<", " in ", " not in ", " contains ", " matches "}
+	lhs := assertion
+	for _, op := range operators {
+		if idx := strings.Index(assertion, op); idx > 0 {
+			lhs = strings.TrimSpace(assertion[:idx])
+			break
+		}
+	}
+
+	// Try to evaluate the lhs against the environment
+	program, err := expr.Compile(lhs, expr.Env(env))
+	if err != nil {
+		return "unknown"
+	}
+	val, err := expr.Run(program, env)
+	if err != nil {
+		return "unknown"
+	}
+	return fmt.Sprintf("%s = %v", lhs, val)
 }
 
 // EvaluateJSONPath evaluates a JSONPath expression against output

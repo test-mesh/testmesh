@@ -227,6 +227,7 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 		if err != nil {
 			execStep.Status = models.StepStatusFailed
 			execStep.ErrorMessage = err.Error()
+			execStep.Output = result
 			e.repo.UpdateStep(execStep)
 
 			execution.FailedSteps++
@@ -311,6 +312,7 @@ func (e *Executor) executeStepWithRetry(ctx context.Context, step *models.Step, 
 	}
 
 	var lastErr error
+	var lastResult models.OutputData
 	currentDelay := delay
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -341,6 +343,7 @@ func (e *Executor) executeStepWithRetry(ctx context.Context, step *models.Step, 
 		}
 
 		lastErr = err
+		lastResult = result
 
 		// Log retry failure
 		if attempt < maxAttempts {
@@ -352,7 +355,7 @@ func (e *Executor) executeStepWithRetry(ctx context.Context, step *models.Step, 
 		}
 	}
 
-	return nil, fmt.Errorf("failed after %d attempts: %w", maxAttempts, lastErr)
+	return lastResult, fmt.Errorf("failed after %d attempts: %w", maxAttempts, lastErr)
 }
 
 // executeStep executes a single step

@@ -1,9 +1,12 @@
 'use client';
 
-import { use, useEffect } from 'react';
+import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useExecution, useExecutionSteps } from '@/lib/hooks/useExecutions';
 import { useWebSocket } from '@/lib/hooks/useWebSocket';
+import { useAnalyzeFailure } from '@/lib/hooks/useAI';
+import { getActiveWorkspaceId } from '@/lib/hooks/useWorkspaces';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,9 +16,76 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Clock, CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle2, XCircle, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StepStatus } from '@/lib/api/types';
+
+function statusColor(status: number) {
+  if (status >= 200 && status < 300) return 'text-green-600';
+  if (status >= 400) return 'text-red-600';
+  return 'text-yellow-600';
+}
+
+function formatBody(body: unknown): string {
+  if (typeof body === 'string') {
+    try { return JSON.stringify(JSON.parse(body), null, 2); } catch { return body; }
+  }
+  if (body !== null && body !== undefined) {
+    return JSON.stringify(body, null, 2);
+  }
+  return '';
+}
+
+function HttpResponseOutput({ output }: { output: Record<string, unknown> }) {
+  const status = output.status as number | undefined;
+  const body = output.body;
+  const headers = output.headers as Record<string, string[]> | undefined;
+  const duration = output.duration_ms as number | undefined;
+
+  return (
+    <div className="border rounded-md overflow-hidden text-sm">
+      {/* Status line */}
+      {status !== undefined && (
+        <div className={`flex items-center gap-3 px-3 py-2 bg-muted/50 font-mono font-medium border-b ${statusColor(status)}`}>
+          <span className="text-lg">{status}</span>
+          {duration !== undefined && (
+            <span className="text-xs text-muted-foreground ml-auto">{duration}ms</span>
+          )}
+        </div>
+      )}
+
+      {/* Body */}
+      {body !== undefined && body !== null && body !== '' && (
+        <div>
+          <div className="px-3 py-1 text-xs font-medium text-muted-foreground bg-muted/30 border-b">
+            Body
+          </div>
+          <pre className="p-3 text-xs overflow-x-auto max-h-80 bg-background">
+            {formatBody(body)}
+          </pre>
+        </div>
+      )}
+
+      {/* Headers */}
+      {headers && Object.keys(headers).length > 0 && (
+        <details>
+          <summary className="px-3 py-1 text-xs font-medium text-muted-foreground bg-muted/30 border-t cursor-pointer hover:text-foreground">
+            Headers ({Object.keys(headers).length})
+          </summary>
+          <div className="p-3 font-mono text-xs space-y-0.5 bg-background">
+            {Object.entries(headers).map(([k, v]) => (
+              <div key={k}>
+                <span className="text-blue-600">{k}</span>
+                <span className="text-muted-foreground">: </span>
+                <span>{Array.isArray(v) ? v.join(', ') : String(v)}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
 
 export default function ExecutionDetailPage({
   params,
@@ -23,9 +93,11 @@ export default function ExecutionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
 
   const { data: execution, isLoading, error, refetch: refetchExecution } = useExecution(id);
   const { data: stepsData, refetch: refetchSteps } = useExecutionSteps(id);
+  const analyzeFailure = useAnalyzeFailure(getActiveWorkspaceId() ?? '');
 
   // Connect to WebSocket for real-time updates
   const { isConnected, lastMessage } = useWebSocket({
@@ -133,6 +205,25 @@ export default function ExecutionDetailPage({
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 Live
               </Badge>
+            )}
+            {execution.status === 'failed' && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={analyzeFailure.isPending}
+                onClick={() =>
+                  analyzeFailure.mutate(id, {
+                    onSuccess: () => router.push(`/ai/suggestions?flow_id=${execution.flow_id}`),
+                  })
+                }
+              >
+                {analyzeFailure.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4 mr-2" />
+                )}
+                Analyze with AI
+              </Button>
             )}
             {getStatusBadge(execution.status)}
           </div>
@@ -249,13 +340,19 @@ export default function ExecutionDetailPage({
                         )}
 
                         {step.output && Object.keys(step.output).length > 0 && (
-                          <details className="mt-3">
+                          <details className="mt-3" open={step.status === 'failed'}>
                             <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
-                              View Output
+                              View Response
                             </summary>
-                            <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto">
-                              {JSON.stringify(step.output, null, 2)}
-                            </pre>
+                            <div className="mt-2 space-y-2">
+                              {step.action === 'http_request' ? (
+                                <HttpResponseOutput output={step.output} />
+                              ) : (
+                                <pre className="p-3 bg-muted rounded text-xs overflow-x-auto">
+                                  {JSON.stringify(step.output, null, 2)}
+                                </pre>
+                              )}
+                            </div>
                           </details>
                         )}
                       </div>

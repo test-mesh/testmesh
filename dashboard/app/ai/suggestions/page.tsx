@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,7 +26,8 @@ import { ArrowLeft, Lightbulb, Search, Loader2 } from 'lucide-react';
 import type { SuggestionStatus, SuggestionType } from '@/lib/api/types';
 
 export default function SuggestionsPage() {
-  const [selectedFlowId, setSelectedFlowId] = useState('');
+  const searchParams = useSearchParams();
+  const [selectedFlowId, setSelectedFlowId] = useState(searchParams.get('flow_id') ?? '');
   const [statusFilter, setStatusFilter] = useState<SuggestionStatus | ''>('');
   const [typeFilter, setTypeFilter] = useState<SuggestionType | ''>('');
 
@@ -96,11 +98,11 @@ export default function SuggestionsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {flowsLoading ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="__loading__" disabled>
                       Loading flows...
                     </SelectItem>
                   ) : flows.length === 0 ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="__empty__" disabled>
                       No flows found
                     </SelectItem>
                   ) : (
@@ -117,14 +119,14 @@ export default function SuggestionsPage() {
             <div className="space-y-2">
               <Label>Status</Label>
               <Select
-                value={statusFilter}
-                onValueChange={(v) => setStatusFilter(v as SuggestionStatus | '')}
+                value={statusFilter || 'all'}
+                onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v as SuggestionStatus)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="accepted">Accepted</SelectItem>
                   <SelectItem value="applied">Applied</SelectItem>
@@ -136,14 +138,14 @@ export default function SuggestionsPage() {
             <div className="space-y-2">
               <Label>Type</Label>
               <Select
-                value={typeFilter}
-                onValueChange={(v) => setTypeFilter(v as SuggestionType | '')}
+                value={typeFilter || 'all'}
+                onValueChange={(v) => setTypeFilter(v === 'all' ? '' : v as SuggestionType)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All types</SelectItem>
+                  <SelectItem value="all">All types</SelectItem>
                   <SelectItem value="fix">Fix</SelectItem>
                   <SelectItem value="optimization">Optimization</SelectItem>
                   <SelectItem value="assertion">Assertion</SelectItem>

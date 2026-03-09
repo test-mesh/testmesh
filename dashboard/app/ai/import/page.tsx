@@ -10,7 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useImportOpenAPI, useImportPostman, useImportPact } from '@/lib/hooks/useAI';
-import { ArrowLeft, FileUp, Loader2, Check, FileCode } from 'lucide-react';
+import { getActiveWorkspaceId } from '@/lib/hooks/useWorkspaces';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ArrowLeft, FileUp, Loader2, Check, FileCode, Info } from 'lucide-react';
 import type { ImportResponse } from '@/lib/api/types';
 
 export default function ImportPage() {
@@ -29,24 +31,28 @@ export default function ImportPage() {
   const handleImport = async () => {
     try {
       let response: ImportResponse;
+      const workspaceId = getActiveWorkspaceId() ?? undefined;
 
       switch (activeTab) {
         case 'openapi':
           response = await importOpenAPI.mutateAsync({
             spec,
             create_flows: createFlows,
+            workspace_id: workspaceId,
           });
           break;
         case 'postman':
           response = await importPostman.mutateAsync({
             collection: spec,
             create_flows: createFlows,
+            workspace_id: workspaceId,
           });
           break;
         case 'pact':
           response = await importPact.mutateAsync({
             contract: spec,
             create_flows: createFlows,
+            workspace_id: workspaceId,
           });
           break;
         default:
@@ -213,6 +219,24 @@ export default function ImportPage() {
                   {result.flows_generated} flows generated
                 </Badge>
               </div>
+
+              {result.detected_base_url && result.service_var_name && (
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>Set environment variable</AlertTitle>
+                  <AlertDescription>
+                    Generated flows use{' '}
+                    <code className="font-mono bg-muted px-1 py-0.5 rounded text-sm">
+                      {`{{${result.service_var_name}}}`}
+                    </code>{' '}
+                    as the base URL. Add this variable to your environment with value{' '}
+                    <code className="font-mono bg-muted px-1 py-0.5 rounded text-sm">
+                      {result.detected_base_url}
+                    </code>
+                    {' '}before running the flows.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {result.flows && result.flows.length > 0 && (
                 <div className="space-y-2">

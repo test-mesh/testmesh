@@ -20,6 +20,7 @@ type Generator struct {
 	db           *gorm.DB
 	providers    *ProviderManager
 	flowRepo     *repository.FlowRepository
+	envRepo      *repository.EnvironmentRepository
 	logger       *zap.Logger
 	systemPrompt string
 }
@@ -29,12 +30,14 @@ func NewGenerator(
 	db *gorm.DB,
 	providers *ProviderManager,
 	flowRepo *repository.FlowRepository,
+	envRepo *repository.EnvironmentRepository,
 	logger *zap.Logger,
 ) *Generator {
 	return &Generator{
 		db:           db,
 		providers:    providers,
 		flowRepo:     flowRepo,
+		envRepo:      envRepo,
 		logger:       logger,
 		systemPrompt: flowGenerationSystemPrompt,
 	}
@@ -128,16 +131,21 @@ func (g *Generator) ImportFromOpenAPI(ctx context.Context, spec string, opts Imp
 		return nil, err
 	}
 
-	// Parse OpenAPI to extract endpoints
+	// Parse OpenAPI to extract endpoints (supports both OpenAPI 3.x and Swagger 2.0)
 	var openAPI struct {
 		Info struct {
 			Title       string `json:"title" yaml:"title"`
 			Version     string `json:"version" yaml:"version"`
 			Description string `json:"description" yaml:"description"`
 		} `json:"info" yaml:"info"`
+		// OpenAPI 3.x
 		Servers []struct {
 			URL string `json:"url" yaml:"url"`
 		} `json:"servers" yaml:"servers"`
+		// Swagger 2.0
+		Host     string `json:"host" yaml:"host"`
+		BasePath string `json:"basePath" yaml:"basePath"`
+		Schemes  []string `json:"schemes" yaml:"schemes"`
 		Paths map[string]map[string]struct {
 			OperationID string   `json:"operationId" yaml:"operationId"`
 			Summary     string   `json:"summary" yaml:"summary"`
@@ -152,6 +160,20 @@ func (g *Generator) ImportFromOpenAPI(ctx context.Context, spec string, opts Imp
 			return nil, fmt.Errorf("failed to parse OpenAPI spec: %w", err)
 		}
 	}
+
+	// Derive base URL: prefer OpenAPI 3.x servers, fall back to Swagger 2.0 host
+	baseURL := ""
+	if len(openAPI.Servers) > 0 {
+		baseURL = openAPI.Servers[0].URL
+	} else if openAPI.Host != "" {
+		scheme := "https"
+		if len(openAPI.Schemes) > 0 {
+			scheme = openAPI.Schemes[0]
+		}
+		baseURL = scheme + "://" + openAPI.Host + openAPI.BasePath
+	}
+
+	serviceVarName := deriveServiceVarName(openAPI.Info.Title)
 
 	// Create import history
 	importHistory := &models.ImportHistory{
@@ -180,23 +202,25 @@ Create a separate flow for each endpoint or logical grouping of related endpoint
 
 API: %s (v%s)
 Description: %s
+Base URL: %s
 
 Endpoints:
-`, openAPI.Info.Title, openAPI.Info.Version, openAPI.Info.Description)
+`, openAPI.Info.Title, openAPI.Info.Version, openAPI.Info.Description, baseURL)
 
 	for path, methods := range openAPI.Paths {
 		for method, op := range methods {
-			prompt += fmt.Sprintf("- %s %s: %s\n", strings.ToUpper(method), path, op.Summary)
+			prompt += fmt.Sprintf("- %s %s: URL = {{%s}}%s — %s\n", strings.ToUpper(method), path, serviceVarName, path, op.Summary)
 		}
 	}
 
-	prompt += "\n" + flowYAMLInstructions + `
+	prompt += "\n" + flowYAMLInstructions + fmt.Sprintf(`
 
 Generate flows that:
 1. Test each endpoint with valid inputs
 2. Include appropriate assertions for status codes and response structure
 3. Use meaningful names based on the operation
-4. Group related operations into logical flows where appropriate`
+4. Group related operations into logical flows where appropriate
+5. CRITICAL: Use {{%s}} as the base URL in all http_request URLs (e.g. url: "{{%s}}/path"). Do NOT use the literal string "%s" or {{base_url}} or any other placeholder.`, serviceVarName, serviceVarName, baseURL)
 
 	// Generate flows
 	resp, err := provider.Generate(ctx, GenerateRequest{
@@ -258,11 +282,18 @@ Generate flows that:
 	importHistory.FlowIDs = flowIDs
 	g.db.Save(importHistory)
 
+	// Add the service URL variable to all workspace environments that don't already have it
+	if baseURL != "" && opts.WorkspaceID != uuid.Nil {
+		g.upsertEnvVariable(opts.WorkspaceID, serviceVarName, baseURL)
+	}
+
 	return &ImportResult{
-		ImportID:       importHistory.ID,
-		FlowsGenerated: len(flows),
-		Flows:          flows,
-		FlowIDs:        flowIDs,
+		ImportID:        importHistory.ID,
+		FlowsGenerated:  len(flows),
+		Flows:           flows,
+		FlowIDs:         flowIDs,
+		DetectedBaseURL: baseURL,
+		ServiceVarName:  serviceVarName,
 	}, nil
 }
 
@@ -546,15 +577,80 @@ func extractMultipleYAML(content string) []string {
 	matches := re.FindAllStringSubmatch(content, -1)
 	for _, match := range matches {
 		if len(match) > 1 {
-			results = append(results, strings.TrimSpace(match[1]))
+			results = append(results, splitYAMLDocuments(match[1])...)
 		}
 	}
 
 	// If no code blocks found, try the entire content
 	if len(results) == 0 && strings.Contains(content, "name:") && strings.Contains(content, "steps:") {
-		results = append(results, strings.TrimSpace(content))
+		results = append(results, splitYAMLDocuments(content)...)
 	}
 
+	return results
+}
+
+// upsertEnvVariable adds key=value to all environments in a workspace that don't already have that key.
+func (g *Generator) upsertEnvVariable(workspaceID uuid.UUID, key, value string) {
+	if g.envRepo == nil || workspaceID == uuid.Nil || key == "" || value == "" {
+		return
+	}
+	envs, _, err := g.envRepo.List(workspaceID, nil)
+	if err != nil {
+		g.logger.Warn("Failed to list environments for env var upsert", zap.Error(err))
+		return
+	}
+	for _, env := range envs {
+		alreadySet := false
+		for _, v := range env.Variables {
+			if v.Key == key {
+				alreadySet = true
+				break
+			}
+		}
+		if alreadySet {
+			continue
+		}
+		env.Variables = append(env.Variables, models.EnvironmentVariable{
+			Key:     key,
+			Value:   value,
+			Enabled: true,
+		})
+		if err := g.envRepo.Update(env, workspaceID); err != nil {
+			g.logger.Warn("Failed to upsert env variable", zap.String("env", env.Name), zap.Error(err))
+		}
+	}
+}
+
+// deriveServiceVarName converts an API title to a snake_case environment variable name.
+// e.g. "Spider Service" → "spider_service_url", "My REST API v2" → "my_rest_api_v2_url"
+func deriveServiceVarName(title string) string {
+	lower := strings.ToLower(title)
+	re := regexp.MustCompile(`[^a-z0-9]+`)
+	slug := strings.Trim(re.ReplaceAllString(lower, "_"), "_")
+	if slug == "" {
+		slug = "service"
+	}
+	return slug + "_url"
+}
+
+// splitYAMLDocuments splits a string containing multiple YAML documents separated by "---"
+func splitYAMLDocuments(content string) []string {
+	var results []string
+	// Split on YAML document separator
+	docs := regexp.MustCompile(`(?m)^---\s*$`).Split(content, -1)
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		if doc != "" && strings.Contains(doc, "steps:") {
+			results = append(results, doc)
+		}
+	}
+	// If no separator found, return the whole content as-is
+	if len(results) == 0 {
+		content = strings.TrimSpace(content)
+		if content != "" {
+			results = append(results, content)
+		}
+	}
 	return results
 }
 
@@ -589,10 +685,12 @@ type ImportOptions struct {
 
 // ImportResult holds the result of an import operation
 type ImportResult struct {
-	ImportID       uuid.UUID
-	FlowsGenerated int
-	Flows          []*models.Flow
-	FlowIDs        []string
+	ImportID        uuid.UUID
+	FlowsGenerated  int
+	Flows           []*models.Flow
+	FlowIDs         []string
+	DetectedBaseURL string
+	ServiceVarName  string
 }
 
 // Prompts

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { aiApi } from '../api/ai';
+import { getActiveWorkspaceId } from './useWorkspaces';
 import type {
   GenerateFlowRequest,
   ImportOpenAPIRequest,
@@ -106,11 +107,11 @@ export function useAnalyzeCoverage() {
 }
 
 // Self-healing hooks
-export function useAnalyzeFailure() {
+export function useAnalyzeFailure(workspaceId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (executionId: string) => aiApi.analyzeFailure(executionId),
+    mutationFn: (executionId: string) => aiApi.analyzeFailure(executionId, workspaceId),
     onSuccess: (data) => {
       queryClient.invalidateQueries({
         queryKey: aiKeys.suggestionsList(data.flow_id),
@@ -139,7 +140,7 @@ export function useApplySuggestion() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => aiApi.applySuggestion(id),
+    mutationFn: (id: string) => aiApi.applySuggestion(id, getActiveWorkspaceId() ?? undefined),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: aiKeys.suggestions() });
       queryClient.invalidateQueries({ queryKey: ['flows', 'detail', data.flow_id] });
