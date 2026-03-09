@@ -4,6 +4,13 @@ Welcome to the TestMesh documentation. This directory contains architecture, fea
 
 ## 📚 Documentation Structure
 
+### 📖 Guides (`/guides/`)
+Practical how-to guides for getting things done.
+
+- **[GETTING_STARTED.md](./guides/GETTING_STARTED.md)** - Install, run, and execute your first test
+- **[WRITING_YOUR_FIRST_FLOW.md](./guides/WRITING_YOUR_FIRST_FLOW.md)** - Learn the YAML flow format with examples
+- **[USING_THE_CLI.md](./guides/USING_THE_CLI.md)** - CLI commands: run, debug, watch, generate, chat
+
 ### 🏗️ Architecture (`/architecture/`)
 System architecture, technical decisions, and project structure.
 
@@ -42,6 +49,7 @@ Detailed feature specifications and design documents.
 ### 🚀 Deployment (`/deployment/`)
 Deployment guides for production and development environments.
 
+- **[DOCKER_SETUP.md](./deployment/DOCKER_SETUP.md)** - All Docker deployment scenarios and compose file reference
 - **[EXTERNAL_SERVICES.md](./deployment/EXTERNAL_SERVICES.md)** - Configure external PostgreSQL, Redis, and Kafka
   - Cloud provider examples (AWS, GCP, Azure, Confluent)
   - SSL/TLS configuration
@@ -59,17 +67,14 @@ Guidelines and standards for contributing to TestMesh.
 - **[CODE_REVIEW_CHECKLIST.md](./process/CODE_REVIEW_CHECKLIST.md)** - Code review guidelines
 - **[RECOMMENDED_TOOLING.md](./process/RECOMMENDED_TOOLING.md)** - Development tools and IDE setup
 
-### 🚀 Getting Started (`/planning/`)
-Quick start guides and tutorials.
-
-- **[QUICKSTART.md](./planning/QUICKSTART.md)** - Getting started with TestMesh
-
 ---
 
 ## 📖 Quick Links
 
 ### For Users
-- [Getting Started Guide](./planning/QUICKSTART.md)
+- [Getting Started](./guides/GETTING_STARTED.md)
+- [Writing Your First Flow](./guides/WRITING_YOUR_FIRST_FLOW.md)
+- [Using the CLI](./guides/USING_THE_CLI.md)
 - [YAML Schema Reference](./features/YAML_SCHEMA.md)
 - [Dashboard UI Guide](./features/DASHBOARD_UI_SPECIFICATION.md)
 
@@ -79,6 +84,7 @@ Quick start guides and tutorials.
 - [Development Workflow](./process/DEVELOPMENT_WORKFLOW.md)
 
 ### For DevOps
+- [Docker Setup](./deployment/DOCKER_SETUP.md)
 - [External Services Configuration](./deployment/EXTERNAL_SERVICES.md)
 - [Deployment Guide](/deploy/README.md)
 - [Observability](./features/OBSERVABILITY.md)
