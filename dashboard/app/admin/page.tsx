@@ -357,6 +357,18 @@ export default function AdminDashboard() {
             </CardHeader>
           </Card>
         </Link>
+
+        <Link href="/admin/activity">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-cyan-500" />
+                <CardTitle className="text-base">Activity Feed</CardTitle>
+              </div>
+              <CardDescription>View all system events and audit log</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
       </div>
     </div>
   );

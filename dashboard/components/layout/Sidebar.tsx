@@ -39,7 +39,6 @@ interface NavItem {
 const navigation: NavItem[] = [
   // Core Overview
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { title: 'Activity', href: '/activity', icon: Activity },
 
   // Testing Workflow
   { title: 'Flows', href: '/flows', icon: FileText },
@@ -65,9 +64,6 @@ const navigation: NavItem[] = [
 
   // Administration
   { title: 'Admin Dashboard', href: '/admin', icon: Settings },
-  { title: 'Users', href: '/admin/users', icon: Users },
-  { title: 'Integrations', href: '/admin/integrations', icon: Plug },
-  { title: 'Health', href: '/admin/health', icon: Activity },
 ];
 
 interface SidebarProps {
@@ -99,7 +95,7 @@ export function Sidebar({ mobileMenuOpen, onMobileMenuClose }: SidebarProps) {
         {/* Sidebar */}
         <div
           className={cn(
-            'flex flex-col h-full border-r bg-background w-14',
+            'flex flex-col h-full border-r bg-background w-20',
             'hidden md:flex',
             'md:relative fixed inset-y-0 left-0 z-50',
             mobileMenuOpen ? 'flex' : 'hidden md:flex'
@@ -122,7 +118,7 @@ export function Sidebar({ mobileMenuOpen, onMobileMenuClose }: SidebarProps) {
                             active && 'bg-secondary'
                           )}
                         >
-                          <Icon className="h-4 w-4" />
+                          <Icon className="h-7 w-7" />
                         </Button>
                       </Link>
                     </TooltipTrigger>

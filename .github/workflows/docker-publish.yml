@@ -37,6 +37,7 @@ jobs:
           context: .
           file: deploy/docker/Dockerfile.combined
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ${{ env.IMAGE }}:${{ github.event.inputs.version }}
             ${{ env.IMAGE }}:latest
