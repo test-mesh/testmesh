@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/georgi-georgiev/testmesh/internal/api"
-	"github.com/georgi-georgiev/testmesh/internal/api/websocket"
-	"github.com/georgi-georgiev/testmesh/internal/shared/config"
-	"github.com/georgi-georgiev/testmesh/internal/shared/database"
-	"github.com/georgi-georgiev/testmesh/internal/shared/logger"
+	"github.com/test-mesh/testmesh/internal/api"
+	"github.com/test-mesh/testmesh/internal/api/websocket"
+	"github.com/test-mesh/testmesh/internal/shared/config"
+	"github.com/test-mesh/testmesh/internal/shared/database"
+	"github.com/test-mesh/testmesh/internal/shared/logger"
 	"go.uber.org/zap"
 )
 

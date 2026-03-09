@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/georgi-georgiev/testmesh/internal/runner"
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/runner"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"

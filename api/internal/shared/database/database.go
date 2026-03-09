@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/georgi-georgiev/testmesh/internal/shared/config"
+	"github.com/test-mesh/testmesh/internal/shared/config"
 	_ "github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

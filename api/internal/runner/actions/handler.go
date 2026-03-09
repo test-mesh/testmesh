@@ -3,7 +3,7 @@ package actions
 import (
 	"context"
 
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 )
 
 // Handler defines the interface for action handlers

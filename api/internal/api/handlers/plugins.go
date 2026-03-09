@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/georgi-georgiev/testmesh/internal/plugins"
+	"github.com/test-mesh/testmesh/internal/plugins"
 	"go.uber.org/zap"
 )
 

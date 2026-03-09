@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

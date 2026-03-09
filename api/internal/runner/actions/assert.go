@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/georgi-georgiev/testmesh/internal/runner/assertions"
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/runner/assertions"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
 )
 

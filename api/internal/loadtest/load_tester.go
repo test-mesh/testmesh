@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

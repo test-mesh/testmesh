@@ -213,7 +213,7 @@ testmesh-dashboard/
 
 ```bash
 # Clone repository
-git clone https://github.com/testmesh/testmesh-server.git
+git clone https://github.com/test-mesh/testmesh-server.git
 cd testmesh-server
 
 # Install dependencies
@@ -245,7 +245,7 @@ make build-cli
 
 ```bash
 # Clone repository
-git clone https://github.com/testmesh/testmesh-dashboard.git
+git clone https://github.com/test-mesh/testmesh-dashboard.git
 cd testmesh-dashboard
 
 # Install dependencies (using pnpm)

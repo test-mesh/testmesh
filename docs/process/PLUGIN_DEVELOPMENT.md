@@ -650,7 +650,7 @@ testmesh plugin init validator --language go
 
 cd validator
 go mod init github.com/yourname/testmesh-validator
-go get github.com/testmesh/plugin-sdk-go
+go get github.com/test-mesh/plugin-sdk-go
 ```
 
 ### Plugin Structure
@@ -661,7 +661,7 @@ package main
 
 import (
     "fmt"
-    "github.com/testmesh/plugin-sdk-go/plugin"
+    "github.com/test-mesh/plugin-sdk-go/plugin"
 )
 
 // Action handler
@@ -1466,7 +1466,7 @@ package main
 import (
     "encoding/json"
     "regexp"
-    "github.com/testmesh/plugin-sdk-go/plugin"
+    "github.com/test-mesh/plugin-sdk-go/plugin"
 )
 
 type ValidatorAction struct{}

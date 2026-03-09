@@ -15,17 +15,18 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/georgi-georgiev/testmesh/internal/shared/config"
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/shared/config"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 )
 
 // Fixed UUIDs
 var (
-	seedWorkspaceID           = uuid.MustParse("aa000000-0000-0000-0000-000000000001")
-	userServiceMockID         = uuid.MustParse("bb000000-0000-0000-0000-000000000001")
-	orderServiceMockID        = uuid.MustParse("bb000000-0000-0000-0000-000000000002")
-	paymentServiceMockID      = uuid.MustParse("bb000000-0000-0000-0000-000000000003")
-	notificationServiceMockID = uuid.MustParse("bb000000-0000-0000-0000-000000000004")
+	seedWorkspaceID             = uuid.MustParse("aa000000-0000-0000-0000-000000000001")
+	microservicesWorkspaceID    = uuid.MustParse("aa000000-0000-0000-0000-000000000002")
+	userServiceMockID           = uuid.MustParse("bb000000-0000-0000-0000-000000000001")
+	orderServiceMockID          = uuid.MustParse("bb000000-0000-0000-0000-000000000002")
+	paymentServiceMockID        = uuid.MustParse("bb000000-0000-0000-0000-000000000003")
+	notificationServiceMockID   = uuid.MustParse("bb000000-0000-0000-0000-000000000004")
 )
 
 func mockURL(id uuid.UUID) string {
@@ -104,6 +105,12 @@ func main() {
 
 	// Phase 10: Collaboration/Activity
 	seedActivityEvents(db)
+
+	// Microservices workspace (separate from demo workspace)
+	seedMicroservicesWorkspace(db)
+	seedMicroservicesEnvironments(db)
+	seedMicroservicesCollections(db)
+	seedMicroservicesFlows(db)
 
 	log.Println("✅ Database seeding completed successfully!")
 	printSummary()
@@ -1864,6 +1871,248 @@ func seedActivityEvents(db *gorm.DB) {
 	}
 
 	log.Println("  Created 30 activity events")
+}
+
+// ============================================================================
+// ============================================================================
+// Microservices Workspace
+// ============================================================================
+
+// microservicesFlows holds flows seeded for the microservices workspace.
+var microservicesFlows []models.Flow
+
+// microservicesCollections holds collections for the microservices workspace.
+var microservicesCollections []models.Collection
+
+func seedMicroservicesWorkspace(db *gorm.DB) {
+	log.Println("🏢 Seeding microservices workspace...")
+	ws := models.Workspace{
+		ID:          microservicesWorkspaceID,
+		Name:        "Microservices Demo",
+		Slug:        "microservices-demo",
+		Description: "E2E tests for the demo microservices (user, product, order, notification)",
+		Type:        models.WorkspaceTypeTeam,
+		OwnerID:     uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+	}
+	result := db.Where("id = ?", microservicesWorkspaceID).FirstOrCreate(&ws)
+	if result.Error != nil {
+		log.Printf("  Failed to upsert microservices workspace: %v", result.Error)
+	} else {
+		log.Printf("  Workspace ready: %s (%s)", ws.Name, ws.ID)
+	}
+}
+
+func seedMicroservicesEnvironments(db *gorm.DB) {
+	log.Println("📦 Seeding microservices environments...")
+
+	envData := []struct {
+		name      string
+		color     string
+		isDefault bool
+		variables []models.EnvironmentVariable
+	}{
+		{
+			name:      "Local Dev",
+			color:     "#10B981",
+			isDefault: true,
+			variables: []models.EnvironmentVariable{
+				{Key: "DB_URL", Value: "postgresql://root:admin@localhost:5432/postgres", Description: "Postgres connection string", IsSecret: true, Enabled: true},
+				{Key: "KAFKA_BROKERS", Value: "localhost:9092", Description: "Kafka broker(s)", Enabled: true},
+				{Key: "USER_SERVICE_URL", Value: "http://localhost:5001", Description: "User service (local)", Enabled: true},
+				{Key: "PRODUCT_SERVICE_URL", Value: "http://localhost:5002", Description: "Product service (local)", Enabled: true},
+				{Key: "ORDER_SERVICE_URL", Value: "http://localhost:5003", Description: "Order service (local)", Enabled: true},
+				{Key: "NOTIFICATION_SERVICE_URL", Value: "http://localhost:5004", Description: "Notification service (local)", Enabled: true},
+			},
+		},
+		{
+			name:  "Docker Compose",
+			color: "#3B82F6",
+			variables: []models.EnvironmentVariable{
+				{Key: "DB_URL", Value: "postgresql://root:admin@postgres:5432/postgres", Description: "Postgres connection string (container)", IsSecret: true, Enabled: true},
+				{Key: "KAFKA_BROKERS", Value: "kafka:9092", Description: "Kafka broker(s) (container)", Enabled: true},
+				{Key: "USER_SERVICE_URL", Value: "http://user-service:5001", Description: "User service (container)", Enabled: true},
+				{Key: "PRODUCT_SERVICE_URL", Value: "http://product-service:5002", Description: "Product service (container)", Enabled: true},
+				{Key: "ORDER_SERVICE_URL", Value: "http://order-service:5003", Description: "Order service (container)", Enabled: true},
+				{Key: "NOTIFICATION_SERVICE_URL", Value: "http://notification-service:5004", Description: "Notification service (container)", Enabled: true},
+			},
+		},
+		{
+			name:  "CI",
+			color: "#8B5CF6",
+			variables: []models.EnvironmentVariable{
+				{Key: "DB_URL", Value: "postgresql://root:admin@localhost:5432/postgres", Description: "Postgres connection string (CI)", IsSecret: true, Enabled: true},
+				{Key: "KAFKA_BROKERS", Value: "localhost:9092", Description: "Kafka broker(s) (CI)", Enabled: true},
+				{Key: "USER_SERVICE_URL", Value: "http://localhost:5001", Description: "User service (CI)", Enabled: true},
+				{Key: "PRODUCT_SERVICE_URL", Value: "http://localhost:5002", Description: "Product service (CI)", Enabled: true},
+				{Key: "ORDER_SERVICE_URL", Value: "http://localhost:5003", Description: "Order service (CI)", Enabled: true},
+				{Key: "NOTIFICATION_SERVICE_URL", Value: "http://localhost:5004", Description: "Notification service (CI)", Enabled: true},
+			},
+		},
+	}
+
+	for _, e := range envData {
+		env := models.Environment{
+			ID:          uuid.New(),
+			WorkspaceID: microservicesWorkspaceID,
+			Name:        e.name,
+			Description: fmt.Sprintf("%s environment for microservices demo", e.name),
+			Color:       e.color,
+			IsDefault:   e.isDefault,
+			Variables:   e.variables,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+		if err := db.Create(&env).Error; err != nil {
+			log.Printf("  Failed to create microservices environment %s: %v", e.name, err)
+		}
+	}
+	log.Println("  Created 3 microservices environments (Local Dev, Docker Compose, CI)")
+}
+
+func seedMicroservicesCollections(db *gorm.DB) {
+	log.Println("📁 Seeding microservices collections...")
+
+	cols := []struct {
+		name  string
+		icon  string
+		color string
+		desc  string
+	}{
+		{"E2E Flows", "zap", "#10B981", "Full end-to-end flows across all microservices"},
+		{"User Service", "users", "#3B82F6", "User service API tests"},
+		{"Product Service", "package", "#F59E0B", "Product service API tests"},
+		{"Order Service", "shopping-cart", "#EC4899", "Order service API tests"},
+	}
+
+	for i, c := range cols {
+		col := models.Collection{
+			ID:          uuid.New(),
+			WorkspaceID: microservicesWorkspaceID,
+			Name:        c.name,
+			Description: c.desc,
+			Icon:        c.icon,
+			Color:       c.color,
+			SortOrder:   i,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+		if err := db.Create(&col).Error; err != nil {
+			log.Printf("  Failed to create microservices collection %s: %v", c.name, err)
+		} else {
+			microservicesCollections = append(microservicesCollections, col)
+		}
+	}
+	log.Printf("  Created %d microservices collections", len(microservicesCollections))
+}
+
+// wrappedFlowFile handles YAML files with a top-level `flow:` key.
+type wrappedFlowFile struct {
+	Flow struct {
+		Name        string                 `yaml:"name"`
+		Description string                 `yaml:"description"`
+		Suite       string                 `yaml:"suite"`
+		Tags        []string               `yaml:"tags"`
+		Env         map[string]interface{} `yaml:"env"`
+		Setup       []models.Step          `yaml:"setup"`
+		Steps       []models.Step          `yaml:"steps"`
+		Teardown    []models.Step          `yaml:"teardown"`
+	} `yaml:"flow"`
+}
+
+// microservicesCollectionIndex maps a flow name prefix to the matching collection index.
+func microservicesCollectionIndex(name string) int {
+	switch {
+	case len(name) >= 3 && name[:3] == "E2E":
+		return 0 // "E2E Flows"
+	case containsAny(name, "User", "user"):
+		return 1
+	case containsAny(name, "Product", "product"):
+		return 2
+	case containsAny(name, "Order", "order"):
+		return 3
+	default:
+		return 0
+	}
+}
+
+func containsAny(s string, substrs ...string) bool {
+	for _, sub := range substrs {
+		if len(s) >= len(sub) {
+			for i := 0; i <= len(s)-len(sub); i++ {
+				if s[i:i+len(sub)] == sub {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func seedMicroservicesFlows(db *gorm.DB) {
+	log.Println("🔄 Seeding microservices flows...")
+
+	// Read from examples/microservices/ relative to api/ working directory.
+	pattern := "../../examples/microservices/*.yaml"
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) == 0 {
+		log.Printf("  No microservices flow files found at %s, skipping", pattern)
+		return
+	}
+	sort.Strings(matches)
+
+	for i, path := range matches {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			log.Printf("  Failed to read %s: %v", path, err)
+			continue
+		}
+
+		var wf wrappedFlowFile
+		if err := yaml.Unmarshal(data, &wf); err != nil {
+			log.Printf("  Failed to parse %s: %v", path, err)
+			continue
+		}
+
+		f := wf.Flow
+		if f.Name == "" {
+			log.Printf("  Skipping %s: no name", path)
+			continue
+		}
+
+		def := models.FlowDefinition{
+			Name:        f.Name,
+			Description: f.Description,
+			Suite:       f.Suite,
+			Tags:        f.Tags,
+			Env:         f.Env,
+			Setup:       f.Setup,
+			Steps:       f.Steps,
+			Teardown:    f.Teardown,
+		}
+		flow := models.Flow{
+			ID:          uuid.New(),
+			WorkspaceID: microservicesWorkspaceID,
+			Name:        f.Name,
+			Description: f.Description,
+			Suite:       f.Suite,
+			Tags:        f.Tags,
+			Definition:  def,
+			Environment: "Local Dev",
+			SortOrder:   i,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+		if idx := microservicesCollectionIndex(f.Name); idx < len(microservicesCollections) {
+			flow.CollectionID = &microservicesCollections[idx].ID
+		}
+		if err := db.Create(&flow).Error; err != nil {
+			log.Printf("  Failed to create flow %s: %v", f.Name, err)
+		} else {
+			microservicesFlows = append(microservicesFlows, flow)
+			log.Printf("  Seeded flow: %s", f.Name)
+		}
+	}
+	log.Printf("  Created %d microservices flows", len(microservicesFlows))
 }
 
 // ============================================================================

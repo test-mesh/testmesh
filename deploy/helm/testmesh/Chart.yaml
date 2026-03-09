@@ -10,9 +10,9 @@ keywords:
   - integration-testing
   - e2e
   - automation
-home: https://github.com/georgi-georgiev/testmesh
+home: https://github.com/test-mesh/testmesh
 sources:
-  - https://github.com/georgi-georgiev/testmesh
+  - https://github.com/test-mesh/testmesh
 maintainers:
   - name: TestMesh Team
     email: team@testmesh.io

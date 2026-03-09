@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/georgi-georgiev/testmesh/internal/reporting"
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
-	"github.com/georgi-georgiev/testmesh/internal/storage/repository"
+	"github.com/test-mesh/testmesh/internal/reporting"
+	"github.com/test-mesh/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

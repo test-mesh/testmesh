@@ -878,7 +878,7 @@ For issues with external service configuration:
 1. **Check logs**: `docker logs testmesh-api` or `kubectl logs deployment/testmesh-api`
 2. **Verify connectivity**: Use manual testing steps above
 3. **Review environment variables**: Ensure all required vars are set
-4. **GitHub Issues**: Report bugs at https://github.com/testmesh/testmesh/issues
+4. **GitHub Issues**: Report bugs at https://github.com/test-mesh/testmesh/issues
 5. **Documentation**: See `/docs/` for additional guides
 
 ---

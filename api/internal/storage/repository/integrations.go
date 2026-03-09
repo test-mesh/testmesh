@@ -3,8 +3,8 @@ package repository
 import (
 	"fmt"
 
-	"github.com/georgi-georgiev/testmesh/internal/security"
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/security"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )

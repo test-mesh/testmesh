@@ -146,7 +146,7 @@ package handlers
 import (
     "net/http"
     "github.com/gin-gonic/gin"
-    "github.com/testmesh/server/internal/storage/{{name}}s"
+    "github.com/test-mesh/server/internal/storage/{{name}}s"
     "github.com/google/uuid"
 )
 

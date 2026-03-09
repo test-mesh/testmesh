@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/georgi-georgiev/testmesh/internal/runner/debugger"
+	"github.com/test-mesh/testmesh/internal/runner/debugger"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

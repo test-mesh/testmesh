@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"gopkg.in/yaml.v3"
 )
 

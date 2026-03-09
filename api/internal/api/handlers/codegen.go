@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/georgi-georgiev/testmesh/internal/codegen"
+	"github.com/test-mesh/testmesh/internal/codegen"
 	"github.com/gin-gonic/gin"
 )
 

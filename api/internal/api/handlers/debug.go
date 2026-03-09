@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/georgi-georgiev/testmesh/internal/runner/debugger"
+	"github.com/test-mesh/testmesh/internal/runner/debugger"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"

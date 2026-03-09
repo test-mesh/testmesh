@@ -1,4 +1,4 @@
-module github.com/georgi-georgiev/testmesh
+module github.com/test-mesh/testmesh
 
 go 1.24.5
 

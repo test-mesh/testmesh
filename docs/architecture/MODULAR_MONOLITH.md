@@ -246,8 +246,8 @@ testmesh/
 package handlers
 
 import (
-    "github.com/testmesh/server/internal/storage/flows"
-    "github.com/testmesh/server/internal/runner"
+    "github.com/test-mesh/server/internal/storage/flows"
+    "github.com/test-mesh/server/internal/runner"
 )
 
 type FlowHandler struct {

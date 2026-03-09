@@ -380,8 +380,8 @@ import (
     "github.com/gin-gonic/gin"
     "github.com/stretchr/testify/assert"
     "github.com/stretchr/testify/require"
-    "github.com/testmesh/server/internal/api/handlers"
-    "github.com/testmesh/server/internal/storage"
+    "github.com/test-mesh/server/internal/api/handlers"
+    "github.com/test-mesh/server/internal/storage"
 )
 
 func setupTestServer(t *testing.T) *gin.Engine {

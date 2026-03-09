@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/expr-lang/expr"
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/tidwall/gjson"
 )
 

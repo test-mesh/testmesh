@@ -574,7 +574,7 @@ jobs:
 - **External Services**: [/docs/deployment/EXTERNAL_SERVICES.md](/docs/deployment/EXTERNAL_SERVICES.md)
 - **Architecture**: [/docs/architecture/ARCHITECTURE.md](/docs/architecture/ARCHITECTURE.md)
 - **Contributing**: [/CONTRIBUTING.md](/CONTRIBUTING.md)
-- **GitHub Issues**: https://github.com/testmesh/testmesh/issues
+- **GitHub Issues**: https://github.com/test-mesh/testmesh/issues
 
 ## License
 

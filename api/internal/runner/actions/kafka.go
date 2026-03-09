@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/georgi-georgiev/testmesh/internal/runner/actions/async"
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/runner/actions/async"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
 )
 

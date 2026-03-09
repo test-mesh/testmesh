@@ -1,10 +1,10 @@
-module github.com/georgi-georgiev/testmesh/cli
+module github.com/test-mesh/testmesh/cli
 
 go 1.24.5
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0
-	github.com/georgi-georgiev/testmesh v0.0.0
+	github.com/test-mesh/testmesh v0.0.0
 	github.com/spf13/cobra v1.10.2
 	go.uber.org/zap v1.27.0
 	golang.org/x/term v0.39.0
@@ -84,4 +84,4 @@ require (
 	gorm.io/gorm v1.25.12 // indirect
 )
 
-replace github.com/georgi-georgiev/testmesh => ../api
+replace github.com/test-mesh/testmesh => ../api

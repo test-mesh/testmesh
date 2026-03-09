@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 )
 
 // ExportFormat represents the export format

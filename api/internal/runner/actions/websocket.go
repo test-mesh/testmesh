@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )

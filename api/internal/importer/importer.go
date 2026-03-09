@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/georgi-georgiev/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 )
 
 // ImportResult represents the result of an import operation

@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/georgi-georgiev/testmesh/internal/api/middleware"
-	"github.com/georgi-georgiev/testmesh/internal/storage/repository"
+	"github.com/test-mesh/testmesh/internal/api/middleware"
+	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )

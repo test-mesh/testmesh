@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/georgi-georgiev/testmesh/internal/mcp"
+	"github.com/test-mesh/testmesh/internal/mcp"
 )
 
 // MCPActionConfig defines configuration for MCP actions

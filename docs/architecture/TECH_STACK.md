@@ -43,8 +43,8 @@ package main
 
 import (
     "github.com/gin-gonic/gin"
-    "github.com/testmesh/api-gateway/middleware"
-    "github.com/testmesh/api-gateway/handlers"
+    "github.com/test-mesh/api-gateway/middleware"
+    "github.com/test-mesh/api-gateway/handlers"
 )
 
 func main() {
@@ -747,7 +747,7 @@ package cmd
 
 import (
     "github.com/spf13/cobra"
-    "github.com/testmesh/cli/runner"
+    "github.com/test-mesh/cli/runner"
 )
 
 var runCmd = &cobra.Command{
