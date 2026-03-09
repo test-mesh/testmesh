@@ -1,0 +1,62 @@
+# ── Stage 1: Build Go API ─────────────────────────────────────────────────────
+FROM golang:1.24-alpine AS api-builder
+
+WORKDIR /app
+
+RUN apk add --no-cache git ca-certificates tzdata
+
+COPY api/go.mod api/go.sum ./
+RUN go mod download
+
+COPY api/ ./
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s -X main.Version=${VERSION:-dev}" \
+    -o /testmesh-api .
+
+# ── Stage 2: Build Next.js Dashboard ──────────────────────────────────────────
+FROM node:20-alpine AS dashboard-builder
+
+WORKDIR /app
+
+COPY dashboard/package.json dashboard/package-lock.json* ./
+RUN npm ci
+
+COPY dashboard/ ./
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# ── Stage 3: Combined Runtime ─────────────────────────────────────────────────
+FROM node:20-alpine
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+RUN apk add --no-cache ca-certificates tzdata supervisor
+
+# API binary
+COPY --from=api-builder /testmesh-api /app/api/testmesh-api
+
+# Dashboard standalone output
+COPY --from=dashboard-builder /app/public /app/dashboard/public
+COPY --from=dashboard-builder /app/.next/standalone /app/dashboard/
+COPY --from=dashboard-builder /app/.next/static /app/dashboard/.next/static
+
+# supervisord config
+COPY deploy/docker/supervisord.conf /etc/supervisor/conf.d/testmesh.conf
+
+# Non-root user
+RUN addgroup -g 1001 testmesh && \
+    adduser -u 1001 -G testmesh -s /bin/sh -D testmesh && \
+    chown -R testmesh:testmesh /app
+
+USER testmesh
+
+EXPOSE 5016 3000
+
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/testmesh.conf"]
