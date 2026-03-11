@@ -154,7 +154,7 @@ export default function RunnerPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Zap className="w-6 h-6 text-primary" />
-            Collection Runner
+            Data Runner
           </h1>
           <p className="text-muted-foreground">
             Run flows with data-driven testing using CSV or JSON files

@@ -16,13 +16,8 @@ import {
   Gauge,
   BarChart3,
   FileBarChart,
-  Activity,
-  Upload,
   Terminal,
-  History,
   Settings,
-  Plug,
-  Users,
   Send,
 } from 'lucide-react';
 
@@ -35,26 +30,28 @@ interface NavItem {
 
 // Flat navigation list organized by workflow order
 const navigation: NavItem[] = [
-  // Core Overview
+  // Overview
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
 
-  // Testing Workflow
+  // Flow authoring & organization
   { title: 'Flows', href: '/flows', icon: FileText },
-  { title: 'Executions', href: '/executions', icon: Play },
   { title: 'Collections', href: '/collections', icon: FolderTree },
-  { title: 'Schedules', href: '/schedules', icon: Calendar },
-  { title: 'Runner', href: '/runner', icon: Terminal },
-  { title: 'Request Builder', href: '/request-builder', icon: Send },
 
-  // Infrastructure
+  // Execution
+  { title: 'Executions', href: '/executions', icon: Play },
+  { title: 'Data Runner', href: '/runner', icon: Terminal },
+  { title: 'Schedules', href: '/schedules', icon: Calendar },
+
+  // Test infrastructure
   { title: 'Mock Servers', href: '/mocks', icon: Server },
   { title: 'Load Testing', href: '/load-testing', icon: Gauge },
+
+  // Development tools
+  { title: 'Request Builder', href: '/request-builder', icon: Send },
 
   // Insights
   { title: 'Analytics', href: '/analytics', icon: BarChart3 },
   { title: 'Reports', href: '/reports', icon: FileBarChart },
-  { title: 'History', href: '/history', icon: History },
-
   // Administration
   { title: 'Admin Dashboard', href: '/admin', icon: Settings },
 ];

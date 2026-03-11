@@ -40,7 +40,7 @@ const searchableItems = [
   // Insights
   { title: 'Analytics', href: '/analytics', keywords: ['metrics', 'data'] },
   { title: 'Reports', href: '/reports', keywords: ['documentation', 'output'] },
-  { title: 'History', href: '/history', keywords: ['logs', 'audit'] },
+  { title: 'Request Builder', href: '/request-builder', keywords: ['logs', 'audit', 'history'] },
 
   // AI & Integrations
   { title: 'AI Features', href: '/ai', keywords: ['ml', 'intelligence'] },

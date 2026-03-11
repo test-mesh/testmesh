@@ -1,17 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Send } from 'lucide-react';
-import RequestBuilder from '@/components/request-builder/RequestBuilder';
-import { DEFAULT_REQUEST, generatePairId, requestToStepConfig } from '@/components/request-builder/types';
-import type { HttpRequest, HttpResponse } from '@/components/request-builder/types';
-import { useCreateHistory } from '@/lib/hooks/useHistory';
-import { useImportFlows } from '@/lib/hooks/useImportExport';
-import { apiClient } from '@/lib/api/client';
-import type { RequestHistoryData } from '@/lib/api/history';
+import { useState, useCallback, useMemo } from 'react';
+import {
+  History,
+  Search,
+  Loader2,
+  BookmarkCheck,
+  Bookmark,
+  Trash2,
+  AlertCircle,
+} from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -19,6 +29,40 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+import RequestBuilder from '@/components/request-builder/RequestBuilder';
+import { DEFAULT_REQUEST, generatePairId, requestToStepConfig } from '@/components/request-builder/types';
+import type { HttpRequest, HttpResponse } from '@/components/request-builder/types';
+import { apiClient } from '@/lib/api/client';
+import {
+  useCreateHistory,
+  useHistory,
+  useHistoryStats,
+  useSaveHistory,
+  useUnsaveHistory,
+  useDeleteHistory,
+  useClearHistory,
+} from '@/lib/hooks/useHistory';
+import { useImportFlows } from '@/lib/hooks/useImportExport';
+import type { RequestHistory, RequestHistoryData, HistoryFilter } from '@/lib/api/history';
+
+const METHOD_COLORS: Record<string, string> = {
+  GET: 'bg-green-500',
+  POST: 'bg-blue-500',
+  PUT: 'bg-orange-500',
+  PATCH: 'bg-yellow-500',
+  DELETE: 'bg-red-500',
+  HEAD: 'bg-gray-500',
+  OPTIONS: 'bg-purple-500',
+};
+
+function getStatusColor(status: number): string {
+  if (status >= 200 && status < 300) return 'text-green-600';
+  if (status >= 300 && status < 400) return 'text-blue-600';
+  if (status >= 400 && status < 500) return 'text-orange-600';
+  if (status >= 500) return 'text-red-600';
+  return 'text-gray-600';
+}
 
 export default function RequestBuilderPage() {
   const [requestKey, setRequestKey] = useState(0);
@@ -27,48 +71,93 @@ export default function RequestBuilderPage() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [flowName, setFlowName] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
+
+  // History filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [methodFilter, setMethodFilter] = useState<string>('all');
+  const [savedFilter, setSavedFilter] = useState<'all' | 'saved' | 'unsaved'>('all');
+
+  const filter: HistoryFilter = useMemo(() => {
+    const f: HistoryFilter = {};
+    if (searchQuery) f.url = searchQuery;
+    if (methodFilter !== 'all') f.method = methodFilter;
+    if (savedFilter === 'saved') f.saved = true;
+    return f;
+  }, [searchQuery, methodFilter, savedFilter]);
+
+  const { data: historyData, isLoading: historyLoading } = useHistory(filter, 100, 0);
+  const { data: stats } = useHistoryStats();
 
   const createHistory = useCreateHistory();
+  const saveHistory = useSaveHistory();
+  const unsaveHistory = useUnsaveHistory();
+  const deleteHistory = useDeleteHistory();
+  const clearHistory = useClearHistory();
   const importFlows = useImportFlows();
 
-  // Check for rerun request from history page
-  useEffect(() => {
-    const stored = sessionStorage.getItem('rerun_request');
-    if (!stored) return;
-    try {
-      const data = JSON.parse(stored) as RequestHistoryData;
-      const request: HttpRequest = {
-        method: (data.method?.toUpperCase() || 'GET') as HttpRequest['method'],
-        url: data.url || '',
-        query_params: Object.entries(data.query_params || {}).map(([key, value]) => ({
-          id: generatePairId(),
-          key,
-          value,
-          enabled: true,
-        })),
-        headers: Object.entries(data.headers || {}).map(([key, value]) => ({
-          id: generatePairId(),
-          key,
-          value,
-          enabled: true,
-        })),
-        auth: { type: 'none' },
-        body: data.body
-          ? { type: (data.body_type as HttpRequest['body']['type']) || 'raw', raw: data.body }
-          : { type: 'none' },
-        follow_redirects: true,
-      };
-      setInitialRequest(request);
-      setRequestKey((k) => k + 1);
-      sessionStorage.removeItem('rerun_request');
-    } catch {
-      // ignore malformed stored data
+  const displayedEntries = useMemo(() => {
+    if (savedFilter === 'unsaved') {
+      return historyData?.history.filter((h) => !h.saved_at) || [];
     }
+    return historyData?.history || [];
+  }, [historyData, savedFilter]);
+
+  const loadHistoryEntry = useCallback((entry: RequestHistory) => {
+    setActiveHistoryId(entry.id);
+    const data = entry.request;
+    const request: HttpRequest = {
+      method: (data.method?.toUpperCase() || 'GET') as HttpRequest['method'],
+      url: data.url || '',
+      query_params: Object.entries(data.query_params || {}).map(([key, value]) => ({
+        id: generatePairId(),
+        key,
+        value,
+        enabled: true,
+      })),
+      headers: Object.entries(data.headers || {}).map(([key, value]) => ({
+        id: generatePairId(),
+        key,
+        value,
+        enabled: true,
+      })),
+      auth: { type: 'none' },
+      body: data.body
+        ? { type: (data.body_type as HttpRequest['body']['type']) || 'raw', raw: data.body }
+        : { type: 'none' },
+      follow_redirects: true,
+    };
+    setInitialRequest(request);
+    setRequestKey((k) => k + 1);
   }, []);
+
+  const handleToggleSave = async (e: React.MouseEvent, entry: RequestHistory) => {
+    e.stopPropagation();
+    if (entry.saved_at) {
+      await unsaveHistory.mutateAsync(entry.id);
+    } else {
+      await saveHistory.mutateAsync(entry.id);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm('Delete this history entry?')) {
+      await deleteHistory.mutateAsync(id);
+      if (activeHistoryId === id) setActiveHistoryId(null);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (confirm('Clear all history? Saved entries will be kept.')) {
+      await clearHistory.mutateAsync(true);
+    }
+  };
 
   const handleSend = useCallback(
     async (request: HttpRequest): Promise<HttpResponse | null> => {
-      // Build URL with query params
+      setActiveHistoryId(null);
+
       let url = request.url;
       const enabledParams = request.query_params.filter((p) => p.enabled && p.key);
       if (enabledParams.length > 0) {
@@ -86,26 +175,18 @@ export default function RequestBuilderPage() {
         }
       }
 
-      // Build headers map
       const headers: Record<string, string> = {};
       request.headers.filter((h) => h.enabled && h.key).forEach((h) => {
         headers[h.key] = h.value;
       });
-
-      // Auth headers
       if (request.auth.type === 'basic' && request.auth.basic) {
-        const credentials = btoa(
-          `${request.auth.basic.username}:${request.auth.basic.password}`
-        );
-        headers['Authorization'] = `Basic ${credentials}`;
+        headers['Authorization'] = `Basic ${btoa(`${request.auth.basic.username}:${request.auth.basic.password}`)}`;
       } else if (request.auth.type === 'bearer' && request.auth.bearer) {
-        const prefix = request.auth.bearer.prefix || 'Bearer';
-        headers['Authorization'] = `${prefix} ${request.auth.bearer.token}`;
+        headers['Authorization'] = `${request.auth.bearer.prefix || 'Bearer'} ${request.auth.bearer.token}`;
       } else if (request.auth.type === 'api_key' && request.auth.api_key?.in === 'header') {
         headers[request.auth.api_key.key] = request.auth.api_key.value;
       }
 
-      // Build body string
       let body: string | undefined;
       if (request.body.type === 'json' && request.body.json) {
         headers['Content-Type'] = 'application/json';
@@ -144,15 +225,13 @@ export default function RequestBuilderPage() {
           timeout_seconds: request.timeout ? parseInt(request.timeout) : undefined,
         });
 
-        // data is either ProxySendResponse or { error, time_ms }
         if (data.error) {
-          const durationMs = data.time_ms || 0;
           createHistory.mutate({
             method: request.method,
             url: request.url,
             request: historyRequest,
             error: data.error,
-            duration_ms: durationMs,
+            duration_ms: data.time_ms || 0,
           });
           throw new Error(data.error);
         }
@@ -161,9 +240,7 @@ export default function RequestBuilderPage() {
           status: data.status,
           status_text: data.status_text,
           headers: data.headers || {},
-          body: (() => {
-            try { return JSON.parse(data.body); } catch { return data.body; }
-          })(),
+          body: (() => { try { return JSON.parse(data.body); } catch { return data.body; } })(),
           body_text: data.body,
           size_bytes: data.size_bytes,
           time_ms: data.time_ms,
@@ -189,9 +266,7 @@ export default function RequestBuilderPage() {
 
         return response;
       } catch (err: any) {
-        // Re-throw if we already handled it above
         if (err.message && !err.response) throw err;
-
         const errorMsg = err.response?.data?.error || err.message || 'Request failed';
         createHistory.mutate({
           method: request.method,
@@ -229,15 +304,138 @@ export default function RequestBuilderPage() {
   }, [flowName, currentRequest, importFlows]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <div className="px-4 py-3 border-b flex items-center gap-3">
-        <Send className="w-5 h-5 text-primary" />
-        <div>
-          <h1 className="text-lg font-semibold leading-none">Request Builder</h1>
-          <p className="text-sm text-muted-foreground mt-1">Build and send HTTP requests</p>
+    <div className="flex h-[calc(100vh-4rem)]">
+      {/* History sidebar */}
+      <div className="w-72 border-r flex flex-col bg-muted/30 shrink-0">
+        <div className="p-3 border-b space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-primary" />
+              <span className="font-medium text-sm">History</span>
+            </div>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleClearAll}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search URL..."
+              className="pl-7 h-7 text-xs"
+            />
+          </div>
+
+          <div className="flex gap-1.5">
+            <Select value={methodFilter} onValueChange={setMethodFilter}>
+              <SelectTrigger className="w-20 h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="GET">GET</SelectItem>
+                <SelectItem value="POST">POST</SelectItem>
+                <SelectItem value="PUT">PUT</SelectItem>
+                <SelectItem value="PATCH">PATCH</SelectItem>
+                <SelectItem value="DELETE">DELETE</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={savedFilter} onValueChange={(v: any) => setSavedFilter(v)}>
+              <SelectTrigger className="flex-1 h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="saved">Saved</SelectItem>
+                <SelectItem value="unsaved">Unsaved</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {stats && (
+            <div className="flex gap-3 text-xs text-muted-foreground">
+              <span>{stats.total_requests} total</span>
+              <span>{stats.saved_requests} saved</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-auto">
+          {historyLoading ? (
+            <div className="flex items-center justify-center h-16">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : displayedEntries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-24 text-muted-foreground">
+              <History className="w-6 h-6 mb-1 opacity-40" />
+              <p className="text-xs">No history yet</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {displayedEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className={cn(
+                    'p-2.5 cursor-pointer hover:bg-muted/50 transition-colors group',
+                    activeHistoryId === entry.id && 'bg-primary/5 border-l-2 border-l-primary'
+                  )}
+                  onClick={() => loadHistoryEntry(entry)}
+                >
+                  <div className="flex items-start gap-1.5">
+                    <Badge
+                      className={cn(
+                        'text-[9px] px-1 py-0 text-white shrink-0 mt-0.5',
+                        METHOD_COLORS[entry.method] || 'bg-gray-500'
+                      )}
+                    >
+                      {entry.method}
+                    </Badge>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-mono truncate">{entry.url}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
+                        <span className={getStatusColor(entry.status_code)}>
+                          {entry.status_code || 'Error'}
+                        </span>
+                        <span>{entry.duration_ms}ms</span>
+                        <span className="truncate">
+                          {formatDistanceToNow(new Date(entry.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 opacity-0 group-hover:opacity-100 transition-opacity gap-0.5">
+                      <button
+                        className="p-0.5 hover:text-primary"
+                        onClick={(e) => handleToggleSave(e, entry)}
+                      >
+                        {entry.saved_at
+                          ? <BookmarkCheck className="w-3 h-3 text-primary" />
+                          : <Bookmark className="w-3 h-3" />}
+                      </button>
+                      <button
+                        className="p-0.5 hover:text-destructive"
+                        onClick={(e) => handleDelete(e, entry.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                  {entry.error && (
+                    <div className="flex items-center gap-1 mt-1 text-[10px] text-destructive">
+                      <AlertCircle className="w-2.5 h-2.5" />
+                      <span className="truncate">{entry.error}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      <div className="flex-1 overflow-hidden">
+
+      {/* Request Builder */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <RequestBuilder
           key={requestKey}
           initialRequest={initialRequest}
