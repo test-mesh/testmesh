@@ -62,7 +62,6 @@ const navigation: NavItem[] = [
   // AI & Extensions
   { title: 'AI Features', href: '/ai', icon: Sparkles },
   { title: 'Plugins', href: '/plugins', icon: Puzzle },
-  { title: 'Import', href: '/import', icon: Upload },
 
   // Administration
   { title: 'Admin Dashboard', href: '/admin', icon: Settings },

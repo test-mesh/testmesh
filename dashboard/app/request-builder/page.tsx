@@ -3,17 +3,33 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Send } from 'lucide-react';
 import RequestBuilder from '@/components/request-builder/RequestBuilder';
-import { DEFAULT_REQUEST, generatePairId } from '@/components/request-builder/types';
+import { DEFAULT_REQUEST, generatePairId, requestToStepConfig } from '@/components/request-builder/types';
 import type { HttpRequest, HttpResponse } from '@/components/request-builder/types';
 import { useCreateHistory } from '@/lib/hooks/useHistory';
+import { useImportFlows } from '@/lib/hooks/useImportExport';
 import { apiClient } from '@/lib/api/client';
 import type { RequestHistoryData } from '@/lib/api/history';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 export default function RequestBuilderPage() {
   const [requestKey, setRequestKey] = useState(0);
   const [initialRequest, setInitialRequest] = useState<HttpRequest>(DEFAULT_REQUEST);
+  const [currentRequest, setCurrentRequest] = useState<HttpRequest>(DEFAULT_REQUEST);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [flowName, setFlowName] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const createHistory = useCreateHistory();
+  const importFlows = useImportFlows();
 
   // Check for rerun request from history page
   useEffect(() => {
@@ -189,6 +205,29 @@ export default function RequestBuilderPage() {
     [createHistory]
   );
 
+  const handleSaveAsFlow = useCallback(async () => {
+    if (!flowName.trim()) return;
+    const config = requestToStepConfig(currentRequest);
+    const urlPath = (() => {
+      try { return new URL(currentRequest.url).pathname; } catch { return currentRequest.url; }
+    })();
+    await importFlows.mutateAsync({
+      flows: [{
+        name: flowName.trim(),
+        description: `${currentRequest.method} ${urlPath}`,
+        suite: '',
+        tags: [],
+        steps: [{ id: 'step_1', name: flowName.trim(), action: 'http_request', config }],
+      }],
+    });
+    setSaveSuccess(true);
+    setTimeout(() => {
+      setSaveDialogOpen(false);
+      setSaveSuccess(false);
+      setFlowName('');
+    }, 1200);
+  }, [flowName, currentRequest, importFlows]);
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       <div className="px-4 py-3 border-b flex items-center gap-3">
@@ -203,9 +242,47 @@ export default function RequestBuilderPage() {
           key={requestKey}
           initialRequest={initialRequest}
           onSend={handleSend}
+          onChange={setCurrentRequest}
+          onSave={() => {
+            const urlPath = (() => {
+              try { return new URL(currentRequest.url).pathname; } catch { return currentRequest.url; }
+            })();
+            setFlowName(`${currentRequest.method} ${urlPath}`);
+            setSaveDialogOpen(true);
+          }}
           className="h-full"
         />
       </div>
+
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save as Flow</DialogTitle>
+          </DialogHeader>
+          {saveSuccess ? (
+            <p className="text-sm text-green-600 py-2">Flow saved successfully.</p>
+          ) : (
+            <>
+              <div className="space-y-2 py-2">
+                <Label htmlFor="flow-name">Flow name</Label>
+                <Input
+                  id="flow-name"
+                  value={flowName}
+                  onChange={(e) => setFlowName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveAsFlow()}
+                  autoFocus
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleSaveAsFlow} disabled={!flowName.trim() || importFlows.isPending}>
+                  Save
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -9,6 +11,7 @@ import (
 	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/runner"
 	"github.com/test-mesh/testmesh/internal/runner/mocks"
+	"github.com/test-mesh/testmesh/internal/shared/notifications"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"github.com/google/uuid"
@@ -24,6 +27,7 @@ type ExecutionHandler struct {
 	mockManager  *mocks.Manager
 	logger       *zap.Logger
 	wsHub        runner.WSHub
+	dispatcher   *notifications.NotificationDispatcher
 }
 
 // NewExecutionHandler creates a new execution handler
@@ -37,6 +41,11 @@ func NewExecutionHandler(execRepo *repository.ExecutionRepository, flowRepo *rep
 		logger:       logger,
 		wsHub:        wsHub,
 	}
+}
+
+// SetNotificationDispatcher injects the notification dispatcher
+func (h *ExecutionHandler) SetNotificationDispatcher(d *notifications.NotificationDispatcher) {
+	h.dispatcher = d
 }
 
 // Create handles POST /api/v1/executions
@@ -121,6 +130,15 @@ func (h *ExecutionHandler) executeFlow(execution *models.Execution, flow *models
 				"duration_ms": execution.DurationMs,
 			})
 		}
+
+		// Dispatch failure notification
+		if h.dispatcher != nil {
+			title := fmt.Sprintf("Flow Failed: %s", flow.Name)
+			msg := fmt.Sprintf("Execution failed after %dms: %s", execution.DurationMs, execution.Error)
+			h.dispatcher.Dispatch(context.Background(), workspaceID,
+				models.NotificationTypeError, title, msg,
+				models.NotificationEntityExecution, &execution.ID)
+		}
 	} else {
 		execution.Status = models.ExecutionStatusCompleted
 
@@ -132,6 +150,15 @@ func (h *ExecutionHandler) executeFlow(execution *models.Execution, flow *models
 				"total_steps":  execution.TotalSteps,
 				"duration_ms":  execution.DurationMs,
 			})
+		}
+
+		// Dispatch success notification
+		if h.dispatcher != nil {
+			title := fmt.Sprintf("Flow Completed: %s", flow.Name)
+			msg := fmt.Sprintf("All %d steps passed in %dms", execution.PassedSteps, execution.DurationMs)
+			h.dispatcher.Dispatch(context.Background(), workspaceID,
+				models.NotificationTypeSuccess, title, msg,
+				models.NotificationEntityExecution, &execution.ID)
 		}
 	}
 

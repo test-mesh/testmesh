@@ -11,8 +11,9 @@ import (
 type IntegrationType string
 
 const (
-	IntegrationTypeAIProvider IntegrationType = "ai_provider"
-	IntegrationTypeGit        IntegrationType = "git"
+	IntegrationTypeAIProvider   IntegrationType = "ai_provider"
+	IntegrationTypeGit          IntegrationType = "git"
+	IntegrationTypeNotification IntegrationType = "notification"
 )
 
 // IntegrationProvider represents the specific provider
@@ -27,6 +28,9 @@ const (
 	// Git Providers
 	IntegrationProviderGitHub IntegrationProvider = "github"
 	IntegrationProviderGitea  IntegrationProvider = "gitea"
+
+	// Notification Providers
+	IntegrationProviderSlack IntegrationProvider = "slack"
 )
 
 // IntegrationStatus represents the status of an integration
@@ -69,6 +73,10 @@ type IntegrationConfig struct {
 	// GitHub/Gitea config
 	SignatureHeader string `json:"signature_header,omitempty"` // "X-Hub-Signature-256" or "X-Gitea-Signature"
 	BaseURL         string `json:"base_url,omitempty"`         // For self-hosted Gitea: "https://gitea.example.com"
+
+	// Notification (Slack) config
+	Channel         string   `json:"channel,omitempty"`          // e.g. "#alerts"
+	NotifyOnEvents  []string `json:"notify_on_events,omitempty"` // ["execution_failed","execution_passed","schedule_triggered"]
 }
 
 // BeforeCreate generates UUID if not set

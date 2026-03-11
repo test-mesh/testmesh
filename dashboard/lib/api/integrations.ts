@@ -16,8 +16,8 @@ export interface SystemIntegration {
   updated_at: string;
 }
 
-export type IntegrationType = 'ai_provider' | 'git';
-export type IntegrationProvider = 'openai' | 'anthropic' | 'local' | 'github' | 'gitea';
+export type IntegrationType = 'ai_provider' | 'git' | 'notification';
+export type IntegrationProvider = 'openai' | 'anthropic' | 'local' | 'github' | 'gitea' | 'slack';
 export type IntegrationStatus = 'active' | 'disabled' | 'error';
 
 export interface IntegrationConfig {
@@ -27,6 +27,9 @@ export interface IntegrationConfig {
   max_tokens?: number;
   signature_header?: string;
   base_url?: string; // Gitea: self-hosted base URL
+  // Slack config
+  channel?: string;
+  notify_on_events?: string[];
 }
 
 export interface ServicePathMapping {

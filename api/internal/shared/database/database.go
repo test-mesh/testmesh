@@ -997,6 +997,24 @@ func AutoMigrate(db *gorm.DB) error {
 		ON CONFLICT (workspace_id, user_id) DO NOTHING;
 	`)
 
+	// Create notifications table
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS notifications (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			title VARCHAR(255) NOT NULL,
+			message TEXT NOT NULL,
+			type VARCHAR(20) NOT NULL DEFAULT 'info',
+			read BOOLEAN NOT NULL DEFAULT false,
+			entity_type VARCHAR(50),
+			entity_id UUID,
+			metadata JSONB,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_notifications_workspace_id ON notifications(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+	`)
+
 	// Seed comprehensive sample data
 	seedSampleData(db)
 

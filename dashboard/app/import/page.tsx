@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { useParseImport, useImportFlows } from '@/lib/hooks/useImportExport';
 import { useCollections } from '@/lib/hooks/useCollections';
@@ -50,6 +51,8 @@ export default function ImportPage() {
   const [tags, setTags] = useState('');
   const [collectionId, setCollectionId] = useState('');
   const [importSuccess, setImportSuccess] = useState(false);
+  const [groupRequests, setGroupRequests] = useState(false);
+  const [groupedFlowName, setGroupedFlowName] = useState('');
 
   const parseImport = useParseImport();
   const importFlows = useImportFlows();
@@ -88,9 +91,11 @@ export default function ImportPage() {
     try {
       const result = await parseImport.mutateAsync({ type: importType, content });
       setParseResult(result);
-      // Select all flows by default
       setSelectedFlows(new Set(result.flows.map((_, i) => i)));
       setImportSuccess(false);
+      if (!groupedFlowName) {
+        setGroupedFlowName(importType === 'har' ? 'Imported HAR Flow' : importType === 'postman' ? 'Imported Postman Collection' : 'Imported Flow');
+      }
     } catch (error) {
       console.error('Parse failed:', error);
     }
@@ -100,8 +105,24 @@ export default function ImportPage() {
   const handleImport = async () => {
     if (!parseResult) return;
 
-    const flowsToImport = parseResult.flows.filter((_, i) => selectedFlows.has(i));
-    if (flowsToImport.length === 0) return;
+    const selectedList = parseResult.flows.filter((_, i) => selectedFlows.has(i));
+    if (selectedList.length === 0) return;
+
+    // Merge all selected flows into one multi-step flow when grouping is on
+    const flowsToImport = groupRequests && selectedList.length > 1
+      ? [{
+          name: groupedFlowName || 'Imported Flow',
+          description: `${selectedList.length} requests imported from ${importType.toUpperCase()}`,
+          suite: suite || '',
+          tags: tags ? tags.split(',').map((t) => t.trim()) : [],
+          steps: selectedList.flatMap((f, fi) =>
+            (f.steps || []).map((s, si) => ({
+              ...s,
+              id: `step_${fi + 1}_${si + 1}`,
+            }))
+          ),
+        } as FlowDefinition]
+      : selectedList;
 
     try {
       await importFlows.mutateAsync({
@@ -173,6 +194,17 @@ export default function ImportPage() {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
+
+            {/* Group option for multi-request formats */}
+            {importType !== 'curl' && (
+              <div className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium">Group into one flow</p>
+                  <p className="text-xs text-muted-foreground">Combine all requests as steps in a single flow</p>
+                </div>
+                <Switch checked={groupRequests} onCheckedChange={setGroupRequests} />
+              </div>
+            )}
 
             {/* File upload */}
             <div className="border-2 border-dashed rounded-lg p-4 text-center">
@@ -291,6 +323,17 @@ export default function ImportPage() {
 
                 {/* Import options */}
                 <div className="space-y-3">
+                  {groupRequests && (
+                    <div>
+                      <Label className="text-sm">Flow name</Label>
+                      <Input
+                        value={groupedFlowName}
+                        onChange={(e) => setGroupedFlowName(e.target.value)}
+                        placeholder="Grouped flow name"
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
                   <div>
                     <Label className="text-sm">Suite</Label>
                     <Input
@@ -345,7 +388,9 @@ export default function ImportPage() {
                     ) : (
                       <Upload className="w-4 h-4 mr-2" />
                     )}
-                    Import {selectedFlows.size} Flow(s)
+                    {groupRequests && selectedFlows.size > 1
+                      ? `Import as 1 Flow (${selectedFlows.size} steps)`
+                      : `Import ${selectedFlows.size} Flow(s)`}
                   </Button>
                 )}
               </>

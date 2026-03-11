@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -347,6 +348,8 @@ func (h *IntegrationHandler) TestConnection(c *gin.Context) {
 		testResult, testErr = h.testAIProvider(integration)
 	case models.IntegrationTypeGit:
 		testResult, testErr = h.testGitIntegration(integration)
+	case models.IntegrationTypeNotification:
+		testResult, testErr = h.testNotificationIntegration(integration)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Unknown integration type"})
 		return
@@ -494,7 +497,43 @@ func validateIntegration(integrationType models.IntegrationType, provider models
 		default:
 			return fmt.Errorf("invalid Git provider: %s (only github supported)", provider)
 		}
+	case models.IntegrationTypeNotification:
+		switch provider {
+		case models.IntegrationProviderSlack:
+			return nil
+		default:
+			return fmt.Errorf("invalid notification provider: %s (only slack supported)", provider)
+		}
 	default:
 		return fmt.Errorf("invalid integration type: %s", integrationType)
 	}
+}
+
+// testNotificationIntegration sends a test Slack message
+func (h *IntegrationHandler) testNotificationIntegration(integration *models.SystemIntegration) (string, error) {
+	webhookURL, ok := integration.Secrets["webhook_url"]
+	if !ok || webhookURL == "" {
+		return "", fmt.Errorf("webhook_url not configured")
+	}
+
+	// Import slack notifier inline to avoid circular deps
+	// We do a direct HTTP call here to keep it simple
+	payload := `{"attachments":[{"color":"#36a64f","title":"TestMesh: Connection Test","text":"Your Slack integration is working correctly!","footer":"TestMesh"}]}`
+	req, err := http.NewRequest(http.MethodPost, webhookURL, strings.NewReader(payload))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to send test message: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("slack returned status %d", resp.StatusCode)
+	}
+	return "Test message sent to Slack successfully", nil
 }

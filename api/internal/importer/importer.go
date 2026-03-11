@@ -126,7 +126,7 @@ func harEntryToFlow(entry HAREntry, index int) (*models.FlowDefinition, error) {
 	step := models.Step{
 		ID:     fmt.Sprintf("step_%d", index),
 		Name:   name,
-		Action: "http",
+		Action: "http_request",
 		Config: config,
 	}
 
@@ -239,7 +239,7 @@ func curlToFlow(command string) (*models.FlowDefinition, error) {
 	step := models.Step{
 		ID:     "step_1",
 		Name:   name,
-		Action: "http",
+		Action: "http_request",
 		Config: config,
 	}
 
@@ -430,7 +430,7 @@ func postmanItemToFlow(item PostmanItem, prefix string) (*models.FlowDefinition,
 	step := models.Step{
 		ID:     "step_1",
 		Name:   item.Name,
-		Action: "http",
+		Action: "http_request",
 		Config: config,
 	}
 

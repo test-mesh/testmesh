@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Trash2, Eye, Plus, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Trash2, Eye, Plus, X, Search, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 
 const PAGE_SIZE = 5;
 
@@ -106,12 +106,20 @@ export default function FlowsPage() {
             Manage and execute your test flows
           </p>
         </div>
-        <Link href="/flows/new">
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Create Flow
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/import">
+            <Button variant="outline">
+              <Upload className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+          </Link>
+          <Link href="/flows/new">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Flow
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="mb-6">

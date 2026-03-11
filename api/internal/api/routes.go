@@ -20,6 +20,7 @@ import (
 	"github.com/test-mesh/testmesh/internal/runner/mocks"
 	"github.com/test-mesh/testmesh/internal/scheduler"
 	"github.com/test-mesh/testmesh/internal/security"
+	"github.com/test-mesh/testmesh/internal/shared/notifications"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -94,6 +95,10 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 	gitTriggerRuleRepo := repository.NewGitTriggerRuleRepository(db)
 	webhookDeliveryRepo := repository.NewWebhookDeliveryRepository(db)
 
+	// Initialize notification dispatcher
+	notifRepo := repository.NewNotificationRepository(db)
+	notifDispatcher := notifications.NewNotificationDispatcher(notifRepo, integrationRepo, logger)
+
 	// Initialize reporting services
 	reportOutputDir := filepath.Join(os.TempDir(), "testmesh", "reports")
 	aggregator := reporting.NewAggregator(db, reportingRepo, executionRepo, flowRepo, logger)
@@ -140,6 +145,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 	proxyHandler := handlers.NewProxyHandler(logger)
 	flowHandler := handlers.NewFlowHandler(flowRepo, logger)
 	executionHandler := handlers.NewExecutionHandler(executionRepo, flowRepo, envRepo, contractRepo, mockManager, logger, wsHub)
+	executionHandler.SetNotificationDispatcher(notifDispatcher)
 	mockHandler := handlers.NewMockHandler(mockRepo, mockManager, logger)
 	contractHandler := handlers.NewContractHandler(contractRepo, logger)
 	reportingHandler := handlers.NewReportingHandler(reportingRepo, aggregator, generator, logger)
@@ -161,6 +167,9 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 
 	// Initialize debug handler
 	debugHandler := handlers.NewDebugHandler(debugController, logger)
+
+	// Initialize notification handler
+	notifHandler := handlers.NewNotificationHandler(notifRepo, logger)
 
 	// Initialize workspace handler
 	workspaceRepo := repository.NewWorkspaceRepository(db)
@@ -225,6 +234,15 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 		ws := v1.Group("/workspaces/:workspace_id")
 		ws.Use(middleware.WorkspaceScope(workspaceRepo))
 		{
+			// Notification routes (workspace-scoped)
+			notifs := ws.Group("/notifications")
+			{
+				notifs.GET("", notifHandler.List)
+				notifs.PATCH("/:id/read", notifHandler.MarkRead)
+				notifs.PATCH("/read-all", notifHandler.MarkAllRead)
+				notifs.DELETE("/:id", notifHandler.Delete)
+			}
+
 			// Git trigger rules (workspace-scoped)
 			gitTriggerRules := ws.Group("/git-trigger-rules")
 			{
