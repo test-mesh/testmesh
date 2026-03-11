@@ -71,17 +71,19 @@ func (r *HTTPPluginRunner) Start(ctx context.Context) error {
 
 	var cmd *exec.Cmd
 
-	// Detect runtime based on file extension or entry point
+	// Detect runtime based on file extension or entry point.
+	// Use exec.Command (not exec.CommandContext) so the process is NOT killed
+	// when the startup context is cancelled — it should run until Stop() is called.
 	switch {
 	case filepath.Ext(entryPoint) == ".js":
-		cmd = exec.CommandContext(ctx, "node", entryPath)
+		cmd = exec.Command("node", entryPath)
 	case filepath.Ext(entryPoint) == ".py":
-		cmd = exec.CommandContext(ctx, "python3", entryPath)
+		cmd = exec.Command("python3", entryPath)
 	case filepath.Ext(entryPoint) == ".sh":
-		cmd = exec.CommandContext(ctx, "bash", entryPath)
+		cmd = exec.Command("bash", entryPath)
 	default:
 		// Assume it's an executable
-		cmd = exec.CommandContext(ctx, entryPath)
+		cmd = exec.Command(entryPath)
 	}
 
 	// Set environment variables
@@ -150,8 +152,14 @@ func (r *HTTPPluginRunner) waitForHealthy(ctx context.Context) error {
 	}
 }
 
-// Execute sends an action request to the plugin
+// Execute sends an action request to the plugin using the plugin ID as action name.
 func (r *HTTPPluginRunner) Execute(ctx context.Context, config map[string]interface{}) (map[string]interface{}, error) {
+	return r.ExecuteAction(ctx, r.manifest.ID, config)
+}
+
+// ExecuteAction sends an action request to the plugin with a specific action name.
+// This is used by subActionPlugin to route sub-actions like "scraper.selectOne".
+func (r *HTTPPluginRunner) ExecuteAction(ctx context.Context, actionName string, config map[string]interface{}) (map[string]interface{}, error) {
 	r.mu.RLock()
 	if !r.running {
 		r.mu.RUnlock()
@@ -162,7 +170,7 @@ func (r *HTTPPluginRunner) Execute(ctx context.Context, config map[string]interf
 
 	// Build the request
 	req := &PluginExecuteRequest{
-		Action:  r.manifest.ID,
+		Action:  actionName,
 		Config:  config,
 		Context: extractPluginContext(ctx),
 	}

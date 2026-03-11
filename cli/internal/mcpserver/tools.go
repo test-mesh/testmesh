@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+
+
 	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/runner"
 	"github.com/test-mesh/testmesh/internal/storage/models"
@@ -15,6 +17,15 @@ import (
 )
 
 // toolContent wraps tool call results in the MCP content format.
+// defaultPluginDir returns the user-level plugin installation directory.
+func defaultPluginDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(os.TempDir(), "testmesh", "plugins")
+	}
+	return filepath.Join(home, ".testmesh", "plugins")
+}
+
 func toolContent(text string) map[string]interface{} {
 	return map[string]interface{}{
 		"content": []map[string]interface{}{
@@ -177,10 +188,13 @@ func toolRunFlow(args map[string]interface{}) (interface{}, *rpcError) {
 	}
 
 	logger := zap.NewNop()
-	registry := plugins.NewRegistry("", logger)
+	pDir := defaultPluginDir()
+	registry := plugins.NewRegistry(pDir, logger)
 	registry.RegisterAction("redis", plugins.NewRedisNativePlugin(logger))
 	registry.RegisterAction("kafka", plugins.NewKafkaNativePlugin(logger))
 	registry.RegisterAction("postgresql", plugins.NewPostgreSQLNativePlugin(logger))
+	_ = registry.Discover()
+	_ = registry.LoadAll()
 
 	exec := runner.NewExecutor(nil, logger, nil, nil)
 	exec.SetPluginRegistry(registry)

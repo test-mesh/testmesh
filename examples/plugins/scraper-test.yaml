@@ -1,0 +1,31 @@
+flow:
+  name: "Web Scraper Plugin Test"
+  description: "Fetch a page and extract data using the scraper plugin"
+
+  steps:
+    - id: fetch_page
+      action: http_request
+      config:
+        method: "GET"
+        url: "https://example.com"
+      assert:
+        - "status == 200"
+      output:
+        html: "$.body"
+
+    - id: extract_title
+      action: scraper.selectOne
+      config:
+        html: "{{html}}"
+        selector: "h1"
+        extract: "text"
+      assert:
+        - "found == true"
+
+    - id: extract_links
+      action: scraper.links
+      config:
+        html: "{{html}}"
+        base_url: "https://example.com"
+      assert:
+        - "count > 0"

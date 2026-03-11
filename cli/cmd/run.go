@@ -77,11 +77,13 @@ func runLocally(definition *models.FlowDefinition) error {
 
 	logger := zap.NewNop()
 
-	// Set up native plugin registry so actions like redis.get, kafka.*, postgresql.* work locally.
-	registry := plugins.NewRegistry("", logger)
+	// Set up plugin registry: native built-ins + installed external plugins.
+	registry := plugins.NewRegistry(pluginDir(), logger)
 	registry.RegisterAction("kafka", plugins.NewKafkaNativePlugin(logger))
 	registry.RegisterAction("postgresql", plugins.NewPostgreSQLNativePlugin(logger))
 	registry.RegisterAction("redis", plugins.NewRedisNativePlugin(logger))
+	_ = registry.Discover()
+	_ = registry.LoadAll()
 
 	exec := runner.NewExecutor(nil, logger, nil, nil)
 	exec.SetPluginRegistry(registry)

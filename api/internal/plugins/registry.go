@@ -172,6 +172,17 @@ func (r *Registry) Load(id string) error {
 	return nil
 }
 
+// subActionPlugin wraps an HTTPPluginRunner and routes a specific sub-action.
+type subActionPlugin struct {
+	runner     *HTTPPluginRunner
+	actionName string
+}
+
+func (s *subActionPlugin) Name() string { return s.actionName }
+func (s *subActionPlugin) Execute(ctx context.Context, config map[string]interface{}) (map[string]interface{}, error) {
+	return s.runner.ExecuteAction(ctx, s.actionName, config)
+}
+
 // loadActionPlugin loads an action plugin using HTTP protocol
 func (r *Registry) loadActionPlugin(plugin *Plugin) error {
 	// Create HTTP plugin runner
@@ -185,8 +196,27 @@ func (r *Registry) loadActionPlugin(plugin *Plugin) error {
 		return fmt.Errorf("failed to start plugin: %w", err)
 	}
 
-	// Register the action
+	// Register the plugin under its base ID (for backward compat)
 	r.actions[plugin.Manifest.ID] = runner
+
+	// Query /info to discover sub-actions and register each one individually.
+	// This allows flows to use "scraper.selectOne" directly as an action type.
+	infoURL := runner.baseURL + "/info"
+	resp, err := runner.client.Get(infoURL)
+	if err == nil {
+		defer resp.Body.Close()
+		var info PluginInfoResponse
+		if json.NewDecoder(resp.Body).Decode(&info) == nil {
+			for _, action := range info.Actions {
+				if action.ID != "" && action.ID != plugin.Manifest.ID {
+					r.actions[action.ID] = &subActionPlugin{runner: runner, actionName: action.ID}
+					r.logger.Info("Registered sub-action",
+						zap.String("plugin_id", plugin.Manifest.ID),
+						zap.String("action", action.ID))
+				}
+			}
+		}
+	}
 
 	r.logger.Info("Loaded action plugin",
 		zap.String("id", plugin.Manifest.ID),
