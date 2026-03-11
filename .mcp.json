@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "testmesh": {
+      "command": "/Users/ggeorgiev/Dev/testmesh/cli/testmesh",
+      "args": ["mcp"],
+      "description": "TestMesh MCP server — analyze services, generate/run/validate E2E flows"
+    }
+  }
+}

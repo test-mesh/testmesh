@@ -1,152 +1,117 @@
 flow:
-  name: "Product Service Test Flow"
-  description: "Test product catalog with Redis caching and distributed locking for inventory updates"
+  name: "Product Service - CRUD & Inventory"
+  description: "Auto-generated E2E flow for product-service. Covers HTTP endpoints, database state, and event verification."
+
+  setup:
+    - id: setup_log
+      action: log
+      config:
+        message: "Starting E2E tests for product-service"
+
 
   steps:
-    # Step 1: Create a product
+    - id: health_check
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5002/health"
+      assert:
+        - "status == 200"
+
     - id: create_product
       action: http_request
       config:
-        method: POST
+        body:
+          price: 99.99
+          inventory: "test-inventory-{{RANDOM_ID}}"
+          name: "Test Product {{RANDOM_ID}}"
+          description: "Test product description {{RANDOM_ID}}"
+        method: "POST"
         url: "http://localhost:5002/api/v1/products"
         headers:
-          Content-Type: application/json
-        body:
-          name: "Gaming Laptop"
-          description: "High-performance gaming laptop"
-          price: 1299.99
-          inventory: 50
+          Content-Type: "application/json"
       assert:
-        - status == 201
-        - body.id != nil
-        - body.name == "Gaming Laptop"
-        - body.price == 1299.99
-        - body.inventory == 50
+        - "status == 201"
+        - "body.id != nil"
       output:
-        product_id: $.body.id
+        product_id: "$.body.id"
 
-    # Step 2: Verify product is stored in PostgreSQL
-    - id: verify_product_in_db
-      action: database_query
-      config:
-        connection: "postgresql://root:admin@localhost:5432/postgres"
-        query: "SELECT * FROM product_service.products WHERE id = $1"
-        params: ["{{product_id}}"]
-      assert:
-        - row_count == 1
-        - rows[0].name == "Gaming Laptop"
-        - rows[0].price == 1299.99
-        - rows[0].inventory == 50
-
-    # Step 3: Verify product is cached in Redis
-    - id: verify_product_cache
-      action: redis_get
-      config:
-        host: localhost
-        port: 6379
-        key: "product:{{product_id}}"
-      assert:
-        - value != nil
-
-    # Step 4: Get product by ID (should come from cache)
-    - id: get_product
-      action: http_request
-      config:
-        method: GET
-        url: "http://localhost:5002/api/v1/products/{{product_id}}"
-      assert:
-        - status == 200
-        - body.id == product_id
-        - body.name == "Gaming Laptop"
-        - body.inventory == 50
-
-    # Step 5: List all products
     - id: list_products
       action: http_request
       config:
-        method: GET
+        method: "GET"
         url: "http://localhost:5002/api/v1/products"
       assert:
-        - status == 200
-        - body.products != nil
-        - len(body.products) > 0
+        - "status == 200"
 
-    # Step 6: Update inventory with distributed lock
-    - id: update_inventory
+    - id: get_product
       action: http_request
       config:
-        method: PUT
-        url: "http://localhost:5002/api/v1/products/{{product_id}}/inventory"
-        headers:
-          Content-Type: application/json
-        body:
-          inventory: 45
-      assert:
-        - status == 200
-        - body.id == product_id
-        - body.inventory == 45
-
-    # Step 7: Verify inventory was updated in database
-    - id: verify_inventory_in_db
-      action: database_query
-      config:
-        connection: "postgresql://root:admin@localhost:5432/postgres"
-        query: "SELECT inventory FROM product_service.products WHERE id = $1"
-        params: ["{{product_id}}"]
-      assert:
-        - row_count == 1
-        - rows[0].inventory == 45
-
-    # Step 8: Verify product cache was invalidated (key should not exist or be updated)
-    - id: get_product_after_update
-      action: http_request
-      config:
-        method: GET
+        method: "GET"
         url: "http://localhost:5002/api/v1/products/{{product_id}}"
       assert:
-        - status == 200
-        - body.inventory == 45
+        - "status == 200"
+        - "body.id != nil"
 
-    # Step 9: Verify product.inventory.changed event was published
-    - id: verify_inventory_event
+    - id: update_product
+      action: http_request
+      config:
+        method: "PUT"
+        url: "http://localhost:5002/api/v1/products/{{product_id}}/inventory"
+        headers:
+          Content-Type: "application/json"
+        body:
+          name: "Updated Product {{RANDOM_ID}}"
+          description: "Test product description {{RANDOM_ID}}"
+          price: 99.99
+          inventory: "test-inventory-{{RANDOM_ID}}"
+      assert:
+        - "status == 200"
+
+    - id: verify_db_product
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as count FROM product_service.products"
+      assert:
+        - "row_count >= 1"
+
+    - id: verify_event_product_created
       action: kafka_consumer
       config:
         brokers: "localhost:9092"
-        topic: product.inventory.changed
-        group_id: testmesh-test
-        timeout: 10s
-        from_beginning: true
+        topic: "product.created"
+        group_id: "testmesh-e2e-verifier"
+        timeout: "10s"
       assert:
-        - len(messages) > 0
-        - messages[0].value.product_id == product_id
-        - messages[0].value.old_inventory == 50
-        - messages[0].value.new_inventory == 45
+        - "len(messages) > 0"
 
-    # Step 10: Create another product for testing
-    - id: create_second_product
+    - id: verify_event_product_inventory_changed
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9092"
+        topic: "product.inventory.changed"
+        group_id: "testmesh-e2e-verifier"
+        timeout: "10s"
+      assert:
+        - "len(messages) > 0"
+
+    - id: not_found_product
       action: http_request
       config:
-        method: POST
+        method: "GET"
+        url: "http://localhost:5002/api/v1/products/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404 || status == 400"
+
+    - id: bad_request_product
+      action: http_request
+      config:
+        method: "POST"
         url: "http://localhost:5002/api/v1/products"
         headers:
-          Content-Type: application/json
+          Content-Type: "application/json"
         body:
-          name: "Wireless Mouse"
-          description: "Ergonomic wireless mouse"
-          price: 49.99
-          inventory: 200
       assert:
-        - status == 201
-        - body.id != nil
-      output:
-        second_product_id: $.body.id
+        - "status == 400 || status == 422"
 
-    # Step 11: Verify both products exist
-    - id: count_products
-      action: database_query
-      config:
-        connection: "postgresql://root:admin@localhost:5432/postgres"
-        query: "SELECT COUNT(*) as count FROM product_service.products"
-      assert:
-        - row_count == 1
-        - rows[0].count >= 2

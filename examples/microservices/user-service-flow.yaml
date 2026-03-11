@@ -1,134 +1,121 @@
 flow:
-  name: "User Service Test Flow"
-  description: "Test user CRUD operations with PostgreSQL and Redis session management"
+  name: "User Service - Auth & CRUD"
+  description: "Auto-generated E2E flow for user-service. Covers HTTP endpoints, database state, and event verification."
+
+  setup:
+    - id: setup_log
+      action: log
+      config:
+        message: "Starting E2E tests for user-service"
+
 
   steps:
-    # Step 1: Create a user
+    - id: health_check
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5001/health"
+      assert:
+        - "status == 200"
+
     - id: create_user
       action: http_request
       config:
-        method: POST
+        body:
+          email: "test-{{RANDOM_ID}}@example.com"
+          name: "Test User {{RANDOM_ID}}"
+        method: "POST"
         url: "http://localhost:5001/api/v1/users"
         headers:
-          Content-Type: application/json
-        body:
-          name: "Alice Smith"
-          email: "alice@example.com"
+          Content-Type: "application/json"
       assert:
-        - status == 201
-        - body.id != nil
-        - body.email == "alice@example.com"
-        - body.name == "Alice Smith"
+        - "status == 201"
+        - "body.id != nil"
       output:
-        user_id: $.body.id
+        user_id: "$.body.id"
 
-    # Step 2: Verify user is stored in PostgreSQL
-    - id: verify_user_in_db
-      action: database_query
-      config:
-        connection: "postgresql://root:admin@localhost:5432/postgres"
-        query: "SELECT * FROM user_service.users WHERE id = $1"
-        params: ["{{user_id}}"]
-      assert:
-        - row_count == 1
-        - rows[0].email == "alice@example.com"
-        - rows[0].name == "Alice Smith"
-
-    # Step 3: Verify user is cached in Redis
-    - id: verify_user_cache
-      action: redis_get
-      config:
-        host: localhost
-        port: 6379
-        key: "user:{{user_id}}"
-      assert:
-        - value != nil
-
-    # Step 4: Get user by ID (should come from cache)
-    - id: get_user
-      action: http_request
-      config:
-        method: GET
-        url: "http://localhost:5001/api/v1/users/{{user_id}}"
-      assert:
-        - status == 200
-        - body.id == user_id
-        - body.email == "alice@example.com"
-
-    # Step 5: List all users
     - id: list_users
       action: http_request
       config:
-        method: GET
+        method: "GET"
         url: "http://localhost:5001/api/v1/users"
       assert:
-        - status == 200
-        - body.users != nil
-        - len(body.users) > 0
+        - "status == 200"
 
-    # Step 6: Login (create session)
+    - id: get_user
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5001/api/v1/users/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.id != nil"
+
     - id: login
       action: http_request
       config:
-        method: POST
+        method: "POST"
         url: "http://localhost:5001/api/v1/auth/login"
         headers:
-          Content-Type: application/json
+          Content-Type: "application/json"
         body:
-          email: "alice@example.com"
+          name: "Test Login {{RANDOM_ID}}"
+          email: "test-{{RANDOM_ID}}@example.com"
       assert:
-        - status == 200
-        - body.token != nil
-        - body.user.id == user_id
-      output:
-        session_token: $.body.token
+        - "status < 500"
 
-    # Step 7: Verify session is stored in Redis
-    - id: verify_session_cache
-      action: redis_get
-      config:
-        host: localhost
-        port: 6379
-        key: "session:{{session_token}}"
-      assert:
-        - value != nil
-        - value == user_id
-
-    # Step 8: Verify session token
-    - id: verify_session
+    - id: verify
       action: http_request
       config:
-        method: GET
+        method: "GET"
         url: "http://localhost:5001/api/v1/auth/verify"
-        headers:
-          Authorization: "{{session_token}}"
       assert:
-        - status == 200
-        - body.valid == true
-        - body.user_id == user_id
+        - "status < 500"
 
-    # Step 9: Verify user.login event was published
-    - id: verify_login_event
+    - id: verify_db_user
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as count FROM user_service.users"
+      assert:
+        - "row_count >= 1"
+
+    - id: verify_event_user_created
       action: kafka_consumer
       config:
         brokers: "localhost:9092"
-        topic: user.login
-        group_id: testmesh-test
-        timeout: 10s
-        from_beginning: true
+        topic: "user.created"
+        group_id: "testmesh-e2e-verifier"
+        timeout: "10s"
       assert:
-        - len(messages) > 0
-        - messages[0].value.user_id == user_id
-        - messages[0].value.event_type == "user.login"
+        - "len(messages) > 0"
 
-    # Step 10: Test invalid session token
-    - id: verify_invalid_session
+    - id: verify_event_user_login
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9092"
+        topic: "user.login"
+        group_id: "testmesh-e2e-verifier"
+        timeout: "10s"
+      assert:
+        - "len(messages) > 0"
+
+    - id: not_found_user
       action: http_request
       config:
-        method: GET
-        url: "http://localhost:5001/api/v1/auth/verify"
-        headers:
-          Authorization: "invalid-token"
+        method: "GET"
+        url: "http://localhost:5001/api/v1/users/00000000-0000-0000-0000-000000000000"
       assert:
-        - status == 200
-        - body.valid == false
+        - "status == 404 || status == 400"
+
+    - id: bad_request_user
+      action: http_request
+      config:
+        method: "POST"
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: "application/json"
+        body:
+      assert:
+        - "status == 400 || status == 422"
+

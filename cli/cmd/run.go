@@ -76,7 +76,7 @@ func runLocally(definition *models.FlowDefinition) error {
 
 	logger := zap.NewNop()
 
-	exec := runner.NewExecutor(nil, nil, logger, nil, nil)
+	exec := runner.NewExecutor(nil, logger, nil, nil)
 	result, err := exec.ExecuteInline(definition, nil)
 	if err != nil {
 		return fmt.Errorf("execution error: %w", err)

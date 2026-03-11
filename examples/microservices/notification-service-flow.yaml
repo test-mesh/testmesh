@@ -1,0 +1,177 @@
+flow:
+  name: "Notification Service - Kafka Events & Retrieval"
+  description: >
+    Tests the notification service's Kafka-driven pipeline. Seeds events via Kafka
+    (user.created, order.placed, order.status.changed) and verifies notifications
+    are created and retrievable via HTTP.
+
+  env:
+    DB_URL: "postgresql://root:admin@localhost:5432/postgres"
+    KAFKA_BROKERS: "localhost:9092"
+    USER_SERVICE_URL: "http://localhost:5001"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+    ORDER_SERVICE_URL: "http://localhost:5003"
+    NOTIFICATION_SERVICE_URL: "http://localhost:5004"
+
+  setup:
+    - id: setup_log
+      action: log
+      config:
+        message: "Starting notification service E2E tests"
+
+    # Create a real user so we have a valid user_id (also triggers user.created event)
+    - id: create_test_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Notify Test User"
+          email: "notify-test-{{RANDOM_ID}}@example.com"
+      assert:
+        - status == 201
+      output:
+        notify_user_id: $.body.id
+
+    # Create a product to use in the order
+    - id: create_test_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Notify Widget {{RANDOM_ID}}"
+          description: "Product for notification test"
+          price: 19.99
+          inventory: 50
+      assert:
+        - status == 201
+      output:
+        notify_product_id: $.body.id
+
+  steps:
+    # Step 1: Health check
+    - id: health_check
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/health"
+      assert:
+        - status == 200
+
+    # Step 2: Wait for user.created notification (triggered in setup)
+    - id: wait_for_user_created_notification
+      action: delay
+      config:
+        duration: 2s
+
+    # Step 3: Verify user.created notification was stored in DB
+    - id: verify_user_created_notification
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          SELECT * FROM notification_service.notifications
+          WHERE user_id = $1 AND type = 'user.created'
+          ORDER BY created_at DESC LIMIT 1
+        params: ["{{notify_user_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].type == "user.created"
+
+    # Step 4: Place an order to trigger order.placed event
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{notify_user_id}}"
+          items:
+            - product_id: "{{notify_product_id}}"
+              quantity: 1
+      assert:
+        - status == 201
+        - body.id != nil
+      output:
+        notify_order_id: $.body.id
+
+    # Step 5: Wait for Kafka event propagation
+    - id: wait_for_order_notification
+      action: delay
+      config:
+        duration: 3s
+
+    # Step 6: Retrieve all notifications for user via HTTP
+    - id: get_user_notifications
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{notify_user_id}}"
+      assert:
+        - status == 200
+        - body.count >= 2
+
+    # Step 7: Retrieve unread notifications
+    - id: get_unread_notifications
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{notify_user_id}}/unread"
+      assert:
+        - status == 200
+
+    # Step 8: Verify order.placed notification in DB
+    - id: verify_order_placed_notification
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          SELECT * FROM notification_service.notifications
+          WHERE user_id = $1 AND type = 'order.placed'
+          ORDER BY created_at DESC LIMIT 1
+        params: ["{{notify_user_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].type == "order.placed"
+        - rows[0].read == false
+
+    # Step 9: Verify total notification count in DB
+    - id: verify_notification_count
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          SELECT COUNT(*) as count FROM notification_service.notifications
+          WHERE user_id = $1
+        params: ["{{notify_user_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].count >= 2
+
+    # Step 10: Verify order.placed Kafka event is consumable
+    - id: verify_kafka_order_placed_event
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: order.placed
+        group_id: testmesh-notification-verifier
+        timeout: 10s
+        from_beginning: true
+      assert:
+        - len(messages) > 0
+
+    # Step 11: Non-existent user returns empty or 404
+    - id: get_notifications_unknown_user
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/00000000-0000-0000-0000-000000000000"
+      assert:
+        - status == 200 || status == 404

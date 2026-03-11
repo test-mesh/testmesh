@@ -18,7 +18,8 @@ type KafkaConsumerConfig struct {
 	Timeout       string            `yaml:"timeout" json:"timeout"`
 	Count         int               `yaml:"count" json:"count"`
 	Filter        *MessageFilter    `yaml:"filter,omitempty" json:"filter,omitempty"`
-	FromBeginning bool              `yaml:"from_beginning" json:"from_beginning"`
+	FromBeginning   bool              `yaml:"from_beginning" json:"from_beginning"`
+	AutoOffsetReset string            `yaml:"auto_offset_reset" json:"auto_offset_reset"` // "earliest" | "latest"
 	SASL          *SASLConfig       `yaml:"sasl,omitempty" json:"sasl,omitempty"`
 	TLS           *TLSConfig        `yaml:"tls,omitempty" json:"tls,omitempty"`
 }
@@ -102,7 +103,7 @@ func (kc *KafkaConsumer) Consume(ctx context.Context) (*KafkaConsumerResult, err
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Consumer.Return.Errors = true
 	saramaConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
-	if kc.config.FromBeginning {
+	if kc.config.FromBeginning || kc.config.AutoOffsetReset == "earliest" {
 		saramaConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 	}
 

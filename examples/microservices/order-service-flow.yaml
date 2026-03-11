@@ -1,0 +1,110 @@
+flow:
+  name: "Order Service - Full E2E with Cross-Service"
+  description: "Auto-generated E2E flow for order-service. Covers HTTP endpoints, database state, and event verification."
+
+  setup:
+    - id: setup_log
+      action: log
+      config:
+        message: "Starting E2E tests for order-service"
+
+
+  steps:
+    - id: health_check
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5003/health"
+      assert:
+        - "status == 200"
+
+    - id: create_order
+      action: http_request
+      config:
+        headers:
+          Content-Type: "application/json"
+        body:
+          user_id: "{{RANDOM_ID}}"
+          items: "test-items-{{RANDOM_ID}}"
+          total: "test-total-{{RANDOM_ID}}"
+          status: "active"
+        method: "POST"
+        url: "http://localhost:5003/api/v1/orders"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        order_id: "$.body.id"
+
+    - id: list_orders
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5003/api/v1/orders"
+      assert:
+        - "status == 200"
+
+    - id: get_order
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5003/api/v1/orders/{{order_id}}"
+      assert:
+        - "status == 200"
+        - "body.id != nil"
+
+    - id: verify_db_order
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as count FROM order_service.orders"
+      assert:
+        - "row_count >= 1"
+
+    - id: verify_db_order_item
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as count FROM order_service.order_items"
+      assert:
+        - "row_count >= 1"
+
+    - id: verify_event_order_placed
+      action: kafka_consumer
+      config:
+        timeout: "10s"
+        brokers: "localhost:9092"
+        topic: "order.placed"
+        group_id: "testmesh-e2e-verifier"
+      assert:
+        - "len(messages) > 0"
+
+    - id: verify_event_order_status_changed
+      action: kafka_consumer
+      config:
+        brokers: "localhost:9092"
+        topic: "order.status.changed"
+        group_id: "testmesh-e2e-verifier"
+        timeout: "10s"
+      assert:
+        - "len(messages) > 0"
+
+    - id: not_found_order
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5003/api/v1/orders/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404 || status == 400"
+
+    - id: bad_request_order
+      action: http_request
+      config:
+        url: "http://localhost:5003/api/v1/orders"
+        headers:
+          Content-Type: "application/json"
+        body:
+        method: "POST"
+      assert:
+        - "status == 400 || status == 422"
+

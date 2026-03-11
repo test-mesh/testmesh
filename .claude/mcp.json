@@ -36,6 +36,11 @@
       "command": "docker-mcp-server",
       "description": "Docker container management (install separately if needed)",
       "disabled": true
+    },
+    "testmesh": {
+      "command": "/Users/ggeorgiev/Dev/testmesh/cli/testmesh",
+      "args": ["mcp"],
+      "description": "TestMesh MCP server — analyze services, generate/run/validate E2E flows"
     }
   },
   "globalShortcut": "CommandOrControl+Shift+.",

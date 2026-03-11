@@ -1,0 +1,181 @@
+flow:
+  name: "Demo Services Full E2E"
+  description: "Auto-generated cross-service E2E flow covering 4 services."
+
+  steps:
+    - id: notification_service_health
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5004/health"
+      assert:
+        - "status == 200"
+
+    - id: product_service_health
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5002/health"
+      assert:
+        - "status == 200"
+
+    - id: user_service_health
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5001/health"
+      assert:
+        - "status == 200"
+
+    - id: order_service_health
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5003/health"
+      assert:
+        - "status == 200"
+
+    - id: create_product_service_product
+      action: http_request
+      config:
+        body:
+          price: 1
+          inventory: 1
+          name: "Test Product {{RANDOM_ID}}"
+          description: "Test product description {{RANDOM_ID}}"
+        method: "POST"
+        url: "http://localhost:5002/api/v1/products"
+        headers:
+          Content-Type: "application/json"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        product_id: "$.body.id"
+        product_initial_price: "$.body.price"
+        product_initial_inventory: "$.body.inventory"
+
+    - id: verify_kafka_product_service_product_created
+      action: kafka_consumer
+      config:
+        timeout: "10s"
+        count: 1
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        brokers:
+          - localhost:9092
+        topic: "product.created"
+      assert:
+        - "len(messages) > 0"
+
+    - id: create_user_service_user
+      action: http_request
+      config:
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: "application/json"
+        body:
+          email: "test-{{RANDOM_ID}}@example.com"
+          name: "Test User {{RANDOM_ID}}"
+        method: "POST"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    - id: verify_kafka_user_service_user_created
+      action: kafka_consumer
+      config:
+        topic: "user.created"
+        timeout: "10s"
+        count: 1
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        brokers:
+          - localhost:9092
+      assert:
+        - "len(messages) > 0"
+
+    - id: create_order_service_order
+      action: http_request
+      config:
+        method: "POST"
+        url: "http://localhost:5003/api/v1/orders"
+        headers:
+          Content-Type: "application/json"
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 1
+          status: "active"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        order_id: "$.body.id"
+
+    - id: verify_kafka_order_service_order_placed
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: "order.placed"
+        timeout: "10s"
+        count: 1
+        auto_offset_reset: "earliest"
+        from_beginning: true
+      assert:
+        - "len(messages) > 0"
+
+    - id: verify_db_product_service_product
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as count FROM product_service.products WHERE id = '{{product_id}}'"
+      assert:
+        - "row_count == 1"
+
+    - id: verify_db_user_service_user
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as count FROM user_service.users WHERE id = '{{user_id}}'"
+      assert:
+        - "row_count == 1"
+
+    - id: verify_db_order_service_order
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as count FROM order_service.orders WHERE id = '{{order_id}}'"
+      assert:
+        - "row_count == 1"
+
+    - id: verify_db_order_service_order_item
+      action: database_query
+      config:
+        query: "SELECT COUNT(*) as count FROM order_service.order_items WHERE order_id = '{{order_id}}'"
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+      assert:
+        - "row_count >= 1"
+
+    - id: poll_notification_service_notification
+      action: db_poll
+      config:
+        query: "SELECT COUNT(*) as row_count FROM notification_service.notifications WHERE user_id = '{{user_id}}'"
+        interval: "1s"
+        timeout: "15s"
+        condition: "row_count >= 1"
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+
+    - id: poll_product_service_product
+      action: db_poll
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as row_count FROM product_service.products WHERE id = '{{product_id}}' AND inventory < {{product_initial_inventory}}"
+        interval: "1s"
+        timeout: "15s"
+        condition: "row_count == 1"
+

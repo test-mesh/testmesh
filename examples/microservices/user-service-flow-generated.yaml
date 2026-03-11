@@ -1,0 +1,95 @@
+flow:
+  name: "User Service E2E"
+  description: "Auto-generated E2E flow for user-service. Covers HTTP endpoints, database state, and event verification."
+
+  steps:
+    - id: health_check
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5001/health"
+      assert:
+        - "status < 500"
+
+    - id: create_user
+      action: http_request
+      config:
+        method: "POST"
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: "application/json"
+        body:
+          name: "Test User {{RANDOM_ID}}"
+          email: "test-{{RANDOM_ID}}@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    - id: list_users
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5001/api/v1/users"
+      assert:
+        - "status < 500"
+
+    - id: get_user
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5001/api/v1/users/{{user_id}}"
+      assert:
+        - "status < 500"
+        - "body.id != nil"
+
+    - id: create_login
+      action: http_request
+      config:
+        headers:
+          Content-Type: "application/json"
+        body:
+          name: "Test Login {{RANDOM_ID}}"
+          email: "test-{{RANDOM_ID}}@example.com"
+        method: "POST"
+        url: "http://localhost:5001/api/v1/auth/login"
+      assert:
+        - "status < 500"
+      output:
+
+    - id: list_verifys
+      action: http_request
+      config:
+        url: "http://localhost:5001/api/v1/auth/verify"
+        method: "GET"
+      assert:
+        - "status < 500"
+
+    - id: verify_db_user
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT COUNT(*) as count FROM user_service.users"
+      assert:
+        - "row_count >= 1"
+
+    - id: not_found_user
+      action: http_request
+      config:
+        method: "GET"
+        url: "http://localhost:5001/api/v1/users/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404 || status == 400"
+
+    - id: bad_request_user
+      action: http_request
+      config:
+        body:
+        method: "POST"
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: "application/json"
+      assert:
+        - "status == 400 || status == 422"
+

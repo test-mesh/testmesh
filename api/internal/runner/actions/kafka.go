@@ -126,6 +126,9 @@ func parseKafkaConsumerConfig(config map[string]interface{}) (*async.KafkaConsum
 	if v, ok := config["from_beginning"].(bool); ok {
 		cfg.FromBeginning = v
 	}
+	if v, ok := config["auto_offset_reset"].(string); ok {
+		cfg.AutoOffsetReset = v
+	}
 
 	return cfg, nil
 }
