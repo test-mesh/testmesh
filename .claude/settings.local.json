@@ -113,7 +113,8 @@
       "Bash(echo '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}' | timeout 3 /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>&1 | head -3)",
       "Bash(echo '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}' | /usr/bin/perl -e 'alarm\\(3\\); exec @ARGV' /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>/dev/null | head -1)",
       "Bash(/Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp:*)",
-      "Bash(printf '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}\\\\n' | /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>/dev/null | head -1)"
+      "Bash(printf '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}\\\\n' | /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>/dev/null | head -1)",
+      "Bash(/Users/ggeorgiev/Dev/testmesh/cli/testmesh plugin:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

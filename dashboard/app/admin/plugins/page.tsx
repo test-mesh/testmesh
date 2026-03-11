@@ -106,22 +106,19 @@ const nativePlugins: NativePlugin[] = [
     icon: Database,
     actions: ['postgresql.query', 'postgresql.insert', 'postgresql.update', 'postgresql.delete', 'postgresql.assert', 'postgresql.transaction'],
   },
+  {
+    id: 'redis',
+    name: 'Redis',
+    description: 'Get, set, delete and check keys in Redis — built-in cache validation for test flows',
+    version: '1.0.0',
+    type: 'action',
+    icon: Database,
+    actions: ['redis.get', 'redis.set', 'redis.del', 'redis.exists'],
+  },
 ];
 
 // External plugins - available in marketplace
 const marketplacePlugins: MarketplacePlugin[] = [
-  {
-    id: 'redis',
-    name: 'Redis',
-    description: 'Key-value store, hashes, lists, sets, pub/sub - example Go plugin',
-    version: '1.0.0',
-    author: 'TestMesh',
-    type: 'action',
-    icon: Database,
-    source: '../plugins/redis',
-    tags: ['cache', 'nosql', 'golang', 'example'],
-    downloads: 1024,
-  },
   {
     id: 'scraper',
     name: 'Web Scraper',
