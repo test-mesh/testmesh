@@ -1,0 +1,63 @@
+{
+  "info": {
+    "name": "User API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get Users",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "https://api.example.com/users",
+          "protocol": "https",
+          "host": ["api", "example", "com"],
+          "path": ["users"]
+        }
+      }
+    },
+    {
+      "name": "Create User",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Bob\",\"email\":\"bob@example.com\"}"
+        },
+        "url": {
+          "raw": "https://api.example.com/users",
+          "protocol": "https",
+          "host": ["api", "example", "com"],
+          "path": ["users"]
+        }
+      }
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"admin\",\"password\":\"secret\"}"
+            },
+            "url": {
+              "raw": "https://api.example.com/auth/login"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

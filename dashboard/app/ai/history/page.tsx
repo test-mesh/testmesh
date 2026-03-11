@@ -72,7 +72,7 @@ export default function AIHistoryPage() {
   return (
     <div className="container mx-auto py-8">
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/ai">
+        <Link href="/admin/integrations">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to AI Hub
@@ -239,7 +239,7 @@ export default function AIHistoryPage() {
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                   <FileUp className="h-12 w-12 mb-4" />
                   <p>No import history yet</p>
-                  <Link href="/ai/import">
+                  <Link href="/import?tab=spec">
                     <Button variant="outline" className="mt-4">
                       Import a Spec
                     </Button>

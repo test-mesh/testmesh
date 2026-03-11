@@ -20,26 +20,24 @@ import (
 
 // ExecutionHandler handles execution-related requests
 type ExecutionHandler struct {
-	execRepo     *repository.ExecutionRepository
-	flowRepo     *repository.FlowRepository
-	envRepo      *repository.EnvironmentRepository
-	contractRepo *repository.ContractRepository
-	mockManager  *mocks.Manager
-	logger       *zap.Logger
-	wsHub        runner.WSHub
-	dispatcher   *notifications.NotificationDispatcher
+	execRepo    *repository.ExecutionRepository
+	flowRepo    *repository.FlowRepository
+	envRepo     *repository.EnvironmentRepository
+	mockManager *mocks.Manager
+	logger      *zap.Logger
+	wsHub       runner.WSHub
+	dispatcher  *notifications.NotificationDispatcher
 }
 
 // NewExecutionHandler creates a new execution handler
-func NewExecutionHandler(execRepo *repository.ExecutionRepository, flowRepo *repository.FlowRepository, envRepo *repository.EnvironmentRepository, contractRepo *repository.ContractRepository, mockManager *mocks.Manager, logger *zap.Logger, wsHub runner.WSHub) *ExecutionHandler {
+func NewExecutionHandler(execRepo *repository.ExecutionRepository, flowRepo *repository.FlowRepository, envRepo *repository.EnvironmentRepository, mockManager *mocks.Manager, logger *zap.Logger, wsHub runner.WSHub) *ExecutionHandler {
 	return &ExecutionHandler{
-		execRepo:     execRepo,
-		flowRepo:     flowRepo,
-		envRepo:      envRepo,
-		contractRepo: contractRepo,
-		mockManager:  mockManager,
-		logger:       logger,
-		wsHub:        wsHub,
+		execRepo:    execRepo,
+		flowRepo:    flowRepo,
+		envRepo:     envRepo,
+		mockManager: mockManager,
+		logger:      logger,
+		wsHub:       wsHub,
 	}
 }
 
@@ -111,7 +109,7 @@ func (h *ExecutionHandler) executeFlow(execution *models.Execution, flow *models
 	defer h.mockManager.StopServersByExecution(execution.ID)
 
 	// Execute flow using the runner
-	executor := runner.NewExecutor(h.execRepo, h.contractRepo, h.logger, h.wsHub, h.mockManager)
+	executor := runner.NewExecutor(h.execRepo, h.logger, h.wsHub, h.mockManager)
 	err := executor.Execute(execution, &flow.Definition, mergedVars)
 
 	// Update execution status
@@ -371,7 +369,7 @@ func (h *ExecutionHandler) RunDefinition(c *gin.Context) {
 		return
 	}
 
-	executor := runner.NewExecutor(h.execRepo, h.contractRepo, h.logger, h.wsHub, h.mockManager)
+	executor := runner.NewExecutor(h.execRepo, h.logger, h.wsHub, h.mockManager)
 	result, err := executor.ExecuteInline(&req.Definition, req.Variables)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

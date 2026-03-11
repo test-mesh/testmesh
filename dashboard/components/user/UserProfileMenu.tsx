@@ -40,7 +40,7 @@ export function UserProfileMenu() {
     if (email) {
       return email.substring(0, 2).toUpperCase();
     }
-    return 'TM';
+    return 'GG';
   };
 
   const initials = getInitials(user?.name, user?.email);

@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { useFlows } from '@/lib/hooks/useFlows';
 import { useExecutions } from '@/lib/hooks/useExecutions';
 import { useMockServers } from '@/lib/hooks/useMockServers';
-import { useContracts } from '@/lib/hooks/useContracts';
 import {
   PlayCircle,
   CheckCircle2,
@@ -17,7 +16,6 @@ import {
   TrendingUp,
   Activity,
   Server,
-  FileCode
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -25,12 +23,9 @@ export default function DashboardPage() {
   const { data: flowsData } = useFlows();
   const { data: executionsData } = useExecutions({});
   const { data: mockServersData } = useMockServers({});
-  const { data: contractsData } = useContracts({});
-
   const flows = flowsData?.flows || [];
   const executions = executionsData?.executions || [];
   const mockServers = mockServersData?.servers || [];
-  const contracts = contractsData?.contracts || [];
 
   // Calculate statistics
   const totalFlows = flows.length;
@@ -41,7 +36,6 @@ export default function DashboardPage() {
     ? Math.round((completedExecutions / totalExecutions) * 100)
     : 0;
   const runningMockServers = mockServers.filter(s => s.status === 'running').length;
-  const totalContracts = contracts.length;
 
   // Recent executions (last 5)
   const recentExecutions = executions.slice(0, 5);
@@ -124,35 +118,18 @@ export default function DashboardPage() {
           </Card>
         </Link>
 
-        <Link href="/contracts">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Contracts</CardTitle>
-              <FileCode className="w-4 h-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalContracts}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Pact contracts
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Quick Actions</CardTitle>
             <PlayCircle className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className="space-y-2">
-            <Link href="/flows/new">
-              <Button size="sm" className="w-full">Create Flow</Button>
-            </Link>
-            <Link href="/flows">
-              <Button size="sm" variant="outline" className="w-full">
-                View All Flows
-              </Button>
-            </Link>
+            <Button size="sm" className="w-full" asChild>
+              <Link href="/flows/new">Create Flow</Link>
+            </Button>
+            <Button size="sm" variant="outline" className="w-full" asChild>
+              <Link href="/flows">View All Flows</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>

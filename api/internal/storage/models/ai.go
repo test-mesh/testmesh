@@ -56,7 +56,7 @@ type GenerationMeta struct {
 	MaxTokens        int      `json:"max_tokens,omitempty"`
 	SystemPrompt     string   `json:"system_prompt,omitempty"`
 	Tags             []string `json:"tags,omitempty"`
-	SourceType       string   `json:"source_type,omitempty"` // "prompt", "openapi", "postman", "pact"
+	SourceType       string   `json:"source_type,omitempty"` // "prompt", "openapi", "postman"
 	SourceIdentifier string   `json:"source_identifier,omitempty"`
 }
 
@@ -133,7 +133,6 @@ type ImportSourceType string
 const (
 	ImportSourceOpenAPI  ImportSourceType = "openapi"
 	ImportSourcePostman  ImportSourceType = "postman"
-	ImportSourcePact     ImportSourceType = "pact"
 	ImportSourceSwagger  ImportSourceType = "swagger"
 	ImportSourceGraphQL  ImportSourceType = "graphql"
 )

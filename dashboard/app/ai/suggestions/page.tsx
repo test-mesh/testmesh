@@ -69,10 +69,10 @@ export default function SuggestionsPage() {
   return (
     <div className="container mx-auto py-8">
       <div className="flex items-center gap-4 mb-8">
-        <Link href="/ai">
+        <Link href="/executions">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            Executions
           </Button>
         </Link>
         <div className="flex-1">

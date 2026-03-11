@@ -159,118 +159,6 @@ export interface MockState {
   updated_at: string;
 }
 
-// Contract Testing Types
-export type VerificationStatus = 'pending' | 'passed' | 'failed';
-export type BreakingChangeSeverity = 'critical' | 'major' | 'minor';
-
-export interface Contract {
-  id: string;
-  consumer: string;
-  provider: string;
-  version: string;
-  pact_version: string;
-  contract_data: ContractData;
-  flow_id?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ContractData {
-  consumer: { name: string };
-  provider: { name: string };
-  interactions: Interaction[];
-  metadata: {
-    pactSpecification: { version: string };
-    client?: { name: string; version: string };
-  };
-}
-
-export interface Interaction {
-  id: string;
-  contract_id: string;
-  description: string;
-  provider_state?: string;
-  request: HTTPRequest;
-  response: HTTPResponse;
-  interaction_type: string;
-  metadata?: Record<string, any>;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface HTTPRequest {
-  method: string;
-  path: string;
-  query?: Record<string, any>;
-  headers?: Record<string, any>;
-  body?: any;
-}
-
-export interface HTTPResponse {
-  status: number;
-  headers?: Record<string, any>;
-  body?: any;
-}
-
-export interface Verification {
-  id: string;
-  contract_id: string;
-  provider_version: string;
-  status: VerificationStatus;
-  verified_at: string;
-  results: VerificationResults;
-  execution_id?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface VerificationResults {
-  total_interactions: number;
-  passed_interactions: number;
-  failed_interactions: number;
-  details: InteractionResult[];
-  summary: string;
-}
-
-export interface InteractionResult {
-  interaction_id: string;
-  description: string;
-  passed: boolean;
-  mismatches?: Mismatch[];
-  actual_request?: Record<string, any>;
-  actual_response?: Record<string, any>;
-}
-
-export interface Mismatch {
-  type: string;
-  expected: any;
-  actual: any;
-  path?: string;
-  message: string;
-}
-
-export interface BreakingChange {
-  id: string;
-  old_contract_id: string;
-  new_contract_id: string;
-  change_type: string;
-  severity: BreakingChangeSeverity;
-  description: string;
-  details: ChangeDetails;
-  detected_at: string;
-  created_at: string;
-}
-
-export interface ChangeDetails {
-  interaction_id?: string;
-  field?: string;
-  old_value?: any;
-  new_value?: any;
-  impact: string;
-  suggestion?: string;
-  metadata?: Record<string, any>;
-}
-
 // API Request/Response Types
 
 export interface CreateFlowRequest {
@@ -339,41 +227,6 @@ export interface ListMockRequestsResponse {
 export interface ListMockStatesResponse {
   states: MockState[];
   total: number;
-}
-
-// Contract Testing API Responses
-export interface ListContractsResponse {
-  contracts: Contract[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface GetContractResponse {
-  contract: Contract;
-  interactions: Interaction[];
-}
-
-export interface ListVerificationsResponse {
-  verifications: Verification[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface ListBreakingChangesResponse {
-  changes: BreakingChange[];
-  total: number;
-}
-
-export interface DetectBreakingChangesResponse {
-  changes: BreakingChange[];
-  summary: {
-    total: number;
-    critical: number;
-    major: number;
-    minor: number;
-  };
 }
 
 // Reporting & Analytics Types
@@ -604,7 +457,7 @@ export interface Suggestion {
 
 export interface ImportHistory {
   id: string;
-  source_type: 'openapi' | 'postman' | 'pact';
+  source_type: 'openapi' | 'postman';
   source_name: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   flows_generated: number;
@@ -742,14 +595,6 @@ export interface ListImportHistoryResponse {
 
 export interface ListCoverageAnalysisResponse {
   analyses: CoverageAnalysis[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-// Contract Interactions Response Types
-export interface ListInteractionsResponse {
-  interactions: Interaction[];
   total: number;
   limit: number;
   offset: number;

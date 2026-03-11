@@ -88,9 +88,6 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS mocks").Error; err != nil {
 		return err
 	}
-	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS contracts").Error; err != nil {
-		return err
-	}
 	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS reporting").Error; err != nil {
 		return err
 	}
@@ -334,78 +331,6 @@ func AutoMigrate(db *gorm.DB) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_mock_state_server_id ON mocks.mock_state(mock_server_id);
 		CREATE INDEX IF NOT EXISTS idx_mock_state_key ON mocks.mock_state(state_key);
-	`)
-
-	// Create contracts table
-	db.Exec(`
-		CREATE TABLE IF NOT EXISTS contracts.contracts (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			consumer VARCHAR(255) NOT NULL,
-			provider VARCHAR(255) NOT NULL,
-			version VARCHAR(100) NOT NULL,
-			pact_version VARCHAR(10) DEFAULT '4.0',
-			contract_data JSONB NOT NULL,
-			flow_id UUID REFERENCES flows.flows(id),
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(consumer, provider, version)
-		);
-		CREATE INDEX IF NOT EXISTS idx_contracts_consumer ON contracts.contracts(consumer);
-		CREATE INDEX IF NOT EXISTS idx_contracts_provider ON contracts.contracts(provider);
-		CREATE INDEX IF NOT EXISTS idx_contracts_flow_id ON contracts.contracts(flow_id);
-	`)
-
-	// Create interactions table
-	db.Exec(`
-		CREATE TABLE IF NOT EXISTS contracts.interactions (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			contract_id UUID NOT NULL REFERENCES contracts.contracts(id) ON DELETE CASCADE,
-			description TEXT NOT NULL,
-			provider_state VARCHAR(500),
-			request JSONB NOT NULL,
-			response JSONB NOT NULL,
-			interaction_type VARCHAR(50) DEFAULT 'http',
-			metadata JSONB,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE INDEX IF NOT EXISTS idx_interactions_contract_id ON contracts.interactions(contract_id);
-	`)
-
-	// Create verifications table
-	db.Exec(`
-		CREATE TABLE IF NOT EXISTS contracts.verifications (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			contract_id UUID NOT NULL REFERENCES contracts.contracts(id) ON DELETE CASCADE,
-			provider_version VARCHAR(100) NOT NULL,
-			status VARCHAR(20) NOT NULL DEFAULT 'pending',
-			verified_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			results JSONB NOT NULL,
-			execution_id UUID REFERENCES executions.executions(id),
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE INDEX IF NOT EXISTS idx_verifications_contract_id ON contracts.verifications(contract_id);
-		CREATE INDEX IF NOT EXISTS idx_verifications_execution_id ON contracts.verifications(execution_id);
-		CREATE INDEX IF NOT EXISTS idx_verifications_status ON contracts.verifications(status);
-	`)
-
-	// Create breaking_changes table
-	db.Exec(`
-		CREATE TABLE IF NOT EXISTS contracts.breaking_changes (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-			old_contract_id UUID NOT NULL REFERENCES contracts.contracts(id),
-			new_contract_id UUID NOT NULL REFERENCES contracts.contracts(id),
-			change_type VARCHAR(100) NOT NULL,
-			severity VARCHAR(20) NOT NULL,
-			description TEXT NOT NULL,
-			details JSONB,
-			detected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-		);
-		CREATE INDEX IF NOT EXISTS idx_breaking_changes_old_contract ON contracts.breaking_changes(old_contract_id);
-		CREATE INDEX IF NOT EXISTS idx_breaking_changes_new_contract ON contracts.breaking_changes(new_contract_id);
-		CREATE INDEX IF NOT EXISTS idx_breaking_changes_severity ON contracts.breaking_changes(severity);
 	`)
 
 	// Create daily_metrics table for reporting
@@ -1189,38 +1114,6 @@ func seedSampleData(db *gorm.DB) {
 		ON CONFLICT (id) DO NOTHING;
 	`)
 
-	// ==================== CONTRACTS ====================
-	db.Exec(`
-		INSERT INTO contracts.contracts (id, consumer, provider, version, pact_version, contract_data, flow_id)
-		VALUES
-			('00000000-0000-0000-000a-000000000001'::uuid, 'web-frontend', 'user-service', '1.0.0', '4.0', '{"consumer": {"name": "web-frontend"}, "provider": {"name": "user-service"}, "interactions": []}'::jsonb, '00000000-0000-0000-0002-000000000003'::uuid),
-			('00000000-0000-0000-000a-000000000002'::uuid, 'mobile-app', 'user-service', '1.0.0', '4.0', '{"consumer": {"name": "mobile-app"}, "provider": {"name": "user-service"}, "interactions": []}'::jsonb, NULL),
-			('00000000-0000-0000-000a-000000000003'::uuid, 'order-service', 'payment-gateway', '2.1.0', '4.0', '{"consumer": {"name": "order-service"}, "provider": {"name": "payment-gateway"}, "interactions": []}'::jsonb, '00000000-0000-0000-0002-000000000006'::uuid),
-			('00000000-0000-0000-000a-000000000004'::uuid, 'web-frontend', 'product-service', '1.2.0', '4.0', '{"consumer": {"name": "web-frontend"}, "provider": {"name": "product-service"}, "interactions": []}'::jsonb, '00000000-0000-0000-0002-000000000004'::uuid)
-		ON CONFLICT (id) DO NOTHING;
-	`)
-
-	// ==================== CONTRACT INTERACTIONS ====================
-	db.Exec(`
-		INSERT INTO contracts.interactions (id, contract_id, description, provider_state, request, response, interaction_type)
-		VALUES
-			('00000000-0000-0000-000b-000000000001'::uuid, '00000000-0000-0000-000a-000000000001'::uuid, 'Get user profile', 'user exists', '{"method": "GET", "path": "/api/users/123"}'::jsonb, '{"status": 200, "body": {"id": "123", "name": "John"}}'::jsonb, 'http'),
-			('00000000-0000-0000-000b-000000000002'::uuid, '00000000-0000-0000-000a-000000000001'::uuid, 'User not found', 'user does not exist', '{"method": "GET", "path": "/api/users/999"}'::jsonb, '{"status": 404, "body": {"error": "Not found"}}'::jsonb, 'http'),
-			('00000000-0000-0000-000b-000000000003'::uuid, '00000000-0000-0000-000a-000000000003'::uuid, 'Process payment', 'valid card', '{"method": "POST", "path": "/api/payments"}'::jsonb, '{"status": 200, "body": {"status": "succeeded"}}'::jsonb, 'http'),
-			('00000000-0000-0000-000b-000000000004'::uuid, '00000000-0000-0000-000a-000000000003'::uuid, 'Payment declined', 'invalid card', '{"method": "POST", "path": "/api/payments"}'::jsonb, '{"status": 400, "body": {"error": "Card declined"}}'::jsonb, 'http')
-		ON CONFLICT (id) DO NOTHING;
-	`)
-
-	// ==================== CONTRACT VERIFICATIONS ====================
-	db.Exec(`
-		INSERT INTO contracts.verifications (id, contract_id, provider_version, status, verified_at, results)
-		VALUES
-			('00000000-0000-0000-000c-000000000001'::uuid, '00000000-0000-0000-000a-000000000001'::uuid, '1.0.5', 'passed', NOW() - INTERVAL '1 day', '{"total": 2, "passed": 2, "failed": 0, "interactions": [{"description": "Get user profile", "status": "passed"}, {"description": "User not found", "status": "passed"}]}'::jsonb),
-			('00000000-0000-0000-000c-000000000002'::uuid, '00000000-0000-0000-000a-000000000003'::uuid, '2.0.0', 'failed', NOW() - INTERVAL '2 days', '{"total": 2, "passed": 1, "failed": 1, "interactions": [{"description": "Process payment", "status": "passed"}, {"description": "Payment declined", "status": "failed", "error": "Response body mismatch"}]}'::jsonb),
-			('00000000-0000-0000-000c-000000000003'::uuid, '00000000-0000-0000-000a-000000000004'::uuid, '1.2.1', 'passed', NOW() - INTERVAL '6 hours', '{"total": 1, "passed": 1, "failed": 0}'::jsonb)
-		ON CONFLICT (id) DO NOTHING;
-	`)
-
 	// ==================== REPORTS ====================
 	db.Exec(`
 		INSERT INTO reporting.reports (id, name, format, status, filters, start_date, end_date, file_path, file_size, generated_at)
@@ -1313,8 +1206,7 @@ func seedSampleData(db *gorm.DB) {
 			('00000000-0000-0000-0015-000000000001'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Default User', 'flow.created', 'flow', '00000000-0000-0000-0002-000000000001'::uuid, 'User Registration', 'Created new flow', '00000000-0000-0000-0000-000000000001'::uuid, NOW() - INTERVAL '5 days'),
 			('00000000-0000-0000-0015-000000000002'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Default User', 'flow.executed', 'flow', '00000000-0000-0000-0002-000000000001'::uuid, 'User Registration', 'Executed flow - Passed', '00000000-0000-0000-0000-000000000001'::uuid, NOW() - INTERVAL '2 hours'),
 			('00000000-0000-0000-0015-000000000003'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Default User', 'schedule.created', 'schedule', '00000000-0000-0000-0005-000000000001'::uuid, 'Hourly Health Check', 'Created schedule', '00000000-0000-0000-0000-000000000001'::uuid, NOW() - INTERVAL '3 days'),
-			('00000000-0000-0000-0015-000000000004'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Default User', 'mock.created', 'mock', 'bb000000-0000-0000-0000-000000000003'::uuid, 'Payment Service Mock', 'Created mock server', '00000000-0000-0000-0000-000000000001'::uuid, NOW() - INTERVAL '1 day'),
-			('00000000-0000-0000-0015-000000000005'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Default User', 'contract.verified', 'contract', '00000000-0000-0000-000a-000000000001'::uuid, 'web-frontend <> user-service', 'Contract verification passed', '00000000-0000-0000-0000-000000000001'::uuid, NOW() - INTERVAL '1 day')
+			('00000000-0000-0000-0015-000000000004'::uuid, '00000000-0000-0000-0000-000000000001'::uuid, 'Default User', 'mock.created', 'mock', 'bb000000-0000-0000-0000-000000000003'::uuid, 'Payment Service Mock', 'Created mock server', '00000000-0000-0000-0000-000000000001'::uuid, NOW() - INTERVAL '1 day')
 		ON CONFLICT (id) DO NOTHING;
 	`)
 

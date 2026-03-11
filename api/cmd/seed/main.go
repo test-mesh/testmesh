@@ -40,7 +40,6 @@ var (
 	flows        []models.Flow
 	executions   []models.Execution
 	mockServers  []models.MockServer
-	contracts    []models.Contract
 	schedules    []models.Schedule
 )
 
@@ -88,9 +87,6 @@ func main() {
 	// Phase 3: Execution Data
 	seedExecutions(db)
 
-	// Phase 5: Contract Testing
-	seedContracts(db)
-
 	// Phase 6: Reporting
 	seedReporting(db)
 
@@ -137,10 +133,6 @@ func clearData(db *gorm.DB) {
 		"reporting.reports",
 		"reporting.flakiness_metrics",
 		"reporting.daily_metrics",
-		"contracts.breaking_changes",
-		"contracts.verifications",
-		"contracts.interactions",
-		"contracts.contracts",
 		"mocks.mock_state",
 		"mocks.mock_requests",
 		"mocks.mock_endpoints",
@@ -913,195 +905,6 @@ func seedMockState(db *gorm.DB, server models.MockServer) {
 }
 
 // ============================================================================
-// PHASE 5: Contract Testing
-// ============================================================================
-
-func seedContracts(db *gorm.DB) {
-	log.Println("📜 Seeding contracts...")
-
-	contractData := []struct {
-		consumer string
-		provider string
-		version  string
-	}{
-		{"web-client", "user-api", "1.0.0"},
-		{"mobile-app", "user-api", "2.0.0"},
-		{"web-client", "payment-api", "1.0.0"},
-		{"checkout-service", "inventory-api", "1.5.0"},
-		{"notification-service", "email-api", "3.0.0"},
-		{"analytics-dashboard", "metrics-api", "2.1.0"},
-	}
-
-	for _, c := range contractData {
-		contract := models.Contract{
-			ID:          uuid.New(),
-			Consumer:    c.consumer,
-			Provider:    c.provider,
-			Version:     c.version,
-			PactVersion: "4.0",
-			ContractData: models.ContractData{
-				Consumer: models.ConsumerInfo{Name: c.consumer},
-				Provider: models.ProviderInfo{Name: c.provider},
-				Metadata: models.Metadata{
-					PactSpecification: models.PactSpecification{Version: "4.0"},
-				},
-			},
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-
-		if err := db.Create(&contract).Error; err != nil {
-			log.Printf("Failed to create contract %s -> %s: %v", c.consumer, c.provider, err)
-			continue
-		}
-		contracts = append(contracts, contract)
-
-		// Create interactions
-		seedInteractions(db, contract)
-
-		// Create verifications
-		seedVerifications(db, contract)
-	}
-
-	// Create breaking changes between some contracts
-	if len(contracts) >= 2 {
-		seedBreakingChanges(db)
-	}
-
-	log.Printf("  Created %d contracts", len(contracts))
-}
-
-func seedInteractions(db *gorm.DB, contract models.Contract) {
-	descriptions := []string{
-		"Get user by ID",
-		"Create new user",
-		"Update user profile",
-		"Delete user account",
-		"List all users",
-		"Authenticate user",
-		"Get user preferences",
-		"Update user settings",
-		"Verify email address",
-		"Reset password",
-	}
-
-	numInteractions := rand.Intn(7) + 3 // 3-10 interactions
-	for i := 0; i < numInteractions && i < len(descriptions); i++ {
-		interaction := models.Interaction{
-			ID:            uuid.New(),
-			ContractID:    contract.ID,
-			Description:   descriptions[i],
-			ProviderState: fmt.Sprintf("a %s exists", contract.Provider),
-			Request: models.HTTPRequest{
-				Method: []string{"GET", "POST", "PUT", "DELETE"}[i%4],
-				Path:   fmt.Sprintf("/api/v1/%s", contract.Provider),
-				Headers: map[string]interface{}{
-					"Content-Type": "application/json",
-				},
-			},
-			Response: models.HTTPResponse{
-				Status: 200,
-				Headers: map[string]interface{}{
-					"Content-Type": "application/json",
-				},
-				Body: map[string]interface{}{
-					"success": true,
-					"data":    map[string]interface{}{},
-				},
-			},
-			InteractionType: "http",
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-		}
-		db.Create(&interaction)
-	}
-}
-
-func seedVerifications(db *gorm.DB, contract models.Contract) {
-	statuses := []models.VerificationStatus{
-		models.VerificationStatusPassed,
-		models.VerificationStatusPassed,
-		models.VerificationStatusFailed,
-		models.VerificationStatusPending,
-	}
-
-	numVerifications := rand.Intn(2) + 2 // 2-4 verifications
-	for i := 0; i < numVerifications; i++ {
-		status := statuses[i%len(statuses)]
-		verifiedAt := time.Now().Add(-time.Duration(rand.Intn(168)) * time.Hour)
-
-		totalInteractions := rand.Intn(5) + 3
-		passedInteractions := totalInteractions
-		failedInteractions := 0
-		if status == models.VerificationStatusFailed {
-			failedInteractions = rand.Intn(totalInteractions/2) + 1
-			passedInteractions = totalInteractions - failedInteractions
-		}
-
-		verification := models.Verification{
-			ID:              uuid.New(),
-			ContractID:      contract.ID,
-			ProviderVersion: fmt.Sprintf("1.%d.0", i),
-			Status:          status,
-			VerifiedAt:      verifiedAt,
-			Results: models.VerificationResults{
-				TotalInteractions:  totalInteractions,
-				PassedInteractions: passedInteractions,
-				FailedInteractions: failedInteractions,
-				Summary:            fmt.Sprintf("%d/%d interactions passed", passedInteractions, totalInteractions),
-				Details: []models.InteractionResult{
-					{
-						InteractionID: uuid.New(),
-						Description:   "Test interaction",
-						Passed:        status == models.VerificationStatusPassed,
-					},
-				},
-			},
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-
-		// Link some verifications to executions
-		if len(executions) > 0 && rand.Float32() > 0.5 {
-			execID := executions[rand.Intn(len(executions))].ID
-			verification.ExecutionID = &execID
-		}
-
-		db.Create(&verification)
-	}
-}
-
-func seedBreakingChanges(db *gorm.DB) {
-	changeTypes := []string{"field_removed", "type_changed", "endpoint_removed"}
-	severities := []models.BreakingChangeSeverity{
-		models.SeverityCritical,
-		models.SeverityMajor,
-		models.SeverityMinor,
-	}
-
-	for i := 0; i < 3 && i+1 < len(contracts); i++ {
-		breakingChange := models.BreakingChange{
-			ID:            uuid.New(),
-			OldContractID: contracts[i].ID,
-			NewContractID: contracts[i+1].ID,
-			ChangeType:    changeTypes[i],
-			Severity:      severities[i],
-			Description:   fmt.Sprintf("Breaking change detected: %s", changeTypes[i]),
-			Details: models.ChangeDetails{
-				Field:      "user.email",
-				OldValue:   "string",
-				NewValue:   "object",
-				Impact:     "Clients expecting string will fail",
-				Suggestion: "Use backwards-compatible migration",
-			},
-			DetectedAt: time.Now().Add(-time.Duration(rand.Intn(168)) * time.Hour),
-			CreatedAt:  time.Now(),
-		}
-		db.Create(&breakingChange)
-	}
-}
-
-// ============================================================================
 // PHASE 6: Reporting
 // ============================================================================
 
@@ -1416,7 +1219,6 @@ func seedImportHistory(db *gorm.DB) {
 	}{
 		{models.ImportSourceOpenAPI, "petstore-api.yaml", models.ImportStatusCompleted, 12},
 		{models.ImportSourcePostman, "user-collection.json", models.ImportStatusCompleted, 8},
-		{models.ImportSourcePact, "consumer-provider.json", models.ImportStatusCompleted, 5},
 		{models.ImportSourceSwagger, "payment-api-v2.json", models.ImportStatusFailed, 0},
 		{models.ImportSourceGraphQL, "schema.graphql", models.ImportStatusProcessing, 0},
 	}

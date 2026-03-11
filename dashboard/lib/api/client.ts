@@ -19,7 +19,7 @@ import type {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5016';
 
 // Paths that should be workspace-scoped
-const WORKSPACE_SCOPED_PATHS = ['/flows', '/collections', '/environments', '/executions'];
+const WORKSPACE_SCOPED_PATHS = ['/flows', '/collections', '/environments', '/executions', '/import', '/export'];
 
 // Check if a path should be workspace-scoped
 const isWorkspaceScopedPath = (url: string): boolean => {

@@ -9,7 +9,6 @@ import (
 	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/runner/actions"
 	"github.com/test-mesh/testmesh/internal/runner/assertions"
-	"github.com/test-mesh/testmesh/internal/runner/contracts"
 	"github.com/test-mesh/testmesh/internal/runner/debugger"
 	"github.com/test-mesh/testmesh/internal/runner/mocks"
 	"github.com/test-mesh/testmesh/internal/storage/models"
@@ -21,7 +20,6 @@ import (
 // Executor orchestrates flow execution
 type Executor struct {
 	repo            *repository.ExecutionRepository
-	contractRepo    *repository.ContractRepository
 	logger          *zap.Logger
 	wsHub           WSHub // WebSocket hub interface
 	mockManager     *mocks.Manager
@@ -40,13 +38,12 @@ type WSHub interface {
 }
 
 // NewExecutor creates a new executor instance
-func NewExecutor(repo *repository.ExecutionRepository, contractRepo *repository.ContractRepository, logger *zap.Logger, wsHub WSHub, mockManager *mocks.Manager) *Executor {
+func NewExecutor(repo *repository.ExecutionRepository, logger *zap.Logger, wsHub WSHub, mockManager *mocks.Manager) *Executor {
 	return &Executor{
-		repo:         repo,
-		contractRepo: contractRepo,
-		logger:       logger,
-		wsHub:        wsHub,
-		mockManager:  mockManager,
+		repo:        repo,
+		logger:      logger,
+		wsHub:       wsHub,
+		mockManager: mockManager,
 	}
 }
 
@@ -467,19 +464,6 @@ func (e *Executor) getActionHandler(actionType string) (actions.Handler, error) 
 			return nil, fmt.Errorf("mock manager not initialized")
 		}
 		return actions.NewMockServerConfigureHandler(e.mockManager, e.logger), nil
-	case "contract_generate":
-		if e.contractRepo == nil {
-			return nil, fmt.Errorf("contract repository not initialized")
-		}
-		generator := contracts.NewGenerator(e.contractRepo, e.logger)
-		return actions.NewContractGenerateHandler(generator, e.repo, e.logger), nil
-	case "contract_verify":
-		if e.contractRepo == nil {
-			return nil, fmt.Errorf("contract repository not initialized")
-		}
-		verifier := contracts.NewVerifier(e.contractRepo, e.logger)
-		differ := contracts.NewDiffer(e.contractRepo, e.logger)
-		return actions.NewContractVerifyHandler(verifier, differ, e.logger), nil
 	case "kafka_consumer":
 		return actions.NewKafkaConsumerHandler(e.logger), nil
 	case "kafka_producer":

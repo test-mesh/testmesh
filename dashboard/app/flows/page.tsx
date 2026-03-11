@@ -22,7 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Trash2, Eye, Plus, X, Search, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
+import { Play, Trash2, Eye, Plus, X, Search, ChevronLeft, ChevronRight, Upload, Sparkles } from 'lucide-react';
 
 const PAGE_SIZE = 5;
 
@@ -111,6 +111,12 @@ export default function FlowsPage() {
             <Button variant="outline">
               <Upload className="w-4 h-4 mr-2" />
               Import
+            </Button>
+          </Link>
+          <Link href="/ai/generate">
+            <Button variant="outline">
+              <Sparkles className="w-4 h-4 mr-2" />
+              Generate
             </Button>
           </Link>
           <Link href="/flows/new">

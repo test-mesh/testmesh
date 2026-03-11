@@ -72,7 +72,7 @@ export default function PluginDetailPage({ params }: PluginDetailPageProps) {
     if (!plugin) return;
     if (confirm('Are you sure you want to uninstall this plugin? This action cannot be undone.')) {
       await uninstallPlugin.mutateAsync(plugin.manifest.id);
-      router.push('/plugins');
+      router.push('/admin/plugins');
     }
   };
 
@@ -119,7 +119,7 @@ export default function PluginDetailPage({ params }: PluginDetailPageProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/plugins">
+            <Link href="/admin/plugins">
               <Button variant="outline">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Plugins
@@ -134,7 +134,7 @@ export default function PluginDetailPage({ params }: PluginDetailPageProps) {
   return (
     <div className="container mx-auto py-8">
       <div className="mb-6">
-        <Link href="/plugins" className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mb-4">
+        <Link href="/admin/plugins" className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mb-4">
           <ArrowLeft className="w-4 h-4" />
           Back to Plugins
         </Link>

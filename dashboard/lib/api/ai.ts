@@ -49,11 +49,6 @@ export const aiApi = {
     return response.data;
   },
 
-  importPact: async (data: { contract: string; provider?: AIProviderType; model?: string; create_flows?: boolean; workspace_id?: string }): Promise<ImportResponse> => {
-    const response = await apiClient.post<ImportResponse>('/api/v1/ai/import/pact', data);
-    return response.data;
-  },
-
   // Coverage analysis
   analyzeCoverage: async (data: AnalyzeCoverageRequest): Promise<AnalyzeCoverageResponse> => {
     const response = await apiClient.post<AnalyzeCoverageResponse>('/api/v1/ai/coverage/analyze', data);

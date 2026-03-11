@@ -86,19 +86,6 @@ export function useImportPostman() {
   });
 }
 
-export function useImportPact() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: { contract: string; provider?: AIProviderType; model?: string; create_flows?: boolean }) =>
-      aiApi.importPact(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['flows'] });
-      queryClient.invalidateQueries({ queryKey: aiKeys.usage() });
-    },
-  });
-}
-
 // Coverage hooks
 export function useAnalyzeCoverage() {
   return useMutation({

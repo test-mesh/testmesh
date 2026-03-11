@@ -1,16 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plug, Bot, GitBranch, Bell } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Plug, Bot, GitBranch, Bell, History } from 'lucide-react';
 import { AIProviderSection } from '@/components/integrations/AIProviderSection';
 import { GitIntegrationSection } from '@/components/integrations/GitIntegrationSection';
 import { GiteaIntegrationSection } from '@/components/integrations/GiteaIntegrationSection';
 import { SlackIntegrationSection } from '@/components/integrations/SlackIntegrationSection';
+import { useAIUsage } from '@/lib/hooks/useAI';
 
 export default function IntegrationsPage() {
   const [activeTab, setActiveTab] = useState('ai-providers');
+  const { data: usageData } = useAIUsage();
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -45,13 +49,59 @@ export default function IntegrationsPage() {
         </TabsList>
 
         <TabsContent value="ai-providers" className="space-y-6">
+          {usageData && usageData.stats.length > 0 && (
+            <div className="grid grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Requests</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{usageData.stats.reduce((a, s) => a + s.total_requests, 0)}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Tokens Used</CardTitle></CardHeader>
+                <CardContent><div className="text-2xl font-bold">{usageData.stats.reduce((a, s) => a + s.total_tokens, 0).toLocaleString()}</div></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Success Rate</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {(() => {
+                      const total = usageData.stats.reduce((a, s) => a + s.total_requests, 0);
+                      const success = usageData.stats.reduce((a, s) => a + s.success_count, 0);
+                      return total > 0 ? `${Math.round((success / total) * 100)}%` : 'N/A';
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Avg Latency</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">
+                    {(() => {
+                      const stats = usageData.stats.filter(s => s.avg_latency_ms > 0);
+                      if (!stats.length) return 'N/A';
+                      return `${(stats.reduce((a, s) => a + s.avg_latency_ms, 0) / stats.length / 1000).toFixed(1)}s`;
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
           <Card>
             <CardHeader>
-              <CardTitle>AI Providers</CardTitle>
-              <CardDescription>
-                Configure AI providers for test generation, failure analysis, and self-healing.
-                TestMesh supports OpenAI, Anthropic Claude, and local LLM endpoints.
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>AI Providers</CardTitle>
+                  <CardDescription>
+                    Configure AI providers for test generation, failure analysis, and self-healing.
+                    TestMesh supports OpenAI, Anthropic Claude, and local LLM endpoints.
+                  </CardDescription>
+                </div>
+                <Link href="/ai/history">
+                  <Button variant="outline" size="sm">
+                    <History className="h-4 w-4 mr-2" />
+                    View History
+                  </Button>
+                </Link>
+              </div>
             </CardHeader>
             <CardContent>
               <AIProviderSection />

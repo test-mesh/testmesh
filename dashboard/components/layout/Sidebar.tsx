@@ -12,13 +12,10 @@ import {
   Play,
   FolderTree,
   Server,
-  FileCode,
   Calendar,
   Gauge,
   BarChart3,
   FileBarChart,
-  Sparkles,
-  Puzzle,
   Activity,
   Upload,
   Terminal,
@@ -51,17 +48,12 @@ const navigation: NavItem[] = [
 
   // Infrastructure
   { title: 'Mock Servers', href: '/mocks', icon: Server },
-  { title: 'Contracts', href: '/contracts', icon: FileCode },
   { title: 'Load Testing', href: '/load-testing', icon: Gauge },
 
   // Insights
   { title: 'Analytics', href: '/analytics', icon: BarChart3 },
   { title: 'Reports', href: '/reports', icon: FileBarChart },
   { title: 'History', href: '/history', icon: History },
-
-  // AI & Extensions
-  { title: 'AI Features', href: '/ai', icon: Sparkles },
-  { title: 'Plugins', href: '/plugins', icon: Puzzle },
 
   // Administration
   { title: 'Admin Dashboard', href: '/admin', icon: Settings },

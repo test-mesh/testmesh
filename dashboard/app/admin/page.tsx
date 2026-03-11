@@ -15,6 +15,7 @@ import {
   Workflow,
   Calendar,
   Plug,
+  Puzzle,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -344,20 +345,6 @@ export default function AdminDashboard() {
           </Card>
         </Link>
 
-        <Link href="/schedules">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-purple-500" />
-                <CardTitle className="text-base">Schedules</CardTitle>
-              </div>
-              <CardDescription>
-                {stats?.activeSchedules} active, {stats?.queuedJobs} queued
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-
         <Link href="/admin/activity">
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
             <CardHeader>
@@ -366,6 +353,18 @@ export default function AdminDashboard() {
                 <CardTitle className="text-base">Activity Feed</CardTitle>
               </div>
               <CardDescription>View all system events and audit log</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+
+        <Link href="/admin/plugins">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Puzzle className="w-5 h-5 text-purple-500" />
+                <CardTitle className="text-base">Plugins</CardTitle>
+              </div>
+              <CardDescription>Install and manage platform plugins</CardDescription>
             </CardHeader>
           </Card>
         </Link>

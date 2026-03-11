@@ -73,7 +73,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 	executionRepo := repository.NewExecutionRepository(db)
 	envRepo := repository.NewEnvironmentRepository(db)
 	mockRepo := repository.NewMockRepository(db)
-	contractRepo := repository.NewContractRepository(db)
 	reportingRepo := repository.NewReportingRepository(db)
 	collectionRepo := repository.NewCollectionRepository(db)
 	historyRepo := repository.NewHistoryRepository(db)
@@ -144,10 +143,9 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 	healthHandler := handlers.NewHealthHandler(db)
 	proxyHandler := handlers.NewProxyHandler(logger)
 	flowHandler := handlers.NewFlowHandler(flowRepo, logger)
-	executionHandler := handlers.NewExecutionHandler(executionRepo, flowRepo, envRepo, contractRepo, mockManager, logger, wsHub)
+	executionHandler := handlers.NewExecutionHandler(executionRepo, flowRepo, envRepo, mockManager, logger, wsHub)
 	executionHandler.SetNotificationDispatcher(notifDispatcher)
 	mockHandler := handlers.NewMockHandler(mockRepo, mockManager, logger)
-	contractHandler := handlers.NewContractHandler(contractRepo, logger)
 	reportingHandler := handlers.NewReportingHandler(reportingRepo, aggregator, generator, logger)
 	aiHandler := handlers.NewAIHandler(db, aiRepo, aiGenerator, aiAnalyzer, aiSelfHealing, aiProviders, logger)
 	collectionHandler := handlers.NewCollectionHandler(collectionRepo, flowRepo, logger)
@@ -160,7 +158,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 	debugController.SetEventHandler(wsHub)
 
 	// Initialize collection runner (executor created per-run to support parallel executions)
-	executor := runner.NewExecutor(executionRepo, contractRepo, logger, wsHub, nil)
+	executor := runner.NewExecutor(executionRepo, logger, wsHub, nil)
 	executor.SetDebugController(debugController)
 	collectionRunner := runner.NewCollectionRunner(executor, logger)
 	runnerHandler := handlers.NewRunnerHandler(collectionRunner, flowRepo, envRepo, logger)
@@ -293,6 +291,12 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 				flows.DELETE("/:id", flowHandler.Delete)
 			}
 
+			// Import/Export routes (workspace-scoped)
+			ws.POST("/import/parse", importExportHandler.Parse)
+			ws.POST("/import", importExportHandler.Import)
+			ws.POST("/export", importExportHandler.Export)
+			ws.GET("/export/download", importExportHandler.ExportDownload)
+
 			// Environment routes (workspace-scoped)
 			environments := ws.Group("/environments")
 			{
@@ -344,31 +348,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 			mocksGroup.DELETE("/:id/state/:key", mockHandler.DeleteState)
 		}
 
-		// Contract testing routes
-		contractsGroup := v1.Group("/contracts")
-		{
-			contractsGroup.GET("", contractHandler.ListContracts)
-			contractsGroup.GET("/versions", contractHandler.GetContractVersions)
-			contractsGroup.POST("/import", contractHandler.ImportPact)
-			contractsGroup.POST("/breaking-changes", contractHandler.DetectBreakingChanges)
-			contractsGroup.GET("/:id", contractHandler.GetContract)
-			contractsGroup.DELETE("/:id", contractHandler.DeleteContract)
-			contractsGroup.GET("/:id/pact", contractHandler.ExportPact)
-			contractsGroup.GET("/:id/verifications", contractHandler.ListVerifications)
-			contractsGroup.GET("/:id/breaking-changes", contractHandler.ListBreakingChanges)
-			contractsGroup.GET("/:id/interactions", contractHandler.ListInteractions)
-			contractsGroup.GET("/:id/interactions/:interaction_id", contractHandler.GetInteraction)
-			contractsGroup.DELETE("/:id/interactions/:interaction_id", contractHandler.DeleteInteraction)
-		}
-
-		// Verification routes
-		verifications := v1.Group("/verifications")
-		{
-			verifications.POST("", contractHandler.CreateVerification)
-			verifications.GET("/:id", contractHandler.GetVerification)
-			verifications.PUT("/:id", contractHandler.UpdateVerification)
-		}
-
 		// Report routes
 		reports := v1.Group("/reports")
 		{
@@ -395,7 +374,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 			aiRoutes.POST("/generate", aiHandler.Generate)
 			aiRoutes.POST("/import/openapi", aiHandler.ImportOpenAPI)
 			aiRoutes.POST("/import/postman", aiHandler.ImportPostman)
-			aiRoutes.POST("/import/pact", aiHandler.ImportPact)
 			aiRoutes.POST("/coverage/analyze", aiHandler.AnalyzeCoverage)
 			aiRoutes.POST("/analyze/:execution_id", aiHandler.AnalyzeFailure)
 			aiRoutes.GET("/suggestions", aiHandler.ListSuggestions)

@@ -87,7 +87,11 @@
       "mcp__plugin_playwright_playwright__browser_take_screenshot",
       "mcp__plugin_playwright_playwright__browser_click",
       "mcp__plugin_playwright_playwright__browser_type",
-      "mcp__plugin_playwright_playwright__browser_snapshot"
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_press_key",
+      "mcp__plugin_playwright_playwright__browser_run_code",
+      "Bash(cp -r /Users/ggeorgiev/Dev/testmesh/dashboard/app/plugins /Users/ggeorgiev/Dev/testmesh/dashboard/app/admin/plugins)",
+      "Bash(grep -n \"contract\\\\|pact\\\\|Pact\" /Users/ggeorgiev/Dev/testmesh/dashboard/lib/api/ai.ts | head -20\ngrep -n \"contract\\\\|pact\\\\|Pact\" /Users/ggeorgiev/Dev/testmesh/dashboard/lib/hooks/useAI.ts | head -20)"
     ]
   }
 }

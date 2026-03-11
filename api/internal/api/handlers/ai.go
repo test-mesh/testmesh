@@ -177,50 +177,6 @@ func (h *AIHandler) ImportPostman(c *gin.Context) {
 	})
 }
 
-// ImportPact handles POST /api/v1/ai/import/pact
-func (h *AIHandler) ImportPact(c *gin.Context) {
-	var req struct {
-		Contract    string `json:"contract" binding:"required"`
-		Provider    string `json:"provider"`
-		Model       string `json:"model"`
-		CreateFlows bool   `json:"create_flows"`
-		WorkspaceID string `json:"workspace_id"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	workspaceID := middleware.GetWorkspaceID(c)
-	if workspaceID == uuid.Nil && req.WorkspaceID != "" {
-		if id, err := uuid.Parse(req.WorkspaceID); err == nil {
-			workspaceID = id
-		}
-	}
-
-	opts := ai.ImportOptions{
-		Provider:    models.AIProviderType(req.Provider),
-		Model:       req.Model,
-		CreateFlows: req.CreateFlows,
-		WorkspaceID: workspaceID,
-	}
-
-	result, err := h.generator.ImportFromPact(c.Request.Context(), req.Contract, opts)
-	if err != nil {
-		h.logger.Error("Failed to import Pact contract", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"import_id":       result.ImportID,
-		"flows_generated": result.FlowsGenerated,
-		"flow_ids":        result.FlowIDs,
-		"flows":           result.Flows,
-	})
-}
-
 // AnalyzeCoverage handles POST /api/v1/ai/coverage/analyze
 func (h *AIHandler) AnalyzeCoverage(c *gin.Context) {
 	var req struct {

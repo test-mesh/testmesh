@@ -204,7 +204,7 @@ export default function ImportDetailPage({ params }: PageProps) {
           <CardTitle>Actions</CardTitle>
         </CardHeader>
         <CardContent className="flex gap-4">
-          <Link href="/ai/import">
+          <Link href="/import?tab=spec">
             <Button variant="outline">
               <FileUp className="h-4 w-4 mr-2" />
               Import Another Spec

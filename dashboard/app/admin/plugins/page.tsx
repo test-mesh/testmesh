@@ -518,7 +518,7 @@ export default function PluginsPage() {
                     <TableRow key={plugin.manifest.id}>
                       <TableCell>
                         <Link
-                          href={`/plugins/${plugin.manifest.id}`}
+                          href={`/admin/plugins/${plugin.manifest.id}`}
                           className="font-medium hover:underline"
                         >
                           {plugin.manifest.name}
@@ -543,7 +543,7 @@ export default function PluginsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">
-                          <Link href={`/plugins/${plugin.manifest.id}`}>
+                          <Link href={`/admin/plugins/${plugin.manifest.id}`}>
                             <Button variant="ghost" size="sm">
                               <Eye className="w-4 h-4" />
                             </Button>
@@ -578,7 +578,7 @@ export default function PluginsPage() {
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Package className="w-5 h-5" />
               Built-in Integrations
-              <Badge variant="secondary" className="ml-2">Native Go</Badge>
+              <Badge variant="secondary" className="ml-2">Native</Badge>
             </h2>
             <p className="text-sm text-muted-foreground mb-4">
               These integrations are built into the API - no installation needed, better performance.
