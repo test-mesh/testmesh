@@ -388,6 +388,7 @@ func AutoMigrate(db *gorm.DB) error {
 	db.Exec(`
 		CREATE TABLE IF NOT EXISTS reporting.reports (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
 			name VARCHAR(255) NOT NULL,
 			format VARCHAR(20) NOT NULL,
 			status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -405,7 +406,12 @@ func AutoMigrate(db *gorm.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_reports_status ON reporting.reports(status);
 		CREATE INDEX IF NOT EXISTS idx_reports_format ON reporting.reports(format);
 		CREATE INDEX IF NOT EXISTS idx_reports_expires_at ON reporting.reports(expires_at);
+		CREATE INDEX IF NOT EXISTS idx_reports_workspace_id ON reporting.reports(workspace_id);
 	`)
+
+	// Add workspace_id to reports table (idempotent migration for existing tables)
+	db.Exec(`ALTER TABLE reporting.reports ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_reports_workspace_id ON reporting.reports(workspace_id)`)
 
 	// Create step_performance table
 	db.Exec(`

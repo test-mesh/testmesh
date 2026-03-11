@@ -144,12 +144,15 @@ func (r *ReportingRepository) UpdateReport(report *models.Report) error {
 }
 
 // ListReports retrieves reports with optional filters
-func (r *ReportingRepository) ListReports(format models.ReportFormat, status models.ReportStatus, limit, offset int) ([]models.Report, int64, error) {
+func (r *ReportingRepository) ListReports(workspaceID *uuid.UUID, format models.ReportFormat, status models.ReportStatus, limit, offset int) ([]models.Report, int64, error) {
 	var reports []models.Report
 	var total int64
 
 	query := r.db.Model(&models.Report{})
 
+	if workspaceID != nil {
+		query = query.Where("workspace_id = ?", workspaceID)
+	}
 	if format != "" {
 		query = query.Where("format = ?", format)
 	}

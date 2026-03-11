@@ -77,7 +77,7 @@ export function useImportPostman() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { collection: string; provider?: AIProviderType; model?: string; create_flows?: boolean }) =>
+    mutationFn: (data: { collection: string; provider?: AIProviderType; model?: string; create_flows?: boolean; workspace_id?: string }) =>
       aiApi.importPostman(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flows'] });

@@ -146,6 +146,7 @@ const (
 // Report stores generated reports
 type Report struct {
 	ID           uuid.UUID     `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	WorkspaceID  *uuid.UUID    `gorm:"type:uuid;index" json:"workspace_id,omitempty"`
 	Name         string        `gorm:"not null" json:"name"`
 	Format       ReportFormat  `gorm:"type:varchar(20);not null" json:"format"`
 	Status       ReportStatus  `gorm:"type:varchar(20);not null;default:'pending'" json:"status"`

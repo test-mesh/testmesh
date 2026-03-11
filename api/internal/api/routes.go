@@ -323,6 +323,16 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 				executions.GET("/:id/steps", executionHandler.GetSteps)
 				executions.GET("/:id/steps/:step_id", executionHandler.GetStep)
 			}
+
+			// Report routes (workspace-scoped)
+			wsReports := ws.Group("/reports")
+			{
+				wsReports.POST("/generate", reportingHandler.GenerateReport)
+				wsReports.GET("", reportingHandler.ListReports)
+				wsReports.GET("/:id", reportingHandler.GetReport)
+				wsReports.GET("/:id/download", reportingHandler.DownloadReport)
+				wsReports.DELETE("/:id", reportingHandler.DeleteReport)
+			}
 		}
 
 		// Mock server routes
@@ -346,16 +356,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 			mocksGroup.GET("/:id/state/:key", mockHandler.GetState)
 			mocksGroup.PUT("/:id/state/:key", mockHandler.UpdateState)
 			mocksGroup.DELETE("/:id/state/:key", mockHandler.DeleteState)
-		}
-
-		// Report routes
-		reports := v1.Group("/reports")
-		{
-			reports.POST("/generate", reportingHandler.GenerateReport)
-			reports.GET("", reportingHandler.ListReports)
-			reports.GET("/:id", reportingHandler.GetReport)
-			reports.GET("/:id/download", reportingHandler.DownloadReport)
-			reports.DELETE("/:id", reportingHandler.DeleteReport)
 		}
 
 		// Analytics routes

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/reporting"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
@@ -69,13 +70,15 @@ func (h *ReportingHandler) GenerateReport(c *gin.Context) {
 		return
 	}
 
+	workspaceID := middleware.GetWorkspaceID(c)
 	report := &models.Report{
-		Name:      req.Name,
-		Format:    models.ReportFormat(req.Format),
-		Status:    models.ReportStatusPending,
-		StartDate: startDate,
-		EndDate:   endDate,
-		Filters:   req.Filters,
+		WorkspaceID: &workspaceID,
+		Name:        req.Name,
+		Format:      models.ReportFormat(req.Format),
+		Status:      models.ReportStatusPending,
+		StartDate:   startDate,
+		EndDate:     endDate,
+		Filters:     req.Filters,
 	}
 
 	if err := h.repo.CreateReport(report); err != nil {
@@ -95,14 +98,15 @@ func (h *ReportingHandler) GenerateReport(c *gin.Context) {
 	c.JSON(http.StatusAccepted, report)
 }
 
-// ListReports handles GET /api/v1/reports
+// ListReports handles GET /api/v1/workspaces/:workspace_id/reports
 func (h *ReportingHandler) ListReports(c *gin.Context) {
+	workspaceID := middleware.GetWorkspaceID(c)
 	format := models.ReportFormat(c.Query("format"))
 	status := models.ReportStatus(c.Query("status"))
 	limit := parseIntQuery(c, "limit", 20)
 	offset := parseIntQuery(c, "offset", 0)
 
-	reports, total, err := h.repo.ListReports(format, status, limit, offset)
+	reports, total, err := h.repo.ListReports(&workspaceID, format, status, limit, offset)
 	if err != nil {
 		h.logger.Error("Failed to list reports", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list reports"})

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { apiClient } from './client';
 import type {
   Report,
   GenerateReportRequest,
@@ -12,17 +12,7 @@ import type {
   ReportStatus,
 } from './types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5016';
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Reports API
+// Reports API (workspace-scoped — apiClient interceptor rewrites /api/v1/reports → /api/v1/workspaces/{id}/reports)
 export const reportsApi = {
   generate: async (data: GenerateReportRequest): Promise<Report> => {
     const response = await apiClient.post<Report>('/api/v1/reports/generate', data);
@@ -56,7 +46,7 @@ export const reportsApi = {
   },
 };
 
-// Analytics API
+// Analytics API (platform-wide aggregated data — not workspace-scoped)
 export const analyticsApi = {
   getMetrics: async (params?: {
     start_date?: string;

@@ -59,7 +59,7 @@ function EndpointRow({ endpoint, status }: { endpoint: EndpointCoverage; status:
     uncovered: <XCircle className="h-4 w-4 text-red-500 shrink-0" />,
     partial: <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0" />,
   };
-  const hasMeta = endpoint.description || (endpoint.flow_ids?.length > 0) || (endpoint.missing_tests?.length > 0);
+  const hasMeta = endpoint.description || ((endpoint.flow_ids?.length ?? 0) > 0) || ((endpoint.missing_tests?.length ?? 0) > 0);
   return (
     <div className="border rounded-lg">
       <button
@@ -77,11 +77,11 @@ function EndpointRow({ endpoint, status }: { endpoint: EndpointCoverage; status:
       {expanded && hasMeta && (
         <div className="px-4 pb-3 space-y-2 border-t">
           {endpoint.description && <p className="text-sm text-muted-foreground pt-2">{endpoint.description}</p>}
-          {endpoint.flow_ids?.length > 0 && (
+          {(endpoint.flow_ids?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs font-medium mb-1">Covered by flows:</p>
               <div className="flex flex-wrap gap-1">
-                {endpoint.flow_ids.map((id) => (
+                {(endpoint.flow_ids ?? []).map((id) => (
                   <Link key={id} href={`/flows/${id}`}>
                     <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">{id.slice(0, 8)}...</Badge>
                   </Link>
@@ -89,11 +89,11 @@ function EndpointRow({ endpoint, status }: { endpoint: EndpointCoverage; status:
               </div>
             </div>
           )}
-          {endpoint.missing_tests?.length > 0 && (
+          {(endpoint.missing_tests?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs font-medium mb-1">Missing test cases:</p>
               <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
-                {endpoint.missing_tests.map((t, i) => <li key={i}>{t}</li>)}
+                {(endpoint.missing_tests ?? []).map((t, i) => <li key={i}>{t}</li>)}
               </ul>
             </div>
           )}
