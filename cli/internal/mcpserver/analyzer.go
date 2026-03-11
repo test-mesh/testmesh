@@ -12,18 +12,26 @@ import (
 
 // ServiceAnalysis holds the extracted information from a service directory.
 type ServiceAnalysis struct {
-	ServiceName  string         `json:"service_name"`
-	Language     string         `json:"language"`
-	Port         int            `json:"port"`
-	BaseURL      string         `json:"base_url"`
-	Endpoints    []Endpoint     `json:"endpoints"`
-	Models       []Model        `json:"models"`
-	KafkaTopics  []KafkaTopic   `json:"kafka_topics"`
-	GRPCMethods  []GRPCMethod   `json:"grpc_methods"`
-	EnvVars      []string       `json:"env_vars"`
-	DBSchemas    []string       `json:"db_schemas"`
-	Dependencies []string       `json:"dependencies"`
-	Files        []string       `json:"files_analyzed"`
+	ServiceName      string            `json:"service_name"`
+	Language         string            `json:"language"`
+	Port             int               `json:"port"`
+	BaseURL          string            `json:"base_url"`
+	Endpoints        []Endpoint        `json:"endpoints"`
+	Models           []Model           `json:"models"`
+	KafkaTopics      []KafkaTopic      `json:"kafka_topics"`
+	GRPCMethods      []GRPCMethod      `json:"grpc_methods"`
+	EnvVars          []string          `json:"env_vars"`
+	DBSchemas        []string          `json:"db_schemas"`
+	RedisKeyPatterns []RedisKeyPattern `json:"redis_key_patterns,omitempty"`
+	Dependencies     []string          `json:"dependencies"`
+	Files            []string          `json:"files_analyzed"`
+}
+
+// RedisKeyPattern describes a Redis key written by a service (e.g. "user:%s").
+type RedisKeyPattern struct {
+	Prefix    string `json:"prefix"`     // resource prefix, e.g. "user", "product"
+	KeyFormat string `json:"key_format"` // full format string, e.g. "user:%s"
+	Operation string `json:"operation"`  // "string" | "list" | "hash"
 }
 
 // Endpoint represents an HTTP endpoint.
@@ -157,6 +165,8 @@ var (
 	reGRPCMethod    = regexp.MustCompile(`func\s+\(s\s+\*\w+\)\s+(\w+)\s*\(`)
 	reListenAddr    = regexp.MustCompile(`(?i)(?:listen|serve|addr|port)[^"]*"[^"]*:(\d{4,5})"`)
 	rePortConst     = regexp.MustCompile(`(?i)(?:port|Port)\s*[=:]+\s*"?(\d{4,5})"?`)
+	reRedisKeyFmt   = regexp.MustCompile(`key\s*:?=\s*fmt\.Sprintf\s*\(\s*"([^"]+)"`)
+	reRedisSetCall  = regexp.MustCompile(`\.(?:Set|RPush|LPush|HSet|SetNX)\s*\(`)
 )
 
 func analyzeGoFiles(a *ServiceAnalysis, files []string) {
@@ -347,6 +357,84 @@ func analyzeGoFiles(a *ServiceAnalysis, files []string) {
 		})
 	}
 	sort.Slice(a.Models, func(i, j int) bool { return a.Models[i].Name < a.Models[j].Name })
+
+	// Extract Redis key patterns from redis/ client files.
+	a.RedisKeyPatterns = extractRedisKeys(files)
+}
+
+// extractRedisKeys scans redis client Go files and returns detected key patterns.
+// It looks for `fmt.Sprintf("prefix:%s", ...)` adjacent to Redis SET/PUSH calls.
+func extractRedisKeys(files []string) []RedisKeyPattern {
+	seen := map[string]bool{}
+	var patterns []RedisKeyPattern
+
+	for _, f := range files {
+		// Only look in files that appear to be Redis clients.
+		rel := strings.ToLower(filepath.Base(f))
+		dir := strings.ToLower(filepath.Base(filepath.Dir(f)))
+		if dir != "redis" && !strings.Contains(rel, "redis") && !strings.Contains(rel, "cache") {
+			continue
+		}
+
+		content, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		src := string(content)
+
+		// Find all key format strings (e.g. "user:%s").
+		for _, km := range reRedisKeyFmt.FindAllStringSubmatchIndex(src, -1) {
+			fmtStr := src[km[2]:km[3]]
+			// Only handle simple single-%s patterns (string keys).
+			if strings.Count(fmtStr, "%") != 1 || !strings.Contains(fmtStr, "%s") {
+				continue
+			}
+			if seen[fmtStr] {
+				continue
+			}
+
+			// Determine operation type by looking at the surrounding context (±300 chars).
+			start := km[0]
+			ctxStart := start - 300
+			if ctxStart < 0 {
+				ctxStart = 0
+			}
+			ctxEnd := km[1] + 300
+			if ctxEnd > len(src) {
+				ctxEnd = len(src)
+			}
+			ctx := src[ctxStart:ctxEnd]
+
+			op := "string"
+			if reRedisSetCall.FindString(ctx) != "" {
+				if strings.Contains(ctx, "RPush") || strings.Contains(ctx, "LPush") {
+					op = "list"
+				} else if strings.Contains(ctx, "HSet") {
+					op = "hash"
+				}
+			}
+
+			// Skip list/hash types — redis_get only works for strings.
+			if op != "string" {
+				continue
+			}
+
+			// Extract prefix: everything before ":%s".
+			prefix := strings.TrimSuffix(fmtStr, ":%s")
+			if strings.Contains(prefix, ":") || strings.Contains(prefix, "%") {
+				// Complex key pattern with multiple segments — skip.
+				continue
+			}
+
+			seen[fmtStr] = true
+			patterns = append(patterns, RedisKeyPattern{
+				Prefix:    prefix,
+				KeyFormat: fmtStr,
+				Operation: op,
+			})
+		}
+	}
+	return patterns
 }
 
 // ---------------------------------------------------------------------------

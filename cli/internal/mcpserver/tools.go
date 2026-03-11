@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/runner"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
@@ -109,6 +110,7 @@ func toolGenerateFlow(args map[string]interface{}) (interface{}, *rpcError) {
 		BaseURL:      strArg(args, "base_url"),
 		DBConnection: strArg(args, "db_connection"),
 		KafkaBrokers: strArg(args, "kafka_brokers"),
+		RedisAddr:    strArg(args, "redis_addr"),
 		Focus:        strArg(args, "focus"),
 	}
 
@@ -175,7 +177,13 @@ func toolRunFlow(args map[string]interface{}) (interface{}, *rpcError) {
 	}
 
 	logger := zap.NewNop()
+	registry := plugins.NewRegistry("", logger)
+	registry.RegisterAction("redis", plugins.NewRedisNativePlugin(logger))
+	registry.RegisterAction("kafka", plugins.NewKafkaNativePlugin(logger))
+	registry.RegisterAction("postgresql", plugins.NewPostgreSQLNativePlugin(logger))
+
 	exec := runner.NewExecutor(nil, logger, nil, nil)
+	exec.SetPluginRegistry(registry)
 	result, err := exec.ExecuteInline(&flowWrapper.Flow, nil)
 	if err != nil {
 		return toolContent(fmt.Sprintf("Execution error: %v", err)), nil
@@ -411,6 +419,27 @@ func toolGetActionTypes() (interface{}, *rpcError) {
 			"required":    []string{"server_url", "tool"},
 			"optional":    []string{"arguments"},
 		},
+		// Native plugin actions (prefix-routed to built-in plugins)
+		"redis.get": map[string]interface{}{
+			"description": "Get a value from Redis by key",
+			"required":    []string{"key"},
+			"optional":    []string{"host", "port"},
+		},
+		"redis.set": map[string]interface{}{
+			"description": "Set a key in Redis",
+			"required":    []string{"key", "value"},
+			"optional":    []string{"host", "port", "ttl"},
+		},
+		"redis.del": map[string]interface{}{
+			"description": "Delete a key from Redis",
+			"required":    []string{"key"},
+			"optional":    []string{"host", "port"},
+		},
+		"redis.exists": map[string]interface{}{
+			"description": "Check if a Redis key exists",
+			"required":    []string{"key"},
+			"optional":    []string{"host", "port"},
+		},
 	}
 
 	out, _ := json.MarshalIndent(actions, "", "  ")
@@ -473,6 +502,7 @@ func toolGenerateE2EFlow(args map[string]interface{}) (interface{}, *rpcError) {
 		FlowName:     strArg(args, "flow_name"),
 		DBConnection: strArg(args, "db_connection"),
 		KafkaBrokers: strArg(args, "kafka_brokers"),
+		RedisAddr:    strArg(args, "redis_addr"),
 		Focus:        strArg(args, "focus"),
 		ServiceURLs:  serviceURLs,
 	}

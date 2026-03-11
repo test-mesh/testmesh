@@ -49,6 +49,11 @@ var validActions = map[string][]string{
 	"grpc":                  {"host", "method"},
 	"wait_for":              {},
 	"db_poll":               {"connection", "query"},
+	// Native plugin actions
+	"redis.get":    {"key"},
+	"redis.set":    {"key", "value"},
+	"redis.del":    {"key"},
+	"redis.exists": {"key"},
 }
 
 func validateFlow(cmd *cobra.Command, args []string) error {

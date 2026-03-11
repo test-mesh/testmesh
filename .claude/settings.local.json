@@ -106,7 +106,14 @@
       "mcp__testmesh__run_flow",
       "Bash(python3 -c \"\nwith open\\('../examples/microservices/user-service-flow-generated.yaml'\\) as f:\n    lines = f.readlines\\(\\)\n\nin_login = False\nnew_lines = []\nskip_next = False\nfor i, line in enumerate\\(lines\\):\n    if 'id: create_login' in line:\n        in_login = True\n    if in_login and '- \\\\\"status == 201\\\\\"' in line:\n        new_lines.append\\('        - \\\\\"status < 500\\\\\"\\\\n'\\)\n        skip_next = True\n        continue\n    if skip_next and '- \\\\\"body.id != nil\\\\\"' in line:\n        skip_next = False\n        continue\n    if in_login and 'login_id' in line:\n        in_login = False\n        continue\n    new_lines.append\\(line\\)\n\nwith open\\('../examples/microservices/user-service-flow-generated.yaml', 'w'\\) as f:\n    f.writelines\\(new_lines\\)\nprint\\('patched'\\)\n\" && go run main.go run ../examples/microservices/user-service-flow-generated.yaml)",
       "mcp__testmesh__analyze_workspace",
-      "mcp__testmesh__generate_e2e_flow"
+      "mcp__testmesh__generate_e2e_flow",
+      "Bash(grep -n \"redis\\\\|Redis\" /Users/ggeorgiev/Dev/testmesh/api/internal/runner/actions/handler.go 2>/dev/null | head -20\ngrep -n \"database_query\\\\|kafka_consumer\\\\|http_request\" /Users/ggeorgiev/Dev/testmesh/api/internal/runner/executor.go 2>/dev/null | head -20)",
+      "Bash(echo '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}' | /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp serve 2>&1 | head -5)",
+      "Bash(echo '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}' | timeout 3 /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>/dev/null)",
+      "Bash(echo '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}' | timeout 3 /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>&1 | head -3)",
+      "Bash(echo '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}' | /usr/bin/perl -e 'alarm\\(3\\); exec @ARGV' /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>/dev/null | head -1)",
+      "Bash(/Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp:*)",
+      "Bash(printf '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}\\\\n' | /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>/dev/null | head -1)"
     ]
   },
   "enableAllProjectMcpServers": true,

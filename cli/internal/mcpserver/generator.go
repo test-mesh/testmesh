@@ -13,6 +13,7 @@ type GenerateFlowOptions struct {
 	BaseURL      string
 	DBConnection string
 	KafkaBrokers string
+	RedisAddr    string // host:port, e.g. "localhost:6379"
 	Focus        string // "crud" | "events" | "errors" | "full"
 	ServiceURLs  map[string]string
 }
@@ -807,6 +808,32 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 		))
 
 		availableIDs[idVar] = true
+
+		// Redis cache verification: verify the resource was cached after CREATE.
+		if opts.RedisAddr != "" && len(svc.RedisKeyPatterns) > 0 {
+			host, port := "localhost", "6379"
+			if parts := strings.SplitN(opts.RedisAddr, ":", 2); len(parts) == 2 {
+				host, port = parts[0], parts[1]
+			}
+			for _, kp := range svc.RedisKeyPatterns {
+				// Only emit for patterns whose prefix matches the created resource.
+				if !strings.EqualFold(kp.Prefix, rName) && !strings.EqualFold(kp.Prefix, strings.ReplaceAll(rName, "_", "")) {
+					continue
+				}
+				redisKey := strings.Replace(kp.KeyFormat, "%s", "{{"+idVar+"}}", 1)
+				b.WriteString(flowStep(
+					"verify_redis_"+svcNameToID(svc.ServiceName)+"_"+kp.Prefix,
+					"redis.get",
+					map[string]interface{}{
+						"host": host,
+						"port": port,
+						"key":  redisKey,
+					},
+					[]string{"value != nil"},
+					nil,
+				))
+			}
+		}
 
 		// Kafka producer verification: verify topics triggered by a resource CREATE.
 		// Skip topics that require separate triggers (status changes, logins, etc.).

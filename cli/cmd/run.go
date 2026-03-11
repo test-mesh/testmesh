@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/runner"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/spf13/cobra"
@@ -76,7 +77,14 @@ func runLocally(definition *models.FlowDefinition) error {
 
 	logger := zap.NewNop()
 
+	// Set up native plugin registry so actions like redis.get, kafka.*, postgresql.* work locally.
+	registry := plugins.NewRegistry("", logger)
+	registry.RegisterAction("kafka", plugins.NewKafkaNativePlugin(logger))
+	registry.RegisterAction("postgresql", plugins.NewPostgreSQLNativePlugin(logger))
+	registry.RegisterAction("redis", plugins.NewRedisNativePlugin(logger))
+
 	exec := runner.NewExecutor(nil, logger, nil, nil)
+	exec.SetPluginRegistry(registry)
 	result, err := exec.ExecuteInline(definition, nil)
 	if err != nil {
 		return fmt.Errorf("execution error: %w", err)

@@ -169,6 +169,10 @@ func toolDefinitions() []map[string]interface{} {
 						"type":        "string",
 						"description": "Comma-separated Kafka broker addresses for event verification (e.g. localhost:9092)",
 					},
+					"redis_addr": map[string]interface{}{
+						"type":        "string",
+						"description": "Redis address for cache verification steps (e.g. localhost:6379)",
+					},
 					"focus": map[string]interface{}{
 						"type":        "string",
 						"description": "Optional focus area: 'crud', 'events', 'errors', 'full' (default: full)",
@@ -272,6 +276,10 @@ func toolDefinitions() []map[string]interface{} {
 					"kafka_brokers": map[string]interface{}{
 						"type":        "string",
 						"description": "Kafka broker addresses for event verification",
+					},
+					"redis_addr": map[string]interface{}{
+						"type":        "string",
+						"description": "Redis address for cache verification steps (e.g. localhost:6379)",
 					},
 					"service_urls": map[string]interface{}{
 						"type":        "object",

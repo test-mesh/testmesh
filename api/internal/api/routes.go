@@ -190,11 +190,15 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 	// Register native Go plugins (no external process needed)
 	pluginRegistry.RegisterAction("kafka", plugins.NewKafkaNativePlugin(logger))
 	pluginRegistry.RegisterAction("postgresql", plugins.NewPostgreSQLNativePlugin(logger))
+	pluginRegistry.RegisterAction("redis", plugins.NewRedisNativePlugin(logger))
 
-	// Discover and load external plugins (JS, etc.)
+	// Discover and load external plugins (JS, Python, etc. via HTTP protocol)
 	pluginRegistry.Discover()
 	pluginRegistry.LoadAll()
 	pluginHandler := handlers.NewPluginHandler(pluginRegistry, logger)
+
+	// Wire plugin registry into the executor so plugin actions are available at runtime
+	executor.SetPluginRegistry(pluginRegistry)
 
 	// Initialize scheduler
 	scheduleRepo := repository.NewScheduleRepository(db)
