@@ -43,7 +43,7 @@ release:
 
 brews:
   - name: testmesh
-    tap:
+    repository:
       owner: test-mesh
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
