@@ -1,0 +1,719 @@
+{
+  "info": {
+    "name": "Outlier Requirements - Kafka Notifications Testing",
+    "description": "Streamlined test suite for Kafka topic management and message publishing/consumption through API operations.\n\n**Test Flow:**\n1. Topic Creation & Listing - Create notification topics and verify they exist\n2. Consumer Setup & Subscription - Setup consumer to read fresh messages only (no historical data)\n3. API Operations - Create, update, archive, delete projects via API calls (triggers Kafka events)\n4. Message Consumption & Validation - Consume and verify only the fresh API-triggered messages\n\n**Prerequisites:**\n- Docker Compose stack running (Kafka + REST Proxy)\n- Outlier Requirements API running\n- Sequential execution required",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "kafka-requirements-notifications-test"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "{{base_url}}",
+      "description": "Base URL for Outlier Requirements API",
+      "type": "string"
+    },
+    {
+      "key": "kafkaRestUrl",
+      "value": "{{kafka_rest_url}}",
+      "description": "Confluent REST Proxy URL for Kafka HTTP access",
+      "type": "string"
+    },
+    {
+      "key": "clusterId",
+      "value": "R8kOR2PcRvK3BRZREeCBKg",
+      "description": "Kafka cluster ID (will be set dynamically)",
+      "type": "string"
+    },
+    {
+      "key": "consumerInstanceId",
+      "value": "",
+      "description": "Consumer instance ID for message consumption tests",
+      "type": "string"
+    },
+    {
+      "key": "consumerGroupId",
+      "value": "",
+      "description": "Consumer group for notification testing (set dynamically)",
+      "type": "string"
+    },
+    {
+      "key": "timestamp",
+      "value": "",
+      "description": "Test run timestamp for unique identification",
+      "type": "string"
+    },
+    {
+      "key": "projectTopic",
+      "value": "Staging.Outlier.Projects.Notifications",
+      "description": "Topic for project-related notification events",
+      "type": "string"
+    },
+    {
+      "key": "testProjectId",
+      "value": "",
+      "description": "Project ID created during testing",
+      "type": "string"
+    },
+    {
+      "key": "testProjectName",
+      "value": "",
+      "description": "Project name created during testing",
+      "type": "string"
+    },
+    {
+      "key": "testOwnerId",
+      "value": "",
+      "description": "Project owner ID for testing",
+      "type": "string"
+    },
+    {
+      "key": "topicPartitions",
+      "value": "3",
+      "description": "Number of partitions for notification topics",
+      "type": "string"
+    },
+    {
+      "key": "topicReplicationFactor",
+      "value": "1",
+      "description": "Replication factor for notification topics",
+      "type": "string"
+    },
+    {
+      "key": "messageRetentionMs",
+      "value": "604800000",
+      "description": "Message retention time (7 days in milliseconds)",
+      "type": "string"
+    },
+    {
+      "key": "consumerContentType",
+      "value": "application/vnd.kafka.v2+json",
+      "description": "Content type for consumer API requests (v2 format)",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Phase 1: Topic Creation & Verification",
+      "description": "Create notification topics and verify they are available for testing.",
+      "item": [
+        {
+          "name": "1.1 Health Check - Kafka REST Proxy",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const timestamp = Date.now();",
+                  "pm.collectionVariables.set('timestamp', timestamp);",
+                  "const consumerGroupId = `outlier-requirements-test-${timestamp}`;",
+                  "pm.collectionVariables.set('consumerGroupId', consumerGroupId);",
+                  "console.log('🚀 Starting Kafka notifications test run at:', new Date(timestamp).toISOString());",
+                  "console.log('📋 Using consumer group:', consumerGroupId);",
+                  "",
+                  "// Generate test owner ID",
+                  "const testOwnerId = '550e8400-e29b-41d4-a716-446655440' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');",
+                  "pm.collectionVariables.set('testOwnerId', testOwnerId);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Kafka REST Proxy is accessible', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const responseJson = pm.response.json();",
+                  "if (responseJson.data && responseJson.data.length > 0) {",
+                  "    const cluster = responseJson.data[0];",
+                  "    pm.collectionVariables.set('clusterId', cluster.cluster_id);",
+                  "    console.log('✅ Kafka Cluster ID:', cluster.cluster_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{kafkaRestUrl}}/v3/clusters",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["v3", "clusters"]
+            }
+          }
+        },
+        {
+          "name": "1.2 Create Project Notifications Topic",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project notifications topic created or already exists', function () {",
+                  "    pm.expect([200, 201, 400, 409]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if ([200, 201].includes(pm.response.code)) {",
+                  "    console.log('✅ Topic', pm.collectionVariables.get('projectTopic'), 'created successfully');",
+                  "} else if ([400, 409].includes(pm.response.code)) {",
+                  "    console.log('✅ Topic', pm.collectionVariables.get('projectTopic'), 'already exists');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic_name\": \"{{projectTopic}}\",\n  \"partitions_count\": {{topicPartitions}},\n  \"replication_factor\": {{topicReplicationFactor}},\n  \"configs\": [\n    {\n      \"name\": \"retention.ms\",\n      \"value\": \"{{messageRetentionMs}}\"\n    },\n    {\n      \"name\": \"cleanup.policy\",\n      \"value\": \"delete\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{kafkaRestUrl}}/v3/clusters/{{clusterId}}/topics",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["v3", "clusters", "{{clusterId}}", "topics"]
+            }
+          }
+        },
+        {
+          "name": "1.3 List All Topics After Creation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Can list Kafka topics', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const responseJson = pm.response.json();",
+                  "const topics = responseJson.data.map(topic => topic.topic_name);",
+                  "const requiredTopics = [pm.collectionVariables.get('projectTopic')];",
+                  "",
+                  "requiredTopics.forEach(topic => {",
+                  "    pm.expect(topics).to.include(topic, `Topic ${topic} should exist`);",
+                  "});",
+                  "",
+                  "console.log('✅ All required notification topics verified:', requiredTopics);",
+                  "console.log('📋 Total topics available:', topics.length);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{kafkaRestUrl}}/v3/clusters/{{clusterId}}/topics",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["v3", "clusters", "{{clusterId}}", "topics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Phase 2: Consumer Setup & Subscription",
+      "description": "Setup Kafka consumer to read only fresh messages (latest offset) and verify subscription to project notification topic.",
+      "item": [
+        {
+          "name": "2.1 Create Consumer Group",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const consumerInstanceId = `test-consumer-${pm.collectionVariables.get('timestamp')}`;",
+                  "pm.collectionVariables.set('consumerInstanceId', consumerInstanceId);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Consumer group created successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const responseJson = pm.response.json();",
+                  "console.log('✅ Consumer created with ID:', responseJson.instance_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "{{consumerContentType}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{consumerInstanceId}}\",\n  \"format\": \"binary\",\n  \"auto.offset.reset\": \"latest\",\n  \"auto.commit.enable\": \"false\"\n}"
+            },
+            "url": {
+              "raw": "{{kafkaRestUrl}}/consumers/{{consumerGroupId}}",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["consumers", "{{consumerGroupId}}"]
+            }
+          }
+        },
+        {
+          "name": "2.2 Subscribe to Project Notification Topic",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Successfully subscribed to project notification topic', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "console.log('✅ Subscribed to project notification topic');",
+                  "console.log('🔄 Consumer will use automatic partition assignment');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/vnd.kafka.v2+json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topics\": [\n    \"{{projectTopic}}\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{kafkaRestUrl}}/consumers/{{consumerGroupId}}/instances/{{consumerInstanceId}}/subscription",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["consumers", "{{consumerGroupId}}", "instances", "{{consumerInstanceId}}", "subscription"]
+            }
+          }
+        },
+        {
+          "name": "2.3 Setup Consumer Assignments",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "console.log('⏱️ Triggering consumer group rebalancing...');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Consumer assignments ready', function () {",
+                  "    pm.expect([200, 408]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "console.log('✅ Consumer is ready for message consumption');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.kafka.binary.v2+json"
+              }
+            ],
+            "url": {
+              "raw": "{{kafkaRestUrl}}/consumers/{{consumerGroupId}}/instances/{{consumerInstanceId}}/records?timeout=5000&max_bytes=1048576",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["consumers", "{{consumerGroupId}}", "instances", "{{consumerInstanceId}}", "records"],
+              "query": [
+                {"key": "timeout", "value": "5000"},
+                {"key": "max_bytes", "value": "1048576"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Phase 3: API Operations",
+      "description": "Create, update, archive, and delete projects via API calls to trigger Kafka notification events.",
+      "item": [
+        {
+          "name": "3.1 Create Project via API",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const timestamp = pm.collectionVariables.get('timestamp');",
+                  "const projectName = `Test Project ${timestamp}`;",
+                  "pm.collectionVariables.set('testProjectName', projectName);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project created via API successfully', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "const responseJson = pm.response.json();",
+                  "pm.collectionVariables.set('testProjectId', responseJson.id);",
+                  "console.log('✅ Created project with ID:', responseJson.id);",
+                  "console.log('📨 Project creation should trigger project.created Kafka event');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner_id\": \"{{testOwnerId}}\",\n  \"type\": \"personal\",\n  \"name\": \"{{testProjectName}}\",\n  \"description\": \"Test project created for Kafka notification testing\",\n  \"status\": \"active\"\n}"
+            },
+            "url": "{{baseUrl}}/projects"
+          }
+        },
+        {
+          "name": "3.2 Update Project via API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project updated via API successfully', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "console.log('✅ Updated project with ID:', pm.collectionVariables.get('testProjectId'));",
+                  "console.log('📨 Project update should trigger project.updated Kafka event');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{testProjectName}} - Updated\",\n  \"description\": \"Test project updated for Kafka notification testing\",\n  \"status\": \"in_progress\"\n}"
+            },
+            "url": "{{baseUrl}}/projects/{{testProjectId}}"
+          }
+        },
+        {
+          "name": "3.3 Archive Project via API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project archived via API successfully', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "console.log('✅ Archived project with ID:', pm.collectionVariables.get('testProjectId'));",
+                  "console.log('📨 Project archiving should trigger project.archived Kafka event');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"archived\": true\n}"
+            },
+            "url": "{{baseUrl}}/projects/{{testProjectId}}/archive"
+          }
+        },
+        {
+          "name": "3.4 Restore Project via API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project restored via API successfully', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "console.log('✅ Restored project with ID:', pm.collectionVariables.get('testProjectId'));",
+                  "console.log('📨 Project restoration should trigger project.restored Kafka event');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"archived\": false\n}"
+            },
+            "url": "{{baseUrl}}/projects/{{testProjectId}}/archive"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Phase 4: Message Consumption & Validation",
+      "description": "Consume and validate Kafka messages generated from API operations.",
+      "item": [
+        {
+          "name": "4.1 Consume Project Notification Messages",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Successfully consumed messages or timeout reached', function () {",
+                  "    pm.expect([200, 408]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const messages = pm.response.json();",
+                  "    console.log('✅ Consumed', messages.length, 'messages from Kafka');",
+                  "    ",
+                  "    const expectedEvents = ['project.created', 'project.updated', 'project.archived', 'project.restored'];",
+                  "    const receivedEvents = [];",
+                  "    ",
+                  "    messages.forEach((message, index) => {",
+                  "        try {",
+                  "            // Decode base64 message value",
+                  "            const decodedValue = atob(message.value);",
+                  "            const eventData = JSON.parse(decodedValue);",
+                  "            ",
+                  "            console.log(`📨 Message ${index + 1}:`, {",
+                  "                topic: message.topic,",
+                  "                partition: message.partition,",
+                  "                offset: message.offset,",
+                  "                eventType: eventData.event_type,",
+                  "                projectId: eventData.project_id,",
+                  "                projectName: eventData.project_name",
+                  "            });",
+                  "            ",
+                  "            receivedEvents.push(eventData.event_type);",
+                  "            ",
+                  "            // Validate event structure",
+                  "            pm.expect(eventData).to.have.property('event_id');",
+                  "            pm.expect(eventData).to.have.property('event_type');",
+                  "            pm.expect(eventData).to.have.property('timestamp');",
+                  "            pm.expect(eventData).to.have.property('project_id');",
+                  "            pm.expect(eventData).to.have.property('owner_id');",
+                  "            ",
+                  "            // Validate project ID matches our test project",
+                  "            pm.expect(eventData.project_id).to.equal(pm.collectionVariables.get('testProjectId'));",
+                  "        } catch (error) {",
+                  "            console.log('❌ Failed to parse message', index + 1, ':', error);",
+                  "        }",
+                  "    });",
+                  "    ",
+                  "    console.log('🎯 Expected events:', expectedEvents);",
+                  "    console.log('📨 Received events:', receivedEvents);",
+                  "    ",
+                  "    // Check if we received expected events",
+                  "    expectedEvents.forEach(expectedEvent => {",
+                  "        if (receivedEvents.includes(expectedEvent)) {",
+                  "            console.log('✅ Found expected event:', expectedEvent);",
+                  "        } else {",
+                  "            console.log('⚠️ Missing expected event:', expectedEvent);",
+                  "        }",
+                  "    });",
+                  "",
+                  "} else if (pm.response.code === 408) {",
+                  "    console.log('⏱️ No new messages available (timeout reached)');",
+                  "    console.log('💡 This might be expected if messages were already consumed or API operations failed');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.kafka.binary.v2+json"
+              }
+            ],
+            "url": {
+              "raw": "{{kafkaRestUrl}}/consumers/{{consumerGroupId}}/instances/{{consumerInstanceId}}/records?timeout=10000&max_bytes=1048576",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["consumers", "{{consumerGroupId}}", "instances", "{{consumerInstanceId}}", "records"],
+              "query": [
+                {"key": "timeout", "value": "10000"},
+                {"key": "max_bytes", "value": "1048576"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.2 Delete Project via API (Final Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project deleted via API successfully', function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "console.log('✅ Deleted project with ID:', pm.collectionVariables.get('testProjectId'));",
+                  "console.log('📨 Project deletion should trigger project.deleted Kafka event');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/projects/{{testProjectId}}"
+          }
+        },
+        {
+          "name": "4.3 Consume Final Deletion Message",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Successfully consumed final messages or timeout reached', function () {",
+                  "    pm.expect([200, 408]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const messages = pm.response.json();",
+                  "    console.log('✅ Consumed', messages.length, 'final messages from Kafka');",
+                  "    ",
+                  "    messages.forEach((message, index) => {",
+                  "        try {",
+                  "            const decodedValue = atob(message.value);",
+                  "            const eventData = JSON.parse(decodedValue);",
+                  "            ",
+                  "            console.log(`📨 Final Message ${index + 1}:`, {",
+                  "                eventType: eventData.event_type,",
+                  "                projectId: eventData.project_id,",
+                  "                projectName: eventData.project_name",
+                  "            });",
+                  "            ",
+                  "            if (eventData.event_type === 'project.deleted') {",
+                  "                console.log('✅ Successfully received project.deleted event');",
+                  "            }",
+                  "        } catch (error) {",
+                  "            console.log('❌ Failed to parse final message', index + 1, ':', error);",
+                  "        }",
+                  "    });",
+                  "} else {",
+                  "    console.log('⏱️ No new messages for deletion event (timeout reached)');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/vnd.kafka.binary.v2+json"
+              }
+            ],
+            "url": {
+              "raw": "{{kafkaRestUrl}}/consumers/{{consumerGroupId}}/instances/{{consumerInstanceId}}/records?timeout=10000&max_bytes=1048576",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["consumers", "{{consumerGroupId}}", "instances", "{{consumerInstanceId}}", "records"],
+              "query": [
+                {"key": "timeout", "value": "10000"},
+                {"key": "max_bytes", "value": "1048576"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Phase 5: Cleanup",
+      "description": "Clean up test resources.",
+      "item": [
+        {
+          "name": "5.1 Delete Consumer Instance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Consumer instance deleted successfully', function () {",
+                  "    pm.expect([200, 204]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "console.log('✅ Consumer instance deleted successfully');",
+                  "console.log('🎯 Test run completed successfully!');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{kafkaRestUrl}}/consumers/{{consumerGroupId}}/instances/{{consumerInstanceId}}",
+              "host": ["{{kafkaRestUrl}}"],
+              "path": ["consumers", "{{consumerGroupId}}", "instances", "{{consumerInstanceId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

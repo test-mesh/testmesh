@@ -1,0 +1,1071 @@
+{
+	"info": {
+		"_postman_id": "4a5b6c7d-8e9f-4a5b-6c7d-8e9f4a5b6c7d",
+		"name": "Outlier Requirements API",
+		"description": "API tests for the Outlier Requirements project management system",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12345678"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has correct structure', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('status');",
+							"    pm.expect(jsonData).to.have.property('time');",
+							"    pm.expect(jsonData).to.have.property('config');",
+							"    pm.expect(jsonData.status).to.eql('healthy');",
+							"});",
+							"",
+							"pm.test('Response time is less than 500ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(500);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/health",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"health"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 201', function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test('Response has correct structure', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('id');",
+							"    pm.expect(jsonData).to.have.property('owner_id');",
+							"    pm.expect(jsonData).to.have.property('type');",
+							"    pm.expect(jsonData).to.have.property('name');",
+							"    pm.expect(jsonData).to.have.property('status');",
+							"    pm.expect(jsonData).to.have.property('archived');",
+							"    pm.expect(jsonData).to.have.property('created_date');",
+							"    pm.expect(jsonData).to.have.property('updated_date');",
+							"});",
+							"",
+							"pm.test('Project data matches request', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData.name).to.eql('Test Project');",
+							"    pm.expect(jsonData.type).to.eql('organization');",
+							"    pm.expect(jsonData.status).to.eql('active');",
+							"    pm.expect(jsonData.archived).to.eql(false);",
+							"});",
+							"",
+							"pm.test('ID is valid UUID', function () {",
+							"    const jsonData = pm.response.json();",
+							"    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;",
+							"    pm.expect(jsonData.id).to.match(uuidRegex);",
+							"    ",
+							"    // Store project ID for subsequent tests",
+							"    pm.environment.set('projectId', jsonData.id);",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"owner_id\": \"550e8400-e29b-41d4-a716-446655440001\",\n    \"type\": \"organization\",\n    \"name\": \"Test Project\",\n    \"description\": \"A test project for API validation\",\n    \"status\": \"active\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Project - Invalid Data",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 400', function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test('Response has error message', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('error');",
+							"});",
+							"",
+							"pm.test('Response time is less than 500ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(500);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"owner_id\": \"invalid-uuid\",\n    \"type\": \"invalid-type\",\n    \"name\": \"\",\n    \"status\": \"invalid-status\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has correct structure', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('id');",
+							"    pm.expect(jsonData).to.have.property('owner_id');",
+							"    pm.expect(jsonData).to.have.property('type');",
+							"    pm.expect(jsonData).to.have.property('name');",
+							"    pm.expect(jsonData).to.have.property('status');",
+							"    pm.expect(jsonData).to.have.property('archived');",
+							"});",
+							"",
+							"pm.test('Project ID matches created project', function () {",
+							"    const jsonData = pm.response.json();",
+							"    const createdProjectId = pm.environment.get('projectId');",
+							"    pm.expect(jsonData.id).to.eql(createdProjectId);",
+							"});",
+							"",
+							"pm.test('Response time is less than 500ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(500);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{projectId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{projectId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Project - Not Found",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 404', function () {",
+							"    pm.response.to.have.status(404);",
+							"});",
+							"",
+							"pm.test('Response has error message', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('error');",
+							"});",
+							"",
+							"pm.test('Response time is less than 500ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(500);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/550e8400-e29b-41d4-a716-446655440999",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"550e8400-e29b-41d4-a716-446655440999"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List Projects",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has correct structure', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('projects');",
+							"    pm.expect(jsonData).to.have.property('pagination');",
+							"    pm.expect(jsonData.projects).to.be.an('array');",
+							"});",
+							"",
+							"pm.test('Pagination structure is correct', function () {",
+							"    const jsonData = pm.response.json();",
+							"    const pagination = jsonData.pagination;",
+							"    pm.expect(pagination).to.have.property('page');",
+							"    pm.expect(pagination).to.have.property('page_size');",
+							"    pm.expect(pagination).to.have.property('total_items');",
+							"    pm.expect(pagination).to.have.property('total_pages');",
+							"});",
+							"",
+							"pm.test('At least one project exists', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData.projects.length).to.be.at.least(1);",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects?page=1&page_size=20",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects"
+					],
+					"query": [
+						{
+							"key": "page",
+							"value": "1"
+						},
+						{
+							"key": "page_size",
+							"value": "20"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List Projects - With Filters",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has correct structure', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('projects');",
+							"    pm.expect(jsonData).to.have.property('pagination');",
+							"});",
+							"",
+							"pm.test('Filtered results match criteria', function () {",
+							"    const jsonData = pm.response.json();",
+							"    if (jsonData.projects.length > 0) {",
+							"        jsonData.projects.forEach(function(project) {",
+							"            pm.expect(project.type).to.eql('organization');",
+							"            pm.expect(project.status).to.eql('active');",
+							"            pm.expect(project.archived).to.eql(false);",
+							"        });",
+							"    }",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects?type=organization&status=active&archived=false&page=1&page_size=10",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects"
+					],
+					"query": [
+						{
+							"key": "type",
+							"value": "organization"
+						},
+						{
+							"key": "status",
+							"value": "active"
+						},
+						{
+							"key": "archived",
+							"value": "false"
+						},
+						{
+							"key": "page",
+							"value": "1"
+						},
+						{
+							"key": "page_size",
+							"value": "10"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has updated data', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData.name).to.eql('Updated Test Project');",
+							"    pm.expect(jsonData.status).to.eql('in_progress');",
+							"});",
+							"",
+							"pm.test('Updated date is more recent than created date', function () {",
+							"    const jsonData = pm.response.json();",
+							"    const createdDate = new Date(jsonData.created_date);",
+							"    const updatedDate = new Date(jsonData.updated_date);",
+							"    pm.expect(updatedDate.getTime()).to.be.above(createdDate.getTime());",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"name\": \"Updated Test Project\",\n    \"description\": \"An updated test project description\",\n    \"status\": \"in_progress\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{projectId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{projectId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Transfer Project - Success",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 200', function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test('Response has correct structure', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('id');",
+							"    pm.expect(jsonData).to.have.property('owner_id');",
+							"    pm.expect(jsonData).to.have.property('type');",
+							"    pm.expect(jsonData).to.have.property('name');",
+							"    pm.expect(jsonData).to.have.property('status');",
+							"});",
+							"",
+							"pm.test('Owner ID was transferred correctly', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData.owner_id).to.eql('550e8400-e29b-41d4-a716-446655440002');",
+							"    pm.expect(jsonData.type).to.eql('organization');",
+							"});",
+							"",
+							"pm.test('Updated date is more recent than created date', function () {",
+							"    const jsonData = pm.response.json();",
+							"    const createdDate = new Date(jsonData.created_date);",
+							"    const updatedDate = new Date(jsonData.updated_date);",
+							"    pm.expect(updatedDate.getTime()).to.be.above(createdDate.getTime());",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"new_owner_id\": \"550e8400-e29b-41d4-a716-446655440002\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{projectId}}/transfer",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{projectId}}",
+						"transfer"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Personal Project for Transfer Test",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 201', function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test('Response has correct structure', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('id');",
+							"    pm.expect(jsonData.type).to.eql('personal');",
+							"    ",
+							"    // Store personal project ID for transfer test",
+							"    pm.environment.set('personalProjectId', jsonData.id);",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"owner_id\": \"550e8400-e29b-41d4-a716-446655440003\",\n    \"type\": \"personal\",\n    \"name\": \"Personal Project for Transfer Test\",\n    \"description\": \"A personal project to test transfer validation\",\n    \"status\": \"active\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Transfer Project - Personal Project (Should Fail)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 400', function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test('Response has correct error message', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('error');",
+							"    pm.expect(jsonData.error).to.include('Cannot transfer personal project');",
+							"});",
+							"",
+							"pm.test('Response time is less than 500ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(500);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"new_owner_id\": \"550e8400-e29b-41d4-a716-446655440004\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{personalProjectId}}/transfer",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{personalProjectId}}",
+						"transfer"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Transfer Project - Invalid Data",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 400', function () {",
+							"    pm.response.to.have.status(400);",
+							"});",
+							"",
+							"pm.test('Response has error message', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('error');",
+							"});",
+							"",
+							"pm.test('Response time is less than 500ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(500);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"new_owner_id\": \"invalid-uuid\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{projectId}}/transfer",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{projectId}}",
+						"transfer"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Create Project with Custom Status",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 201', function () {",
+							"    pm.response.to.have.status(201);",
+							"});",
+							"",
+							"pm.test('Response has correct structure', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('id');",
+							"    pm.expect(jsonData).to.have.property('status');",
+							"});",
+							"",
+							"pm.test('Project created with custom status', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql('in_progress');",
+							"    pm.expect(jsonData.name).to.eql('Custom Status Project');",
+							"    pm.expect(jsonData.type).to.eql('organization');",
+							"    ",
+							"    // Store custom project ID for cleanup",
+							"    pm.environment.set('customProjectId', jsonData.id);",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"owner_id\": \"550e8400-e29b-41d4-a716-446655440005\",\n    \"type\": \"organization\",\n    \"name\": \"Custom Status Project\",\n    \"description\": \"A project created with custom status\",\n    \"status\": \"in_progress\"\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Archive Project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 204', function () {",
+							"    pm.response.to.have.status(204);",
+							"});",
+							"",
+							"pm.test('Response body is empty (No Content)', function () {",
+							"    pm.expect(pm.response.text()).to.be.empty;",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"archived\": true\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{projectId}}/archive",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{projectId}}",
+						"archive"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Unarchive Project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 204', function () {",
+							"    pm.response.to.have.status(204);",
+							"});",
+							"",
+							"pm.test('Response body is empty (No Content)', function () {",
+							"    pm.expect(pm.response.text()).to.be.empty;",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "PATCH",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"archived\": false\n}"
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{projectId}}/archive",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{projectId}}",
+						"archive"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 204', function () {",
+							"    pm.response.to.have.status(204);",
+							"});",
+							"",
+							"pm.test('Response body is empty', function () {",
+							"    pm.expect(pm.response.text()).to.be.empty;",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{projectId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{projectId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Verify Project Deleted",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 404', function () {",
+							"    pm.response.to.have.status(404);",
+							"});",
+							"",
+							"pm.test('Response has error message', function () {",
+							"    const jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('error');",
+							"});",
+							"",
+							"pm.test('Response time is less than 500ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(500);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{projectId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{projectId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Personal Project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 204', function () {",
+							"    pm.response.to.have.status(204);",
+							"});",
+							"",
+							"pm.test('Response body is empty', function () {",
+							"    pm.expect(pm.response.text()).to.be.empty;",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{personalProjectId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{personalProjectId}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Custom Status Project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test('Status code is 204', function () {",
+							"    pm.response.to.have.status(204);",
+							"});",
+							"",
+							"pm.test('Response body is empty', function () {",
+							"    pm.expect(pm.response.text()).to.be.empty;",
+							"});",
+							"",
+							"pm.test('Response time is less than 1000ms', function () {",
+							"    pm.expect(pm.response.responseTime).to.be.below(1000);",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/projects/{{customProjectId}}",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"projects",
+						"{{customProjectId}}"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set up dynamic project ID if not already set",
+					"if (!pm.environment.has('projectId')) {",
+					"    pm.environment.set('projectId', '550e8400-e29b-41d4-a716-446655440000');",
+					"}"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Global test that runs after each request",
+					"pm.test('Content-Type is application/json for JSON responses', function () {",
+					"    if (pm.response.headers.get('Content-Type')) {",
+					"        const contentType = pm.response.headers.get('Content-Type');",
+					"        if (pm.response.code !== 204) { // Skip for No Content responses",
+					"            pm.expect(contentType).to.include('application/json');",
+					"        }",
+					"    }",
+					"});",
+					"",
+					"pm.test('Response has CORS headers', function () {",
+					"    pm.response.to.have.header('Access-Control-Allow-Origin');",
+					"});"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8083",
+			"type": "string"
+		}
+	]
+}

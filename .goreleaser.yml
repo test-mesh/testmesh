@@ -46,7 +46,7 @@ homebrew_casks:
   - name: testmesh
     repository:
       owner: test-mesh
-      name: brew
+      name: homebrew-brew
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://testmesh.io"
     description: "E2E integration testing platform — YAML flows over HTTP, DB, Kafka, gRPC and more"
