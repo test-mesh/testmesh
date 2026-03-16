@@ -11,6 +11,7 @@ var (
 	cfgFile string
 	apiURL  string
 	verbose bool
+	version = "dev"
 )
 
 // rootCmd represents the base command
@@ -22,7 +23,7 @@ write tests in YAML and execute them across multiple protocols including
 HTTP, Database, Kafka, gRPC, WebSocket, and Browser.
 
 Run tests locally or connect to a TestMesh server for centralized test management.`,
-	Version: "1.0.0",
+	Version: version,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

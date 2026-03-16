@@ -4,6 +4,57 @@
 
 TestMesh makes it easy to write, manage, and execute integration tests across multiple protocols. Define tests in YAML, run them locally or in CI/CD, and get detailed execution results.
 
+## Installation
+
+**curl (Linux/macOS)**
+```sh
+curl -fsSL https://testmesh.io/install.sh | sh
+```
+
+**Homebrew (macOS/Linux)**
+```sh
+brew install test-mesh/tap/testmesh
+```
+
+**npm / npx**
+```sh
+npx -y testmesh --version
+# or install globally
+npm install -g testmesh
+```
+
+**go install**
+```sh
+go install github.com/test-mesh/testmesh/cli@latest
+```
+
+### MCP Server (for AI assistants)
+
+Add to your `.mcp.json` or Claude/Cursor config:
+
+```json
+{
+  "mcpServers": {
+    "testmesh": {
+      "command": "testmesh",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Or with npx (zero install):
+```json
+{
+  "mcpServers": {
+    "testmesh": {
+      "command": "npx",
+      "args": ["-y", "testmesh", "mcp"]
+    }
+  }
+}
+```
+
 ## Repository Structure
 
 This is a monorepo containing all TestMesh components:

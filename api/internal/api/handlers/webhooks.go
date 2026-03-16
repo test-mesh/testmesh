@@ -393,6 +393,150 @@ func (h *WebhookHandler) HandleGitea(c *gin.Context) {
 	})
 }
 
+// GitLab webhook event structures
+type GitLabPushEvent struct {
+	Ref    string `json:"ref"`
+	Before string `json:"before"`
+	After  string `json:"after"`
+	Project struct {
+		PathWithNamespace string `json:"path_with_namespace"`
+	} `json:"project"`
+	Commits []struct {
+		ID string `json:"id"`
+	} `json:"commits"`
+}
+
+type GitLabMergeRequestEvent struct {
+	ObjectAttributes struct {
+		SourceBranch string `json:"source_branch"`
+		LastCommit   struct {
+			ID string `json:"id"`
+		} `json:"last_commit"`
+	} `json:"object_attributes"`
+	Project struct {
+		PathWithNamespace string `json:"path_with_namespace"`
+	} `json:"project"`
+}
+
+// HandleGitLab handles POST /api/v1/webhooks/gitlab
+func (h *WebhookHandler) HandleGitLab(c *gin.Context) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		h.logger.Error("Failed to read GitLab webhook body", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to read request body"})
+		return
+	}
+
+	eventType := c.GetHeader("X-Gitlab-Event")
+	if eventType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing X-Gitlab-Event header"})
+		return
+	}
+
+	token := c.GetHeader("X-Gitlab-Token")
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Missing X-Gitlab-Token header"})
+		return
+	}
+
+	// Load GitLab integration
+	integration, err := h.integrationRepo.GetByTypeAndProviderWithSecrets(
+		models.IntegrationTypeGit,
+		models.IntegrationProviderGitLab,
+	)
+	if err != nil {
+		h.logger.Error("GitLab integration not found", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "GitLab integration not configured"})
+		return
+	}
+
+	// Verify token via constant-time comparison
+	webhookSecret := integration.Secrets["webhook_secret"]
+	if !hmac.Equal([]byte(token), []byte(webhookSecret)) {
+		h.logger.Warn("Invalid GitLab webhook token")
+		h.logDelivery(integration.ID, nil, eventType, "", "", "", body, token, models.WebhookDeliveryStatusRejected, "Invalid token", nil)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+		return
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON payload"})
+		return
+	}
+
+	var repo, branch, commitSHA, beforeSHA string
+
+	switch eventType {
+	case "Push Hook":
+		var pushEvent GitLabPushEvent
+		if err := json.Unmarshal(body, &pushEvent); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid push event format"})
+			return
+		}
+		repo = pushEvent.Project.PathWithNamespace
+		branch = extractBranchFromRef(pushEvent.Ref)
+		commitSHA = pushEvent.After
+		beforeSHA = pushEvent.Before
+
+	case "Merge Request Hook":
+		var mrEvent GitLabMergeRequestEvent
+		if err := json.Unmarshal(body, &mrEvent); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid merge request event format"})
+			return
+		}
+		repo = mrEvent.Project.PathWithNamespace
+		branch = mrEvent.ObjectAttributes.SourceBranch
+		commitSHA = mrEvent.ObjectAttributes.LastCommit.ID
+		// Use "pull_request" as the canonical event type for rule matching
+		eventType = "pull_request"
+
+	default:
+		h.logger.Info("Ignoring unsupported GitLab event type", zap.String("event_type", eventType))
+		c.JSON(http.StatusOK, gin.H{"message": "Event type not supported"})
+		return
+	}
+
+	// Find matching trigger rules
+	rules, err := h.ruleRepo.FindMatchingRules(repo, branch, eventType)
+	if err != nil {
+		h.logger.Error("Failed to find matching rules", zap.Error(err))
+		h.logDelivery(integration.ID, nil, eventType, repo, branch, commitSHA, body, token, models.WebhookDeliveryStatusFailed, err.Error(), nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process webhook"})
+		return
+	}
+
+	var triggeredRuns []uuid.UUID
+	for _, rule := range rules {
+		runID, err := h.triggerRule(rule, commitSHA, payload)
+		if err != nil {
+			h.logger.Error("Failed to trigger rule", zap.String("rule_id", rule.ID.String()), zap.Error(err))
+			continue
+		}
+		if runID != uuid.Nil {
+			triggeredRuns = append(triggeredRuns, runID)
+		}
+	}
+
+	h.logDelivery(integration.ID, nil, eventType, repo, branch, commitSHA, body, token, models.WebhookDeliveryStatusSuccess, "", triggeredRuns)
+
+	// Async diff analysis for push events
+	if eventType == "push" && beforeSHA != "" && beforeSHA != "0000000000000000000000000000000000000000" {
+		go h.runDiffAnalysis(context.Background(), integration, repo, beforeSHA, commitSHA)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":           "GitLab webhook processed successfully",
+		"repository":        repo,
+		"branch":            branch,
+		"commit_sha":        commitSHA,
+		"event_type":        eventType,
+		"matched_rules":     len(rules),
+		"triggered_runs":    len(triggeredRuns),
+		"triggered_run_ids": triggeredRuns,
+	})
+}
+
 // runDiffAnalysis runs asynchronously after a push webhook to generate code_sync suggestions
 func (h *WebhookHandler) runDiffAnalysis(ctx context.Context, integration *models.SystemIntegration, repo, beforeSHA, afterSHA string) {
 	if h.diffAnalyzer == nil {

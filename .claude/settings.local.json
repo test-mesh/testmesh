@@ -115,7 +115,9 @@
       "Bash(/Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp:*)",
       "Bash(printf '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"}}}\\\\n' | /Users/ggeorgiev/Dev/testmesh/cli/testmesh mcp 2>/dev/null | head -1)",
       "Bash(/Users/ggeorgiev/Dev/testmesh/cli/testmesh plugin:*)",
-      "Bash(/Users/ggeorgiev/Dev/testmesh/cli/testmesh run:*)"
+      "Bash(/Users/ggeorgiev/Dev/testmesh/cli/testmesh run:*)",
+      "Bash(cd /Users/ggeorgiev/Dev/testmesh/dashboard && npm run lint 2>&1 | tail -20)",
+      "Bash(npm run:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

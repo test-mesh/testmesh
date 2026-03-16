@@ -9,6 +9,7 @@ import { Plug, Bot, GitBranch, Bell, History } from 'lucide-react';
 import { AIProviderSection } from '@/components/integrations/AIProviderSection';
 import { GitIntegrationSection } from '@/components/integrations/GitIntegrationSection';
 import { GiteaIntegrationSection } from '@/components/integrations/GiteaIntegrationSection';
+import { GitLabIntegrationSection } from '@/components/integrations/GitLabIntegrationSection';
 import { SlackIntegrationSection } from '@/components/integrations/SlackIntegrationSection';
 import { useAIUsage } from '@/lib/hooks/useAI';
 
@@ -29,7 +30,7 @@ export default function IntegrationsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-4">
+        <TabsList className="grid w-full max-w-2xl grid-cols-5">
           <TabsTrigger value="ai-providers" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             AI Providers
@@ -41,6 +42,10 @@ export default function IntegrationsPage() {
           <TabsTrigger value="gitea-integration" className="flex items-center gap-2">
             <GitBranch className="h-4 w-4" />
             Gitea
+          </TabsTrigger>
+          <TabsTrigger value="gitlab-integration" className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4" />
+            GitLab
           </TabsTrigger>
           <TabsTrigger value="slack" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
@@ -133,6 +138,20 @@ export default function IntegrationsPage() {
             </CardHeader>
             <CardContent>
               <GiteaIntegrationSection />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="gitlab-integration" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>GitLab Integration</CardTitle>
+              <CardDescription>
+                Set up webhooks for GitLab.com or self-hosted GitLab instances to trigger tests automatically.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <GitLabIntegrationSection />
             </CardContent>
           </Card>
         </TabsContent>

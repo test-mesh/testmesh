@@ -588,6 +588,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 		// Public webhook endpoints (no auth - signature verified)
 		v1.POST("/webhooks/github", webhookHandler.HandleGitHub)
 		v1.POST("/webhooks/gitea", webhookHandler.HandleGitea)
+		v1.POST("/webhooks/gitlab", webhookHandler.HandleGitLab)
 
 	}
 

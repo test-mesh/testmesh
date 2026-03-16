@@ -1,0 +1,21 @@
+{
+  "name": "testmesh",
+  "version": "0.1.0",
+  "description": "E2E integration testing platform — YAML flows over HTTP, DB, Kafka, gRPC and more",
+  "homepage": "https://testmesh.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/test-mesh/testmesh"
+  },
+  "license": "MIT",
+  "bin": {
+    "testmesh": "./bin/testmesh"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "keywords": ["testing", "e2e", "integration", "mcp", "yaml"],
+  "engines": {
+    "node": ">=16"
+  }
+}

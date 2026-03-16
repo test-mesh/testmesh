@@ -1,0 +1,55 @@
+version: 2
+project_name: testmesh
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: testmesh
+    dir: cli
+    binary: testmesh
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/test-mesh/testmesh/cli/cmd.version={{.Version}}
+
+archives:
+  - name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- if eq .Os "darwin" }}macOS{{- else }}{{ .Os }}{{ end }}_
+      {{- .Arch }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files: [LICENSE, README.md]
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+release:
+  name_template: "v{{.Version}}"
+  prerelease: auto
+  header: |
+    Install: `curl -fsSL https://testmesh.io/install.sh | sh`
+
+brews:
+  - name: testmesh
+    tap:
+      owner: test-mesh
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://testmesh.io"
+    description: "E2E integration testing platform — YAML flows over HTTP, DB, Kafka, gRPC and more"
+    install: |
+      bin.install "testmesh"
+    test: |
+      system "#{bin}/testmesh", "--version"

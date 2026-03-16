@@ -28,6 +28,7 @@ const (
 	// Git Providers
 	IntegrationProviderGitHub IntegrationProvider = "github"
 	IntegrationProviderGitea  IntegrationProvider = "gitea"
+	IntegrationProviderGitLab IntegrationProvider = "gitlab"
 
 	// Notification Providers
 	IntegrationProviderSlack IntegrationProvider = "slack"

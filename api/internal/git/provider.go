@@ -36,6 +36,8 @@ func NewProvider(integration *models.SystemIntegration) (GitProvider, error) {
 		return NewGitHubProvider(integration), nil
 	case models.IntegrationProviderGitea:
 		return NewGiteaProvider(integration), nil
+	case models.IntegrationProviderGitLab:
+		return NewGitLabProvider(integration), nil
 	default:
 		return nil, fmt.Errorf("unsupported git provider: %s", integration.Provider)
 	}

@@ -17,7 +17,7 @@ export interface SystemIntegration {
 }
 
 export type IntegrationType = 'ai_provider' | 'git' | 'notification';
-export type IntegrationProvider = 'openai' | 'anthropic' | 'local' | 'github' | 'gitea' | 'slack';
+export type IntegrationProvider = 'openai' | 'anthropic' | 'local' | 'github' | 'gitea' | 'gitlab' | 'slack';
 export type IntegrationStatus = 'active' | 'disabled' | 'error';
 
 export interface IntegrationConfig {
