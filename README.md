@@ -18,9 +18,9 @@ brew install test-mesh/tap/testmesh
 
 **npm / npx**
 ```sh
-npx -y testmesh --version
+npx -y @testmesh/cli --version
 # or install globally
-npm install -g testmesh
+npm install -g @testmesh/cli
 ```
 
 **go install**
@@ -49,7 +49,7 @@ Or with npx (zero install):
   "mcpServers": {
     "testmesh": {
       "command": "npx",
-      "args": ["-y", "testmesh", "mcp"]
+      "args": ["-y", "@testmesh/cli", "mcp"]
     }
   }
 }
