@@ -119,7 +119,9 @@
       "Bash(cd /Users/ggeorgiev/Dev/testmesh/dashboard && npm run lint 2>&1 | tail -20)",
       "Bash(npm run:*)",
       "Bash(chmod +x /Users/ggeorgiev/Dev/testmesh/npm/bin/testmesh)",
-      "WebFetch(domain:registry.npmjs.org)"
+      "WebFetch(domain:registry.npmjs.org)",
+      "Bash(security find-identity:*)",
+      "Bash(testmesh --version)"
     ]
   },
   "enableAllProjectMcpServers": true,

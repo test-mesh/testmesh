@@ -13,8 +13,14 @@ curl -fsSL https://testmesh.io/install.sh | sh
 
 **Homebrew (macOS/Linux)**
 ```sh
-brew install test-mesh/tap/testmesh
+brew tap test-mesh/brew
+brew install test-mesh/brew/testmesh
 ```
+
+> **macOS note:** If Gatekeeper blocks the binary, run:
+> ```sh
+> xattr -d com.apple.quarantine $(which testmesh)
+> ```
 
 **npm / npx**
 ```sh
