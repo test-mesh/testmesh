@@ -1,6 +1,6 @@
 {
   "name": "testmesh",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "description": "E2E integration testing platform — YAML flows over HTTP, DB, Kafka, gRPC and more",
   "homepage": "https://testmesh.io",
   "repository": {

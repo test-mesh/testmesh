@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+"use strict";
+// This stub is replaced by the real binary during postinstall.
+// If you see this message, run: node postinstall.js
+const { execFileSync } = require("child_process");
+const path = require("path");
+try {
+  execFileSync(path.join(__dirname, "testmesh"), process.argv.slice(2), { stdio: "inherit" });
+} catch (e) {
+  process.exit(e.status ?? 1);
+}
