@@ -3,7 +3,8 @@ project_name: testmesh
 
 before:
   hooks:
-    - go mod tidy
+    - cmd: go mod tidy
+      dir: cli
 
 builds:
   - id: testmesh
@@ -26,9 +27,10 @@ archives:
       {{ .ProjectName }}_{{ .Version }}_
       {{- if eq .Os "darwin" }}macOS{{- else }}{{ .Os }}{{ end }}_
       {{- .Arch }}
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files: [LICENSE, README.md]
 
 checksum:
@@ -41,7 +43,7 @@ release:
   header: |
     Install: `curl -fsSL https://testmesh.io/install.sh | sh`
 
-brews:
+homebrew_casks:
   - name: testmesh
     repository:
       owner: test-mesh
@@ -49,7 +51,3 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://testmesh.io"
     description: "E2E integration testing platform — YAML flows over HTTP, DB, Kafka, gRPC and more"
-    install: |
-      bin.install "testmesh"
-    test: |
-      system "#{bin}/testmesh", "--version"
