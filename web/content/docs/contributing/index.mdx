@@ -1,0 +1,87 @@
+---
+title: Contributing to TestMesh
+description: How to contribute to the TestMesh project.
+---
+
+TestMesh is open source under the Apache 2.0 license. Contributions are welcome — bug reports, feature requests, documentation improvements, and code changes.
+
+<Cards>
+  <Card title="Development Setup" href="/docs/contributing/development-setup" description="Get your local environment running." />
+  <Card title="Coding Standards" href="/docs/contributing/coding-standards" description="Code style and conventions we follow." />
+</Cards>
+
+---
+
+## Types of Contributions
+
+### Bug Reports
+
+If you find a bug, open a GitHub issue with:
+- What you expected to happen
+- What actually happened
+- The flow YAML or code that reproduces it
+- Your Go version, OS, and TestMesh version
+
+### Feature Requests
+
+Open a GitHub Discussion before starting work on a significant feature. This saves everyone time — we can discuss the approach before you write code.
+
+For small improvements (better error messages, missing assertions, documentation fixes), just open a PR.
+
+### Documentation
+
+Documentation lives in `/web/content/docs/`. Each page is an MDX file. See the existing pages for the structure and component conventions (Callout, Cards, Tabs, Steps).
+
+### Code Contributions
+
+1. Fork the repository
+2. Create a branch from `main` (`feat/my-feature` or `fix/my-bug`)
+3. Make your changes following the [Coding Standards](/docs/contributing/coding-standards)
+4. Write tests for new behavior
+5. Open a PR against `main`
+
+---
+
+## PR Process
+
+A PR is ready for review when:
+
+- Tests pass (`go test ./...` in `api/` and `cli/`)
+- New functionality has test coverage
+- The PR description explains what changed and why
+- No TODOs are left in the code (finish the work or open a follow-up issue)
+
+We aim to review PRs within a few days. For large changes, we may ask you to split them into smaller PRs.
+
+---
+
+## Repository Structure
+
+```
+testmesh/
+├── api/              # Go backend (modular monolith)
+│   ├── main.go
+│   └── internal/
+│       ├── api/      # HTTP handlers, WebSocket, middleware
+│       ├── runner/   # Flow execution engine
+│       ├── scheduler/# Cron scheduling + Redis Streams
+│       ├── storage/  # Database models and repositories
+│       └── shared/   # Config, database, logging
+├── cli/              # CLI tool (standalone Go module)
+├── dashboard/        # Next.js dashboard
+├── web/              # Documentation site (Fumadocs)
+├── demo-services/    # Demo microservices
+└── examples/         # Example flow YAML files
+```
+
+Read `CLAUDE.md` at the repository root for detailed conventions used in this codebase.
+
+---
+
+## Community
+
+- **GitHub Issues**: Bug reports and feature requests
+- **GitHub Discussions**: Questions, ideas, and architectural discussions
+- **Pull Requests**: Code and documentation contributions
+
+We follow a standard code of conduct: be respectful, assume good faith, and focus on the work.

@@ -1,0 +1,108 @@
+---
+title: CLI Reference
+description: The TestMesh CLI executes flows locally without needing the API server running.
+---
+
+The TestMesh CLI is a standalone tool that parses and executes flow YAML files directly against your services. It does not require the TestMesh API server or dashboard to be running.
+
+## Installation
+
+<Tabs items={["go install", "Build from Source", "go run (dev)"]}>
+  <Tab value="go install">
+    ```bash
+    go install github.com/test-mesh/testmesh/cli@latest
+    testmesh --help
+    ```
+  </Tab>
+  <Tab value="Build from Source">
+    ```bash
+    cd cli
+    go build -o testmesh main.go
+    ./testmesh --help
+    ```
+  </Tab>
+  <Tab value="go run (dev)">
+    ```bash
+    cd cli
+    go run main.go --help
+    go run main.go run ../examples/microservices/e2e-order-flow.yaml
+    ```
+  </Tab>
+</Tabs>
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| [`run`](/docs/cli/run) | Execute a flow file and display results |
+| [`validate`](/docs/cli/validate) | Check YAML syntax without executing |
+| [`debug`](/docs/cli/debug) | Execute step-by-step with interactive inspection |
+| [`watch`](/docs/cli/watch) | Auto-re-run a flow when the file changes |
+| [`generate`](/docs/cli/generate) | AI-powered flow generation from specs or descriptions |
+| [`chat`](/docs/cli/chat) | Conversational test creation with AI |
+| [`mock`](/docs/cli/mock) | Start a local mock HTTP server |
+| [`init`](/docs/cli/other-commands) | Initialize a new TestMesh project |
+| [`login`](/docs/cli/other-commands) | Authenticate with a TestMesh server |
+| [`report`](/docs/cli/other-commands) | View execution reports |
+| [`import`](/docs/cli/other-commands) | Import from Postman collections or OpenAPI specs |
+| [`export`](/docs/cli/other-commands) | Export flows to other formats |
+| [`config`](/docs/cli/other-commands) | Manage CLI configuration |
+| [`schedule`](/docs/cli/other-commands) | Manage scheduled flows |
+| [`mcp`](/docs/cli/other-commands) | Start the MCP server for AI integration |
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | API key for AI-powered commands (`generate`, `chat`) |
+| `OPENAI_API_KEY` | Alternative API key for OpenAI models |
+| `DATABASE_URL` | Default PostgreSQL connection string for `database_query` steps |
+| `REDIS_URL` | Default Redis connection string for `redis_get`/`redis_set` steps |
+
+## Common Patterns
+
+### Run Against a Specific Environment
+
+Override the base URL or any variable inline:
+
+```bash
+BASE_URL=https://staging.example.com testmesh run ./flow.yaml
+```
+
+### Run All Flows in a Directory
+
+```bash
+for f in ./flows/*.yaml; do testmesh run "$f"; done
+```
+
+### CI/CD Integration
+
+The CLI exits with a non-zero code on failure, making it straightforward to use in pipelines:
+
+```bash
+testmesh run ./flows/smoke-tests.yaml || exit 1
+```
+
+Or with explicit exit code checking:
+
+```bash
+testmesh run ./flows/e2e.yaml
+echo "Exit code: $?"
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | All assertions passed |
+| `1` | One or more assertions failed |
+| `2` | Invalid flow YAML or configuration error |
+
+## What's Next
+
+<Cards>
+  <Card title="testmesh run" href="/docs/cli/run" description="Execute flows and understand the output." />
+  <Card title="testmesh generate" href="/docs/cli/generate" description="AI-powered flow generation from specs." />
+  <Card title="testmesh debug" href="/docs/cli/debug" description="Step-by-step interactive debugging." />
+  <Card title="YAML Reference" href="/docs/yaml-reference" description="The full flow schema and all action types." />
+</Cards>

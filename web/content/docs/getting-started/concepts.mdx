@@ -1,0 +1,217 @@
+---
+title: Core Concepts
+description: Understand flows, steps, actions, assertions, and the variable system.
+---
+
+TestMesh is built around a small set of composable primitives. Understanding them fully lets you write tests for almost any system.
+
+## Flows
+
+A **flow** is a YAML file that describes a complete test scenario. Every flow file must have a `flow:` key at the root:
+
+```yaml title="minimal-flow.yaml"
+flow:
+  name: "My Flow"           # Required. Human-readable name.
+  description: "Optional"  # Optional. Shows in the dashboard.
+  steps:
+    - id: step_one
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5001/health"
+```
+
+<Callout type="warn">
+  The `flow:` wrapper at the root is required. Files that start directly with `name:` or `steps:` will be rejected by the CLI and API.
+</Callout>
+
+Flows can also include optional `setup` and `teardown` step arrays (see [Setup and Teardown](#setup-and-teardown)).
+
+## Steps
+
+Each entry in the `steps` array is a **step**. A step has four fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `id` | Yes | Unique identifier within the flow. Used in logs and variable extraction. |
+| `action` | Yes | The action type to execute (e.g., `http_request`, `database_query`). |
+| `config` | Yes | Action-specific configuration (method, URL, query, topic, etc.). |
+| `assert` | No | List of expressions that must all be true for the step to pass. |
+| `output` | No | Map of variable names to JSONPath expressions for extracting values. |
+
+```yaml
+- id: create_user           # Unique step ID
+  action: http_request      # Action type
+  config:                   # Action-specific config
+    method: POST
+    url: "http://localhost:5001/users"
+    body:
+      name: "Alice"
+  assert:                   # Assertions (all must pass)
+    - status == 201
+    - body.id != ""
+  output:                   # Extracted variables
+    user_id: $.body.id
+```
+
+## Actions
+
+Actions are the building blocks that do the actual work. Each action type has its own `config` schema.
+
+| Action | Description |
+|--------|-------------|
+| `http_request` | HTTP/HTTPS request (GET, POST, PUT, PATCH, DELETE) |
+| `database_query` | SQL query against PostgreSQL (or other databases) |
+| `kafka_producer` | Publish a message to a Kafka topic |
+| `kafka_consumer` | Consume messages from a Kafka topic with a timeout |
+| `grpc_call` | Invoke a gRPC method |
+| `websocket` | Send/receive WebSocket messages |
+| `redis_get` | Read a value from Redis |
+| `redis_set` | Write a value to Redis |
+| `mock_server_start` | Start a local mock HTTP server |
+| `mock_server_stop` | Stop a running mock server |
+| `delay` | Pause execution for a specified duration |
+| `log` | Emit a log message (useful for debugging) |
+| `assert` | Evaluate expressions without performing an action |
+| `condition` | Branch based on a variable value |
+| `for_each` | Iterate over a list and run sub-steps for each item |
+
+## Assertions
+
+Assertions are [expr-lang](https://expr-lang.org/) expressions evaluated after a step runs. Every expression in the `assert` list must evaluate to `true` for the step to pass.
+
+```yaml
+assert:
+  - status == 200
+  - body.name != ""
+  - body.email contains "@"
+  - body.count > 0
+  - headers["content-type"] contains "application/json"
+```
+
+**Available variables in assertions** depend on the action type:
+
+| Action | Available variables |
+|--------|-------------------|
+| `http_request` | `status`, `body`, `headers` |
+| `database_query` | `rows`, `count` |
+| `kafka_consumer` | `messages` |
+| `redis_get` | `value` |
+
+<Callout type="info">
+  Supported operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `contains`, `matches`, `in`, `not in`, `&&`, `||`, `!`. See the [expr-lang documentation](https://expr-lang.org/) for the full expression syntax.
+</Callout>
+
+## Variables and Context
+
+TestMesh maintains a shared **context** (a key-value store) throughout the entire flow execution. Variables are written into the context via the `output` block and read via the `{{variable_name}}` template syntax.
+
+### Extracting Variables
+
+Use JSONPath expressions in the `output` block to extract values from a step's result:
+
+```yaml
+output:
+  user_id: $.body.id           # Nested field from response body
+  token: $.body.auth.token     # Deeply nested field
+  first_name: $.body.name      # Top-level body field
+  status_code: $.status        # HTTP status code
+```
+
+### Using Variables
+
+Reference any previously extracted variable in subsequent steps using double-brace syntax:
+
+```yaml
+- id: get_user
+  action: http_request
+  config:
+    method: GET
+    url: "http://localhost:5001/users/{{user_id}}"   # From earlier output
+    headers:
+      Authorization: "Bearer {{token}}"              # From earlier output
+```
+
+<Callout type="warn">
+  Variables are available only to steps that appear **after** the step that defines them. Using a variable before it is defined will result in an empty string substitution.
+</Callout>
+
+Variables can also be used inside assertion expressions by referencing them directly (without braces) when the assertion evaluates the current step's result — or using the `{{variable}}` template syntax in strings within the config.
+
+## Setup and Teardown
+
+Flows support optional `setup` and `teardown` step arrays that bracket the main `steps`:
+
+```yaml
+flow:
+  name: "Order Test with Cleanup"
+  setup:
+    - id: seed_user
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/users"
+        body:
+          name: "Setup User"
+      output:
+        setup_user_id: $.body.id
+
+  steps:
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5003/orders"
+        body:
+          user_id: "{{setup_user_id}}"
+
+  teardown:
+    - id: delete_user
+      action: http_request
+      config:
+        method: DELETE
+        url: "http://localhost:5001/users/{{setup_user_id}}"
+```
+
+**Key behaviors:**
+- `setup` steps run before `steps`. If any setup step fails, the main steps are skipped.
+- `teardown` steps always run, even if `setup` or `steps` fail. Use teardown for cleanup that must happen regardless of test outcome.
+- Variables extracted in `setup` are available in `steps` and `teardown`.
+
+## Execution Model
+
+The flow execution follows this sequence:
+
+```
+┌─────────────────────────────────────────┐
+│              Flow Execution             │
+│                                         │
+│  1. setup[] steps (optional)            │
+│     └─ Stop if any setup step fails     │
+│                                         │
+│  2. steps[] (main test logic)           │
+│     └─ Stop at first failed assertion   │
+│                                         │
+│  3. teardown[] steps (always runs)      │
+│     └─ Runs even if steps failed        │
+└─────────────────────────────────────────┘
+```
+
+Each step:
+1. Evaluates `{{variable}}` templates in `config` using the current context
+2. Executes the action (HTTP call, DB query, etc.)
+3. Evaluates all `assert` expressions against the result
+4. Extracts `output` variables into the shared context
+5. Reports pass/fail with timing
+
+<Callout type="tip">
+  Use `testmesh debug` to step through this execution interactively, inspect intermediate results, and build up complex flows incrementally.
+</Callout>
+
+## What's Next
+
+<Cards>
+  <Card title="YAML Reference" href="/docs/yaml-reference" description="Complete specification for all action types." />
+  <Card title="Your First Flow" href="/docs/getting-started/first-flow" description="Apply the concepts with a hands-on example." />
+  <Card title="Mock Server" href="/docs/features/mock-server" description="Simulate external services within your flows." />
+</Cards>

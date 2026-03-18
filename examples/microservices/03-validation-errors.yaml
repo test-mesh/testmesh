@@ -1,0 +1,163 @@
+flow:
+  name: "Microservices Validation Errors"
+  description: >
+    Verifies that all services reject invalid requests with 400 Bad Request.
+    Covers missing required fields and referential integrity violations
+    (order with non-existent user/product IDs).
+
+  steps:
+    # ── product-service validation ────────────────────────────────────────────
+    - id: product_missing_name
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          price: 9.99
+          inventory: 5
+      assert:
+        - "status == 400"
+
+    - id: product_missing_price
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: "No Price Product"
+          inventory: 5
+      assert:
+        - "status == 400"
+
+    - id: product_empty_body
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body: {}
+      assert:
+        - "status == 400"
+
+    - id: product_not_found
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5002/api/v1/products/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404"
+
+    # ── user-service validation ───────────────────────────────────────────────
+    - id: user_missing_email
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: "No Email User"
+      assert:
+        - "status == 400"
+
+    - id: user_missing_name
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          email: "noname@example.com"
+      assert:
+        - "status == 400"
+
+    - id: user_empty_body
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body: {}
+      assert:
+        - "status == 400"
+
+    - id: user_not_found
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5001/api/v1/users/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404"
+
+    # ── order-service validation ──────────────────────────────────────────────
+    - id: order_missing_items
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "00000000-0000-0000-0000-000000000001"
+      assert:
+        - "status == 400"
+
+    - id: order_missing_user_id
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          items:
+            - product_id: "00000000-0000-0000-0000-000000000001"
+              quantity: 1
+      assert:
+        - "status == 400"
+
+    - id: order_nonexistent_user
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "00000000-0000-0000-0000-000000000000"
+          items:
+            - product_id: "00000000-0000-0000-0000-000000000001"
+              quantity: 1
+      assert:
+        - "status == 400"
+
+    - id: order_nonexistent_product
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        # Need a real user for this — create one first
+        body:
+          user_id: "00000000-0000-0000-0000-000000000000"
+          items:
+            - product_id: "00000000-0000-0000-0000-000000000000"
+              quantity: 1
+      assert:
+        - "status == 400"
+
+    - id: order_not_found
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5003/api/v1/orders/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404"

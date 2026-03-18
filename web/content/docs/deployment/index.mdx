@@ -1,0 +1,70 @@
+---
+title: Deployment Overview
+description: Deploy TestMesh with Docker, Kubernetes, or connect to existing infrastructure.
+---
+
+TestMesh ships as a single Go binary (API) and a Next.js dashboard. You can run it with Docker Compose in several configurations depending on what infrastructure you already have.
+
+<Cards>
+  <Card title="Docker Setup" href="/docs/deployment/docker" description="Run TestMesh locally or in production with Docker Compose." />
+  <Card title="Kubernetes & Helm" href="/docs/deployment/kubernetes" description="Deploy to Kubernetes using the TestMesh Helm chart." />
+  <Card title="External Services" href="/docs/deployment/external-services" description="Connect to managed PostgreSQL, Redis, and Kafka." />
+</Cards>
+
+## Docker Compose Files
+
+TestMesh provides four Docker Compose files, each suited to a different use case.
+
+| File | Purpose | Includes |
+|------|---------|----------|
+| `docker-compose.yml` | Production / distribution | API + Dashboard only |
+| `docker-compose.dev.yml` | Full local development | Everything bundled |
+| `docker-compose.infra.yml` | Infrastructure only | PostgreSQL + Redis + Kafka |
+| `docker-compose.services.yml` | Demo microservices | 4 demo services |
+
+## When to Use What
+
+<Callout type="info">
+If you already have PostgreSQL and Redis running — whether locally or in the cloud — start with `docker-compose.yml`. It expects external infrastructure and only runs the TestMesh API and dashboard.
+</Callout>
+
+| Situation | Command |
+|-----------|---------|
+| I have my own PostgreSQL and Redis | `docker-compose up -d` |
+| I want everything bundled (learning / demos) | `docker-compose -f docker-compose.dev.yml up -d` |
+| I only need databases for local dev | `docker-compose -f docker-compose.infra.yml up -d` |
+| I want to run the demo microservices | `docker-compose -f docker-compose.services.yml up -d` |
+| Production with AWS RDS + ElastiCache | `docker-compose up -d` with env vars |
+| CI/CD ephemeral test databases | `docker-compose -f docker-compose.infra.yml up -d` |
+
+## Quick Start
+
+<Tabs items={["Full Stack (Bundled)", "Existing Infrastructure"]}>
+  <Tab value="Full Stack (Bundled)">
+    Spin up everything — databases, API, dashboard, and demo microservices — with a single command:
+
+    ```bash
+    docker-compose -f docker-compose.dev.yml up -d
+    ```
+
+    This starts PostgreSQL on 5432, Redis on 6379, Kafka on 9092, the API on 5016, the dashboard on 3000, and all four demo microservices on ports 5001–5004.
+  </Tab>
+  <Tab value="Existing Infrastructure">
+    Point TestMesh at your existing databases:
+
+    ```bash
+    export DATABASE_HOST=localhost
+    export DATABASE_PORT=5432
+    export REDIS_HOST=localhost
+    export REDIS_PORT=6379
+
+    docker-compose up -d
+    ```
+
+    Then verify it started:
+
+    ```bash
+    curl http://localhost:5016/health
+    ```
+  </Tab>
+</Tabs>

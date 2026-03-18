@@ -1,0 +1,78 @@
+---
+title: testmesh generate
+description: AI-powered test flow generation from specs or descriptions.
+---
+
+The `generate` command uses AI to create TestMesh flow YAML from an OpenAPI spec, a running service, or a plain-English description.
+
+## Usage
+
+```bash
+# From an OpenAPI spec file
+testmesh generate --spec ./openapi.yaml
+
+# From a running service (auto-discovers endpoints)
+testmesh generate --url http://localhost:5001
+
+# From a description
+testmesh generate --description "Test creating and retrieving a user"
+```
+
+<Callout type="warn">
+  `generate` requires an AI provider API key. Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in your environment before running this command.
+
+  ```bash
+  export ANTHROPIC_API_KEY=sk-ant-...
+  ```
+</Callout>
+
+## Options
+
+| Flag | Description |
+|------|-------------|
+| `--spec <file>` | Path to an OpenAPI 3.x YAML or JSON spec |
+| `--url <url>` | Base URL of a running service to introspect |
+| `--description <text>` | Natural language description of what to test |
+| `--output <file>` | Write the generated flow to a file (default: stdout) |
+| `--model <model>` | AI model to use (default: provider's recommended model) |
+
+## Examples
+
+### From an OpenAPI Spec
+
+```bash
+testmesh generate --spec ./openapi.yaml --output ./flows/api-tests.yaml
+```
+
+The generator reads the spec, identifies endpoints and their request/response schemas, and produces a flow that exercises each operation with appropriate assertions.
+
+### From a Running Service
+
+```bash
+testmesh generate --url http://localhost:5001 --output ./flows/user-service.yaml
+```
+
+TestMesh queries the service for available routes (via `/openapi.json` or similar) and generates a flow. Works best with services that expose an OpenAPI spec at a standard path.
+
+### From a Description
+
+```bash
+testmesh generate \
+  --description "Test that a user can register, log in, and view their profile" \
+  --output ./flows/auth-flow.yaml
+```
+
+The AI generates a plausible multi-step flow based on the description. Review the output and adjust endpoint URLs and assertions to match your actual API.
+
+## Refining Generated Output
+
+Generated flows are a starting point. After generating:
+
+1. Open the output file and verify the endpoint URLs match your service.
+2. Adjust request bodies and headers as needed.
+3. Tighten assertions to match the exact shape of your responses.
+4. Run with `testmesh validate` then `testmesh run` to verify.
+
+<Callout type="tip">
+  For conversational, iterative refinement, use [`testmesh chat`](/docs/cli/chat) instead. It lets you describe your requirements in natural language and refine the generated flow through back-and-forth conversation.
+</Callout>

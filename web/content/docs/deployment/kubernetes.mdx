@@ -1,0 +1,363 @@
+---
+title: Kubernetes & Helm
+description: Deploy TestMesh to Kubernetes using Helm charts.
+---
+
+TestMesh ships with a Helm chart that deploys the API server, background workers, and dashboard to any Kubernetes cluster.
+
+## Prerequisites
+
+- Kubernetes 1.25+
+- Helm 3.x
+- External PostgreSQL and Redis (or bundled via Helm dependencies)
+
+## Quick Install
+
+```bash
+# Add the TestMesh Helm repository
+helm repo add testmesh https://test-mesh.github.io/helm-charts
+helm repo update
+
+# Install with external PostgreSQL and Redis
+helm install testmesh testmesh/testmesh \
+  --namespace testmesh \
+  --create-namespace \
+  --set database.external.host=my-postgres.example.com \
+  --set database.external.password=secure_password \
+  --set redis.external.host=my-redis.example.com
+
+# Or install from the local chart
+helm install testmesh ./deploy/helm/testmesh \
+  --namespace testmesh \
+  --create-namespace \
+  -f values.yaml
+```
+
+## values.yaml Reference
+
+The Helm chart is configured via `values.yaml`. Below are the key options.
+
+### Image Configuration
+
+```yaml title="values.yaml"
+image:
+  repository: testmesh/api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+dashboard:
+  image:
+    repository: testmesh/dashboard
+    tag: latest
+```
+
+### Replicas and Scaling
+
+```yaml title="values.yaml"
+# API server replicas
+replicaCount: 3
+
+# Background workers
+worker:
+  replicaCount: 5
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    # Scale based on Redis Streams queue depth
+    targetQueueDepth: 100
+```
+
+### Resource Limits
+
+```yaml title="values.yaml"
+resources:
+  api:
+    limits:
+      cpu: "2"
+      memory: 2Gi
+    requests:
+      cpu: "500m"
+      memory: 512Mi
+  worker:
+    limits:
+      cpu: "1"
+      memory: 1Gi
+    requests:
+      cpu: "250m"
+      memory: 256Mi
+```
+
+### Ingress
+
+```yaml title="values.yaml"
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: testmesh.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /
+          pathType: Prefix
+          service: dashboard
+  tls:
+    - secretName: testmesh-tls
+      hosts:
+        - testmesh.example.com
+```
+
+### External PostgreSQL
+
+```yaml title="values.yaml"
+database:
+  postgresql:
+    enabled: false  # Disable bundled Postgres
+  external:
+    enabled: true
+    host: my-postgres.example.com
+    port: 5432
+    username: testmesh
+    password: secure_password   # Use a secret ref in production
+    database: testmesh
+    sslmode: require
+```
+
+### External Redis
+
+```yaml title="values.yaml"
+redis:
+  bundled:
+    enabled: false  # Disable bundled Redis
+  external:
+    enabled: true
+    host: my-redis.example.com
+    port: 6379
+    password: secure_password
+    tls: true
+```
+
+### External Kafka (Optional)
+
+```yaml title="values.yaml"
+kafka:
+  bundled:
+    enabled: false
+  external:
+    enabled: true
+    brokers:
+      - broker1.example.com:9092
+      - broker2.example.com:9092
+    sasl:
+      enabled: true
+      mechanism: SCRAM-SHA-512
+      username: testmesh
+      password: secure_password
+    tls:
+      enabled: true
+```
+
+---
+
+## Kubernetes Architecture
+
+A production TestMesh deployment looks like this:
+
+```
+Namespace: testmesh
+│
+├── Deployments
+│   ├── testmesh-server     (3 replicas)   — HTTP API + Scheduler
+│   ├── testmesh-worker     (5-20 replicas) — Background job processing
+│   └── testmesh-dashboard  (2 replicas)   — Next.js dashboard
+│
+├── Services
+│   ├── testmesh-server     (LoadBalancer, port 5016)
+│   └── testmesh-dashboard  (LoadBalancer, port 3000)
+│
+├── HorizontalPodAutoscaler
+│   └── testmesh-worker-hpa  — Scales workers based on queue depth
+│
+├── ConfigMaps
+│   └── testmesh-config      — Non-sensitive configuration
+│
+└── Secrets
+    ├── database-credentials
+    ├── redis-credentials
+    └── jwt-secret
+```
+
+### Scaling Strategy
+
+| Component | Scale Trigger | Range |
+|-----------|--------------|-------|
+| API Server | CPU / request rate | 3–10 replicas |
+| Workers | Redis Streams queue depth | 2–20 replicas |
+| Dashboard | Concurrent users | 2–5 replicas |
+
+Workers and the API server run the same binary — the `TESTMESH_MODE` environment variable switches between modes:
+
+```yaml
+# API server
+command: ["./testmesh-api", "server"]
+
+# Background worker
+command: ["./testmesh-api", "worker"]
+```
+
+---
+
+## ConfigMaps and Secrets
+
+### ConfigMap for Non-Sensitive Config
+
+```yaml title="configmap.yaml"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: testmesh-config
+  namespace: testmesh
+data:
+  LOG_LEVEL: "info"
+  ENV: "production"
+  KAFKA_ENABLED: "true"
+  KAFKA_BROKERS: "broker1:9092,broker2:9092"
+```
+
+### Secrets for Credentials
+
+```yaml title="secret.yaml"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: testmesh-secrets
+  namespace: testmesh
+type: Opaque
+stringData:
+  DATABASE_URL: "postgres://testmesh:secure@my-postgres:5432/testmesh?sslmode=require"
+  REDIS_URL: "rediss://:secure@my-redis:6380/0"
+  JWT_SECRET: "your-jwt-secret"
+  KAFKA_SASL_PASSWORD: "kafka-password"
+```
+
+Reference secrets in the Deployment:
+
+```yaml title="deployment.yaml"
+containers:
+- name: api
+  image: testmesh/api:latest
+  envFrom:
+    - configMapRef:
+        name: testmesh-config
+  env:
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: testmesh-secrets
+          key: DATABASE_URL
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: testmesh-secrets
+          key: JWT_SECRET
+```
+
+---
+
+## Health Checks and Probes
+
+The TestMesh API exposes health endpoints used by Kubernetes probes:
+
+```yaml title="deployment.yaml"
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 5016
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 5016
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 2
+```
+
+The `/health` endpoint returns service status:
+
+```json
+{
+  "status": "healthy",
+  "services": {
+    "database": "connected",
+    "redis": "connected",
+    "kafka": "connected"
+  }
+}
+```
+
+---
+
+## Horizontal Pod Autoscaler
+
+Workers scale based on queue depth using a custom metric adapter:
+
+```yaml title="hpa.yaml"
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: testmesh-worker-hpa
+  namespace: testmesh
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: testmesh-worker
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: redis_stream_length
+          selector:
+            matchLabels:
+              stream: testmesh-jobs
+        target:
+          type: AverageValue
+          averageValue: "100"
+```
+
+<Callout type="info">
+The Helm chart includes Prometheus metric adapters for HPA. Ensure your cluster has the Prometheus adapter installed for queue-depth autoscaling to work.
+</Callout>
+
+---
+
+## Upgrading
+
+```bash
+helm repo update
+
+# Upgrade to latest
+helm upgrade testmesh testmesh/testmesh \
+  --namespace testmesh \
+  -f values.yaml
+
+# Rollback if needed
+helm rollback testmesh 1 --namespace testmesh
+```
+
+## Uninstalling
+
+```bash
+helm uninstall testmesh --namespace testmesh
+kubectl delete namespace testmesh
+```

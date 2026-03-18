@@ -1,0 +1,341 @@
+---
+title: http_request
+description: Make HTTP requests — GET, POST, PUT, PATCH, DELETE and more — with headers, authentication, query parameters, body, and response assertions.
+---
+
+The `http_request` action sends an HTTP request and exposes the response status, body, headers, cookies, and duration for assertions and output extraction.
+
+## Minimal example
+
+```yaml title="health-check.yaml"
+- id: health_check
+  action: http_request
+  config:
+    method: GET
+    url: "http://localhost:5016/health"
+  assert:
+    - status == 200
+```
+
+---
+
+## Config fields
+
+### method (required)
+
+HTTP verb. One of: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`.
+
+### url (required)
+
+The request URL. Supports `${variable}` interpolation.
+
+```yaml
+config:
+  method: GET
+  url: "${API_URL}/users/${user_id}"
+```
+
+### headers
+
+Key-value map of request headers.
+
+```yaml
+config:
+  method: POST
+  url: "${API_URL}/users"
+  headers:
+    Content-Type: "application/json"
+    Authorization: "Bearer ${auth_token}"
+    X-Request-ID: "${RANDOM_ID}"
+```
+
+### params
+
+Query string parameters. Each value is a string.
+
+```yaml
+config:
+  method: GET
+  url: "${API_URL}/users"
+  params:
+    page: "1"
+    limit: "20"
+    status: "active"
+```
+
+### body
+
+Request body for `POST`, `PUT`, and `PATCH`. Can be a YAML object (sent as JSON) or a raw string.
+
+```yaml
+# JSON body (object)
+config:
+  method: POST
+  url: "${API_URL}/users"
+  body:
+    email: "user@example.com"
+    password: "SecurePass123!"
+    role: "member"
+
+# Raw string body
+config:
+  method: POST
+  url: "${API_URL}/webhook"
+  body: "raw text payload"
+
+# Multiline body (XML, plain text, etc.)
+config:
+  method: POST
+  url: "${API_URL}/xml-endpoint"
+  body: |
+    <request>
+      <user>test</user>
+    </request>
+```
+
+### auth
+
+Authentication configuration. Supported types: `basic`, `bearer`, `api_key`, `oauth2`.
+
+<Tabs items={["Bearer", "Basic", "API Key"]}>
+  <Tab value="Bearer">
+    ```yaml
+    config:
+      auth:
+        type: bearer
+        token: "${AUTH_TOKEN}"
+    ```
+  </Tab>
+  <Tab value="Basic">
+    ```yaml
+    config:
+      auth:
+        type: basic
+        username: "${USERNAME}"
+        password: "${PASSWORD}"
+    ```
+  </Tab>
+  <Tab value="API Key">
+    ```yaml
+    config:
+      auth:
+        type: api_key
+        key: "${API_KEY}"
+        location: "header"    # "header" or "query"
+        name: "X-API-Key"     # Header name or query param name
+    ```
+  </Tab>
+</Tabs>
+
+### timeout
+
+Per-request timeout. Overrides the step-level `timeout` field.
+
+```yaml
+config:
+  method: GET
+  url: "${API_URL}/slow-endpoint"
+  timeout: "60s"
+```
+
+### follow_redirects
+
+Whether to follow HTTP redirects. Defaults to `true`. Set `max_redirects` to limit redirect chains.
+
+```yaml
+config:
+  follow_redirects: false
+```
+
+### verify_ssl
+
+Whether to verify TLS certificates. Defaults to `true`.
+
+```yaml
+config:
+  verify_ssl: false    # Only for local/test environments
+```
+
+### cookies
+
+Request cookies.
+
+```yaml
+config:
+  cookies:
+    session_id: "abc123"
+    preference: "dark_mode"
+```
+
+---
+
+## Full config reference
+
+```yaml title="full-http-config.yaml"
+- id: api_call
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/users"
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer ${AUTH_TOKEN}"
+    params:
+      include_metadata: "true"
+    body:
+      email: "user@example.com"
+      name: "Test User"
+    auth:
+      type: bearer
+      token: "${TOKEN}"
+    follow_redirects: true
+    max_redirects: 5
+    verify_ssl: true
+    timeout: "30s"
+    cookies:
+      session: "${SESSION_ID}"
+```
+
+---
+
+## Response data
+
+After a step runs, the following paths are available for `output` extraction and `assert` expressions.
+
+| Path | Description |
+|---|---|
+| `response.status` | HTTP status code (integer) |
+| `response.body` | Parsed response body (object or string) |
+| `response.body.field` | Nested field access |
+| `response.body.array[0]` | Array element |
+| `response.headers` | Response headers object |
+| `response.headers["Content-Type"]` | Specific header value |
+| `response.cookies` | Response cookies |
+| `response.time` | Response time in milliseconds |
+
+---
+
+## Output extraction
+
+```yaml
+output:
+  user_id: "response.body.id"
+  user_email: "response.body.email"
+  auth_token: "response.body.token"
+  content_type: "response.headers[\"Content-Type\"]"
+  status_code: "response.status"
+  duration_ms: "response.time"
+```
+
+---
+
+## Assertions
+
+```yaml
+assert:
+  - status == 201                                          # Status code
+  - response.body.id exists                                # Field present
+  - response.body.email == "user@example.com"              # Field value
+  - response.headers["Content-Type"] contains "json"       # Header contains
+  - response.time < 500                                    # Response under 500ms
+  - response.body.users.length > 0                         # Array non-empty
+  - response.body.role == "member"                         # String equality
+```
+
+---
+
+## Common patterns
+
+### POST and capture the created resource
+
+```yaml
+- id: create_product
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/products"
+    headers:
+      Authorization: "Bearer ${auth_token}"
+    body:
+      name: "Widget Pro"
+      price: 49.99
+      sku: "WDGT-${RANDOM_INT}"
+  output:
+    product_id: "response.body.id"
+    sku: "response.body.sku"
+  assert:
+    - status == 201
+    - response.body.id exists
+```
+
+### GET with query parameters and pagination assertion
+
+```yaml
+- id: list_users
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/users"
+    headers:
+      Authorization: "Bearer ${auth_token}"
+    params:
+      page: "1"
+      limit: "10"
+      status: "active"
+  output:
+    users: "response.body.data"
+    total: "response.body.total"
+  assert:
+    - status == 200
+    - response.body.data.length <= 10
+    - response.body.total >= 0
+```
+
+### DELETE and verify 404 afterward
+
+```yaml
+- id: delete_user
+  action: http_request
+  config:
+    method: DELETE
+    url: "${API_URL}/users/${user_id}"
+    headers:
+      Authorization: "Bearer ${auth_token}"
+  assert:
+    - status == 204
+
+- id: verify_deleted
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/users/${user_id}"
+    headers:
+      Authorization: "Bearer ${auth_token}"
+  assert:
+    - status == 404
+```
+
+### Retry on server errors
+
+```yaml
+- id: create_payment
+  action: http_request
+  config:
+    method: POST
+    url: "${PAYMENT_URL}/charge"
+    body:
+      amount: 1999
+      currency: "usd"
+  retry:
+    max_attempts: 3
+    delay: "2s"
+    backoff: "exponential"
+    retry_on:
+      - "status >= 500"
+      - "timeout"
+    retry_on_not:
+      - "status == 402"
+  assert:
+    - status == 200
+    - response.body.status == "succeeded"
+```

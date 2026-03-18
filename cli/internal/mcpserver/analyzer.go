@@ -10,21 +10,52 @@ import (
 	"strings"
 )
 
+// SchemaField describes one field in a request/response/event JSON schema.
+type SchemaField struct {
+	JSONName string        `json:"name"`
+	GoType   string        `json:"type"`
+	Required bool          `json:"required,omitempty"`
+	IsArray  bool          `json:"is_array,omitempty"`
+	Items    []SchemaField `json:"items,omitempty"`
+}
+
+// RequestSchema is the inferred JSON body schema for a POST/PUT/PATCH endpoint.
+type RequestSchema struct {
+	StructName string        `json:"struct_name"`
+	Fields     []SchemaField `json:"fields"`
+}
+
+// KafkaMessageSchema describes the payload structure of a Kafka event.
+type KafkaMessageSchema struct {
+	EventType string        `json:"event_type,omitempty"`
+	Fields    []SchemaField `json:"fields"`
+	SourceFn  string        `json:"source_fn,omitempty"`
+}
+
+// InterServiceCall describes an outbound HTTP call this service makes.
+type InterServiceCall struct {
+	ToService    string `json:"to_service"`
+	EnvVar       string `json:"env_var"`
+	Method       string `json:"method"`
+	PathTemplate string `json:"path_template"`
+}
+
 // ServiceAnalysis holds the extracted information from a service directory.
 type ServiceAnalysis struct {
-	ServiceName      string            `json:"service_name"`
-	Language         string            `json:"language"`
-	Port             int               `json:"port"`
-	BaseURL          string            `json:"base_url"`
-	Endpoints        []Endpoint        `json:"endpoints"`
-	Models           []Model           `json:"models"`
-	KafkaTopics      []KafkaTopic      `json:"kafka_topics"`
-	GRPCMethods      []GRPCMethod      `json:"grpc_methods"`
-	EnvVars          []string          `json:"env_vars"`
-	DBSchemas        []string          `json:"db_schemas"`
-	RedisKeyPatterns []RedisKeyPattern `json:"redis_key_patterns,omitempty"`
-	Dependencies     []string          `json:"dependencies"`
-	Files            []string          `json:"files_analyzed"`
+	ServiceName       string             `json:"service_name"`
+	Language          string             `json:"language"`
+	Port              int                `json:"port"`
+	BaseURL           string             `json:"base_url"`
+	Endpoints         []Endpoint         `json:"endpoints"`
+	Models            []Model            `json:"models"`
+	KafkaTopics       []KafkaTopic       `json:"kafka_topics"`
+	GRPCMethods       []GRPCMethod       `json:"grpc_methods"`
+	EnvVars           []string           `json:"env_vars"`
+	DBSchemas         []string           `json:"db_schemas"`
+	RedisKeyPatterns  []RedisKeyPattern  `json:"redis_key_patterns,omitempty"`
+	InterServiceCalls []InterServiceCall `json:"inter_service_calls,omitempty"`
+	Dependencies      []string           `json:"dependencies"`
+	Files             []string           `json:"files_analyzed"`
 }
 
 // RedisKeyPattern describes a Redis key written by a service (e.g. "user:%s").
@@ -36,12 +67,13 @@ type RedisKeyPattern struct {
 
 // Endpoint represents an HTTP endpoint.
 type Endpoint struct {
-	Method      string `json:"method"`
-	Path        string `json:"path"`
-	Handler     string `json:"handler"`
-	Description string `json:"description,omitempty"`
-	HasBody     bool   `json:"has_body"`
-	PathParams  []string `json:"path_params,omitempty"`
+	Method        string         `json:"method"`
+	Path          string         `json:"path"`
+	Handler       string         `json:"handler"`
+	Description   string         `json:"description,omitempty"`
+	HasBody       bool           `json:"has_body"`
+	PathParams    []string       `json:"path_params,omitempty"`
+	RequestSchema *RequestSchema `json:"request_schema,omitempty"`
 }
 
 // Model represents a data model / database table.
@@ -54,8 +86,9 @@ type Model struct {
 
 // KafkaTopic represents a Kafka topic used by the service.
 type KafkaTopic struct {
-	Name      string `json:"name"`
-	Direction string `json:"direction"` // "produce" | "consume"
+	Name          string              `json:"name"`
+	Direction     string              `json:"direction"` // "produce" | "consume"
+	MessageSchema *KafkaMessageSchema `json:"message_schema,omitempty"`
 }
 
 // GRPCMethod represents a gRPC service method.
@@ -150,7 +183,7 @@ func AnalyzeService(path string) (*ServiceAnalysis, error) {
 
 var (
 	reGinRoute      = regexp.MustCompile(`(?m)(\w+)\.(?i)(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s*\(\s*"([^"]+)"`)
-	reGinHandler    = regexp.MustCompile(`(?m)(\w+)\.(?i)(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s*\(\s*"([^"]+)"\s*,\s*(\w+)`)
+	reGinHandler    = regexp.MustCompile(`(?m)(\w+)\.(?i)(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s*\(\s*"([^"]+)"\s*,\s*(?:\w+\.)?(\w+)`)
 	reGinGroup      = regexp.MustCompile(`(?m)(\w+)\s*:?=\s*\w+\.Group\s*\(\s*"([^"]+)"`)
 	rePort          = regexp.MustCompile(`(?m)[:\s""](\d{4,5})["\s]`)
 	reEnvGo         = regexp.MustCompile(`os\.Getenv\s*\(\s*"([^"]+)"`)
@@ -167,6 +200,13 @@ var (
 	rePortConst     = regexp.MustCompile(`(?i)(?:port|Port)\s*[=:]+\s*"?(\d{4,5})"?`)
 	reRedisKeyFmt   = regexp.MustCompile(`key\s*:?=\s*fmt\.Sprintf\s*\(\s*"([^"]+)"`)
 	reRedisSetCall  = regexp.MustCompile(`\.(?:Set|RPush|LPush|HSet|SetNX)\s*\(`)
+	reShouldBind    = regexp.MustCompile(`ShouldBindJSON\s*\(\s*&\s*(\w+)\s*\)`)
+	reFuncDef       = regexp.MustCompile(`(?m)^func\s+\(\w+\s+\*?\w+\)\s+(\w+)\s*\(`)
+	reJSONTag       = regexp.MustCompile(`json:"([^",]+)`)
+	reBindRequired  = regexp.MustCompile(`binding:"[^"]*required`)
+	reClientEnvVar  = regexp.MustCompile(`os\.Getenv\s*\("([A-Z_]+_SERVICE_URL)"`)
+	reClientPath    = regexp.MustCompile(`fmt\.Sprintf\s*\("([^"]+)"\s*,`)
+	reClientMethod  = regexp.MustCompile(`\.(Get|Post|Put|Delete|Patch)\s*\(`)
 )
 
 func analyzeGoFiles(a *ServiceAnalysis, files []string) {
@@ -337,6 +377,89 @@ func analyzeGoFiles(a *ServiceAnalysis, files []string) {
 
 	for topic, dir := range kafkaTopicsSeen {
 		a.KafkaTopics = append(a.KafkaTopics, KafkaTopic{Name: topic, Direction: dir})
+	}
+
+	// Build function body map for request schema extraction.
+	funcBodies := buildFuncBodies(files)
+
+	// Link request schemas to endpoints.
+	// Look for variable declarations in handler bodies whose type looks like a request struct.
+	reVarDecl := regexp.MustCompile(`\bvar\s+\w+\s+(\w+)`)
+	reShortDecl := regexp.MustCompile(`\b\w+\s*:=\s*&?(\w+)\s*\{`)
+	for i := range a.Endpoints {
+		ep := &a.Endpoints[i]
+		if ep.Method != "POST" && ep.Method != "PUT" && ep.Method != "PATCH" {
+			continue
+		}
+		body := funcBodies[ep.Handler]
+		if body == "" {
+			continue
+		}
+		var structName string
+		for _, m := range reVarDecl.FindAllStringSubmatch(body, -1) {
+			if looksLikeRequestType(m[1]) {
+				structName = m[1]
+				break
+			}
+		}
+		if structName == "" {
+			for _, m := range reShortDecl.FindAllStringSubmatch(body, -1) {
+				if looksLikeRequestType(m[1]) {
+					structName = m[1]
+					break
+				}
+			}
+		}
+		if structName != "" {
+			if schema := buildRequestSchema(structName, files); schema != nil {
+				ep.RequestSchema = schema
+			}
+		}
+	}
+
+	// Extract Kafka message schemas from producer files.
+	for _, f := range files {
+		dir := strings.ToLower(filepath.Base(filepath.Dir(f)))
+		if dir != "kafka" {
+			continue
+		}
+		content, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		src := string(content)
+		// Find map[string]interface{} literals passed to publish calls.
+		for _, topic := range a.KafkaTopics {
+			if topic.Direction != "produce" {
+				continue
+			}
+			schema := extractKafkaSchema(src, topic.Name)
+			if schema != nil {
+				for j := range a.KafkaTopics {
+					if a.KafkaTopics[j].Name == topic.Name {
+						a.KafkaTopics[j].MessageSchema = schema
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Extract inter-service calls from clients/ directory.
+	for _, f := range files {
+		dir := strings.ToLower(filepath.Base(filepath.Dir(f)))
+		if dir != "clients" {
+			continue
+		}
+		content, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		src := string(content)
+		call := extractInterServiceCall(src, f)
+		if call != nil {
+			a.InterServiceCalls = append(a.InterServiceCalls, *call)
+		}
 	}
 
 	// Build models list from structs that have table names or GORM-looking fields.
@@ -782,3 +905,221 @@ func unique(ss []string) []string {
 	}
 	return out
 }
+
+// buildFuncBodies returns a map of method name → function body text.
+func buildFuncBodies(files []string) map[string]string {
+	bodies := map[string]string{}
+	for _, f := range files {
+		content, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		src := string(content)
+		matches := reFuncDef.FindAllStringSubmatchIndex(src, -1)
+		for i, m := range matches {
+			name := src[m[2]:m[3]]
+			start := m[1]
+			end := len(src)
+			if i+1 < len(matches) {
+				end = matches[i+1][0]
+			}
+			bodies[name] = src[start:end]
+		}
+	}
+	return bodies
+}
+
+// buildRequestSchema finds a named struct and builds a RequestSchema from its fields.
+func buildRequestSchema(structName string, files []string) *RequestSchema {
+	schema := &RequestSchema{StructName: structName}
+	for _, f := range files {
+		content, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		src := string(content)
+		// Find the struct definition.
+		startPat := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(structName) + `\s+struct\s*\{`)
+		loc := startPat.FindStringIndex(src)
+		if loc == nil {
+			continue
+		}
+		depth := 1
+		pos := loc[1]
+		var block strings.Builder
+		for pos < len(src) && depth > 0 {
+			ch := src[pos]
+			if ch == '{' {
+				depth++
+			}
+			if ch == '}' {
+				depth--
+				if depth == 0 {
+					break
+				}
+			}
+			block.WriteByte(ch)
+			pos++
+		}
+		schema.Fields = parseStructFields(block.String())
+		break
+	}
+	if len(schema.Fields) == 0 {
+		return nil
+	}
+	return schema
+}
+
+// parseStructFields parses struct body text into SchemaField entries.
+func parseStructFields(body string) []SchemaField {
+	var fields []SchemaField
+	// Handle inline struct arrays: `Items []struct{ ... }`
+	reInlineArray := regexp.MustCompile("(?m)^\\s+(\\w+)\\s+\\[\\]struct\\s*\\{([^}]+)\\}\\s*`([^`]*)`")
+	for _, m := range reInlineArray.FindAllStringSubmatch(body, -1) {
+		goName := m[1]
+		nestedBody := m[2]
+		tag := m[3]
+		jsonName := extractJSONName(tag, goName)
+		f := SchemaField{
+			JSONName: jsonName,
+			GoType:   "[]object",
+			Required: reBindRequired.MatchString(tag),
+			IsArray:  true,
+			Items:    parseStructFields(nestedBody),
+		}
+		fields = append(fields, f)
+	}
+	// Regular fields with backtick tags. Strip inline struct blocks first so
+	// nested fields don't appear at the top level.
+	strippedBody := reInlineArray.ReplaceAllString(body, "")
+	reField := regexp.MustCompile("(?m)^\\s+(\\w+)\\s+(\\S+)\\s+`([^`]+)`")
+	for _, m := range reField.FindAllStringSubmatch(strippedBody, -1) {
+		goName := m[1]
+		goType := m[2]
+		tag := m[3]
+		if strings.Contains(goType, "struct") {
+			continue // already handled above
+		}
+		// Skip unexported.
+		if goName == "" || goName[0:1] != strings.ToUpper(goName[0:1]) {
+			continue
+		}
+		jsonName := extractJSONName(tag, goName)
+		if jsonName == "-" {
+			continue
+		}
+		fields = append(fields, SchemaField{
+			JSONName: jsonName,
+			GoType:   goType,
+			Required: reBindRequired.MatchString(tag),
+		})
+	}
+	return fields
+}
+
+// looksLikeRequestType returns true if the type name looks like a request/input struct.
+func looksLikeRequestType(name string) bool {
+	for _, suffix := range []string{"Request", "Input", "Body", "Form", "Payload", "Params"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func extractJSONName(tag, fallback string) string {
+	m := reJSONTag.FindStringSubmatch(tag)
+	if m != nil && m[1] != "" {
+		return m[1]
+	}
+	return camelToSnake(fallback)
+}
+
+// extractKafkaSchema finds the map literal published to a given topic and extracts its fields.
+func extractKafkaSchema(src, topic string) *KafkaMessageSchema {
+	// Find: producer.Produce / publish call with this topic
+	topicPattern := regexp.MustCompile(`"` + regexp.QuoteMeta(topic) + `"`)
+	loc := topicPattern.FindStringIndex(src)
+	if loc == nil {
+		return nil
+	}
+	// Look backward for the nearest map[string]interface{} literal opening.
+	prefix := src[:loc[0]]
+	mapStart := strings.LastIndex(prefix, "map[string]interface{}{")
+	if mapStart < 0 {
+		// Look forward too.
+		suffix := src[loc[1]:]
+		mapFwd := strings.Index(suffix, "map[string]interface{}{")
+		if mapFwd < 0 {
+			return nil
+		}
+		mapStart = loc[1] + mapFwd
+	}
+	// Extract the map body.
+	openBrace := strings.Index(src[mapStart:], "{") + mapStart
+	depth := 1
+	pos := openBrace + 1
+	var block strings.Builder
+	for pos < len(src) && depth > 0 {
+		ch := src[pos]
+		if ch == '{' {
+			depth++
+		}
+		if ch == '}' {
+			depth--
+			if depth == 0 {
+				break
+			}
+		}
+		block.WriteByte(ch)
+		pos++
+	}
+	// Parse the map fields: "key": value,
+	schema := &KafkaMessageSchema{}
+	reMapField := regexp.MustCompile(`"(\w[^"]+)"\s*:\s*([^,\n]+)`)
+	for _, m := range reMapField.FindAllStringSubmatch(block.String(), -1) {
+		key := m[1]
+		val := strings.TrimSpace(m[2])
+		goType := "string"
+		if strings.HasPrefix(val, "float") || strings.Contains(val, ".Total") || strings.Contains(val, ".Price") {
+			goType = "float64"
+		}
+		if strings.Contains(val, "Items") || strings.HasPrefix(val, "[]") {
+			goType = "array"
+		}
+		f := SchemaField{JSONName: key, GoType: goType}
+		if key == "event_type" {
+			// Extract the string literal value if present.
+			if lit := regexp.MustCompile(`"([^"]+)"`).FindStringSubmatch(val); lit != nil {
+				schema.EventType = lit[1]
+			}
+		}
+		schema.Fields = append(schema.Fields, f)
+	}
+	if len(schema.Fields) == 0 {
+		return nil
+	}
+	return schema
+}
+
+// extractInterServiceCall extracts an outbound HTTP call from a clients/ file.
+func extractInterServiceCall(src, _ string) *InterServiceCall {
+	call := &InterServiceCall{}
+	if m := reClientEnvVar.FindStringSubmatch(src); m != nil {
+		call.EnvVar = m[1]
+		// Normalize: USER_SERVICE_URL → user-service
+		prefix := strings.TrimSuffix(m[1], "_SERVICE_URL")
+		call.ToService = strings.ToLower(strings.ReplaceAll(prefix, "_", "-")) + "-service"
+	}
+	if m := reClientPath.FindStringSubmatch(src); m != nil {
+		call.PathTemplate = m[1]
+	}
+	if m := reClientMethod.FindStringSubmatch(src); m != nil {
+		call.Method = strings.ToUpper(m[1])
+	}
+	if call.ToService == "" {
+		return nil
+	}
+	return call
+}
+

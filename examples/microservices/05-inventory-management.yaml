@@ -1,0 +1,131 @@
+flow:
+  name: "Inventory Management Flow"
+  description: >
+    Tests product-service inventory lifecycle: create product with initial stock,
+    update inventory directly via API, verify DB and Redis reflect the change,
+    and confirm the product.inventory.changed Kafka event is published.
+
+  steps:
+    - id: health_check
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5002/health
+      assert:
+        - "status == 200"
+
+    # Create product with known inventory level
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Inventory Widget {{RANDOM_ID}}"
+          description: "Testing inventory management"
+          price: 49.99
+          inventory: 100
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.inventory == 100"
+        - "body.price == 49.99"
+      output:
+        product_id: "$.body.id"
+
+    # Verify product is in DB with correct initial inventory
+    - id: verify_initial_inventory_db
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, inventory FROM product_service.products WHERE id = '{{product_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.inventory == 100"
+
+    # Verify product is cached in Redis
+    - id: verify_redis_cache
+      action: redis.get
+      config:
+        host: localhost
+        port: "6379"
+        key: "product:{{product_id}}"
+      assert:
+        - "value != nil"
+
+    # Update inventory to a new value
+    - id: update_inventory
+      action: http_request
+      config:
+        method: PUT
+        url: "http://localhost:5002/api/v1/products/{{product_id}}/inventory"
+        headers:
+          Content-Type: application/json
+        body:
+          inventory: 75
+      assert:
+        - "status == 200"
+        - "body.inventory == 75"
+
+    # Verify DB reflects the updated inventory
+    - id: verify_updated_inventory_db
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, inventory FROM product_service.products WHERE id = '{{product_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.inventory == 75"
+
+    # Verify GET endpoint returns updated inventory
+    - id: get_product_by_id
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5002/api/v1/products/{{product_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == \"{{product_id}}\""
+        - "body.inventory == 75"
+
+    # Verify product.inventory.changed Kafka event was published
+    - id: verify_kafka_inventory_changed
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: product.inventory.changed
+        group_id: "testmesh-inventory-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    # Validation: update inventory on non-existent product should fail
+    - id: update_inventory_not_found
+      action: http_request
+      config:
+        method: PUT
+        url: "http://localhost:5002/api/v1/products/00000000-0000-0000-0000-000000000000/inventory"
+        headers:
+          Content-Type: application/json
+        body:
+          inventory: 10
+      assert:
+        - "status == 404"
+
+    # Validation: update inventory without required field should fail
+    - id: update_inventory_missing_field
+      action: http_request
+      config:
+        method: PUT
+        url: "http://localhost:5002/api/v1/products/{{product_id}}/inventory"
+        headers:
+          Content-Type: application/json
+        body: {}
+      assert:
+        - "status == 400"

@@ -1,0 +1,9 @@
+{
+  "title": "Guides",
+  "pages": [
+    "microservices-testing",
+    "ci-cd",
+    "best-practices",
+    "migrating"
+  ]
+}

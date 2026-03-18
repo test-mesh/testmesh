@@ -1,0 +1,121 @@
+flow:
+  name: "User Auth Flow"
+  description: >
+    Tests user-service authentication: create user, login to get session token,
+    verify session via Redis cache, and confirm auth/verify endpoint works.
+
+  steps:
+    - id: health_check
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5001/health
+      assert:
+        - "status == 200"
+
+    # Create a user to authenticate with
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Auth Test User {{RANDOM_ID}}"
+          email: "auth-{{RANDOM_ID}}@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.email != nil"
+      output:
+        user_id: "$.body.id"
+        user_email: "$.body.email"
+
+    # Verify user is in DB before attempting login
+    - id: verify_user_in_db
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, email FROM user_service.users WHERE id = '{{user_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.email == \"{{user_email}}\""
+
+    # Login with the created user's email
+    - id: login
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/auth/login
+        headers:
+          Content-Type: application/json
+        body:
+          email: "{{user_email}}"
+      assert:
+        - "status == 200"
+        - "body.token != nil"
+        - "body.user_id != nil"
+      output:
+        session_token: "$.body.token"
+
+    # Verify session token is cached in Redis
+    - id: verify_session_in_redis
+      action: redis.get
+      config:
+        host: localhost
+        port: "6379"
+        key: "session:{{session_token}}"
+      assert:
+        - "value != nil"
+
+    # Verify auth endpoint with the token
+    - id: verify_auth
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5001/api/v1/auth/verify
+        headers:
+          Authorization: "Bearer {{session_token}}"
+      assert:
+        - "status == 200"
+
+    # Verify login event published to Kafka
+    - id: verify_kafka_user_login
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: user.login
+        group_id: "testmesh-auth-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    # Validation: login with non-existent email should fail
+    - id: login_unknown_email
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/auth/login
+        headers:
+          Content-Type: application/json
+        body:
+          email: "nobody-{{RANDOM_ID}}@example.com"
+      assert:
+        - "status == 404"
+
+    # Validation: login without email field should fail
+    - id: login_missing_email
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/auth/login
+        headers:
+          Content-Type: application/json
+        body: {}
+      assert:
+        - "status == 400"

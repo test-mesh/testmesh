@@ -1,0 +1,121 @@
+---
+title: TestMesh vs Other Tools
+description: How TestMesh compares to Postman, k6, Playwright, and Cypress for integration testing.
+---
+
+
+# TestMesh vs Other Tools
+
+Choosing the right testing tool depends on what you're testing. TestMesh is built for a specific problem: testing how your microservices work **together** — across protocols, in a single flow. Other tools are excellent at what they do; they just don't cover this use case.
+
+## Feature Comparison
+
+| Feature | TestMesh | Postman | k6 | Playwright | Cypress |
+|---|---|---|---|---|---|
+| HTTP / REST testing | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Kafka producer/consumer | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Database assertions | ✅ | ❌ | ❌ | ❌ | ❌ |
+| gRPC calls | ✅ | ✅ | ❌ | ❌ | ❌ |
+| WebSocket testing | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Redis get/set | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Multi-protocol in one test | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Mock server built-in | ✅ | ✅ | ❌ | ❌ | ✅ |
+| YAML-defined flows | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Runs locally, no signup | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Load / performance testing | ❌ | ⚠️ basic | ✅ | ❌ | ❌ |
+| Browser automation | ❌ | ❌ | ⚠️ basic | ✅ | ✅ |
+| AI test generation | ✅ | ✅ | ❌ | ❌ | ❌ |
+| CI/CD integration | ✅ | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## TestMesh vs Postman
+
+**Postman is excellent for**:
+
+- API development and exploration — quickly fire requests and inspect responses
+- Manual request testing during development
+- API documentation and sharing collections with your team
+- API lifecycle management and monitoring
+- Team collaboration on API definitions
+
+**TestMesh is better for**:
+
+- Writing automated flows that span multiple protocols — HTTP + Kafka + database assertions in one test
+- Running in CI/CD without a cloud account or team license
+- Asserting on database state after an API call to verify side effects
+- Testing event-driven workflows where Kafka is part of the contract
+
+**Use both**: Use Postman to explore and design APIs during development; use TestMesh to write the automated integration tests that run in CI on every push.
+
+---
+
+## TestMesh vs k6
+
+**k6 is excellent for**:
+
+- Load and performance testing — simulating thousands of virtual users
+- Measuring p99 latency, throughput, and error rates under load
+- Observability-focused testing with native Grafana integration
+- Smoke tests and spike tests against live environments
+
+**TestMesh is better for**:
+
+- Functional integration testing — did the right data end up in the right place?
+- Multi-protocol correctness testing across HTTP, Kafka, databases, and Redis
+- Testing event-driven workflows where you need to assert on consumed Kafka messages
+- Debugging individual flows step by step
+
+**Use both**: Use k6 to validate that your system performs under load; use TestMesh to verify functional correctness and that your services integrate correctly.
+
+---
+
+## TestMesh vs Playwright / Cypress
+
+**Playwright and Cypress are excellent for**:
+
+- Browser-level end-to-end testing — clicking buttons, filling forms, checking rendered output
+- UI regression testing — catching visual or behavioral regressions in your frontend
+- Frontend flows that depend on user interaction across multiple pages
+- Mocking browser-level network requests
+
+**TestMesh is better for**:
+
+- Backend integration testing — testing services directly without going through the UI
+- Testing async flows that span Kafka producers and consumers
+- Asserting on database and cache state without a browser
+- Testing services that have no frontend at all
+
+**Use both**: Use Playwright or Cypress for browser-level tests; use TestMesh for backend integration tests. Together they give you full coverage — from the UI down to the database.
+
+---
+
+## Is TestMesh Right for Me?
+
+<Callout type="info">
+Use this checklist to decide if TestMesh fits your use case.
+
+**Good fit:**
+
+- ✅ You have microservices that communicate over HTTP and Kafka
+- ✅ You want to assert database state after an API call
+- ✅ You need to verify event-driven flows end-to-end
+- ✅ You want tests in readable YAML that non-engineers can review
+- ✅ You're replacing a patchwork of bash scripts and manual SQL checks
+- ✅ You need tests to run in CI/CD with a simple CLI command
+
+**Not the right tool:**
+
+- ❌ You need browser automation (use Playwright or Cypress)
+- ❌ You need load and performance testing (use k6)
+- ❌ You're building and exploring APIs interactively (use Postman)
+</Callout>
+
+---
+
+## Migrating to TestMesh
+
+<Cards>
+  <Card title="Migration Guide" description="Step-by-step guide to moving your existing tests to TestMesh" href="/docs/guides" />
+  <Card title="Your First Flow" description="See a working multi-protocol flow in under 10 minutes" href="/docs/getting-started/first-flow" />
+</Cards>

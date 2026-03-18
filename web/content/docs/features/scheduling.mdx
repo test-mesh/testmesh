@@ -1,0 +1,287 @@
+---
+title: Scheduling
+description: Run flows on a cron schedule to continuously validate your services, detect regressions early, and monitor production systems around the clock.
+---
+
+TestMesh includes a built-in scheduler that executes flows automatically on a cron schedule. Scheduled runs are stored with full execution history so you can track trends, spot regressions, and get notified on failures.
+
+---
+
+## How Scheduling Works
+
+The scheduler is powered by Redis Streams for reliable job queuing. When a scheduled time arrives:
+
+<Steps>
+  <Step>
+    The scheduler enqueues a job into Redis Streams.
+  </Step>
+  <Step>
+    A worker picks up the job and executes the flow.
+  </Step>
+  <Step>
+    Results are stored in the `executions` table with the schedule ID attached.
+  </Step>
+  <Step>
+    Notifications are sent if the execution fails (configured per schedule).
+  </Step>
+</Steps>
+
+---
+
+## Creating Schedules
+
+### Via the Dashboard
+
+Navigate to **Schedules** in the dashboard sidebar and click **New Schedule**. Configure:
+
+- **Flow** — Select the flow to run
+- **Cron expression** — When to run it
+- **Environment** — Which environment variables to use
+- **Notifications** — Slack, email, or webhook on failure
+
+### Via the API
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/schedules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Hourly Health Check",
+    "flow_id": "flow-uuid-here",
+    "cron": "0 * * * *",
+    "environment_id": "env-uuid-here",
+    "enabled": true
+  }'
+```
+
+---
+
+## Cron Expression Format
+
+TestMesh uses standard 5-field cron syntax:
+
+```
+┌───── minute (0–59)
+│ ┌───── hour (0–23)
+│ │ ┌───── day of month (1–31)
+│ │ │ ┌───── month (1–12)
+│ │ │ │ ┌───── day of week (0–6, Sunday=0)
+│ │ │ │ │
+* * * * *
+```
+
+### Common Schedules
+
+| Expression | Meaning |
+|---|---|
+| `* * * * *` | Every minute |
+| `0 * * * *` | Every hour |
+| `0 9 * * 1-5` | Weekdays at 9:00 AM |
+| `0 */4 * * *` | Every 4 hours |
+| `30 8 * * *` | Daily at 8:30 AM |
+| `0 0 * * 0` | Weekly on Sunday at midnight |
+| `0 0 1 * *` | Monthly on the 1st at midnight |
+
+<Callout type="tip">
+  Use [crontab.guru](https://crontab.guru) to validate and preview cron expressions before saving a schedule.
+</Callout>
+
+---
+
+## Example: Production Health Monitoring
+
+Schedule a health-check flow to run every 5 minutes and alert on failure:
+
+```yaml title="health-check.yaml"
+flow:
+  name: "Production Health Check"
+  description: "Verify all services are responding correctly"
+
+  steps:
+    - id: check_user_service
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/health"
+        timeout: 5s
+      assert:
+        - status == 200
+        - response.body.status == "ok"
+
+    - id: check_order_service
+      action: http_request
+      config:
+        method: GET
+        url: "${ORDER_SERVICE_URL}/health"
+        timeout: 5s
+      assert:
+        - status == 200
+
+    - id: check_database
+      action: database_query
+      config:
+        query: "SELECT 1"
+      assert:
+        - result.count == 1
+
+    - id: check_kafka
+      action: kafka_produce
+      config:
+        brokers: ["${KAFKA_BROKERS}"]
+        topic: "health.checks"
+        value:
+          timestamp: "${TIMESTAMP}"
+          source: "testmesh"
+```
+
+Configure the schedule:
+
+```json
+{
+  "name": "Production Health Check (every 5 min)",
+  "flow_id": "health-check-flow-id",
+  "cron": "*/5 * * * *",
+  "environment_id": "production-env-id",
+  "enabled": true,
+  "on_failure": {
+    "slack_webhook": "${SLACK_WEBHOOK_URL}",
+    "notify": true
+  }
+}
+```
+
+---
+
+## Execution History
+
+Every scheduled run creates an execution record visible in the dashboard. The **Schedules** view shows:
+
+- Next scheduled run time
+- Last run status (pass / fail)
+- Pass rate over the last 30 days
+- Average duration trend
+
+Drill into any scheduled execution to see full step-level detail, logs, and request/response inspection — identical to manually triggered executions.
+
+---
+
+## Enable and Disable Schedules
+
+Schedules can be toggled without deleting them — useful when deploying a change and temporarily pausing a schedule:
+
+```bash
+# Disable a schedule
+curl -X PATCH http://localhost:5016/api/v1/schedules/{schedule_id} \
+  -d '{"enabled": false}'
+
+# Re-enable it
+curl -X PATCH http://localhost:5016/api/v1/schedules/{schedule_id} \
+  -d '{"enabled": true}'
+```
+
+In the dashboard, use the toggle switch on each schedule row.
+
+---
+
+## Time Zone Support
+
+Schedules run in UTC by default. Specify a time zone to schedule relative to local business hours:
+
+```json
+{
+  "name": "Business Hours Report",
+  "cron": "0 9 * * 1-5",
+  "timezone": "America/New_York"
+}
+```
+
+All supported [IANA time zone names](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) are accepted.
+
+---
+
+## Notifications on Failure
+
+Configure failure notifications per schedule:
+
+<Tabs items={["Slack", "Email", "Webhook"]}>
+  <Tab value="Slack">
+    ```json
+    {
+      "on_failure": {
+        "slack_webhook": "${SLACK_WEBHOOK_URL}",
+        "notify": true
+      }
+    }
+    ```
+
+    The Slack message includes the flow name, which step failed, the error message, and a direct link to the execution detail page.
+  </Tab>
+  <Tab value="Email">
+    ```json
+    {
+      "on_failure": {
+        "email": {
+          "to": ["team@example.com"],
+          "notify": true
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab value="Webhook">
+    ```json
+    {
+      "on_failure": {
+        "webhook": {
+          "url": "https://your-system.example.com/alerts",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer ${WEBHOOK_TOKEN}"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Concurrent Execution Control
+
+By default, if a scheduled execution is still running when the next one is due, the new run is skipped (no stacking). Configure this behavior:
+
+```json
+{
+  "name": "Long-Running Suite",
+  "cron": "0 * * * *",
+  "concurrent_policy": "skip"  // "skip" (default) or "allow"
+}
+```
+
+Use `"allow"` only for fast flows where overlap is intentional, such as load simulations.
+
+---
+
+## Using Environments with Schedules
+
+Attach an environment to a schedule to run the same flow with different configuration in different contexts:
+
+```json
+// Run the same health-check flow against staging and production
+[
+  {
+    "name": "Staging Health Check",
+    "flow_id": "health-check-id",
+    "cron": "*/10 * * * *",
+    "environment_id": "staging-environment-id"
+  },
+  {
+    "name": "Production Health Check",
+    "flow_id": "health-check-id",
+    "cron": "*/5 * * * *",
+    "environment_id": "production-environment-id"
+  }
+]
+```
+
+See the [Environments](/docs/yaml-reference) documentation for how to define environment variable sets.

@@ -1,0 +1,466 @@
+---
+title: External Services
+description: Connect TestMesh to managed cloud PostgreSQL, Redis, and Kafka.
+---
+
+By default TestMesh bundles its own PostgreSQL, Redis, and Kafka via Docker Compose. For production deployments you'll want to replace these with managed services that provide high availability, automatic backups, and better operational tooling.
+
+## Deployment Modes
+
+| Mode | Description | When to Use |
+|------|-------------|-------------|
+| **Bundled** | Docker containers | Local development, demos |
+| **External** | Managed cloud services | Production, staging |
+| **Hybrid** | Mix of both | Transition period |
+
+---
+
+## PostgreSQL
+
+### Requirements
+
+- PostgreSQL 14 or higher (15+ recommended)
+- TestMesh user with full privileges on the `testmesh` database
+- Network access from the TestMesh API
+
+### Environment Variables
+
+<Tabs items={["Individual Params", "Connection URL"]}>
+  <Tab value="Individual Params">
+    ```bash
+    DATABASE_HOST=my-postgres.example.com
+    DATABASE_PORT=5432
+    DATABASE_USER=testmesh
+    DATABASE_PASSWORD=secure_password
+    DATABASE_DBNAME=testmesh
+    DATABASE_SSLMODE=require
+    DATABASE_MAX_CONNS=25
+    DATABASE_MAX_IDLE=5
+    ```
+  </Tab>
+  <Tab value="Connection URL">
+    ```bash
+    DATABASE_URL=postgres://testmesh:secure_password@my-postgres.example.com:5432/testmesh?sslmode=require
+    ```
+  </Tab>
+</Tabs>
+
+### Database Setup
+
+```sql
+-- Connect as superuser
+CREATE DATABASE testmesh;
+CREATE USER testmesh WITH ENCRYPTED PASSWORD 'secure_password';
+GRANT ALL PRIVILEGES ON DATABASE testmesh TO testmesh;
+
+\c testmesh
+GRANT ALL ON SCHEMA public TO testmesh;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO testmesh;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO testmesh;
+```
+
+If you are using the demo microservices, each one needs its own schema:
+
+```sql
+CREATE SCHEMA user_service;
+CREATE SCHEMA product_service;
+CREATE SCHEMA order_service;
+CREATE SCHEMA notification_service;
+
+GRANT ALL ON SCHEMA user_service TO testmesh;
+GRANT ALL ON SCHEMA product_service TO testmesh;
+GRANT ALL ON SCHEMA order_service TO testmesh;
+GRANT ALL ON SCHEMA notification_service TO testmesh;
+```
+
+TestMesh runs migrations automatically on startup — no manual migration step required.
+
+### SSL Modes
+
+| Mode | Description | Recommended For |
+|------|-------------|-----------------|
+| `disable` | No TLS | Local development only |
+| `require` | TLS required, no cert verification | Simple encryption |
+| `verify-ca` | TLS + verify CA certificate | Standard production |
+| `verify-full` | TLS + verify CA + hostname | Highest security |
+
+```bash
+# Production recommended
+DATABASE_SSLMODE=verify-full
+DATABASE_SSLROOTCERT=/path/to/ca-certificate.crt
+```
+
+### Cloud Provider Examples
+
+<Tabs items={["AWS RDS", "GCP Cloud SQL", "Azure Database"]}>
+  <Tab value="AWS RDS">
+    ```bash
+    DATABASE_HOST=testmesh-db.abc123.us-east-1.rds.amazonaws.com
+    DATABASE_PORT=5432
+    DATABASE_USER=testmesh
+    DATABASE_PASSWORD=your_password
+    DATABASE_DBNAME=testmesh
+    DATABASE_SSLMODE=require
+    ```
+  </Tab>
+  <Tab value="GCP Cloud SQL">
+    ```bash
+    # With Cloud SQL Proxy sidecar
+    DATABASE_HOST=127.0.0.1
+    DATABASE_PORT=5432
+    DATABASE_USER=testmesh
+    DATABASE_PASSWORD=your_password
+    DATABASE_DBNAME=testmesh
+
+    # With public IP + client certs
+    DATABASE_SSLMODE=verify-ca
+    DATABASE_SSLROOTCERT=/secrets/server-ca.pem
+    DATABASE_SSLCERT=/secrets/client-cert.pem
+    DATABASE_SSLKEY=/secrets/client-key.pem
+    ```
+  </Tab>
+  <Tab value="Azure Database">
+    ```bash
+    # Note: Azure requires @servername suffix in username
+    DATABASE_HOST=testmesh-db.postgres.database.azure.com
+    DATABASE_PORT=5432
+    DATABASE_USER=testmesh@testmesh-db
+    DATABASE_PASSWORD=your_password
+    DATABASE_DBNAME=testmesh
+    DATABASE_SSLMODE=require
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Redis
+
+### Requirements
+
+- Redis 6.0 or higher (7.0+ recommended)
+- Network access from the TestMesh API
+
+TestMesh uses Redis for the job queue (Redis Streams), distributed locking, caching, and WebSocket state. No special configuration of Redis is needed — TestMesh creates its own keys on startup.
+
+### Environment Variables
+
+<Tabs items={["Individual Params", "Connection URL"]}>
+  <Tab value="Individual Params">
+    ```bash
+    REDIS_HOST=my-redis.example.com
+    REDIS_PORT=6379
+    REDIS_PASSWORD=secure_redis_password
+    REDIS_DB=0
+    REDIS_TLS_ENABLED=true
+    ```
+  </Tab>
+  <Tab value="Connection URL">
+    ```bash
+    # Plain
+    REDIS_URL=redis://user:password@my-redis.example.com:6379/0
+
+    # TLS (rediss://)
+    REDIS_URL=rediss://user:password@my-redis.example.com:6380/0
+    ```
+  </Tab>
+</Tabs>
+
+### Recommended Redis Configuration
+
+```
+maxmemory 2gb
+maxmemory-policy allkeys-lru
+appendonly yes
+appendfsync everysec
+```
+
+### Cloud Provider Examples
+
+<Tabs items={["AWS ElastiCache", "Redis Cloud", "Azure Cache"]}>
+  <Tab value="AWS ElastiCache">
+    ```bash
+    # Without auth token
+    REDIS_HOST=testmesh.abc123.cache.amazonaws.com
+    REDIS_PORT=6379
+    REDIS_TLS_ENABLED=false
+
+    # With auth token (encryption in transit enabled)
+    REDIS_HOST=testmesh.abc123.cache.amazonaws.com
+    REDIS_PORT=6379
+    REDIS_PASSWORD=your_auth_token
+    REDIS_TLS_ENABLED=true
+    ```
+  </Tab>
+  <Tab value="Redis Cloud">
+    ```bash
+    REDIS_URL=rediss://default:your_password@redis-12345.c1.us-east-1-2.ec2.cloud.redislabs.com:12345
+    ```
+  </Tab>
+  <Tab value="Azure Cache">
+    ```bash
+    # Azure uses port 6380 for SSL
+    REDIS_HOST=testmesh.redis.cache.windows.net
+    REDIS_PORT=6380
+    REDIS_PASSWORD=your_primary_key
+    REDIS_TLS_ENABLED=true
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Kafka
+
+Kafka is optional. It is only required if your flows use `kafka_producer` or `kafka_consumer` actions.
+
+### Requirements
+
+- Kafka 2.8+ (KRaft mode) or Kafka 3.0+
+- Network access from the TestMesh API
+
+Topics are created automatically when a `kafka_producer` step runs. For production, pre-create topics with your desired partition count and replication factor.
+
+### Environment Variables
+
+```bash
+KAFKA_ENABLED=true
+KAFKA_BROKERS=broker1.example.com:9092,broker2.example.com:9092
+
+# SASL authentication (optional)
+KAFKA_SASL_ENABLED=true
+KAFKA_SASL_MECHANISM=PLAIN   # or SCRAM-SHA-256, SCRAM-SHA-512
+KAFKA_SASL_USERNAME=testmesh
+KAFKA_SASL_PASSWORD=secure_kafka_password
+
+# TLS (optional)
+KAFKA_TLS_ENABLED=true
+KAFKA_TLS_SKIP_VERIFY=false
+```
+
+### Cloud Provider Examples
+
+<Tabs items={["AWS MSK", "Confluent Cloud", "Azure Event Hubs", "Aiven"]}>
+  <Tab value="AWS MSK">
+    ```bash
+    # SASL/SCRAM authentication
+    KAFKA_BROKERS=b-1.mycluster.abc123.kafka.us-east-1.amazonaws.com:9096,b-2.mycluster.abc123.kafka.us-east-1.amazonaws.com:9096
+    KAFKA_SASL_ENABLED=true
+    KAFKA_SASL_MECHANISM=SCRAM-SHA-512
+    KAFKA_SASL_USERNAME=testmesh
+    KAFKA_SASL_PASSWORD=your_password
+    KAFKA_TLS_ENABLED=true
+    ```
+  </Tab>
+  <Tab value="Confluent Cloud">
+    ```bash
+    KAFKA_BROKERS=pkc-abc123.us-east-1.aws.confluent.cloud:9092
+    KAFKA_SASL_ENABLED=true
+    KAFKA_SASL_MECHANISM=PLAIN
+    KAFKA_SASL_USERNAME=your_api_key
+    KAFKA_SASL_PASSWORD=your_api_secret
+    KAFKA_TLS_ENABLED=true
+    ```
+  </Tab>
+  <Tab value="Azure Event Hubs">
+    ```bash
+    # Event Hubs is Kafka-compatible
+    KAFKA_BROKERS=testmesh.servicebus.windows.net:9093
+    KAFKA_SASL_ENABLED=true
+    KAFKA_SASL_MECHANISM=PLAIN
+    KAFKA_SASL_USERNAME=$ConnectionString
+    KAFKA_SASL_PASSWORD=Endpoint=sb://testmesh.servicebus.windows.net/;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your_key
+    KAFKA_TLS_ENABLED=true
+    ```
+  </Tab>
+  <Tab value="Aiven">
+    ```bash
+    KAFKA_BROKERS=testmesh-project.aivencloud.com:12345
+    KAFKA_SASL_ENABLED=true
+    KAFKA_SASL_MECHANISM=PLAIN
+    KAFKA_SASL_USERNAME=avnadmin
+    KAFKA_SASL_PASSWORD=your_password
+    KAFKA_TLS_ENABLED=true
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Environment Variables Reference
+
+### PostgreSQL
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_HOST` | `localhost` | Database hostname |
+| `DATABASE_PORT` | `5432` | Database port |
+| `DATABASE_USER` | `testmesh` | Username |
+| `DATABASE_PASSWORD` | `testmesh` | Password |
+| `DATABASE_DBNAME` | `testmesh` | Database name |
+| `DATABASE_SSLMODE` | `disable` | `disable`, `require`, `verify-ca`, `verify-full` |
+| `DATABASE_MAX_CONNS` | `25` | Max connection pool size |
+| `DATABASE_MAX_IDLE` | `5` | Max idle connections |
+| `DATABASE_URL` | — | Full connection string (overrides individual params) |
+
+### Redis
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_HOST` | `localhost` | Redis hostname |
+| `REDIS_PORT` | `6379` | Redis port |
+| `REDIS_PASSWORD` | — | Password (optional) |
+| `REDIS_DB` | `0` | Database number |
+| `REDIS_TLS_ENABLED` | `false` | Enable TLS/SSL |
+| `REDIS_URL` | — | Full connection URL (overrides individual params) |
+
+### Kafka
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KAFKA_ENABLED` | `false` | Enable Kafka support |
+| `KAFKA_BROKERS` | — | Comma-separated broker list |
+| `KAFKA_SASL_ENABLED` | `false` | Enable SASL authentication |
+| `KAFKA_SASL_MECHANISM` | `PLAIN` | `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512` |
+| `KAFKA_SASL_USERNAME` | — | SASL username |
+| `KAFKA_SASL_PASSWORD` | — | SASL password |
+| `KAFKA_TLS_ENABLED` | `false` | Enable TLS/SSL |
+| `KAFKA_TLS_SKIP_VERIFY` | `false` | Skip cert verification (not recommended) |
+
+### Configuration Precedence
+
+1. Environment variables (highest priority)
+2. `config.yaml` in working directory
+3. Default values (lowest priority)
+
+---
+
+## Security Best Practices
+
+<Callout type="warn">
+Never commit credentials to git. Use `.gitignore` to exclude `.env` files and use a secrets manager for production credentials.
+</Callout>
+
+### Credentials Management
+
+- Use AWS Secrets Manager, GCP Secret Manager, Azure Key Vault, or HashiCorp Vault
+- Rotate database passwords every 90 days
+- Rotate JWT secrets immediately if compromised
+
+### Network Security
+
+- Place databases in private subnets, not public internet
+- Use VPC peering or private endpoints between TestMesh and databases
+- Restrict inbound rules: PostgreSQL on 5432, Redis on 6379, Kafka on 9092-9094
+
+### TLS Configuration
+
+Always use TLS in production:
+
+```bash
+# PostgreSQL
+DATABASE_SSLMODE=verify-full   # Not 'disable' or 'require'
+
+# Redis
+REDIS_TLS_ENABLED=true
+
+# Kafka
+KAFKA_TLS_ENABLED=true
+KAFKA_TLS_SKIP_VERIFY=false    # Never skip cert verification
+```
+
+### Access Control
+
+Grant only the permissions TestMesh needs:
+
+```sql
+-- Don't use superuser accounts
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO testmesh;
+-- Do not grant superuser or replication privileges
+```
+
+---
+
+## Validating Connections
+
+TestMesh validates all connections on startup and reports status via the health endpoint:
+
+```bash
+curl http://localhost:5016/health
+```
+
+```json
+{
+  "status": "healthy",
+  "services": {
+    "database": "connected",
+    "redis": "connected",
+    "kafka": "connected"
+  }
+}
+```
+
+You can also check the API container logs:
+
+```bash
+docker logs testmesh-api
+# Look for:
+# INFO  Successfully connected to PostgreSQL
+# INFO  Successfully connected to Redis
+# INFO  Successfully connected to Kafka brokers
+```
+
+### Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| Connection timeout | Firewall or security group | Open port in network rules |
+| Authentication failure | Wrong credentials | Verify username/password; check Azure `@servername` suffix |
+| SSL/TLS errors | Wrong SSL mode | Match `DATABASE_SSLMODE` to what the server requires |
+| Kafka broker unreachable | All brokers must be accessible | Check all broker hostnames resolve from TestMesh container |
+
+---
+
+## Migrating from Bundled to External
+
+<Steps>
+  <Step>
+    **Back up your data**
+
+    ```bash
+    docker exec testmesh-postgres pg_dump -U testmesh testmesh > backup.sql
+    ```
+  </Step>
+  <Step>
+    **Provision external services**
+
+    Create your RDS instance, ElastiCache cluster, and MSK cluster in your cloud provider.
+  </Step>
+  <Step>
+    **Restore data**
+
+    ```bash
+    psql -h external-host -U testmesh testmesh < backup.sql
+    ```
+  </Step>
+  <Step>
+    **Update configuration**
+
+    Set `DATABASE_HOST`, `REDIS_HOST`, and other env vars to point at your external services. Remove the bundled service definitions from your compose file.
+  </Step>
+  <Step>
+    **Deploy and verify**
+
+    ```bash
+    docker-compose up -d api dashboard
+    curl http://localhost:5016/health
+    ```
+  </Step>
+  <Step>
+    **Clean up bundled volumes** (after confirming everything works)
+
+    ```bash
+    docker volume rm testmesh_postgres_data testmesh_redis_data
+    ```
+  </Step>
+</Steps>

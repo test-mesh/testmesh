@@ -1,0 +1,313 @@
+---
+title: Steps
+description: Step anatomy — id, action, config, assert, output, when, retry, timeout, and more.
+---
+
+Every item in the `steps`, `setup`, and `teardown` arrays follows the same structure. A step describes a single unit of work: what action to run, how to configure it, what to extract from the result, and what to assert.
+
+## Required fields
+
+### id
+
+A unique identifier for the step within the flow. Referenced by other steps when accessing outputs.
+
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/users"
+```
+
+Constraints:
+- Characters: `[a-z0-9_-]`
+- Must start with a letter
+- Maximum 64 characters
+- Must be unique within the flow
+
+### action
+
+The action type to execute. See the [Actions reference](/docs/yaml-reference/actions) for all available types.
+
+### config
+
+Action-specific configuration object. The structure varies by action type.
+
+---
+
+## Optional fields
+
+### name
+
+A human-readable label displayed in the dashboard and CLI output. Does not need to be unique.
+
+```yaml
+- id: create_order
+  name: "Create Order"
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/orders"
+```
+
+### description
+
+A longer explanation for documentation purposes.
+
+```yaml
+- id: verify_payment
+  description: "Confirms that the payment processor accepted the charge and returned a transaction ID."
+  action: http_request
+  config:
+    method: GET
+    url: "${PAYMENT_URL}/transactions/${payment_id}"
+```
+
+### output
+
+Extracts values from the step result and stores them as variables accessible to subsequent steps. Keys are the variable names; values are path expressions into the result.
+
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/users"
+    body:
+      email: "user@example.com"
+  output:
+    user_id: "response.body.id"
+    user_email: "response.body.email"
+    auth_token: "response.body.token"
+```
+
+Later steps reference these as `${create_user.user_id}`, `${create_user.user_email}`, etc.
+
+### assert
+
+An array of boolean expressions that must all pass for the step to succeed. See [Assertions](/docs/yaml-reference/assertions) for the full expression syntax.
+
+```yaml
+assert:
+  - status == 201
+  - response.body.id exists
+  - response.body.email contains "@"
+```
+
+Assertions can also include a custom failure message:
+
+```yaml
+assert:
+  - expression: "status == 201"
+    message: "Expected user creation to return 201 Created"
+  - expression: "response.body.id exists"
+    message: "Response must include the new user's ID"
+```
+
+### when
+
+A boolean expression that controls whether the step runs. If the expression evaluates to `false`, the step is skipped without failing the flow.
+
+```yaml
+- id: handle_ready
+  when: "${check_status.is_ready} == true"
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/process"
+
+- id: handle_not_ready
+  when: "${check_status.is_ready} == false"
+  action: log
+  config:
+    message: "Service not ready, skipping processing step"
+```
+
+`when` supports the same operators as assertions: `==`, `!=`, `>`, `<`, `&&`, `||`, `!`, `contains`, `in`, etc.
+
+### disabled
+
+Set to `true` to skip a step entirely without removing it from the file.
+
+```yaml
+- id: flaky_check
+  disabled: true
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/experimental"
+```
+
+### tags
+
+Step-level tags for filtering. Independent from flow-level tags.
+
+```yaml
+- id: slow_query
+  tags:
+    - slow
+    - db
+  action: database_query
+  config:
+    query: "SELECT COUNT(*) FROM large_table"
+```
+
+---
+
+## Retry configuration
+
+Steps can be retried automatically when they fail. Retry is configured per step or globally in the flow `config` block.
+
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/users"
+  retry:
+    max_attempts: 3
+    delay: "1s"
+    backoff: "exponential"
+    retry_on:
+      - "status >= 500"
+      - "timeout"
+    retry_on_not:
+      - "status == 401"
+      - "status == 403"
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `max_attempts` | integer | `1` | Total attempts including the first try (1–10) |
+| `delay` | duration | `"1s"` | Wait before the first retry |
+| `backoff` | string | `"exponential"` | `linear`, `exponential`, or `constant` |
+| `retry_on` | array | all errors | Conditions that trigger a retry |
+| `retry_on_not` | array | none | Conditions that prevent a retry |
+
+With `backoff: "exponential"` and `delay: "1s"`, the waits are 1s, 2s, 4s, 8s, ...
+
+### retry_on conditions
+
+```yaml
+retry_on:
+  - "status >= 500"        # HTTP 5xx errors
+  - "timeout"              # Request timed out
+  - "connection_error"     # Could not connect
+```
+
+---
+
+## Timeout
+
+Override the default step timeout. Durations use the format `30s`, `5m`, or `2h`.
+
+```yaml
+- id: long_export
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/exports"
+  timeout: "5m"
+```
+
+---
+
+## Error handling
+
+### on_error
+
+Controls what happens when a step fails (assertions fail or an error is thrown).
+
+```yaml
+- id: optional_check
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/optional-feature"
+  on_error: "continue"
+```
+
+| Value | Behaviour |
+|---|---|
+| `"fail"` | Default. The flow stops and is marked as failed. |
+| `"continue"` | The step failure is recorded but execution continues. |
+| `"retry"` | Retry according to the `retry` config before failing. |
+
+### error_steps
+
+Steps that run only when this step fails. Useful for logging, alerting, or cleanup scoped to a specific failure.
+
+```yaml
+- id: process_payment
+  action: http_request
+  config:
+    method: POST
+    url: "${PAYMENT_URL}/charge"
+  on_error: "continue"
+  error_steps:
+    - id: log_payment_failure
+      action: log
+      config:
+        level: error
+        message: "Payment failed: ${error.message}"
+
+    - id: alert_on_call
+      action: http_request
+      config:
+        method: POST
+        url: "${SLACK_WEBHOOK}"
+        body:
+          text: "Payment step failed in flow ${FLOW_NAME}"
+```
+
+---
+
+## Step ordering
+
+Steps execute sequentially by default, in the order they appear in the array. Each step has access to the outputs of all steps that have run before it.
+
+To run steps in parallel, use the `parallel` action. To iterate over a list, use `for_each`. See [Control Flow](/docs/yaml-reference/actions/control-flow) for details.
+
+---
+
+## Full step example
+
+```yaml title="complete-step.yaml"
+- id: create_user
+  name: "Create User Account"
+  description: "POST to the user service and extract the new user's ID and token."
+  action: http_request
+
+  config:
+    method: POST
+    url: "${API_URL}/users"
+    headers:
+      Content-Type: "application/json"
+    body:
+      email: "test-${RANDOM_ID}@example.com"
+      password: "SecurePass123!"
+
+  output:
+    user_id: "response.body.id"
+    auth_token: "response.body.token"
+
+  assert:
+    - status == 201
+    - expression: "response.body.id exists"
+      message: "Response must include the new user ID"
+    - expression: "response.body.token exists"
+      message: "Response must include an auth token"
+
+  retry:
+    max_attempts: 3
+    delay: "1s"
+    backoff: "exponential"
+    retry_on:
+      - "status >= 500"
+
+  timeout: "30s"
+  on_error: "fail"
+  tags:
+    - user-management
+    - critical
+```

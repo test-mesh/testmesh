@@ -1,0 +1,218 @@
+---
+title: redis_get / redis_set
+description: Read and write Redis keys for verifying caches, sessions, rate limits, and other key-value data.
+---
+
+TestMesh provides two Redis actions: `redis_get` to read a key's value and `redis_set` to write a key with an optional TTL. These are useful for verifying caching behaviour, session management, and any system that uses Redis for state.
+
+<Tabs items={["redis_get", "redis_set"]}>
+  <Tab value="redis_get">
+    ## redis_get
+
+    Reads the value of a Redis key.
+
+    ### Minimal example
+
+    ```yaml title="redis-get.yaml"
+    - id: check_cache
+      action: redis_get
+      config:
+        host: "localhost"
+        port: 6379
+        key: "user:${user_id}"
+      assert:
+        - result.value exists
+    ```
+
+    ### Config fields
+
+    | Field | Required | Default | Description |
+    |---|---|---|---|
+    | `host` | Yes | — | Redis host |
+    | `port` | No | `6379` | Redis port |
+    | `key` | Yes | — | Key to read |
+    | `db` | No | `0` | Redis database number |
+    | `password` | No | — | Redis auth password |
+
+    ### Response data
+
+    | Path | Description |
+    |---|---|
+    | `result.value` | The value stored at the key (string, or null if not found) |
+
+    ### Output extraction
+
+    ```yaml
+    output:
+      cached_value: "result.value"
+    ```
+
+    ### Assertions
+
+    ```yaml
+    assert:
+      - result.value exists                     # Key exists
+      - result.value == "active"                # Exact value
+      - result.value contains "user_"           # Partial match
+    ```
+  </Tab>
+  <Tab value="redis_set">
+    ## redis_set
+
+    Writes a value to a Redis key, with optional expiration.
+
+    ### Minimal example
+
+    ```yaml title="redis-set.yaml"
+    - id: set_session
+      action: redis_set
+      config:
+        host: "localhost"
+        port: 6379
+        key: "session:${RANDOM_ID}"
+        value: "${auth_token}"
+        ttl: "3600s"
+    ```
+
+    ### Config fields
+
+    | Field | Required | Default | Description |
+    |---|---|---|---|
+    | `host` | Yes | — | Redis host |
+    | `port` | No | `6379` | Redis port |
+    | `key` | Yes | — | Key to write |
+    | `value` | Yes | — | Value to store |
+    | `ttl` | No | no expiry | Time-to-live (e.g., `"300s"`, `"1h"`) |
+    | `db` | No | `0` | Redis database number |
+    | `password` | No | — | Redis auth password |
+  </Tab>
+</Tabs>
+
+---
+
+## Common use cases
+
+### Verify the cache is populated after an API call
+
+```yaml
+- id: get_user_profile
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/users/${user_id}"
+    headers:
+      Authorization: "Bearer ${auth_token}"
+  assert:
+    - status == 200
+
+- id: verify_user_cached
+  action: redis_get
+  config:
+    host: "${REDIS_HOST}"
+    port: 6379
+    key: "user:${user_id}"
+  assert:
+    - result.value exists
+```
+
+### Verify the cache is invalidated after an update
+
+```yaml
+- id: update_user
+  action: http_request
+  config:
+    method: PUT
+    url: "${API_URL}/users/${user_id}"
+    body:
+      name: "Updated Name"
+  assert:
+    - status == 200
+
+- id: verify_cache_cleared
+  action: redis_get
+  config:
+    host: "${REDIS_HOST}"
+    port: 6379
+    key: "user:${user_id}"
+  assert:
+    - result.value is null
+```
+
+### Seed rate limit state for testing limit enforcement
+
+```yaml
+- id: set_rate_limit_counter
+  action: redis_set
+  config:
+    host: "${REDIS_HOST}"
+    port: 6379
+    key: "rate_limit:${user_id}:api"
+    value: "99"
+    ttl: "60s"
+
+- id: make_request_at_limit
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/data"
+    headers:
+      Authorization: "Bearer ${auth_token}"
+  assert:
+    - status == 200
+
+- id: make_request_over_limit
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/data"
+    headers:
+      Authorization: "Bearer ${auth_token}"
+  assert:
+    - status == 429
+```
+
+### Test session storage
+
+```yaml
+- id: login
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/auth/login"
+    body:
+      email: "${USER_EMAIL}"
+      password: "${USER_PASSWORD}"
+  output:
+    session_id: "response.body.session_id"
+  assert:
+    - status == 200
+
+- id: verify_session_in_redis
+  action: redis_get
+  config:
+    host: "${REDIS_HOST}"
+    port: 6379
+    key: "session:${login.session_id}"
+    db: 0
+  assert:
+    - result.value exists
+
+- id: logout
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/auth/logout"
+    headers:
+      Authorization: "Bearer ${login.session_id}"
+  assert:
+    - status == 200
+
+- id: verify_session_deleted
+  action: redis_get
+  config:
+    host: "${REDIS_HOST}"
+    port: 6379
+    key: "session:${login.session_id}"
+  assert:
+    - result.value is null
+```

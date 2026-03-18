@@ -1,0 +1,247 @@
+---
+title: Assertions
+description: Expression syntax for validating step results — comparisons, string operators, type checks, and more.
+---
+
+Assertions are boolean expressions that must all evaluate to `true` for a step to pass. They appear in the `assert` array on any step, and can also be used as standalone steps with the `assert` action.
+
+## Basic syntax
+
+```yaml
+assert:
+  - status == 200
+  - response.body.id exists
+```
+
+Each assertion is a string expression. When a flow runs, every assertion in the array is evaluated. If any assertion fails, the step is marked as failed and (by default) the flow stops.
+
+---
+
+## Comparison operators
+
+```yaml
+assert:
+  - status == 200               # Equal
+  - status != 404               # Not equal
+  - count > 0                   # Greater than
+  - price < 100                 # Less than
+  - age >= 18                   # Greater than or equal
+  - score <= 100                # Less than or equal
+```
+
+---
+
+## Existence and null checks
+
+```yaml
+assert:
+  - id exists                   # Field is present and not null
+  - user.email exists
+  - response.body.data exists
+
+  - deleted_at is null          # Field is null or absent
+  - error is not null           # Field is present and not null
+```
+
+---
+
+## Type checks
+
+```yaml
+assert:
+  - id is number
+  - name is string
+  - active is boolean
+  - tags is array
+  - metadata is object
+```
+
+---
+
+## String operators
+
+```yaml
+assert:
+  - email contains "@"
+  - url starts_with "https://"
+  - filename ends_with ".pdf"
+  - content matches "\\d{3}-\\d{4}"    # Regex match
+```
+
+<Callout type="info">
+  `matches` uses standard regular expression syntax. Backslashes must be escaped in YAML strings.
+</Callout>
+
+---
+
+## Array operators
+
+```yaml
+assert:
+  - tags contains "important"           # Array includes value
+  - users.length == 10                  # Array length equals
+  - prices.length > 0                   # Array is non-empty
+```
+
+---
+
+## Boolean logic
+
+```yaml
+assert:
+  - status == 200 && body exists                                # Both must be true
+  - status == 200 || status == 201                              # Either must be true
+  - !(status >= 400)                                            # Negation
+  - (status == 200 || status == 201) && response.body.id exists # Combined
+```
+
+---
+
+## Accessing response data
+
+The path used in an assertion depends on the action type.
+
+<Tabs items={["HTTP Request", "Database Query", "Kafka Consumer", "gRPC Call"]}>
+  <Tab value="HTTP Request">
+    ```yaml
+    assert:
+      - status == 200                              # HTTP status code
+      - response.body.id exists                    # JSON body field
+      - response.body.users[0].email exists        # Array element field
+      - response.headers["Content-Type"] contains "json"
+      - response.time < 1000                       # Response time in milliseconds
+    ```
+  </Tab>
+  <Tab value="Database Query">
+    ```yaml
+    assert:
+      - result.count > 0                           # Number of rows returned
+      - result.count == 1                          # Exact row count
+      - result.rows[0].email exists                # First row field
+      - result.rows[0].status == "active"          # Field equality
+      - result.rows[0].email_verified == false     # Boolean field
+    ```
+  </Tab>
+  <Tab value="Kafka Consumer">
+    ```yaml
+    assert:
+      - result.count > 0                           # Messages received
+      - result.messages[0].value.event_type == "user.created"
+      - result.messages[0].value.user_id exists
+    ```
+  </Tab>
+  <Tab value="gRPC Call">
+    ```yaml
+    assert:
+      - result.status == "OK"                      # gRPC status
+      - result.response.id == "${user_id}"         # Response field
+      - result.response.name exists
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Time assertions
+
+```yaml
+assert:
+  - response.time < 1000                            # Milliseconds
+  - created_at > "2024-01-01T00:00:00Z"             # ISO 8601 timestamp
+```
+
+---
+
+## JSONPath assertions
+
+For complex filtering, use JSONPath syntax directly in an assertion:
+
+```yaml
+assert:
+  - "$.users[?(@.status == 'active')].length > 0"   # At least one active user
+  - "$.products[?(@.price < 100)].length >= 3"      # At least 3 products under $100
+```
+
+---
+
+## Custom failure messages
+
+Plain string assertions give generic error output. Adding a `message` field makes failures easier to diagnose.
+
+```yaml
+assert:
+  - expression: "status == 201"
+    message: "Expected user creation to return 201 Created"
+
+  - expression: "response.body.id exists"
+    message: "Response must include the new user's ID"
+
+  - expression: "response.time < 1000"
+    message: "Response time must be under 1 second (was ${response.time}ms)"
+```
+
+---
+
+## Assertion modes
+
+By default, every assertion in the `assert` array must pass. Two alternative modes are available for cases where that's too strict.
+
+```yaml
+# Default: all must pass
+assert:
+  - status == 200
+  - body exists
+
+# At least one must pass
+assert_any:
+  - status == 200
+  - status == 201
+
+# None should be true (negative assertions)
+assert_none:
+  - status >= 400
+  - error exists
+```
+
+---
+
+## Multiple assertions (all must pass)
+
+When multiple assertions are listed, they are evaluated independently. All must pass. The first failure does not prevent the others from being evaluated — the report shows every failing assertion.
+
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/users"
+    body:
+      email: "test@example.com"
+  assert:
+    - status == 201
+    - response.body.id exists
+    - response.body.email == "test@example.com"
+    - response.body.token exists
+    - response.time < 500
+```
+
+---
+
+## Standalone assert step
+
+Use the `assert` action to validate accumulated state at any point in a flow, independently of any specific action.
+
+```yaml
+- id: verify_conditions
+  action: assert
+  config:
+    assertions:
+      - expression: "${user_id} exists"
+        message: "User ID is required before placing an order"
+
+      - expression: "${status_code} == 200"
+        message: "Expected status 200"
+
+      - expression: "${response_time} < 1000"
+        message: "Response too slow"
+```

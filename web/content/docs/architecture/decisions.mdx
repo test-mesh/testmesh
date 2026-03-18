@@ -1,0 +1,136 @@
+---
+title: Architecture Decisions
+description: Key architectural decisions and the reasoning behind them.
+---
+
+This page records the significant architectural choices made for TestMesh and the reasoning behind each. These are not abstract principles — they are decisions that were made at a specific point with specific tradeoffs in mind.
+
+---
+
+## Go for the Backend
+
+**Decision**: All server-side code (API, runner, scheduler, worker, CLI) is written in Go.
+
+**Alternatives considered**: TypeScript/Node.js, Python
+
+**Rationale**:
+
+The test execution engine runs many concurrent flows. Go's goroutine model makes parallel execution cheap and efficient — spawning thousands of goroutines has negligible overhead compared to threads or Node.js workers.
+
+The single-binary build model matters for both the CLI (fast startup, no `node_modules` to ship) and the server (one file to deploy, no runtime version pinning). Compiled Go binaries start in milliseconds, which is important for CLI responsiveness.
+
+TypeScript was considered for developer familiarity, but the operational simplicity of a Go binary and the performance ceiling of goroutines for concurrent test execution tipped the balance.
+
+---
+
+## PostgreSQL for Primary Storage
+
+**Decision**: A single PostgreSQL instance with separate schemas per domain.
+
+**Alternatives considered**: MongoDB, CockroachDB, per-service databases from day one
+
+**Rationale**:
+
+Test flows and their execution results are relational data. Foreign keys between `flows` and `executions`, indexed status queries, and JSONB for variable-length execution context are all things PostgreSQL handles well.
+
+Using a single instance with separate schemas (`flows.*`, `executions.*`, `scheduler.*`) gives domain isolation without the operational overhead of managing multiple database servers in development and CI. When (if) the time comes to split into microservices, each domain already has its own schema — pointing it at a dedicated database is a configuration change.
+
+TimescaleDB was added as an extension (not a separate service) for time-series metrics. The same connection pool handles both regular queries and metrics queries.
+
+---
+
+## Redis Streams for the Job Queue
+
+**Decision**: Use Redis Streams for async job processing rather than a dedicated message broker.
+
+**Alternatives considered**: RabbitMQ, Amazon SQS, NATS
+
+**Rationale**:
+
+Redis is already required for distributed locking, session caching, and WebSocket state. Redis Streams (added in Redis 5) provides consumer groups, message acknowledgment, and persistence — the same semantics as a dedicated queue.
+
+Adding RabbitMQ or a cloud queue service would introduce a new operational dependency with no functional benefit at the expected workload. Fewer services to manage, monitor, and configure means fewer things that can fail.
+
+The tradeoff: Redis Streams is not as feature-rich as dedicated message brokers. There is no built-in dead-letter queue UI, no complex routing rules, and throughput is capped by single-node Redis. For the TestMesh use case — scheduling test runs, not financial transactions — this is acceptable.
+
+---
+
+## Modular Monolith
+
+**Decision**: Ship as a single Go binary with domain modules rather than microservices.
+
+**Alternatives considered**: Microservices from day one, serverless functions
+
+**Rationale**:
+
+Microservices solve problems of scale and independent deployment that do not exist at launch. They add problems — distributed tracing, network partitions, service discovery, cross-service transactions — that do exist from day one.
+
+The modular monolith gets the key benefit of microservices (clear domain ownership, no coupling) without the operational cost. When the runner needs to scale independently from the API, it can be extracted as a separate service. The domain boundary and database schema are already in place; only the call site changes.
+
+Serverless was rejected because test execution can be long-running and stateful (streaming logs over WebSocket), and cold starts would add latency to an already time-sensitive operation.
+
+See [Modular Monolith Pattern](/docs/architecture/modular-monolith) for the full reasoning and migration path.
+
+---
+
+## Next.js for the Dashboard
+
+**Decision**: The web dashboard is a Next.js 14 application with the App Router.
+
+**Alternatives considered**: Vite + React SPA, Remix
+
+**Rationale**:
+
+The App Router's layout nesting maps cleanly to the dashboard's structure (root layout → workspace layout → page). Server-side rendering improves initial page load and SEO for the documentation portions.
+
+Vite + SPA was considered for simplicity, but Next.js provides SSR, image optimization, and route-level code splitting without additional configuration. Remix was considered but had a smaller ecosystem and fewer shadcn/ui examples at the time of decision.
+
+---
+
+## Fumadocs for the Documentation Site
+
+**Decision**: The documentation site (`/web`) uses [Fumadocs](https://fumadocs.vercel.app).
+
+**Alternatives considered**: Docusaurus, Nextra, plain MDX
+
+**Rationale**:
+
+Fumadocs is built on Next.js, which means the documentation site and the dashboard share the same framework and toolchain. MDX support is first-class, with a component library (Cards, Callout, Tabs, Steps) that maps well to technical documentation patterns.
+
+Docusaurus is a strong alternative but uses its own build pipeline separate from Next.js. Given that the rest of the frontend is Next.js, using Fumadocs keeps the stack consistent.
+
+---
+
+## JWT + API Keys for Authentication
+
+**Decision**: JWT tokens for dashboard users, long-lived API keys for CLI and CI/CD.
+
+**Alternatives considered**: OAuth2/OIDC only, session cookies
+
+**Rationale**:
+
+The CLI and CI/CD workflows need a credential that can be placed in an environment variable and used without a browser. API keys fit this model. JWTs are used for the web dashboard where short-lived tokens with automatic refresh are appropriate.
+
+OAuth2/OIDC was deferred to a future version. It adds significant complexity (callback URLs, token storage, provider configuration) that is not necessary for a self-hosted tool where users manage their own users.
+
+---
+
+## Self-Hosted Only (v1.0)
+
+**Decision**: v1.0 is self-hosted only. No SaaS offering.
+
+**Rationale**:
+
+Multi-tenancy, billing, data isolation, and support infrastructure add months of work before the core product is stable. Self-hosted removes all of that. Users who need to test in their own network (behind a VPN, against internal services) actively prefer self-hosted anyway.
+
+A SaaS option may be added in v1.1 if there is demand, but the architecture will support it — workspaces provide natural multi-tenant boundaries.
+
+---
+
+## Apache 2.0 License
+
+**Decision**: Open source under Apache 2.0.
+
+**Rationale**:
+
+Apache 2.0 is permissive, includes patent grants, and is commercially friendly. It encourages adoption and contributions without requiring users to open-source their test flows. MIT was also considered but lacks the explicit patent clause, which matters for enterprise users.

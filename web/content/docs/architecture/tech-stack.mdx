@@ -1,0 +1,150 @@
+---
+title: Technology Stack
+description: Technology choices and rationale for the TestMesh platform.
+---
+
+TestMesh is built with a focused, opinionated stack. This page describes what we use and why.
+
+## Backend
+
+### Go
+
+The API server, background workers, and CLI are all written in Go 1.23+.
+
+**Why Go:**
+- Compiles to a single static binary with no runtime dependencies — one file to deploy
+- Goroutines make parallel test execution cheap and efficient
+- Static typing catches errors at compile time
+- Fast startup time is critical for the CLI tool
+- Lower memory footprint than JVM or Node.js runtimes
+
+### Gin
+
+HTTP routing and middleware are handled by [Gin](https://github.com/gin-gonic/gin). It provides fast routing, middleware chaining, and idiomatic request/response handling.
+
+### GORM
+
+Database access uses [GORM](https://gorm.io) with the PostgreSQL driver. Domain models are defined as Go structs with GORM tags. Migrations run automatically on startup via `AutoMigrate`.
+
+### Cobra + Viper (CLI)
+
+The CLI uses [Cobra](https://github.com/spf13/cobra) for command structure and [Viper](https://github.com/spf13/viper) for configuration. Cobra is the same framework used by `kubectl`, `docker`, and `hugo`. Viper reads from YAML files and environment variables with automatic key replacement.
+
+### Zap
+
+Structured logging uses [Uber's Zap](https://github.com/uber-go/zap) library. All log output is JSON in production, making it easy to ship to log aggregators.
+
+---
+
+## Database
+
+### PostgreSQL
+
+Primary storage is PostgreSQL 15+. All domain data — flows, executions, schedules, environments — lives in a single PostgreSQL database with separate schemas per domain.
+
+PostgreSQL was chosen over alternatives for:
+- Battle-tested reliability and ACID guarantees
+- JSONB support for storing flow definitions and execution context
+- Schema-level isolation that maps cleanly to domain boundaries
+- Rich query capabilities for execution history and metrics
+
+### TimescaleDB
+
+The PostgreSQL database uses the [TimescaleDB](https://www.timescale.com) extension for time-series metrics. Execution metrics are stored in a hypertable partitioned by time, enabling efficient range queries and automatic data retention policies.
+
+The project uses `timescale/timescaledb:latest-pg15` as its Docker image.
+
+---
+
+## Queue
+
+### Redis Streams
+
+Async job processing uses [Redis Streams](https://redis.io/docs/data-types/streams/) — the consumer group feature of Redis 5+. Jobs are published to a stream by the scheduler and consumed by worker processes.
+
+**Why Redis Streams over a dedicated message queue (RabbitMQ, SQS):**
+- Redis is already required for caching and distributed locking — no additional infrastructure
+- Redis Streams provides persistence, consumer groups, and acknowledgment semantics
+- Simpler operations: one service to manage instead of two
+- Good enough throughput for the workload (thousands of jobs/minute)
+
+### Redis
+
+Redis 7+ is used for:
+- Job queue (Redis Streams)
+- Distributed locking (scheduler overlap prevention)
+- Session/state caching
+- WebSocket connection state
+
+---
+
+## Frontend
+
+### Next.js
+
+The dashboard is built with [Next.js](https://nextjs.org) 14 (App Router) and TypeScript. Server-side rendering provides fast initial page loads. The App Router enables layout nesting for the sidebar + content structure.
+
+### Tailwind CSS + shadcn/ui
+
+UI components are built with [Tailwind CSS](https://tailwindcss.com) utility classes and [shadcn/ui](https://ui.shadcn.com) components. shadcn/ui components are copied into the project and customized — no library lock-in. They are built on [Radix UI](https://www.radix-ui.com) primitives for accessibility.
+
+### TanStack Query
+
+Server state management uses [TanStack Query](https://tanstack.com/query) (React Query). It handles loading states, caching, error handling, and background refetching consistently across the dashboard.
+
+### Zustand
+
+Client-only state (sidebar state, active workspace, theme) uses [Zustand](https://github.com/pmndrs/zustand) — minimal boilerplate, TypeScript-friendly.
+
+### React Flow
+
+The visual flow editor uses [React Flow](https://reactflow.dev) for the node-based graph UI.
+
+---
+
+## Infrastructure
+
+### Docker
+
+All services ship as Docker images with multi-stage builds. The Go binary is built in a `golang:1.23-alpine` stage and copied into an `alpine` runtime image. This keeps image sizes small and avoids shipping build toolchain into production.
+
+### Kubernetes + Helm
+
+Production deployment targets Kubernetes via a Helm chart in `deploy/helm/testmesh/`. The chart supports bundled or external PostgreSQL/Redis/Kafka, configurable replicas, ingress, HPA, and secrets.
+
+---
+
+## Observability
+
+### Prometheus
+
+The API server exposes a `/metrics` endpoint in Prometheus format. Key metrics include execution counts, durations, queue depth, and connection pool usage.
+
+### OpenTelemetry
+
+Distributed tracing uses [OpenTelemetry](https://opentelemetry.io) with a Jaeger exporter. Spans cover HTTP request handling, flow execution, and individual step execution.
+
+### Structured Logging
+
+All logs are emitted as structured JSON with consistent fields: `timestamp`, `level`, `message`, `trace_id`, and domain-specific fields. This makes logs queryable in Loki, CloudWatch, or Datadog.
+
+---
+
+## Minimum Version Requirements
+
+| Component | Minimum Version |
+|-----------|-----------------|
+| Go | 1.23 |
+| Node.js | 18.x (LTS) |
+| PostgreSQL | 14+ (15+ recommended) |
+| Redis | 6+ (Streams support) |
+| Kubernetes | 1.25+ |
+| Docker | 20.10+ |
+
+## Browser Support (Dashboard)
+
+| Browser | Minimum Version |
+|---------|-----------------|
+| Chrome / Edge | 90+ |
+| Firefox | 90+ |
+| Safari | 14+ |

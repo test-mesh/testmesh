@@ -1,0 +1,213 @@
+---
+title: System Architecture
+description: TestMesh is built as a modular monolith — a single Go binary with clear domain boundaries.
+---
+
+TestMesh is a **modular monolith**: a single Go binary organized into four domain modules with clean interfaces and no circular dependencies. The system is designed to be simple to deploy today and straightforward to split into microservices later if scale demands it.
+
+## System Diagram
+
+```
+                          ┌─────────────────────────────────────┐
+                          │      TestMesh Server (Go)           │
+                          │      Single Binary                  │
+                          ├─────────────────────────────────────┤
+                          │                                     │
+External                  │  ┌───────────────────────────────┐  │
+Clients                   │  │    API Domain                 │  │
+   │                      │  │  - REST API (port 5016)       │  │
+   │                      │  │  - WebSocket (real-time)      │  │
+┌──────┐                  │  │  - Auth & middleware          │  │
+│ CLI  │──────────┐       │  └──────────┬────────────────────┘  │
+└──────┘          │       │             │ (direct calls)         │
+                  │       │  ┌──────────▼────────────────────┐  │
+┌──────────┐      │       │  │  Scheduler Domain             │  │
+│Dashboard │──────┼───────┼─▶│  - Cron scheduler             │  │
+└──────────┘      │       │  │  - Job queue                  │  │
+                  │       │  │  - Worker pool                │  │
+┌──────────┐      │       │  └──────────┬────────────────────┘  │
+│ Agents   │──────┘       │             │ (queue jobs)           │
+└──────────┘              │  ┌──────────▼────────────────────┐  │
+                          │  │  Runner Domain                │  │
+                          │  │  - Execution engine           │  │
+                          │  │  - Action handlers            │  │
+                          │  │  - Assertion engine           │  │
+                          │  └──────────┬────────────────────┘  │
+                          │             │ (direct calls)         │
+                          │  ┌──────────▼────────────────────┐  │
+                          │  │  Storage Domain               │  │
+                          │  │  - Flow repository            │  │
+                          │  │  - Execution store            │  │
+                          │  │  - Metrics store              │  │
+                          │  └──────────┬────────────────────┘  │
+                          │             │                        │
+                          │  ┌──────────▼────────────────────┐  │
+                          │  │  Shared Layer                 │  │
+                          │  │  - DB, Redis, Queue clients   │  │
+                          │  │  - Auth, Logging, Config      │  │
+                          │  └───────────────────────────────┘  │
+                          └─────────────┬───────────────────────┘
+                                        │
+                                        ▼
+                          ┌─────────────────────────────────────┐
+                          │  External Infrastructure            │
+                          │  ┌──────────┐ ┌───────┐ ┌───────┐  │
+                          │  │PostgreSQL│ │ Redis │ │ Kafka │  │
+                          │  └──────────┘ └───────┘ └───────┘  │
+                          └─────────────────────────────────────┘
+```
+
+---
+
+## The Four Domains
+
+<Cards>
+  <Card title="API Domain" href="/docs/architecture#api-domain" description="REST API, WebSocket, authentication, and request routing." />
+  <Card title="Runner Domain" href="/docs/architecture#runner-domain" description="Flow execution engine, action handlers, and assertion evaluation." />
+  <Card title="Scheduler Domain" href="/docs/architecture#scheduler-domain" description="Cron-based scheduling and Redis Streams job queue." />
+  <Card title="Storage Domain" href="/docs/architecture#storage-domain" description="Flow and execution persistence via GORM and PostgreSQL." />
+</Cards>
+
+### API Domain
+
+**Location**: `api/internal/api/`
+
+The API domain handles all external communication. It exposes a REST API on port 5016, manages WebSocket connections for real-time updates, and enforces authentication and rate limiting.
+
+Key responsibilities:
+- HTTP request handling (Gin framework)
+- WebSocket hub for live execution streaming
+- JWT authentication and API key validation
+- Request validation and response formatting
+- CORS and rate limiting middleware
+
+Dependency direction: **API → Scheduler, Runner, Storage**
+
+### Runner Domain
+
+**Location**: `api/internal/runner/`
+
+The runner domain is the execution engine. When a flow is triggered, the executor iterates through its steps, dispatches each to the appropriate action handler, evaluates assertions, and captures output variables.
+
+Key responsibilities:
+- Flow execution orchestration (`executor.go`)
+- Action handlers: `http_request`, `database_query`, `kafka_producer`, `kafka_consumer`, `redis_get`, `redis_set`, `grpc_call`, `delay`, and more
+- Expression evaluation for assertions using `expr-lang/expr`
+- Variable interpolation using `{{variable}}` syntax
+- Output extraction via JSONPath (`$.body.id`)
+
+Dependency direction: **Runner → Storage, Shared**
+
+### Scheduler Domain
+
+**Location**: `api/internal/scheduler/`
+
+The scheduler domain manages timed and recurring executions. It uses a cron parser to trigger jobs and publishes them to Redis Streams for async processing by workers.
+
+Key responsibilities:
+- Cron expression parsing and scheduling
+- Publishing jobs to Redis Streams
+- Worker pool management
+- Retry logic and overlap prevention
+
+Dependency direction: **Scheduler → Runner (via queue), Storage**
+
+### Storage Domain
+
+**Location**: `api/internal/storage/`
+
+The storage domain owns all persistence. It uses GORM for ORM access to PostgreSQL. Each model defines a clear database schema, and the domain exposes repository functions used by other domains.
+
+Key responsibilities:
+- Flow definitions (CRUD)
+- Execution results and step-level detail
+- Mock server configurations
+- Scheduled run history
+- Environment configurations
+
+Dependency direction: **Storage → Shared (database client only)**
+
+---
+
+## Shared Layer
+
+**Location**: `api/internal/shared/`
+
+The shared layer provides cross-cutting infrastructure with no business logic:
+
+| Package | Responsibility |
+|---------|---------------|
+| `config/` | Viper-based configuration with `AutomaticEnv` and env key replacement |
+| `database/` | PostgreSQL connection and GORM migrations |
+| `logger/` | Zap structured logging |
+| `cache/` | Redis client |
+| `queue/` | Redis Streams client |
+| `auth/` | JWT utilities and API key validation |
+
+---
+
+## Communication Patterns
+
+### In-Process (Synchronous)
+
+Most domain-to-domain communication happens via direct Go function calls within the same binary. This is the default path for API-triggered flow execution:
+
+```
+User → Dashboard → API Domain
+  → runner.Execute(ctx, flow)     [in-process, ~microseconds]
+  → storage.SaveExecution(result) [in-process, ~microseconds]
+  → HTTP 201 Created
+```
+
+### Async via Redis Streams
+
+Scheduled executions use Redis Streams to decouple the scheduler from the runner:
+
+```
+Cron triggers → Scheduler publishes job to Redis Streams
+  → Worker consumes job
+  → runner.Execute(ctx, flow)     [in-process]
+  → storage.SaveExecution(result) [in-process]
+  → WebSocket broadcasts result to Dashboard
+```
+
+This pattern allows workers to scale independently from the API server.
+
+### Rule: No Circular Dependencies
+
+The dependency flow is strictly one-directional:
+
+```
+API → Scheduler → Runner → Storage → Shared
+```
+
+Runner never calls API. Storage never calls Runner. This clean boundary is what makes future microservices extraction straightforward.
+
+---
+
+## Deployment Architecture
+
+### Local Development
+
+```
+docker-compose.dev.yml
+├── postgres:5432
+├── redis:6379
+├── kafka:9092
+├── testmesh-api:5016
+├── testmesh-dashboard:3000
+└── demo-microservices:5001-5004
+```
+
+### Kubernetes (Production)
+
+```
+Namespace: testmesh
+├── testmesh-server  (3 replicas)    — API + Scheduler
+├── testmesh-worker  (5-20 replicas) — Background jobs, autoscaled by queue depth
+└── testmesh-dashboard (2 replicas)  — Next.js frontend
+```
+
+The API server and workers run the **same binary** — a startup flag selects the mode. Workers scale horizontally based on the Redis Streams queue depth via HPA.
+
+See the [Kubernetes & Helm](/docs/deployment/kubernetes) page for full deployment details.

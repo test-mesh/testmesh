@@ -4,298 +4,255 @@
 package mcpserver
 
 import (
-	"bufio"
+	"context"
 	"encoding/json"
-	"fmt"
-	"os"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const protocolVersion = "2024-11-05"
-
-// rpcRequest is an incoming JSON-RPC 2.0 message.
-type rpcRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      interface{}     `json:"id,omitempty"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
-}
-
-// rpcResponse is an outgoing JSON-RPC 2.0 message.
-type rpcResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      interface{} `json:"id,omitempty"`
-	Result  interface{} `json:"result,omitempty"`
-	Error   *rpcError   `json:"error,omitempty"`
-}
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-// Run starts the MCP server, reading from stdin and writing to stdout.
+// Run starts the TestMesh MCP server over stdio using the official Go MCP SDK.
 func Run() error {
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	s := mcp.NewServer(&mcp.Implementation{
+		Name:    "testmesh",
+		Version: "1.0.0",
+	}, nil)
 
-	encoder := json.NewEncoder(os.Stdout)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(line) == 0 {
-			continue
-		}
-
-		var req rpcRequest
-		if err := json.Unmarshal(line, &req); err != nil {
-			writeError(encoder, nil, -32700, "Parse error")
-			continue
-		}
-
-		// Notifications (no id) do not get a response.
-		if req.ID == nil {
-			continue
-		}
-
-		result, rpcErr := dispatch(req.Method, req.Params)
-		if rpcErr != nil {
-			_ = encoder.Encode(rpcResponse{
-				JSONRPC: "2.0",
-				ID:      req.ID,
-				Error:   rpcErr,
-			})
-			continue
-		}
-
-		_ = encoder.Encode(rpcResponse{
-			JSONRPC: "2.0",
-			ID:      req.ID,
-			Result:  result,
-		})
+	for _, def := range toolDefinitions() {
+		name, _ := def["name"].(string)
+		desc, _ := def["description"].(string)
+		schema := def["inputSchema"]
+		s.AddTool(&mcp.Tool{
+			Name:        name,
+			Description: desc,
+			InputSchema: schema,
+		}, makeHandler(name))
 	}
 
-	return scanner.Err()
+	return s.Run(context.Background(), &mcp.StdioTransport{})
 }
 
-func writeError(enc *json.Encoder, id interface{}, code int, msg string) {
-	_ = enc.Encode(rpcResponse{
-		JSONRPC: "2.0",
-		ID:      id,
-		Error:   &rpcError{Code: code, Message: msg},
-	})
+// makeHandler returns a ToolHandler that parses raw JSON arguments and
+// delegates to the named tool implementation.
+func makeHandler(toolName string) mcp.ToolHandler {
+	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var args map[string]any
+		if len(req.Params.Arguments) > 0 {
+			_ = json.Unmarshal(req.Params.Arguments, &args)
+		}
+		if args == nil {
+			args = map[string]any{}
+		}
+		return dispatchTool(toolName, args)
+	}
 }
 
-// dispatch routes a method to the correct handler.
-func dispatch(method string, params json.RawMessage) (interface{}, *rpcError) {
-	switch method {
-	case "initialize":
-		return handleInitialize(params)
-	case "tools/list":
-		return handleToolsList()
-	case "tools/call":
-		return handleToolsCall(params)
+// dispatchTool routes a tool call to its implementation.
+func dispatchTool(name string, args map[string]any) (*mcp.CallToolResult, error) {
+	switch name {
+	case "analyze_service":
+		return toolAnalyzeService(args)
+	case "analyze_workspace":
+		return toolAnalyzeWorkspace(args)
+	case "read_flow":
+		return toolReadFlow(args)
+	case "write_flow":
+		return toolWriteFlow(args)
+	case "validate_flow":
+		return toolValidateFlow(args)
+	case "run_step":
+		return toolRunStep(args)
+	case "run_flow":
+		return toolRunFlow(args)
+	case "list_flows":
+		return toolListFlows(args)
+	case "get_yaml_schema":
+		return toolGetYAMLSchema()
+	case "get_action_types":
+		return toolGetActionTypes()
 	default:
-		return nil, &rpcError{Code: -32601, Message: fmt.Sprintf("Method not found: %s", method)}
+		return toolError("unknown tool: " + name), nil
 	}
 }
 
 // ---------------------------------------------------------------------------
-// initialize
+// Tool definitions
 // ---------------------------------------------------------------------------
-
-func handleInitialize(_ json.RawMessage) (interface{}, *rpcError) {
-	return map[string]interface{}{
-		"protocolVersion": protocolVersion,
-		"capabilities": map[string]interface{}{
-			"tools": map[string]interface{}{},
-		},
-		"serverInfo": map[string]interface{}{
-			"name":    "testmesh",
-			"version": "1.0.0",
-		},
-	}, nil
-}
-
-// ---------------------------------------------------------------------------
-// tools/list
-// ---------------------------------------------------------------------------
-
-func handleToolsList() (interface{}, *rpcError) {
-	return map[string]interface{}{
-		"tools": toolDefinitions(),
-	}, nil
-}
 
 // toolDefinitions returns the full list of tools this server exposes.
-func toolDefinitions() []map[string]interface{} {
-	return []map[string]interface{}{
+func toolDefinitions() []map[string]any {
+	infra := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"db_connection": map[string]any{
+				"type":        "string",
+				"description": "PostgreSQL connection string (e.g. postgres://user:pass@localhost:5432/db?sslmode=disable)",
+			},
+			"kafka_brokers": map[string]any{
+				"type":        "string",
+				"description": "Kafka broker addresses (e.g. localhost:9092)",
+			},
+			"redis_addr": map[string]any{
+				"type":        "string",
+				"description": "Redis address (e.g. localhost:6379)",
+			},
+		},
+	}
+
+	return []map[string]any{
+		// ── Analysis ──────────────────────────────────────────────────────────
 		{
-			"name":        "analyze_service",
-			"description": "Analyze a service directory (Go, Node.js, Python) and extract HTTP endpoints, database models, Kafka topics, gRPC methods, and environment variables. Use this before generating test flows.",
-			"inputSchema": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"path": map[string]interface{}{
-						"type":        "string",
-						"description": "Absolute or relative path to the service directory to analyze",
-					},
+			"name": "analyze_workspace",
+			"description": `Analyze a directory of multiple services and return a rich report covering:
+endpoints with exact request schemas, Kafka topics and message schemas, inter-service call graph,
+DB table schemas, Redis key patterns, dependency execution order, and "what to test" guidance.
+Start here for any multi-service project. After reading the report, decide how many flows to create
+and what each covers, then call write_flow once per flow.`,
+			"inputSchema": mergeSchema(infra, map[string]any{
+				"workspace_path": map[string]any{
+					"type":        "string",
+					"description": "Path to directory containing multiple service subdirectories",
 				},
-				"required": []string{"path"},
+			}, []string{"workspace_path"}),
+		},
+		{
+			"name": "analyze_service",
+			"description": `Analyze a single service directory (Go, Node.js, Python) and return a rich report covering:
+endpoints with exact request schemas, DB tables, Kafka topics, Redis keys, and "what to test" guidance.
+Use this when you only need to test one service in isolation. After reading the report,
+decide how many flows to create, then call write_flow once per flow.`,
+			"inputSchema": mergeSchema(infra, map[string]any{
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Path to the service directory",
+				},
+			}, []string{"path"}),
+		},
+
+		// ── Schema / reference ────────────────────────────────────────────────
+		{
+			"name":        "get_yaml_schema",
+			"description": "Return the complete TestMesh YAML flow schema with examples for every action type (http_request, database_query, db_poll, kafka_consumer, redis.get, delay, log). Consult this when writing flow YAML to get correct field names and syntax.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name":        "get_action_types",
+			"description": "Return all supported action types with their required and optional configuration fields. Use alongside get_yaml_schema when you need a quick reference of what a specific action accepts.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+
+		// ── Flow lifecycle ────────────────────────────────────────────────────
+		{
+			"name":        "read_flow",
+			"description": "Read the YAML content of an existing flow file. Use this to inspect a flow before modifying it, or to understand what variables it captures and what it tests.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"file_path": map[string]any{"type": "string", "description": "Path to the .yaml flow file"},
+				},
+				"required": []string{"file_path"},
 			},
 		},
 		{
-			"name":        "generate_flow",
-			"description": "Generate a comprehensive E2E test flow YAML for a service. Covers happy-path CRUD, cross-service chaining, Kafka event verification, database state checks, and error scenarios.",
-			"inputSchema": map[string]interface{}{
+			"name": "write_flow",
+			"description": `Write a TestMesh flow YAML file to disk. Validates structure before saving.
+Call once per flow — you decide how many flows to create (one per scenario, service, or concern).
+Returns the saved path and step count on success, or a validation error message.`,
+			"inputSchema": map[string]any{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"service_path": map[string]interface{}{
+				"properties": map[string]any{
+					"path": map[string]any{
 						"type":        "string",
-						"description": "Path to the service directory (will be analyzed automatically)",
+						"description": "Destination file path (e.g. ./flows/user-crud.yaml). Parent directories are created automatically.",
 					},
-					"flow_name": map[string]interface{}{
+					"yaml_content": map[string]any{
 						"type":        "string",
-						"description": "Human-readable name for the generated flow",
-					},
-					"base_url": map[string]interface{}{
-						"type":        "string",
-						"description": "Base URL of the service under test (e.g. http://localhost:5001). If omitted, inferred from analysis.",
-					},
-					"db_connection": map[string]interface{}{
-						"type":        "string",
-						"description": "PostgreSQL connection string for database verification steps (e.g. postgres://root:admin@localhost:5432/postgres?sslmode=disable)",
-					},
-					"kafka_brokers": map[string]interface{}{
-						"type":        "string",
-						"description": "Comma-separated Kafka broker addresses for event verification (e.g. localhost:9092)",
-					},
-					"redis_addr": map[string]interface{}{
-						"type":        "string",
-						"description": "Redis address for cache verification steps (e.g. localhost:6379)",
-					},
-					"focus": map[string]interface{}{
-						"type":        "string",
-						"description": "Optional focus area: 'crud', 'events', 'errors', 'full' (default: full)",
-					},
-					"output_path": map[string]interface{}{
-						"type":        "string",
-						"description": "Optional file path to save the generated YAML (e.g. ./flows/user-service.yaml). If omitted, YAML is returned as text only.",
+						"description": "Complete TestMesh flow YAML including the 'flow:' root key.",
 					},
 				},
-				"required": []string{"service_path"},
-			},
-		},
-		{
-			"name":        "run_flow",
-			"description": "Execute a TestMesh flow. Accepts either a YAML string or a file path. Returns per-step results with pass/fail status.",
-			"inputSchema": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"yaml_content": map[string]interface{}{
-						"type":        "string",
-						"description": "Flow YAML content as a string",
-					},
-					"file_path": map[string]interface{}{
-						"type":        "string",
-						"description": "Path to a .yaml flow file",
-					},
-				},
+				"required": []string{"path", "yaml_content"},
 			},
 		},
 		{
 			"name":        "validate_flow",
-			"description": "Validate a TestMesh flow YAML without executing it. Checks structure, action types, required fields, and template variable references.",
-			"inputSchema": map[string]interface{}{
+			"description": "Validate a TestMesh flow YAML without executing it. Checks structure, known action types, required fields, step IDs, and variable dependency order (catches {{var}} used before it is captured). Accepts inline yaml_content or a file_path.",
+			"inputSchema": map[string]any{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"yaml_content": map[string]interface{}{
+				"properties": map[string]any{
+					"yaml_content": map[string]any{"type": "string", "description": "Flow YAML as a string"},
+					"file_path":    map[string]any{"type": "string", "description": "Path to a .yaml flow file"},
+				},
+			},
+		},
+		{
+			"name": "run_step",
+			"description": `Run a single action step against live infrastructure without writing a full flow.
+The browser_evaluate equivalent — use this to debug a specific action in isolation:
+verify a SQL query returns what you expect, check a Redis key exists, probe an HTTP endpoint's response shape.
+Returns the step status, error details with actual values if assertions fail, and the full output data.`,
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"action": map[string]any{
 						"type":        "string",
-						"description": "Flow YAML content as a string",
+						"description": "Action type (e.g. http_request, database_query, redis.get, kafka_consumer)",
 					},
-					"file_path": map[string]interface{}{
-						"type":        "string",
-						"description": "Path to a .yaml flow file",
+					"config": map[string]any{
+						"type":        "object",
+						"description": "Action config object — same structure as in flow YAML",
 					},
+					"assert": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Optional assertions to evaluate against the result (e.g. [\"status == 200\", \"row_count == 1\"])",
+					},
+					"vars": map[string]any{
+						"type":        "object",
+						"description": "Optional variables to inject for {{var}} template resolution (e.g. {\"user_id\": \"abc-123\"})",
+					},
+				},
+				"required": []string{"action", "config"},
+			},
+		},
+		{
+			"name":        "run_flow",
+			"description": "Execute a TestMesh flow and return per-step pass/fail results with durations and error details. Accepts inline yaml_content or a file_path.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"yaml_content": map[string]any{"type": "string", "description": "Flow YAML as a string"},
+					"file_path":    map[string]any{"type": "string", "description": "Path to a .yaml flow file"},
 				},
 			},
 		},
 		{
 			"name":        "list_flows",
-			"description": "List existing TestMesh flow YAML files in a directory.",
-			"inputSchema": map[string]interface{}{
+			"description": "List all TestMesh flow YAML files found under a directory (recursive). Useful to see what flows already exist before creating new ones.",
+			"inputSchema": map[string]any{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"directory": map[string]interface{}{
-						"type":        "string",
-						"description": "Directory path to search for flow files",
-					},
+				"properties": map[string]any{
+					"directory": map[string]any{"type": "string", "description": "Directory to search"},
 				},
 				"required": []string{"directory"},
 			},
 		},
-		{
-			"name":        "get_action_types",
-			"description": "Return all supported TestMesh action types with their required configuration fields. Use this to understand what action types are available when writing or reviewing flows.",
-			"inputSchema": map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		},
-		{
-			"name":        "analyze_workspace",
-			"description": "Analyze a directory containing multiple services. Detects all services, their endpoints/models/kafka topics, and cross-service dependencies (HTTP calls and shared Kafka topics). Use this before generate_e2e_flow.",
-			"inputSchema": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"directory": map[string]interface{}{
-						"type":        "string",
-						"description": "Path to directory containing multiple service subdirectories",
-					},
-				},
-				"required": []string{"directory"},
-			},
-		},
-		{
-			"name":        "generate_e2e_flow",
-			"description": "Generate a cross-service E2E flow that tests inter-service communication. Automatically chains HTTP calls, injects dependency IDs, and verifies Kafka delivery via database polling.",
-			"inputSchema": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"workspace_path": map[string]interface{}{
-						"type":        "string",
-						"description": "Path to directory containing multiple services (will be analyzed automatically)",
-					},
-					"flow_name": map[string]interface{}{
-						"type":        "string",
-						"description": "Name for the generated flow",
-					},
-					"db_connection": map[string]interface{}{
-						"type":        "string",
-						"description": "PostgreSQL connection string for DB verification steps",
-					},
-					"kafka_brokers": map[string]interface{}{
-						"type":        "string",
-						"description": "Kafka broker addresses for event verification",
-					},
-					"redis_addr": map[string]interface{}{
-						"type":        "string",
-						"description": "Redis address for cache verification steps (e.g. localhost:6379)",
-					},
-					"service_urls": map[string]interface{}{
-						"type":        "object",
-						"description": "Optional per-service base URL overrides, e.g. {\"user-service\": \"http://localhost:5001\"}",
-					},
-					"output_path": map[string]interface{}{
-						"type":        "string",
-						"description": "Optional file path to save the generated YAML",
-					},
-					"focus": map[string]interface{}{
-						"type":        "string",
-						"description": "Focus: 'crud', 'events', 'errors', 'full' (default: full)",
-					},
-				},
-				"required": []string{"workspace_path"},
-			},
-		},
+	}
+}
+
+// mergeSchema builds an inputSchema object by merging extra properties into a
+// base schema and setting the required array.
+func mergeSchema(base map[string]any, extra map[string]any, required []string) map[string]any {
+	props := map[string]any{}
+	if baseProps, ok := base["properties"].(map[string]any); ok {
+		for k, v := range baseProps {
+			props[k] = v
+		}
+	}
+	for k, v := range extra {
+		props[k] = v
+	}
+	return map[string]any{
+		"type":       "object",
+		"properties": props,
+		"required":   required,
 	}
 }

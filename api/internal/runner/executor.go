@@ -533,6 +533,7 @@ type InlineStepResult struct {
 	Status     string            `json:"status"`
 	DurationMs int64             `json:"duration_ms"`
 	Error      string            `json:"error,omitempty"`
+	Output     models.OutputData `json:"output,omitempty"`
 }
 
 // InlineResult holds the result of an inline (non-persisted) flow execution.
@@ -579,6 +580,8 @@ func (e *Executor) ExecuteInline(definition *models.FlowDefinition, variables ma
 				Phase:      ph.name,
 				DurationMs: time.Since(stepStart).Milliseconds(),
 			}
+
+			sr.Output = output
 
 			if err != nil {
 				sr.Status = "failed"

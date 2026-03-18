@@ -1,0 +1,72 @@
+---
+title: testmesh watch
+description: Automatically re-run a flow when the file changes.
+---
+
+The `watch` command monitors a flow file for changes and re-runs it automatically every time you save. It enables a tight feedback loop while writing or refining tests.
+
+## Usage
+
+```bash
+testmesh watch <flow.yaml>
+```
+
+## Example
+
+```bash
+testmesh watch ./my-flow.yaml
+```
+
+## How It Works
+
+When you start `watch`:
+
+1. The flow runs immediately for a baseline result.
+2. The file system is monitored for changes to the specified YAML file.
+3. Each time you save the file, the flow re-runs from the beginning.
+4. Results are printed to the terminal, with a diff highlighting assertions that changed since the previous run.
+
+```
+Watching ./my-flow.yaml — press Ctrl+C to stop.
+
+[10:01:02] Running...
+[PASS] check_health      42ms
+[FAIL] create_user       130ms
+       Assertion failed: status == 201  (got 400)
+
+[10:01:45] File changed. Re-running...
+[PASS] check_health      38ms
+[PASS] create_user       125ms   ← was FAIL
+
+All steps passed.
+```
+
+Changed assertion results are highlighted so you can see at a glance what your last edit fixed or broke.
+
+## Typical Workflow
+
+<Steps>
+  <Step>
+    Create a skeleton flow with one step.
+  </Step>
+  <Step>
+    Start `watch` in a terminal pane:
+
+    ```bash
+    testmesh watch ./my-flow.yaml
+    ```
+  </Step>
+  <Step>
+    Edit the flow in your editor. Add steps, adjust assertions, and fix errors.
+  </Step>
+  <Step>
+    Each save triggers an automatic re-run. Iterate until all steps pass.
+  </Step>
+  <Step>
+    Press `Ctrl+C` to stop watching.
+  </Step>
+</Steps>
+
+<Callout type="tip">
+  Watch mode works best for building HTTP-based flows. For flows with long-running Kafka consumer timeouts, consider temporarily reducing `timeout` values while developing.
+</Callout>

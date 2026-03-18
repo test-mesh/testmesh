@@ -42,13 +42,12 @@ release:
   header: |
     Install: `curl -fsSL https://testmesh.io/install.sh | sh`
 
-homebrew_casks:
+brews:
   - name: testmesh
     repository:
       owner: test-mesh
       name: homebrew-brew
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
     homepage: "https://testmesh.io"
     description: "E2E integration testing platform — YAML flows over HTTP, DB, Kafka, gRPC and more"
-    postflight: |
-      system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/testmesh"]

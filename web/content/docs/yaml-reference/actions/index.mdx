@@ -1,0 +1,60 @@
+---
+title: Actions
+description: All action types supported by TestMesh flows — HTTP, database, Kafka, gRPC, WebSocket, Redis, mock servers, control flow, and transforms.
+---
+
+Every step has an `action` field that determines what work it performs. The `config` block structure varies by action type. This section covers every available action.
+
+## Protocol actions
+
+<Cards>
+  <Card title="http_request" href="/docs/yaml-reference/actions/http-request" description="Make HTTP requests with headers, auth, body, and response assertions." />
+  <Card title="database_query" href="/docs/yaml-reference/actions/database-query" description="Run SQL queries against PostgreSQL, MySQL, or MongoDB." />
+  <Card title="kafka_publish / kafka_consume" href="/docs/yaml-reference/actions/kafka" description="Produce messages to and consume messages from Kafka topics." />
+  <Card title="grpc_call" href="/docs/yaml-reference/actions/grpc" description="Invoke gRPC methods with proto reflection or proto file." />
+  <Card title="websocket" href="/docs/yaml-reference/actions/websocket" description="Connect, send, and receive WebSocket messages." />
+  <Card title="redis_get / redis_set" href="/docs/yaml-reference/actions/redis" description="Read and write Redis keys with optional TTL." />
+</Cards>
+
+## Testing infrastructure
+
+<Cards>
+  <Card title="mock_server_*" href="/docs/yaml-reference/actions/mock-server" description="Start, stop, verify, and configure mock HTTP servers." />
+</Cards>
+
+## Control flow and utilities
+
+<Cards>
+  <Card title="condition / for_each / parallel" href="/docs/yaml-reference/actions/control-flow" description="Branching, looping, parallel execution, wait_until, log, delay, and assert." />
+  <Card title="transform" href="/docs/yaml-reference/actions/transform" description="Extract, map, filter, and reshape data between steps." />
+</Cards>
+
+---
+
+## Quick reference
+
+| Action | Description |
+|---|---|
+| `http_request` | Make an HTTP request |
+| `database_query` | Run a SQL or MongoDB query |
+| `kafka_publish` | Publish a message to a Kafka topic |
+| `kafka_consume` | Consume messages from a Kafka topic |
+| `grpc_call` | Call a gRPC method |
+| `grpc_stream` | Open a streaming gRPC connection |
+| `websocket` | WebSocket connect/send/receive |
+| `redis_get` | Get a value from Redis |
+| `redis_set` | Set a value in Redis |
+| `mock_server_start` | Start an HTTP mock server |
+| `mock_server_stop` | Stop a mock server |
+| `mock_server_verify` | Assert on received mock requests |
+| `mock_server_reset_state` | Reset stateful mock data |
+| `mock_server_update` | Add or update a mock endpoint |
+| `condition` | If/then/else branching |
+| `for_each` | Iterate over an array or range |
+| `parallel` | Run steps concurrently |
+| `wait_until` | Poll until a condition is true |
+| `assert` | Standalone assertion step |
+| `log` | Print a message to the execution log |
+| `delay` | Sleep for a duration |
+| `run_flow` | Call another flow as a sub-flow |
+| `transform` | Extract and reshape variables |

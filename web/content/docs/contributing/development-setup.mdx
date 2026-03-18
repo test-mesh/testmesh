@@ -1,0 +1,268 @@
+---
+title: Development Setup
+description: Set up your local development environment for TestMesh.
+---
+
+## Prerequisites
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| Go | 1.23+ | API server, CLI |
+| Node.js | 18.x (LTS) | Dashboard, documentation site |
+| pnpm | 8+ | JavaScript package manager |
+| Docker | 20.10+ | Infrastructure containers |
+| Docker Compose | v2+ | Multi-container orchestration |
+
+## Getting the Code
+
+```bash
+git clone https://github.com/test-mesh/testmesh.git
+cd testmesh
+```
+
+---
+
+## Starting the Full Stack
+
+<Steps>
+  <Step>
+    **Start infrastructure** (PostgreSQL, Redis, Kafka)
+
+    ```bash
+    ./infra.sh up
+    ```
+
+    This starts containers on the `local-infra` Docker network:
+    - PostgreSQL (TimescaleDB) on port 5432 — user `root`, password `admin`, database `postgres`
+    - Redis 7 on port 6379
+    - Kafka (KRaft mode) on port 9092
+  </Step>
+  <Step>
+    **Start the API server and dashboard**
+
+    ```bash
+    docker-compose -f docker-compose.dev.yml up --build
+    ```
+
+    This builds and starts:
+    - API server on port 5016 (auto-runs migrations on startup)
+    - Dashboard on port 3000
+  </Step>
+  <Step>
+    **Optionally, start the demo microservices**
+
+    ```bash
+    docker-compose -f docker-compose.services.yml up --build
+    ```
+
+    This starts four demo services on ports 5001–5004.
+  </Step>
+  <Step>
+    **Verify everything is running**
+
+    ```bash
+    curl http://localhost:5016/health
+    open http://localhost:3000
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Running from Source
+
+If you want to run the API server or CLI directly without Docker:
+
+### API Server
+
+```bash
+cd api
+go run main.go
+```
+
+The server reads configuration from environment variables. Defaults point to `localhost` for PostgreSQL and Redis, which works if you started infrastructure with `./infra.sh up`.
+
+Key environment variables:
+
+```bash
+export DATABASE_HOST=localhost
+export DATABASE_PORT=5432
+export DATABASE_USER=root
+export DATABASE_PASSWORD=admin
+export DATABASE_DBNAME=postgres
+export REDIS_HOST=localhost
+export REDIS_PORT=6379
+```
+
+### CLI
+
+```bash
+cd cli
+go run main.go --help
+
+# Run a flow
+go run main.go run ../examples/microservices/e2e-order-flow.yaml
+
+# Validate a flow without running it
+go run main.go validate ../examples/microservices/e2e-order-flow.yaml
+
+# Watch mode (re-runs on file changes)
+go run main.go watch ../examples/microservices/e2e-order-flow.yaml
+```
+
+### Dashboard
+
+```bash
+cd dashboard
+pnpm install
+pnpm dev
+```
+
+The dashboard runs on port 3000 and expects the API on `http://localhost:5016`. Set `NEXT_PUBLIC_API_URL` to point at a different API:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:5016 pnpm dev
+```
+
+### Documentation Site
+
+```bash
+cd web
+pnpm install
+pnpm dev
+```
+
+The documentation site runs on port 3001.
+
+---
+
+## Seed Data
+
+Database migrations run automatically when the API server starts. To seed the database with sample flows, collections, environments, and schedules:
+
+```bash
+cd api/cmd/seed
+go run main.go
+```
+
+Seed data includes:
+- 1 workspace (ID: `00000000-0000-0000-0000-000000000001`)
+- 10 sample flows
+- 4 collections
+- 3 environments
+- 4 mock servers
+- 3 schedules
+
+You only need to seed once. Data persists across restarts unless you delete the Docker volume.
+
+---
+
+## Running Tests
+
+### API Unit Tests
+
+```bash
+cd api
+go test ./...
+
+# Specific package
+go test ./internal/runner/actions/...
+
+# With verbose output
+go test -v ./internal/runner/...
+
+# With race detector
+go test -race ./...
+```
+
+### CLI Unit Tests
+
+```bash
+cd cli
+go test ./...
+```
+
+### Integration Tests (Flow-based)
+
+Start the infrastructure and demo microservices, then run the example flows:
+
+```bash
+# Start everything
+./infra.sh up
+docker-compose -f docker-compose.services.yml up --build -d
+
+# Run E2E flows
+cd cli
+go run main.go run ../examples/microservices/e2e-order-flow.yaml
+go run main.go run ../examples/microservices/user-service-flow.yaml
+```
+
+---
+
+## Building
+
+### API Binary
+
+```bash
+cd api
+go build -o testmesh-api main.go
+./testmesh-api
+```
+
+### CLI Binary
+
+```bash
+cd cli
+go build -o testmesh main.go
+./testmesh --help
+```
+
+### Docker Images
+
+```bash
+# API
+docker build -t testmesh/api:dev -f api/Dockerfile.dev api/
+
+# Dashboard
+docker build -t testmesh/dashboard:dev dashboard/
+```
+
+---
+
+## Common Development Workflows
+
+### Adding a New Action Handler
+
+1. Create `api/internal/runner/actions/my_action.go`
+2. Implement the handler interface
+3. Register it in `api/internal/runner/executor.go`
+4. Add a unit test in `api/internal/runner/actions/my_action_test.go`
+5. Add an example flow in `examples/`
+
+See [Coding Standards](/docs/contributing/coding-standards) for the handler interface and registration pattern.
+
+### Changing the Database Schema
+
+The API uses GORM `AutoMigrate`. To change the schema:
+
+1. Update the model struct in `api/internal/storage/models/`
+2. Restart the API server — migrations run automatically
+
+For production-grade migrations (renaming columns, data migrations), use SQL migration files in `api/internal/shared/database/migrations/`.
+
+### Making Dashboard Changes
+
+The dashboard hot-reloads in development. Changes to `.tsx` files are reflected immediately in the browser.
+
+```bash
+cd dashboard
+pnpm dev
+# Edit files, see changes instantly
+```
+
+TypeScript errors appear in the terminal. Run the type checker explicitly:
+
+```bash
+pnpm type-check
+pnpm lint
+```

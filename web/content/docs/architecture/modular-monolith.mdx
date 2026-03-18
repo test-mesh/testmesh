@@ -1,0 +1,214 @@
+---
+title: Modular Monolith Pattern
+description: Why TestMesh uses a modular monolith and how it enables future microservices migration.
+---
+
+TestMesh is structured as a **modular monolith**: a single deployable binary organized into domain modules with enforced boundaries. This is a deliberate design choice, not a stepping stone toward microservices.
+
+## What Is a Modular Monolith?
+
+A modular monolith is a single process divided into modules that have:
+
+- **Clear ownership**: each module owns its data and logic
+- **Explicit interfaces**: modules interact through defined Go interfaces, not internal package access
+- **No circular dependencies**: the dependency graph is a DAG
+- **Separate database schemas**: each domain owns its schema, not individual tables across schemas
+
+It is different from a "big ball of mud" monolith (no structure) and different from microservices (separate processes).
+
+```
+Modular Monolith                     Microservices
+────────────────────                 ────────────────────
+┌───────────────────┐                ┌──────┐  ┌──────┐
+│  Single Process   │                │ API  │  │ Jobs │
+│  ┌─────────────┐  │                └──┬───┘  └──┬───┘
+│  │  API Domain │  │                   │ HTTP    │ gRPC
+│  ├─────────────┤  │                ┌──▼─────────▼───┐
+│  │  Runner     │  │                │    Runner       │
+│  ├─────────────┤  │                └────────┬───────┘
+│  │  Scheduler  │  │                         │ HTTP
+│  ├─────────────┤  │                ┌─────────▼──────┐
+│  │  Storage    │  │                │   Storage      │
+│  └─────────────┘  │                └────────────────┘
+└───────────────────┘
+```
+
+---
+
+## Benefits for This Use Case
+
+### For Development Speed
+
+A single codebase means:
+- One `go build` produces the entire system
+- Cross-domain refactors are IDE-assisted (rename across modules instantly)
+- No API contracts to maintain between internal services
+- Stack traces include the full call chain, not "service A called service B returned 500"
+
+### For Performance
+
+In-process function calls are approximately **1000x faster** than HTTP between services:
+
+| Communication Type | Latency |
+|-------------------|---------|
+| In-process function call | ~1–10 microseconds |
+| HTTP to localhost | ~1–5 milliseconds |
+| HTTP across network | ~5–50 milliseconds |
+
+For a test execution that calls the runner 100 times per flow, the difference between in-process and HTTP is measurable.
+
+### For Operational Simplicity
+
+- **One binary** to deploy, monitor, and debug
+- **One set of logs** to search
+- **One deployment unit** to roll back
+- **Database transactions span domains** — no distributed transaction complexity
+
+### For Future Flexibility
+
+The modular structure means microservices extraction is a mechanical change when needed:
+
+1. Add an HTTP or gRPC API layer on top of the domain
+2. Replace direct function calls with RPC calls at the call sites
+3. Deploy as a separate service
+4. Update Kubernetes manifests
+
+Estimated effort per domain: 2–4 weeks.
+
+---
+
+## Domain Boundaries
+
+### What Makes a Boundary
+
+Each domain in TestMesh satisfies:
+
+1. **Single responsibility**: the domain does one thing (execute flows, store data, schedule jobs, handle HTTP)
+2. **Its own schema**: `flows.*`, `executions.*`, `scheduler.*` — not shared tables
+3. **Exported interface**: other domains call the domain through its public Go interface, not internal implementation details
+4. **No inbound dependencies from lower layers**: Storage doesn't call Runner; Runner doesn't call API
+
+### The Allowed Dependency Graph
+
+```
+API ──────────────────► Scheduler
+ │                          │
+ │                          │ (Redis Streams)
+ │                          ▼
+ └──────────────────► Runner
+                          │
+                          ▼
+                       Storage
+                          │
+                          ▼
+                        Shared
+                    (DB, Redis, Config, Logger)
+```
+
+Reverse arrows are not allowed. This is enforced via Go's `internal/` package visibility — each domain's implementation is unexported; only its public interface is accessible.
+
+### Interface Example
+
+```go
+// The Runner domain exposes a clean interface
+type Executor interface {
+    Execute(ctx context.Context, flow *Flow) (*ExecutionResult, error)
+}
+
+// The API domain depends on the interface, not the implementation
+type FlowHandler struct {
+    executor runner.Executor  // interface, not *runner.ConcreteExecutor
+    flowRepo storage.FlowRepository
+}
+```
+
+---
+
+## Database Schema Organization
+
+Each domain owns its own PostgreSQL schema:
+
+```sql
+-- API domain does not own any tables directly
+-- Runner domain
+CREATE SCHEMA executions;
+CREATE TABLE executions.executions (...);
+CREATE TABLE executions.execution_steps (...);
+
+-- Scheduler domain
+CREATE SCHEMA scheduler;
+CREATE TABLE scheduler.schedules (...);
+CREATE TABLE scheduler.jobs (...);
+
+-- Storage domain
+CREATE SCHEMA flows;
+CREATE TABLE flows.flows (...);
+CREATE TABLE flows.versions (...);
+```
+
+This makes future database splitting trivial: point each service at its own database instance and update the connection strings. No data migration required.
+
+---
+
+## Migration Path to Microservices
+
+<Callout type="info">
+The current architecture is production-ready and scales well with horizontal replication. Microservices extraction should only happen when there is a concrete, measured reason — not as a proactive architectural exercise.
+</Callout>
+
+### When to Split
+
+Split a domain into a separate service when:
+
+- That domain needs **10x more capacity** than the rest of the system
+- Teams need to **deploy it independently** on a different schedule
+- The domain needs a **different technology** (e.g., the runner needs GPU access)
+- Team structure has grown to where **separate ownership** is needed
+
+Do not split just because:
+- It "feels more modern"
+- You expect to need it someday
+- Traffic is growing but still manageable with replicas
+
+### Phase 1: Extract Storage
+
+```go
+// Before (in-process)
+flow, err := storage.Get(ctx, id)
+
+// After (HTTP client)
+client := flowsapi.NewClient("http://storage-service:5016")
+flow, err := client.GetFlow(ctx, id)
+```
+
+Cost: +1-10ms per storage call. Benefit: storage scales independently.
+
+### Phase 2: Extract Runner
+
+```go
+// Before (in-process)
+result, err := executor.Execute(ctx, flow)
+
+// After (gRPC)
+client := runnerapi.NewClient("runner-service:50051")
+result, err := client.Execute(ctx, flow)
+```
+
+Cost: +1-10ms per execution dispatch. Benefit: runner scales independently.
+
+### Phase 3: Extract Scheduler
+
+The scheduler already communicates with the runner via Redis Streams — no code change needed to deploy it as a separate process. Just point it at the same Redis instance and give it the runner service address.
+
+---
+
+## Summary
+
+| Property | Value |
+|----------|-------|
+| Architecture | Modular Monolith |
+| Domains | 4 (API, Runner, Scheduler, Storage) |
+| Communication | In-process function calls + Redis Streams (async) |
+| Database | Single PostgreSQL instance with separate schemas per domain |
+| Deployment | Single binary + Docker / Kubernetes |
+| Migration cost | 2–4 weeks per domain when splitting is needed |

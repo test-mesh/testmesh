@@ -1,0 +1,229 @@
+---
+title: Best Practices
+description: Design patterns and conventions for maintainable test flows.
+---
+
+These practices come from working with TestMesh flows across HTTP, database, and Kafka actions. They are not rules — they are defaults that work well and are worth deviating from only with a good reason.
+
+---
+
+## Flow Structure
+
+### One Scenario Per Flow
+
+Each flow should test one complete user scenario from start to finish. Do not test multiple scenarios in a single flow — separate them.
+
+```yaml title="Good: focused scenario"
+flow:
+  name: "User can place an order with valid payment"
+  steps:
+    - id: create_user
+    - id: add_item_to_cart
+    - id: place_order
+    - id: verify_order_confirmed
+```
+
+```yaml title="Avoid: multiple scenarios mixed together"
+flow:
+  name: "Order tests"
+  steps:
+    - id: test_successful_order
+    - id: test_failed_payment     # Different scenario — separate flow
+    - id: test_empty_cart         # Different scenario — separate flow
+```
+
+When a multi-scenario flow fails, you have to read the entire flow to understand what failed and why. Separate flows fail independently and are easier to diagnose.
+
+### Name Flows with the Behavior
+
+The flow name should describe the behavior being tested, not the services involved.
+
+```yaml title="Good: behavior-focused names"
+name: "New user receives welcome notification"
+name: "Out-of-stock product cannot be ordered"
+name: "Cancelled order refunds inventory"
+```
+
+```yaml title="Avoid: vague or implementation-focused names"
+name: "User service test"
+name: "Order flow"
+name: "Test 3"
+```
+
+---
+
+## Step IDs
+
+### Use Descriptive Step IDs
+
+Step IDs appear in failure messages. Make them meaningful.
+
+```yaml title="Good: descriptive IDs"
+- id: create_user_account
+- id: verify_user_created_event
+- id: place_order_for_widget
+- id: assert_inventory_decremented
+```
+
+```yaml title="Avoid: generic IDs"
+- id: step1
+- id: step2
+- id: http_request
+- id: db_check
+```
+
+When a flow fails, you see `step2 FAILED` vs `place_order_for_widget FAILED`. The second tells you exactly what broke without reading the flow definition.
+
+---
+
+## Variables and Configuration
+
+### Never Hardcode URLs or Credentials
+
+Use the `env` block at the flow level and reference values with `${VAR}`:
+
+```yaml title="Good: configurable via environment"
+flow:
+  name: "Create user"
+  env:
+    USER_SERVICE_URL: "${USER_SERVICE_URL}"
+    DB_URL: "${DATABASE_URL}"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        url: "${USER_SERVICE_URL}/api/v1/users"
+```
+
+```yaml title="Avoid: hardcoded URLs"
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        url: "http://localhost:5001/api/v1/users"
+```
+
+Hardcoded URLs mean you need a different flow for each environment. Parameterized flows work in dev, staging, and production by changing only the env vars.
+
+### Capture Only What You Need
+
+The `output` block extracts values from responses. Only capture what subsequent steps actually use:
+
+```yaml title="Good: capture what you need"
+output:
+  user_id: $.body.id
+  # Don't capture email, name, created_at if you don't use them
+```
+
+Capturing unused values makes flows harder to read and understand.
+
+---
+
+## Assertions
+
+### Assert on Specific Fields, Not Entire Bodies
+
+```yaml title="Good: specific field assertions"
+assert:
+  - status == 201
+  - body.id != nil
+  - body.email == "john@example.com"
+  - body.role == "user"
+```
+
+```yaml title="Avoid: asserting the entire response body"
+assert:
+  - body == {"id": "...", "email": "john@example.com", "role": "user", "created_at": "..."}
+```
+
+Asserting the entire body makes tests fragile — adding a new field to the response breaks all tests that use exact body comparison. Assert on the fields that matter to the behavior you're testing.
+
+### Test the Happy Path First
+
+Write and get the happy path working before adding error case flows. Error cases are important, but the happy path tells you the feature works at all.
+
+```
+e2e-create-order.yaml          ← happy path, write this first
+e2e-order-insufficient-stock.yaml
+e2e-order-invalid-user.yaml
+e2e-order-payment-failed.yaml
+```
+
+---
+
+## Setup and Teardown
+
+### Use Setup Blocks for Idempotency
+
+Use the `setup` block to clean up test data from previous runs before your flow executes. This makes flows repeatable without manual intervention.
+
+```yaml
+flow:
+  setup:
+    - id: cleanup_test_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'test@example.com'"
+```
+
+Delete in reverse dependency order: first delete records that reference other records, then the referenced records.
+
+### Keep Flows Idempotent Where Possible
+
+An idempotent flow produces the same result whether run once or ten times. This makes flows safe to re-run in CI and during debugging.
+
+Strategies:
+- Delete and recreate test data in `setup`
+- Use unique identifiers based on a timestamp or UUID if you cannot delete
+- Use `upsert` operations instead of `insert` in database setup steps
+
+---
+
+## Async Assertions
+
+### Account for Async Processing
+
+When a step publishes a Kafka event or triggers a background job, the effect may not be visible immediately. Add a `delay` step before asserting the async result:
+
+```yaml
+- id: place_order
+  action: http_request
+  # ...
+
+# Give the notification service time to consume the event
+- id: wait_for_notification_processing
+  action: delay
+  config:
+    duration: 3s
+
+- id: assert_notification_created
+  action: http_request
+  config:
+    method: GET
+    url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{user_id}}"
+  assert:
+    - body.count >= 1
+```
+
+For CI environments, increase delays slightly — CI machines may be slower than local development.
+
+---
+
+## Performance
+
+### Keep Flows Focused and Short
+
+Long flows are hard to debug and slow to run in CI. If a flow has more than 15-20 steps, consider whether it's testing multiple scenarios that should be separate flows.
+
+A flow that takes 30 seconds in CI is reasonable. A flow that takes 5 minutes is probably doing too much.
+
+### Use Database Queries to Verify State
+
+HTTP API responses reflect what the service reports. Direct database queries verify what actually happened. Use both:
+
+1. Assert on the HTTP response (the service acknowledged the request)
+2. Assert on the database state (the data was actually persisted)
+
+This catches bugs where services return incorrect success responses without persisting data.

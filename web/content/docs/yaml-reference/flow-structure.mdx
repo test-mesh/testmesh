@@ -1,0 +1,249 @@
+---
+title: Flow Structure
+description: Flow metadata, environment variables, configuration, setup, and teardown.
+---
+
+A flow file contains exactly one flow. The `flow:` key wraps all other fields at the root level.
+
+## Metadata fields
+
+### name (required)
+
+The display name for this flow. Used in reports, the dashboard, and CLI output.
+
+```yaml
+flow:
+  name: "User Registration and Email Verification"
+```
+
+Constraints: 1–255 characters, any UTF-8 string.
+
+### description
+
+A longer explanation of what the flow tests, including prerequisites or expected duration.
+
+```yaml
+flow:
+  name: "E-commerce Checkout"
+  description: |
+    Tests the complete checkout pipeline:
+    1. Cart creation and item addition
+    2. Discount code application
+    3. Payment processing via Stripe
+    4. Order confirmation and inventory update
+
+    Prerequisites: payment gateway must be reachable.
+    Expected duration: ~3 minutes.
+```
+
+### version
+
+Semver string. Defaults to `"1.0.0"` if omitted.
+
+```yaml
+flow:
+  name: "Order Flow"
+  version: "2.1.0"
+```
+
+### tags
+
+Array of lowercase labels for filtering and grouping. Tags can be used with the CLI `--tags` flag to run a subset of flows.
+
+```yaml
+flow:
+  name: "Login"
+  tags:
+    - authentication
+    - smoke-test
+    - critical
+```
+
+### suite
+
+A single string that groups this flow with others of the same logical category. Useful for reporting.
+
+```yaml
+flow:
+  suite: "user-management"
+```
+
+### author
+
+The email address of the person who owns this flow.
+
+```yaml
+flow:
+  author: "platform-team@example.com"
+```
+
+---
+
+## env block
+
+The `env` block defines flow-scoped variables. Values are strings and support `${VARIABLE}` interpolation to reference system environment variables.
+
+```yaml
+flow:
+  name: "API Test"
+  env:
+    API_URL: "${API_BASE_URL}/v1"
+    DB_NAME: "users_test"
+    TIMEOUT: "30s"
+```
+
+<Callout type="info">
+  Variables defined in `env` are available as `${KEY}` in all step configs, assertions, and output expressions throughout the flow.
+</Callout>
+
+---
+
+## config block
+
+The `config` block sets flow-level execution behaviour.
+
+```yaml
+flow:
+  config:
+    timeout: "5m"
+    fail_fast: true
+    retry:
+      enabled: true
+      max_attempts: 3
+      delay: "1s"
+      backoff: "exponential"
+```
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `timeout` | duration | none | Maximum wall-clock time for the entire flow |
+| `fail_fast` | boolean | `true` | Stop execution after the first step failure |
+| `retry.enabled` | boolean | `false` | Enable flow-level retry |
+| `retry.max_attempts` | integer | `1` | Maximum retry attempts (1–10) |
+| `retry.delay` | duration | `"1s"` | Delay before first retry |
+| `retry.backoff` | string | `"exponential"` | `linear`, `exponential`, or `constant` |
+
+Duration strings use the format `30s`, `5m`, or `2h`.
+
+---
+
+## setup array
+
+Steps in `setup` run before any step in the main `steps` array. Use setup for health checks, database seeding, or any precondition that must be satisfied before testing begins.
+
+```yaml
+flow:
+  setup:
+    - id: check_api_health
+      action: http_request
+      config:
+        method: GET
+        url: "${API_URL}/health"
+      assert:
+        - status == 200
+
+    - id: seed_test_user
+      action: database_query
+      config:
+        query: "INSERT INTO users (email) VALUES (?) ON CONFLICT DO NOTHING"
+        params: ["fixture@example.com"]
+```
+
+<Callout type="warn">
+  If any setup step fails, the main steps do not run, but teardown steps still execute.
+</Callout>
+
+---
+
+## teardown array
+
+Steps in `teardown` always run after the main steps complete — whether the flow passed, failed, or was cancelled. Use teardown to delete test data, stop mock servers, and release resources.
+
+```yaml
+flow:
+  teardown:
+    - id: delete_test_user
+      action: database_query
+      config:
+        query: "DELETE FROM users WHERE id = ?"
+        params: ["${create_user.user_id}"]
+      on_error: "continue"
+
+    - id: stop_mock_server
+      action: mock_server_stop
+      config:
+        server: "payment-mock"
+      on_error: "continue"
+```
+
+<Callout type="tip">
+  Set `on_error: "continue"` on teardown steps so a failing cleanup step doesn't mask the actual test failure.
+</Callout>
+
+---
+
+## Complete flow definition example
+
+```yaml title="user-registration.yaml"
+flow:
+  name: "User Registration and Email Verification"
+  description: "Complete user registration flow with email verification"
+  version: "1.0.0"
+  suite: "user-management"
+  author: "auth-team@example.com"
+
+  tags:
+    - authentication
+    - critical
+    - smoke-test
+
+  env:
+    API_URL: "${API_BASE_URL}/v1"
+    EMAIL_FROM: "noreply@example.com"
+
+  config:
+    timeout: "5m"
+    fail_fast: true
+
+  setup:
+    - id: check_api_health
+      action: http_request
+      config:
+        method: GET
+        url: "${API_URL}/health"
+      assert:
+        - status == 200
+
+  steps:
+    - id: create_user
+      name: "Create User Account"
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        body:
+          email: "test-${RANDOM_ID}@example.com"
+          password: "SecurePass123!"
+      output:
+        user_id: "response.body.id"
+        user_email: "response.body.email"
+      assert:
+        - status == 201
+        - response.body.id exists
+
+    - id: verify_in_db
+      action: database_query
+      config:
+        query: "SELECT email_verified FROM users WHERE id = ?"
+        params: ["${create_user.user_id}"]
+      assert:
+        - result.rows[0].email_verified == false
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        query: "DELETE FROM users WHERE id = ?"
+        params: ["${create_user.user_id}"]
+      on_error: "continue"
+```

@@ -1,0 +1,300 @@
+---
+title: Observability
+description: Full execution visibility with per-step timing, request/response inspection, real-time log streaming, and dashboard trend analysis.
+---
+
+TestMesh gives you complete visibility into every test execution. When a test fails, you see exactly what request was sent, what response came back, which assertion failed, and what the variable state was at the time of failure.
+
+---
+
+## Execution Dashboard
+
+The dashboard shows all executions with real-time status updates via WebSocket:
+
+```
+Executions
+
+  checkout-flow            2m ago
+  5/5 steps  •  2.3s  •  staging-agent
+
+  payment-flow             5m ago
+  3/7 steps  •  Failed at "charge_card"  •  prod-agent
+  HTTP 402: Payment Required
+
+  user-registration-flow   Running
+  2/5 steps  •  12.5s elapsed
+  [████████░░░░░░░░░░] 40%
+```
+
+- Real-time status (running, success, failed)
+- Progress indicator during execution
+- Error summary visible without clicking through
+- Filter by status, flow, agent, or date range
+
+---
+
+## Step-Level Detail
+
+Click any execution to see a full timeline. Each step is expandable to show complete request, response, timing, and variable state.
+
+### Expanded Failed Step
+
+```
+Step 3: charge_card        2.1s  FAILED
+  POST /api/payments/charge
+  → 402 Payment Required
+
+  Error Details
+  ─────────────
+  Status: 402 Payment Required
+  Message: Insufficient funds
+
+  Assertion Failed:
+    Expected: status == 200
+    Actual: status == 402
+
+  Request
+  ─────────────
+  POST https://api.company.com/payments/charge
+
+  Headers:
+    Content-Type: application/json
+    Authorization: Bearer sk_test_***abc123
+    X-Request-ID: req_abc123xyz
+
+  Body:
+    {
+      "amount": 9999,
+      "currency": "usd",
+      "source": "card_123",
+      "customer": "cus_456"
+    }
+
+  Response
+  ─────────────
+  Status: 402 Payment Required
+
+  Headers:
+    Content-Type: application/json
+    X-Request-ID: req_abc123xyz
+
+  Body:
+    {
+      "error": {
+        "type": "insufficient_funds",
+        "message": "Insufficient funds",
+        "code": "insufficient_funds"
+      }
+    }
+
+  Timing Breakdown
+  ─────────────────
+  DNS Lookup:        12ms
+  TCP Connect:       45ms
+  TLS Handshake:     89ms
+  Request Send:       3ms
+  Wait (TTFB):      1.2s
+  Response Download:  5ms
+  Total:            2.1s
+
+  Variables at this point
+  ─────────────────
+  cart_id: "cart_123"
+  total_amount: 9999
+  customer_id: "cus_456"
+  card_token: "card_123"
+```
+
+You can **copy the request as cURL** from any failed step to reproduce the issue in your terminal instantly.
+
+---
+
+## Execution Tabs
+
+Each execution has dedicated tabs for different views:
+
+<Cards>
+  <Card title="Timeline" href="#step-level-detail" description="Step-by-step waterfall with expandable request/response details" />
+  <Card title="Logs" href="#log-streaming" description="Structured log stream with level filtering and search" />
+  <Card title="Variables" href="#variables-tab" description="All context variables and their values at each step" />
+  <Card title="Network" href="#network-tab" description="All HTTP requests made during the execution" />
+  <Card title="Metrics" href="#metrics" description="Timing breakdown and performance data" />
+</Cards>
+
+---
+
+## Log Streaming
+
+The Logs tab streams structured output in real-time with millisecond timestamps:
+
+```
+[14:23:45.123] [INFO]  Execution started
+[14:23:45.124] [INFO]  Agent: prod-agent
+[14:23:45.125] [INFO]  Flow: payment-flow (v1.2.0)
+[14:23:45.126] [DEBUG] Loading environment variables
+[14:23:45.127] [DEBUG] API_URL=https://api.company.com
+[14:23:45.130] [INFO]  Setup
+[14:23:45.200] [INFO]  Setup completed in 0.2s
+[14:23:45.202] [INFO]  Step 1: create_cart
+[14:23:45.205] [DEBUG] POST https://api.company.com/cart
+[14:23:45.512] [INFO]  → 201 Created  (0.31s)
+[14:23:45.513] [DEBUG] Saved: cart_id = "cart_123"
+[14:23:45.514] [INFO]  Step 2: add_items
+[14:23:46.014] [INFO]  → 200 OK  (0.50s)
+[14:23:46.015] [INFO]  Step 3: charge_card
+[14:23:46.016] [DEBUG] POST https://api.company.com/payments/charge
+[14:23:48.116] [ERROR] → 402 Payment Required  (2.10s)
+[14:23:48.117] [ERROR] Assertion failed: status == 200
+[14:23:48.118] [ERROR] Expected: 200, Actual: 402
+[14:23:48.119] [ERROR] Execution failed at step: charge_card
+```
+
+- **Filter by level**: Debug, Info, Warn, Error
+- **Search** across all log entries
+- **Auto-scroll** toggles to keep up with live output
+- **Download** full log as plain text
+
+---
+
+## Debug Mode
+
+Debug mode enables interactive step-by-step execution from the CLI:
+
+```bash
+testmesh debug my-flow.yaml
+```
+
+```
+Debug Mode — my-flow.yaml
+
+> Step 1: create_cart
+  Action: http_request
+  POST https://api.company.com/cart
+
+[n]ext  [s]kip  [v]ariables  [b]reakpoint  [q]uit
+> n
+
+  Response: 201 Created
+  Saved: cart_id = "cart_123"
+
+> Step 2: add_items
+
+[n]ext  [s]kip  [v]ariables  [b]reakpoint  [q]uit
+> v
+
+  Variables:
+    cart_id: "cart_123"
+    customer_id: "cus_456"
+    API_URL: "https://api.company.com"
+```
+
+Debug mode lets you:
+- Step through one step at a time
+- Inspect all variables at any point
+- Set breakpoints on specific steps
+- Skip steps to isolate failures
+
+---
+
+## Variables Tab
+
+Inspect the full variable context at any point in the execution — what was saved from previous steps, what was available when a step ran, and what changed after it completed.
+
+```
+Variables
+
+  [After Step 2]
+
+  cart_id:        "cart_123"
+  item_count:     3
+  customer_id:    "cus_456"
+  total_amount:   9999
+  API_URL:        "https://api.company.com"
+  AUTH_TOKEN:     "Bearer sk_test_***"  (masked)
+```
+
+Sensitive values (tokens, passwords, API keys) are automatically masked in the UI.
+
+---
+
+## Metrics
+
+The Metrics tab shows timing data for the full execution and per-step breakdowns:
+
+```
+Execution Metrics
+
+  Total Duration:    3.2s
+  Setup:             0.2s
+  Steps:             2.8s
+  Teardown:          0.2s
+
+  Slowest Steps:
+    charge_card      2.1s  (66% of total)
+    add_items        0.5s  (16% of total)
+    create_cart      0.3s  (9% of total)
+    setup            0.2s  (6% of total)
+    teardown         0.1s  (3% of total)
+```
+
+---
+
+## Historical Trends
+
+The dashboard tracks pass rates, duration trends, and flaky test detection over time.
+
+### Pass Rate Over Time
+
+View test stability across the last 30 days. Dips in the chart correlate with specific deployments or infrastructure issues.
+
+### Duration Trends
+
+Track whether a flow is getting slower over time. Sudden spikes indicate performance regressions or infrastructure problems.
+
+### Flaky Test Detection
+
+Tests that pass and fail inconsistently are flagged automatically:
+
+```
+Flaky Tests (Last 50 Runs)
+
+  Test: Update User Email
+  Flakiness: 23%
+  Pass rate: 77% (38/50)
+
+  Common errors:
+  - Timeout waiting for response (8 times)
+  - Status code 500 (3 times)
+  - Connection refused (1 time)
+```
+
+---
+
+## Real-Time WebSocket Updates
+
+The dashboard connects to the TestMesh API via WebSocket and receives live updates as executions run. You don't need to refresh the page — step status, log entries, and variable values appear in real time as each step completes.
+
+<Callout type="info">
+  WebSocket updates are scoped per execution. Opening the execution detail page for a running flow will show live progress regardless of when the execution started.
+</Callout>
+
+---
+
+## API Endpoint Coverage
+
+The dashboard also tracks which API endpoints have been exercised by your flows:
+
+```
+API Endpoint Coverage
+
+  /users          POST    tested    2m ago
+  /users/:id      GET     tested    2m ago
+  /users/:id      PUT     tested    2m ago
+  /users/:id      DELETE  tested    2m ago
+  /orders         POST    never tested
+  /orders/:id     GET     never tested
+
+Covered: 57% (4/7 endpoints)
+```
+
+Use this to identify gaps in your test coverage alongside the [AI integration](/docs/features/ai-integration) feature to auto-generate tests for missing endpoints.

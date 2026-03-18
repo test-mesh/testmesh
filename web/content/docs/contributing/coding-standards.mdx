@@ -1,0 +1,418 @@
+---
+title: Coding Standards
+description: Code style and conventions for the TestMesh codebase.
+---
+
+These standards apply to all code in the TestMesh repository. They are enforced in code review and, where possible, by linting tools.
+
+The core philosophy: **simple over clever**. Code should be boring, predictable, and easy to read at a glance.
+
+---
+
+## Go Standards
+
+### Formatting
+
+All Go code must be formatted with `gofmt`. Run it before committing:
+
+```bash
+gofmt -w ./...
+```
+
+The CI pipeline runs `gofmt -l` and fails if any files are unformatted.
+
+### Package Structure
+
+Internal packages follow the domain structure:
+
+```
+api/internal/
+├── api/          # API domain: handlers, middleware, routes
+├── runner/       # Runner domain: executor, actions, assertions
+│   └── actions/  # One file per action type (http.go, database.go, kafka.go)
+├── scheduler/    # Scheduler domain: cron, queue, workers
+├── storage/      # Storage domain: models, repositories
+│   └── models/   # GORM model definitions
+└── shared/       # Cross-cutting: config, database, logger, cache
+```
+
+### Naming Conventions
+
+**Packages**: lowercase, single word — `handlers`, `executor`, `validator`. No camelCase, no underscores.
+
+**Exported functions**: PascalCase — `ExecuteFlow`, `ValidateInput`
+
+**Unexported functions**: camelCase — `parseConfig`, `buildQuery`
+
+**Variables**: camelCase, descriptive — `requestTimeout`, `currentUser`, `httpClient`
+
+**Acronyms in names**: keep consistent casing — `userID` (not `userId`), `httpClient` (not `HTTPClient` for local variables)
+
+**Boolean variables**: use `is`, `has`, `can`, `should` prefix — `isValid`, `hasPermission`, `shouldRetry`
+
+**Collections**: plural — `users []User`, `flows []*Flow`
+
+### Error Handling
+
+Always check errors. Never discard with `_` unless there is a specific documented reason.
+
+Always wrap errors with context:
+
+```go title="Good"
+user, err := db.GetUser(ctx, id)
+if err != nil {
+    return nil, fmt.Errorf("failed to get user %s: %w", id, err)
+}
+```
+
+```go title="Avoid"
+user, err := db.GetUser(ctx, id)
+if err != nil {
+    return nil, err  // caller loses context about what operation failed
+}
+```
+
+Return errors; do not panic in library code:
+
+```go title="Good"
+func GetConfig() (*Config, error) {
+    config, err := loadConfig()
+    if err != nil {
+        return nil, fmt.Errorf("failed to load config: %w", err)
+    }
+    return config, nil
+}
+```
+
+```go title="Avoid"
+func MustGetConfig() *Config {
+    config, err := loadConfig()
+    if err != nil {
+        panic(err) // crashes the process
+    }
+    return config
+}
+```
+
+### Function Size
+
+Keep functions under 50 lines. If a function is longer, extract sub-functions with descriptive names.
+
+### Interfaces
+
+Keep interfaces small — 1 to 3 methods. Large interfaces are a sign the abstraction is wrong.
+
+```go title="Good"
+type ActionHandler interface {
+    Execute(config map[string]interface{}, ctx *Context) (*Result, error)
+}
+```
+
+```go title="Avoid"
+type Handler interface {
+    Execute()
+    Validate()
+    Log()
+    Notify()
+    Cleanup()
+    // ... 10 more methods
+}
+```
+
+### Goroutines and Context
+
+Always pass `context.Context` as the first parameter in functions that may be long-running or that call external services:
+
+```go
+func ExecuteStep(ctx context.Context, step Step, execCtx *ExecutionContext) (*StepResult, error) {
+    // respect ctx.Done() for cancellation
+}
+```
+
+Use `sync.WaitGroup` for fan-out goroutines. Close error channels after `wg.Wait()`.
+
+### Comments
+
+Comment **why**, not **what**. The code shows what it does; the comment explains why it does it that way.
+
+All exported functions must have a doc comment:
+
+```go
+// ExecuteFlow runs a test flow and returns the execution result.
+// It validates the flow structure, executes each step sequentially,
+// and collects results and artifacts.
+func ExecuteFlow(flow *Flow, ctx *Context) (*ExecutionResult, error) {
+```
+
+No `TODO` comments in `main`. Open a GitHub issue instead.
+
+---
+
+## Adding a New Action Handler
+
+Action handlers live in `api/internal/runner/actions/`. Each action type has its own file.
+
+<Steps>
+  <Step>
+    **Create the handler file**
+
+    ```go title="api/internal/runner/actions/my_action.go"
+    package actions
+
+    import (
+        "context"
+        "fmt"
+    )
+
+    type MyActionConfig struct {
+        // Define config fields your action expects from YAML
+        Target  string `json:"target"`
+        Timeout string `json:"timeout"`
+    }
+
+    type MyActionHandler struct{}
+
+    func NewMyActionHandler() *MyActionHandler {
+        return &MyActionHandler{}
+    }
+
+    func (h *MyActionHandler) Execute(
+        ctx context.Context,
+        config map[string]interface{},
+        execCtx *ExecutionContext,
+    ) (*ActionResult, error) {
+        // Parse config
+        cfg, err := parseConfig[MyActionConfig](config)
+        if err != nil {
+            return nil, fmt.Errorf("my_action: invalid config: %w", err)
+        }
+
+        // Execute the action
+        // ...
+
+        return &ActionResult{
+            Output: map[string]interface{}{
+                "result": "value",
+            },
+        }, nil
+    }
+    ```
+  </Step>
+  <Step>
+    **Register the handler in the executor**
+
+    ```go title="api/internal/runner/executor.go"
+    func NewExecutor(deps Dependencies) *Executor {
+        e := &Executor{
+            actions: actions.NewRegistry(),
+            // ...
+        }
+
+        // Register built-in actions
+        e.actions.Register("http_request", actions.NewHTTPHandler())
+        e.actions.Register("database_query", actions.NewDatabaseHandler())
+        e.actions.Register("my_action", actions.NewMyActionHandler()) // add this
+        // ...
+
+        return e
+    }
+    ```
+  </Step>
+  <Step>
+    **Write a unit test**
+
+    ```go title="api/internal/runner/actions/my_action_test.go"
+    package actions
+
+    import (
+        "context"
+        "testing"
+        "github.com/stretchr/testify/assert"
+    )
+
+    func TestMyActionHandler_Execute_ValidConfig_ReturnsResult(t *testing.T) {
+        // Arrange
+        handler := NewMyActionHandler()
+        config := map[string]interface{}{
+            "target": "value",
+        }
+
+        // Act
+        result, err := handler.Execute(context.Background(), config, &ExecutionContext{})
+
+        // Assert
+        assert.NoError(t, err)
+        assert.NotNil(t, result)
+        assert.Equal(t, "value", result.Output["result"])
+    }
+    ```
+  </Step>
+  <Step>
+    **Add an example flow**
+
+    Create `examples/my-action-example.yaml` showing how to use the action.
+  </Step>
+</Steps>
+
+---
+
+## Adding a New Microservice
+
+Demo microservices live in `demo-services/`. Follow the pattern of an existing service.
+
+<Steps>
+  <Step>
+    **Copy an existing service as a template**
+
+    ```bash
+    cp -r demo-services/user-service demo-services/my-service
+    ```
+  </Step>
+  <Step>
+    **Update the service identity**
+
+    - Change the package declarations
+    - Change the database schema name to `my_service` in `database/migrations.go`
+    - Set a unique port (use the next available: 5005, 5006, etc.)
+  </Step>
+  <Step>
+    **Add to `docker-compose.services.yml`**
+
+    ```yaml
+    my-service:
+      build:
+        context: ./demo-services/my-service
+        dockerfile: Dockerfile
+      ports:
+        - "${MY_SERVICE_PORT:-5005}:5005"
+      environment:
+        - DB_HOST=postgres
+        - DB_USER=root
+        - DB_PASSWORD=admin
+        - DB_NAME=postgres
+        - DB_SCHEMA=my_service
+        - REDIS_HOST=redis
+        - KAFKA_BROKERS=kafka:9092
+        - PORT=5005
+      networks:
+        - local-infra
+      depends_on:
+        - postgres
+        - redis
+    ```
+  </Step>
+</Steps>
+
+---
+
+## TypeScript / React Standards
+
+### Formatting
+
+Use Prettier with the project's `.prettierrc`. Run before committing:
+
+```bash
+cd dashboard
+pnpm format
+pnpm lint
+```
+
+### Naming
+
+- **Component files**: PascalCase — `FlowEditor.tsx`, `ExecutionTimeline.tsx`
+- **Utility files**: camelCase — `formatDate.ts`, `validateFlow.ts`
+- **Components**: named exports (not default exports)
+- **Variables and functions**: camelCase
+- **Constants**: `UPPER_SNAKE_CASE` — `API_BASE_URL`, `MAX_RETRIES`
+
+### TypeScript Strictness
+
+TypeScript is configured in strict mode. Do not use `any` — use `unknown` and narrow the type, or define a proper interface.
+
+All props must have an explicit interface:
+
+```tsx title="Good"
+interface FlowCardProps {
+  flow: Flow;
+  onRun: (flowId: string) => void;
+  isLoading?: boolean;
+}
+
+export function FlowCard({ flow, onRun, isLoading = false }: FlowCardProps) {
+  // ...
+}
+```
+
+### Hooks
+
+Custom hooks must be prefixed with `use`. Include all dependencies in `useEffect` and `useCallback` dependency arrays — the ESLint exhaustive-deps rule is enabled.
+
+---
+
+## YAML Flow Conventions
+
+When writing example flows or tests:
+
+- The `flow:` wrapper is required at the root — not `name:` and `steps:` directly
+- Step `id` values must be unique within a flow
+- Use descriptive step IDs (see [Best Practices](/docs/guides/best-practices))
+- Use `${ENV_VAR}` for environment variables, `{{captured_var}}` for step outputs
+- Test one scenario per flow file
+
+```yaml title="Correct structure"
+flow:
+  name: "Flow name"
+  description: "Optional description"
+  steps:
+    - id: descriptive_step_id
+      action: http_request
+      config:
+        method: GET
+        url: "${BASE_URL}/path"
+      assert:
+        - status == 200
+      output:
+        captured_value: $.body.field
+```
+
+---
+
+## Testing Standards
+
+### Test File Naming
+
+Go test files sit alongside the implementation: `handler.go` → `handler_test.go`.
+
+### Test Function Pattern
+
+```
+Test<Function>_<Scenario>_<ExpectedOutcome>
+```
+
+Examples:
+- `TestExecuteFlow_ValidFlow_ReturnsResult`
+- `TestCreateUser_EmptyEmail_ReturnsValidationError`
+- `TestHTTPHandler_Timeout_ReturnsError`
+
+### Test Structure (AAA)
+
+```go
+func TestCreateUser_ValidInput_ReturnsUser(t *testing.T) {
+    // Arrange
+    handler := NewUserHandler(mockDB)
+    input := CreateUserInput{Email: "test@example.com", Name: "Test"}
+
+    // Act
+    user, err := handler.Create(context.Background(), input)
+
+    // Assert
+    assert.NoError(t, err)
+    assert.Equal(t, "test@example.com", user.Email)
+}
+```
+
+### Coverage Requirements
+
+- Minimum 80% coverage on new packages
+- All public functions must have at least one test
+- Both happy path and error cases must be tested

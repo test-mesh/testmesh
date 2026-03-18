@@ -1,0 +1,63 @@
+---
+title: testmesh validate
+description: Check flow YAML syntax without executing any steps.
+---
+
+The `validate` command parses and validates a flow file without executing any steps. Use it to catch errors early before running against real services.
+
+## Usage
+
+```bash
+testmesh validate <flow.yaml>
+```
+
+## Examples
+
+```bash
+# Validate a single file
+testmesh validate ./my-flow.yaml
+
+# Validate before running (in scripts)
+testmesh validate ./flow.yaml && testmesh run ./flow.yaml
+
+# Validate all flows in a directory
+for f in ./flows/*.yaml; do testmesh validate "$f"; done
+```
+
+## What Gets Checked
+
+The validator performs these checks in order:
+
+1. **YAML syntax** — The file must be valid YAML.
+2. **Required fields** — `flow.name` is required. Each step must have a unique `id` and a known `action` type.
+3. **Action configuration** — Required fields for each action type are present (e.g., `method` and `url` for `http_request`).
+4. **Variable references** — Warns if a `{{variable}}` is referenced before any step defines it in an `output` block.
+
+<Callout type="info">
+  Validation checks for structural correctness and known configuration errors. It cannot catch runtime issues such as connection failures or wrong response bodies.
+</Callout>
+
+## Output
+
+On success:
+
+```
+✓ my-flow.yaml is valid
+```
+
+On failure:
+
+```
+✗ my-flow.yaml is invalid
+
+  Line 12: step "create_user" is missing required field "action"
+  Line 24: unknown action type "htttp_request" (did you mean "http_request"?)
+  Warning: variable "user_id" is used at step "get_user" but never defined in an output block
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Flow is valid |
+| `2` | Flow is invalid (syntax or configuration error) |

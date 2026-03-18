@@ -1,0 +1,465 @@
+---
+title: Reporting
+description: Generate HTML, JUnit XML, and JSON reports with trend analysis, flaky test detection, Slack notifications, and CI/CD integration.
+---
+
+TestMesh generates comprehensive reports that go beyond pass/fail — track trends over time, identify flaky tests, and integrate with your CI/CD pipeline.
+
+---
+
+## Report Formats
+
+<Tabs items={["HTML", "JUnit XML", "JSON", "Console", "PDF"]}>
+  <Tab value="HTML">
+    Interactive reports with charts, timelines, and drill-through step details:
+
+    ```bash
+    testmesh run suite.yaml --report html --output reports/
+    open reports/index.html
+    ```
+
+    **Report structure:**
+    ```
+    reports/
+    ├── index.html           # Summary dashboard
+    ├── execution/
+    │   ├── details.html     # Execution details
+    │   └── timeline.html    # Waterfall timeline
+    ├── flows/
+    │   ├── flow-1.html      # Per-flow details
+    │   └── flow-2.html
+    └── data/
+        └── results.json     # Raw data
+    ```
+  </Tab>
+  <Tab value="JUnit XML">
+    Standard JUnit format for CI/CD test result publishing:
+
+    ```bash
+    testmesh run suite.yaml --report junit --output reports/junit.xml
+    ```
+
+    ```xml title="junit.xml"
+    <?xml version="1.0" encoding="UTF-8"?>
+    <testsuites name="User API Tests" tests="4" failures="1" time="1.069">
+      <testsuite name="User Management" tests="4" failures="1" time="1.069">
+        <testcase name="Create User" time="0.245"/>
+        <testcase name="Get User by ID" time="0.123"/>
+        <testcase name="Update User Email" time="0.512">
+          <failure message="Assertion failed: status == 200">
+            Expected: 200
+            Actual:   400
+          </failure>
+        </testcase>
+        <testcase name="Delete User" time="0.189"/>
+      </testsuite>
+    </testsuites>
+    ```
+  </Tab>
+  <Tab value="JSON">
+    Machine-readable format for custom processing and integrations:
+
+    ```bash
+    testmesh run suite.yaml --report json --output results.json
+    ```
+
+    ```json title="results.json"
+    {
+      "summary": {
+        "total": 4,
+        "passed": 3,
+        "failed": 1,
+        "skipped": 0,
+        "duration": 1069,
+        "pass_rate": 0.75
+      },
+      "flows": [
+        {
+          "id": "create_user",
+          "name": "Create User",
+          "status": "passed",
+          "duration": 245,
+          "steps": [...],
+          "assertions": [...]
+        }
+      ],
+      "errors": [
+        {
+          "flow": "update_user_email",
+          "step": "update_email",
+          "message": "Assertion failed: status == 200",
+          "details": { "expected": 200, "actual": 400 }
+        }
+      ]
+    }
+    ```
+  </Tab>
+  <Tab value="Console">
+    Human-readable output for local development:
+
+    ```bash
+    testmesh run suite.yaml --reporter console
+    ```
+
+    ```
+    Running Suite: User API Tests
+
+      Create User                    245ms  PASS
+      Get User by ID                 123ms  PASS
+      Update User Email              512ms  FAIL
+        Assertion failed: status == 200
+        Expected: 200  Actual: 400
+      Delete User                    189ms  PASS
+
+    Results: 3 passed, 1 failed (4 total)
+    Duration: 1.069s
+    ```
+  </Tab>
+  <Tab value="PDF">
+    Executive summary suitable for stakeholders:
+
+    ```bash
+    testmesh run suite.yaml --report pdf --output report.pdf
+    ```
+  </Tab>
+</Tabs>
+
+Generate multiple formats in one run:
+
+```bash
+testmesh run suite.yaml --report html,junit,json --output reports/
+```
+
+---
+
+## Historical Trends
+
+Enable history tracking to compare results across runs:
+
+```bash
+testmesh run suite.yaml --save-history
+```
+
+The dashboard shows trend charts for:
+
+- **Pass rate over time** — Identify when regressions were introduced
+- **Duration trends** — Spot performance regressions across deployments
+- **Failure patterns** — See which tests fail most frequently
+
+---
+
+## Flaky Test Detection
+
+TestMesh automatically identifies tests that pass inconsistently:
+
+```
+Flaky Tests (Last 50 Runs)
+
+  Test: Update User Email
+  Flakiness: 23%
+
+  Pass rate: 77% (38/50)
+  Fails:     23% (12/50)
+
+  Recent runs: PASS PASS FAIL PASS PASS PASS FAIL PASS FAIL PASS
+
+  Common errors:
+  - Timeout waiting for response (8 times)
+  - Status code 500 (3 times)
+  - Connection refused (1 time)
+```
+
+Use this to prioritize fixing unstable tests that erode confidence in your test suite.
+
+---
+
+## Test Analytics
+
+### Coverage by Tag
+
+```
+Test Coverage by Tag
+
+  authentication    12 tests    100%  PASS
+  payment            8 tests     87%  PASS
+  user-mgmt         15 tests     93%  PASS
+  orders             6 tests     50%  WARN
+  search             3 tests     30%  FAIL
+```
+
+### Most Failing Tests
+
+Prioritize which tests need the most attention:
+
+```
+Most Failing Tests (Last 30 Days)
+
+  1. Payment Processing      23 failures
+  2. Search API              18 failures
+  3. Order Creation          12 failures
+  4. Email Verification       8 failures
+  5. Profile Update           5 failures
+```
+
+### Slowest Tests
+
+Identify candidates for optimization:
+
+```
+Slowest Tests (Average Duration)
+
+  1. Full Checkout Flow     5.2s
+  2. Data Import            3.8s
+  3. Report Generation      2.1s
+  4. Bulk User Creation     1.5s
+```
+
+---
+
+## Notifications
+
+### Slack
+
+```yaml title="testmesh.config.yaml"
+reporting:
+  notifications:
+    slack:
+      webhook: "${SLACK_WEBHOOK}"
+      on_failure: true
+      on_success: false
+      template: |
+        Test Suite Failed
+
+        Suite: {{.Suite.Name}}
+        Pass Rate: {{.Summary.PassRate}}%
+        Duration: {{.Summary.Duration}}
+
+        Failed Tests:
+        {{range .Failures}}
+        - {{.Name}}
+        {{end}}
+
+        View Report: {{.ReportURL}}
+```
+
+### Email
+
+```yaml
+reporting:
+  notifications:
+    email:
+      to: ["team@example.com"]
+      on_failure: true
+```
+
+### Webhook
+
+Post results to any HTTP endpoint:
+
+```yaml
+reporting:
+  notifications:
+    webhook:
+      url: "https://your-system.example.com/test-results"
+      method: POST
+      on_failure: true
+```
+
+---
+
+## Report Configuration
+
+```yaml title="testmesh.config.yaml"
+reporting:
+  output_dir: "reports/"
+
+  formats:
+    - html
+    - junit
+    - json
+
+  html:
+    theme: "light"          # "light" or "dark"
+    logo: "assets/logo.png"
+    title: "My API Tests"
+    show_passed: true
+    show_skipped: false
+    group_by: "suite"       # "suite" or "tag"
+
+  history:
+    enabled: true
+    max_runs: 100
+    database: "sqlite://reports/history.db"
+```
+
+---
+
+## Custom Report Templates
+
+Override the HTML report layout with your own template:
+
+```bash
+testmesh run suite.yaml --report html --template custom-template.html
+```
+
+```html title="custom-template.html"
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{.Title}}</title>
+</head>
+<body>
+  <h1>{{.Suite.Name}}</h1>
+  <p>Pass Rate: {{.Summary.PassRate}}%</p>
+  <p>Duration: {{.Summary.Duration}}</p>
+
+  {{range .Flows}}
+  <div>
+    <h2>{{.Name}} — {{.Status}}</h2>
+    {{range .Steps}}
+    <div>
+      <h3>{{.Name}}</h3>
+      {{if .Error}}<pre>{{.Error}}</pre>{{end}}
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+</body>
+</html>
+```
+
+---
+
+## CI/CD Integration
+
+<Tabs items={["GitHub Actions", "GitLab CI", "Jenkins"]}>
+  <Tab value="GitHub Actions">
+    ```yaml title=".github/workflows/tests.yml"
+    name: Tests
+    on: [push]
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v2
+
+          - name: Run Tests
+            run: testmesh run suite.yaml --report html,junit --output reports/
+
+          - name: Upload Report
+            uses: actions/upload-artifact@v2
+            with:
+              name: test-report
+              path: reports/
+
+          - name: Publish Test Results
+            uses: EnricoMi/publish-unit-test-result-action@v1
+            with:
+              files: reports/junit.xml
+    ```
+  </Tab>
+  <Tab value="GitLab CI">
+    ```yaml title=".gitlab-ci.yml"
+    test:
+      script:
+        - testmesh run suite.yaml --report html,junit --output reports/
+      artifacts:
+        reports:
+          junit: reports/junit.xml
+        paths:
+          - reports/
+        expire_in: 30 days
+    ```
+  </Tab>
+  <Tab value="Jenkins">
+    ```groovy title="Jenkinsfile"
+    pipeline {
+        agent any
+        stages {
+            stage('Test') {
+                steps {
+                    sh 'testmesh run suite.yaml --report html,junit --output reports/'
+                }
+            }
+            stage('Publish') {
+                steps {
+                    junit 'reports/junit.xml'
+                    publishHTML([
+                        reportDir: 'reports',
+                        reportFiles: 'index.html',
+                        reportName: 'TestMesh Report'
+                    ])
+                }
+            }
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Report Sharing
+
+### Publish to URL
+
+```bash
+testmesh run suite.yaml --report html --publish
+# Report published: https://reports.testmesh.io/abc123
+# Valid for: 30 days
+```
+
+### Email Reports
+
+```bash
+testmesh run suite.yaml \
+  --report html \
+  --email team@example.com \
+  --email-subject "Test Results - ${DATE}"
+```
+
+---
+
+## CLI Reference
+
+```bash
+# Generate and open HTML report
+testmesh run suite.yaml --report html --output reports/
+testmesh report open reports/index.html
+
+# List past runs
+testmesh report list
+
+# Compare two runs
+testmesh report compare run-1 run-2
+
+# Generate report from saved results
+testmesh report generate results.json --format html
+
+# Clean old reports
+testmesh report clean --older-than 30d
+
+# Export data as CSV
+testmesh report export --format csv --output data.csv
+```
+
+---
+
+## Report Data API
+
+Query report data programmatically from the TestMesh API:
+
+```bash
+# Latest summary
+curl http://localhost:5016/api/reports/latest/summary
+
+# Failures only
+curl http://localhost:5016/api/reports/latest/failures
+
+# 30-day trend data
+curl http://localhost:5016/api/reports/trends?days=30
+```
+
+<Callout type="tip">
+  The JSON report format is the most flexible for building custom dashboards or feeding results into external monitoring systems like Datadog or Grafana.
+</Callout>

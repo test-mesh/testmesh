@@ -1,0 +1,243 @@
+---
+title: grpc_call
+description: Invoke gRPC methods with proto reflection or a proto file, with metadata, TLS, and response assertions.
+---
+
+The `grpc_call` action invokes a gRPC method and exposes the response message and status code. For streaming RPCs, use `grpc_stream`.
+
+## Minimal example
+
+```yaml title="grpc-get-user.yaml"
+- id: get_user
+  action: grpc_call
+  config:
+    address: "localhost:50051"
+    service: "UserService"
+    method: "GetUser"
+    request:
+      id: "${user_id}"
+  assert:
+    - result.status == "OK"
+    - result.response.id == "${user_id}"
+```
+
+---
+
+## Config fields
+
+### address (required)
+
+The gRPC server address in `host:port` format.
+
+### service (required)
+
+The fully-qualified service name as defined in the proto file.
+
+### method (required)
+
+The RPC method name to invoke.
+
+### proto_file
+
+Path to the `.proto` file defining the service. If the server supports gRPC reflection, this field can be omitted.
+
+```yaml
+config:
+  address: "localhost:50051"
+  service: "UserService"
+  method: "CreateUser"
+  proto_file: "./protos/user.proto"
+```
+
+### request
+
+The request message fields as a YAML object.
+
+```yaml
+config:
+  request:
+    id: "${user_id}"
+    include_metadata: true
+    filters:
+      status: "active"
+```
+
+### metadata
+
+Key-value pairs sent as gRPC metadata (equivalent to HTTP headers).
+
+```yaml
+config:
+  metadata:
+    authorization: "Bearer ${TOKEN}"
+    request-id: "${EXECUTION_ID}"
+    x-tenant-id: "${TENANT_ID}"
+```
+
+### tls
+
+TLS configuration for secure connections.
+
+```yaml
+config:
+  tls:
+    enabled: true
+    cert: "/path/to/client.crt"
+    key: "/path/to/client.key"
+    ca: "/path/to/ca.crt"
+```
+
+### timeout
+
+Per-call timeout. Uses duration format (`30s`, `5m`).
+
+```yaml
+config:
+  timeout: "10s"
+```
+
+---
+
+## Response data
+
+| Path | Description |
+|---|---|
+| `result.status` | gRPC status code string (e.g., `"OK"`, `"NOT_FOUND"`) |
+| `result.response` | The response message as an object |
+| `result.response.field` | Any field in the response message |
+
+---
+
+## Output extraction
+
+```yaml
+output:
+  grpc_status: "result.status"
+  user: "result.response"
+  user_name: "result.response.name"
+  user_email: "result.response.email"
+```
+
+---
+
+## Assertions
+
+```yaml
+assert:
+  - result.status == "OK"
+  - result.response.id == "${user_id}"
+  - result.response.name exists
+  - result.response.email contains "@"
+```
+
+gRPC status codes:
+
+| Status | Description |
+|---|---|
+| `OK` | Success |
+| `NOT_FOUND` | Resource not found |
+| `ALREADY_EXISTS` | Resource already exists |
+| `PERMISSION_DENIED` | Caller lacks permission |
+| `INVALID_ARGUMENT` | Bad request data |
+| `UNAVAILABLE` | Service unavailable |
+| `INTERNAL` | Server-side error |
+
+---
+
+## Full example
+
+```yaml title="grpc-user-flow.yaml"
+flow:
+  name: "gRPC User Service Test"
+
+  steps:
+    - id: create_user_grpc
+      action: grpc_call
+      config:
+        address: "user-service:50051"
+        service: "users.UserService"
+        method: "CreateUser"
+        proto_file: "./protos/users.proto"
+        request:
+          email: "test-${RANDOM_ID}@example.com"
+          name: "Test User"
+          role: "member"
+        metadata:
+          authorization: "Bearer ${ADMIN_TOKEN}"
+          request-id: "${EXECUTION_ID}"
+        timeout: "10s"
+      output:
+        user_id: "result.response.id"
+        user_email: "result.response.email"
+      assert:
+        - result.status == "OK"
+        - result.response.id exists
+        - result.response.email exists
+
+    - id: get_user_grpc
+      action: grpc_call
+      config:
+        address: "user-service:50051"
+        service: "users.UserService"
+        method: "GetUser"
+        request:
+          id: "${create_user_grpc.user_id}"
+        metadata:
+          authorization: "Bearer ${ADMIN_TOKEN}"
+      assert:
+        - result.status == "OK"
+        - result.response.id == "${create_user_grpc.user_id}"
+        - result.response.email == "${create_user_grpc.user_email}"
+
+    - id: delete_user_grpc
+      action: grpc_call
+      config:
+        address: "user-service:50051"
+        service: "users.UserService"
+        method: "DeleteUser"
+        request:
+          id: "${create_user_grpc.user_id}"
+      assert:
+        - result.status == "OK"
+
+    - id: confirm_not_found
+      action: grpc_call
+      config:
+        address: "user-service:50051"
+        service: "users.UserService"
+        method: "GetUser"
+        request:
+          id: "${create_user_grpc.user_id}"
+      assert:
+        - result.status == "NOT_FOUND"
+```
+
+---
+
+## Streaming gRPC
+
+For server-streaming, client-streaming, or bidirectional streaming, use `grpc_stream`:
+
+```yaml
+- id: stream_events
+  action: grpc_stream
+  config:
+    address: "event-service:50051"
+    service: "EventService"
+    method: "SubscribeEvents"
+    type: "server"             # "client", "server", or "bidirectional"
+
+    # Messages to send (for client/bidirectional streams)
+    messages:
+      - type: "subscribe"
+        topic: "orders"
+
+    # Stop receiving after this many messages
+    max_receive: 10
+    timeout: "30s"
+
+  output:
+    received_messages: "result.messages"
+  assert:
+    - result.messages.length > 0
+```

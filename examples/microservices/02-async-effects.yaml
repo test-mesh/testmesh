@@ -1,0 +1,130 @@
+flow:
+  name: "Microservices Async Kafka Effects"
+  description: >
+    Verifies that Kafka consumers in notification-service and product-service
+    react correctly to events emitted by user-service and order-service.
+    Polls DB until async side-effects materialize (up to 15s each).
+
+  steps:
+    # ── Setup: create the entities that trigger events ────────────────────────
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Async Test Product {{RANDOM_ID}}"
+          price: 19.99
+          inventory: 10
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        product_id: "$.body.id"
+        initial_inventory: "$.body.inventory"
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Async User {{RANDOM_ID}}"
+          email: "async-{{RANDOM_ID}}@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 2
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        order_id: "$.body.id"
+
+    # ── Effect 1: notification-service consumes user.created ──────────────────
+    # notification-service has no create endpoint — it reacts to Kafka events only.
+    # Poll until a notification row appears for this user_id.
+    - id: poll_notification_user_created
+      action: db_poll
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, type FROM notification_service.notifications WHERE user_id = '{{user_id}}' LIMIT 1"
+        interval: "1s"
+        timeout: "15s"
+
+    - id: verify_notification_exists
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, user_id, type, message FROM notification_service.notifications WHERE user_id = '{{user_id}}'"
+      assert:
+        - "row_count >= 1"
+        - "first_row.user_id == \"{{user_id}}\""
+
+    - id: verify_notifications_api
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5004/api/v1/notifications/{{user_id}}"
+      assert:
+        - "status == 200"
+
+    - id: verify_unread_notifications_api
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5004/api/v1/notifications/{{user_id}}/unread"
+      assert:
+        - "status == 200"
+
+    # ── Effect 2: product-service consumes order.placed → decreases inventory ─
+    # product-service Kafka consumer receives order.placed and reduces inventory
+    # by the ordered quantity (2). Initial inventory was 10, so expect 8.
+    - id: poll_inventory_decreased
+      action: db_poll
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, inventory FROM product_service.products WHERE id = '{{product_id}}' AND inventory < {{initial_inventory}}"
+        interval: "1s"
+        timeout: "15s"
+
+    - id: verify_inventory_value
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, inventory FROM product_service.products WHERE id = '{{product_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.inventory == 8"
+
+    - id: verify_kafka_inventory_changed
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: product.inventory.changed
+        group_id: "testmesh-e2e-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"

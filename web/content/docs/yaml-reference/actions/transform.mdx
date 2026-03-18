@@ -1,0 +1,276 @@
+---
+title: transform
+description: Extract, map, filter, join, and format data between steps to reshape variables for downstream use.
+---
+
+The `transform` action applies a sequence of data operations to variables already in scope. Use it to reshape API responses, filter arrays, compute derived values, and format strings before passing data to subsequent steps.
+
+## Minimal example
+
+```yaml title="transform-users.yaml"
+- id: extract_active_users
+  action: transform
+  config:
+    input: "${get_users.users}"
+    operations:
+      - type: filter
+        array: "users"
+        condition: "item.status == 'active'"
+        save_as: "active_users"
+  output:
+    result: "result"
+```
+
+---
+
+## Config fields
+
+### input
+
+The data to transform. Can be a variable reference or a literal value.
+
+```yaml
+config:
+  input: "${get_users.response.body}"
+```
+
+Alternatively, load the input from a file:
+
+```yaml
+config:
+  input_file: "fixtures/users.json"
+```
+
+### operations
+
+An ordered array of transformation operations. Each operation reads from the current variable scope and stores its result under `save_as`.
+
+---
+
+## Operation types
+
+### extract
+
+Pulls a nested field out of the input and stores it as a new variable.
+
+```yaml
+operations:
+  - type: extract
+    path: "user.profile"
+    save_as: "profile"
+```
+
+After this operation, `${profile}` holds the value of `input.user.profile`.
+
+### map
+
+Transforms each element of an array into a new shape.
+
+```yaml
+operations:
+  - type: map
+    array: "users"
+    transform:
+      id: "item.id"
+      display_name: "item.full_name"
+      email: "item.contact.email"
+    save_as: "mapped_users"
+```
+
+Each `item` refers to one element of the source array. The result is a new array stored in `mapped_users`.
+
+### filter
+
+Returns only the elements of an array matching a condition.
+
+```yaml
+operations:
+  - type: filter
+    array: "users"
+    condition: "item.status == 'active'"
+    save_as: "active_users"
+```
+
+```yaml
+# Multiple conditions
+operations:
+  - type: filter
+    array: "products"
+    condition: "item.price < 100 && item.in_stock == true"
+    save_as: "affordable_in_stock"
+```
+
+### join
+
+Concatenates an array of strings into a single string with a separator.
+
+```yaml
+operations:
+  - type: join
+    array: "user_names"
+    separator: ", "
+    save_as: "names_list"
+```
+
+If `user_names` is `["Alice", "Bob", "Carol"]`, `names_list` becomes `"Alice, Bob, Carol"`.
+
+### format
+
+Builds a string from a template and variable substitutions.
+
+```yaml
+operations:
+  - type: format
+    template: "User ${id} (${email}) signed up on ${date}"
+    variables:
+      id: "${user.id}"
+      email: "${user.email}"
+      date: "${TIMESTAMP}"
+    save_as: "summary"
+```
+
+---
+
+## Output extraction
+
+After the operations run, results are available via the `output` block:
+
+```yaml
+output:
+  result: "result"               # The final transformed value
+```
+
+Or reference a specific `save_as` variable by name in downstream steps:
+`${transform_step.active_users}`.
+
+---
+
+## Chaining operations
+
+Operations execute sequentially. Each operation can reference the results of previous operations by their `save_as` names.
+
+```yaml
+- id: reshape_order_data
+  action: transform
+  config:
+    input: "${get_orders.response.body}"
+    operations:
+      # Step 1: Extract the orders array
+      - type: extract
+        path: "data.orders"
+        save_as: "orders"
+
+      # Step 2: Filter to only confirmed orders
+      - type: filter
+        array: "orders"
+        condition: "item.status == 'confirmed'"
+        save_as: "confirmed_orders"
+
+      # Step 3: Map to a simpler shape
+      - type: map
+        array: "confirmed_orders"
+        transform:
+          id: "item.id"
+          total: "item.payment.total"
+          customer: "item.customer.email"
+        save_as: "order_summaries"
+
+      # Step 4: Extract IDs for later use
+      - type: map
+        array: "confirmed_orders"
+        transform:
+          value: "item.id"
+        save_as: "confirmed_order_ids"
+  output:
+    result: "result"
+```
+
+---
+
+## Full example: reshape and use transformed data
+
+```yaml title="transform-and-use.yaml"
+flow:
+  name: "Process Active Users"
+
+  steps:
+    - id: get_all_users
+      action: http_request
+      config:
+        method: GET
+        url: "${API_URL}/users"
+        params:
+          limit: "100"
+      output:
+        users: "response.body.data"
+
+    - id: prepare_users
+      action: transform
+      config:
+        input: "${get_all_users.users}"
+        operations:
+          - type: filter
+            array: "users"
+            condition: "item.status == 'active' && item.email_verified == true"
+            save_as: "eligible_users"
+
+          - type: map
+            array: "eligible_users"
+            transform:
+              user_id: "item.id"
+              email: "item.email"
+              plan: "item.subscription.plan"
+            save_as: "user_list"
+      output:
+        result: "result"
+
+    # Use the transformed data in a loop
+    - id: send_welcome_emails
+      action: for_each
+      config:
+        items: "${prepare_users.user_list}"
+        item_name: "user"
+        steps:
+          - id: send_email
+            action: http_request
+            config:
+              method: POST
+              url: "${API_URL}/emails"
+              body:
+                to: "${user.email}"
+                template: "welcome"
+                user_id: "${user.user_id}"
+            assert:
+              - status == 202
+```
+
+---
+
+## Compute a derived value
+
+Use `format` with arithmetic expressions to compute values:
+
+```yaml
+- id: compute_tax
+  action: transform
+  config:
+    input: "${order_total}"
+    operations:
+      - type: format
+        template: "${amount}"
+        variables:
+          amount: "${order_total * 0.08}"
+        save_as: "tax_amount"
+
+      - type: format
+        template: "${total}"
+        variables:
+          total: "${order_total + tax_amount}"
+        save_as: "grand_total"
+  output:
+    result: "result"
+```
+
+<Callout type="tip">
+  For simple arithmetic — like adding two step outputs together — the `format` operation with arithmetic expressions in variable values is the most direct approach. For complex data reshaping across multiple steps, chain `extract`, `filter`, and `map` operations.
+</Callout>

@@ -1,0 +1,402 @@
+---
+title: AI Integration
+description: Generate test flows from natural language descriptions, import from OpenAPI specs, analyze coverage gaps, and interactively build tests with the testmesh generate and testmesh chat commands.
+---
+
+TestMesh integrates AI to dramatically reduce the time it takes to write comprehensive integration tests. Describe what you want to test in plain English and get a complete, executable YAML flow in seconds.
+
+<Cards>
+  <Card title="Generate Command" href="#generate-command" description="Create flows from a natural language description" />
+  <Card title="Import from Specs" href="#import-from-specifications" description="Turn OpenAPI specs and Postman collections into flows" />
+  <Card title="Chat Interface" href="#conversational-testing" description="Build tests interactively through conversation" />
+  <Card title="Coverage Analysis" href="#coverage-analysis" description="Find gaps and auto-generate missing tests" />
+</Cards>
+
+---
+
+## Setup
+
+Export your API key before using AI features:
+
+<Tabs items={["Anthropic (Claude)", "OpenAI (GPT-4)", "Local (Ollama)"]}>
+  <Tab value="Anthropic (Claude)">
+    ```bash
+    export ANTHROPIC_API_KEY=sk-ant-xxxxx
+    ```
+  </Tab>
+  <Tab value="OpenAI (GPT-4)">
+    ```bash
+    export OPENAI_API_KEY=sk-xxxxx
+    ```
+  </Tab>
+  <Tab value="Local (Ollama)">
+    ```bash
+    # No API key needed — runs fully offline
+    ollama pull llama3
+    ```
+
+    Configure in `.testmesh/config.yaml`:
+
+    ```yaml
+    ai:
+      provider: "local"
+      providers:
+        local:
+          host: "localhost:11434"
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Generate Command
+
+Generate a complete test flow from a natural language description:
+
+```bash
+testmesh generate "Test user registration API"
+testmesh generate "Test payment gateway with retry on failure" -o flows/payment/
+testmesh generate "Test daily fare cap with 3 taps and $5 limit" --provider anthropic
+```
+
+**What gets generated:**
+
+```
+Generating test flow from description...
+
+  Analyzed intent: Integration test for user registration
+  Identified protocols: HTTP (API), Database (PostgreSQL)
+  Selected patterns: API test, database validation, cleanup
+  Generated flows/user-registration-test.yaml (45 lines)
+  Generated data/user-test-data.json (12 users)
+
+Preview:
+  Steps:
+    1. Create test user via POST /api/users
+    2. Verify response (status 201, user ID exists)
+    3. Query database to confirm user created
+    4. Cleanup test data
+
+Run test now? [y/n]
+```
+
+**Example generated output:**
+
+```yaml title="flows/user-registration-test.yaml"
+flow:
+  name: "User Registration Test"
+  description: "Test POST /api/users endpoint for user registration"
+  tags: ["api", "users", "registration"]
+
+  env:
+    API_URL: "${API_BASE_URL}/api"
+
+  setup:
+    - id: cleanup_test_user
+      action: database_query
+      config:
+        query: "DELETE FROM users WHERE email = $1"
+        params: ["test@example.com"]
+      on_error: "continue"
+
+  steps:
+    - id: register_user
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        headers:
+          Content-Type: "application/json"
+        body:
+          email: "test@example.com"
+          password: "SecurePass123!"
+          name: "Test User"
+      output:
+        user_id: "response.body.id"
+      assert:
+        - status_code == 201
+        - response.body.id exists
+        - response.body.email == "test@example.com"
+
+    - id: verify_in_database
+      action: database_query
+      config:
+        query: "SELECT * FROM users WHERE id = $1"
+        params: ["${register_user.user_id}"]
+      assert:
+        - result.count == 1
+        - result.rows[0].email == "test@example.com"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        query: "DELETE FROM users WHERE id = $1"
+        params: ["${register_user.user_id}"]
+      on_error: "continue"
+```
+
+---
+
+## Import from Specifications
+
+### From OpenAPI / Swagger
+
+```bash
+testmesh import openapi swagger.yaml
+```
+
+```
+Analyzing OpenAPI specification...
+  API: User Service v2.1
+  Base URL: https://api.example.com/v2
+  Endpoints: 23
+
+Generating tests...
+  GET  /users                → flows/get-users-test.yaml
+  POST /users                → flows/create-user-test.yaml
+  GET  /users/{id}           → flows/get-user-by-id-test.yaml
+  PUT  /users/{id}           → flows/update-user-test.yaml
+  DELETE /users/{id}         → flows/delete-user-test.yaml
+  ...
+
+Generated 23 test flows, 1 mock server, test data for all scenarios.
+```
+
+For each endpoint, TestMesh generates a flow with realistic request data, appropriate assertions, and an optional mock server configuration:
+
+```yaml title="flows/create-user-test.yaml"
+flow:
+  name: "POST /users - Create User"
+  description: "Auto-generated from OpenAPI spec"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        body:
+          email: "{{faker.email}}"
+          name: "{{faker.name}}"
+      assert:
+        - status == 201
+        - response.body matches_schema:
+            type: object
+            required: [id, email, name]
+```
+
+### From Postman Collections
+
+```bash
+testmesh import postman collection.json
+```
+
+### From Pact Contracts
+
+```bash
+testmesh import pact contracts/web-app--user-service.json
+```
+
+---
+
+## Conversational Testing
+
+Use `testmesh chat` for interactive, multi-turn test creation:
+
+```bash
+testmesh chat
+```
+
+```
+TestMesh AI Assistant
+
+You: I need to test our payment system
+
+AI: What payment provider are you using? (Stripe, PayPal, custom)
+    Do you have an OpenAPI spec for the payment API?
+    Should tests use real API or mocks?
+
+You: Stripe, no spec, use mocks
+
+AI: Common payment scenarios to test:
+      1. Successful payment
+      2. Card declined
+      3. Insufficient funds
+      4. Network timeout
+      5. Duplicate payment prevention
+      6. Refund processing
+
+    Which scenarios are most important for you?
+
+You: 1, 2, 4, and 6
+
+AI: Created:
+      - flows/payment-success.yaml
+      - flows/payment-declined.yaml
+      - flows/payment-timeout.yaml
+      - flows/payment-refund.yaml
+      - mocks/stripe-api-mock.yaml
+
+    Should I add an integration test that does payment then refund?
+
+You: yes
+
+AI: Created flows/payment-refund-flow.yaml
+
+    This test:
+      1. Processes a $50 payment
+      2. Verifies payment succeeded
+      3. Issues a full refund
+      4. Verifies refund completed
+
+    Run all payment tests now?
+```
+
+---
+
+## Coverage Analysis
+
+Find untested endpoints and generate flows for them automatically:
+
+```bash
+testmesh analyze coverage
+```
+
+```
+API Endpoints:
+  POST /api/users            covered
+  GET  /api/users/{id}       covered
+  PUT  /api/users/{id}       not tested
+  DELETE /api/users/{id}     not tested
+
+Kafka Topics:
+  user.created               producer + consumer tests
+  user.updated               producer test only
+  user.deleted               no tests
+
+Overall Coverage: 62% (8 of 13 scenarios)
+
+Generate missing tests? [y/n]
+> y
+
+Generated 5 missing tests:
+  flows/update-user-test.yaml
+  flows/delete-user-test.yaml
+  flows/user-deleted-event-test.yaml
+  flows/password-reset-test.yaml
+  flows/account-deletion-test.yaml
+
+New coverage: 100% (13 of 13 scenarios)
+```
+
+---
+
+## Self-Healing Tests
+
+When a test fails, AI analyzes the failure and suggests fixes:
+
+```
+Running: Daily Fare Cap Test
+  Step 5: Verify fare amount — FAILED
+
+  Assertion failed:
+    Expected: fare == 5.00
+    Actual:   fare == 6.00
+
+Analyzing failure...
+
+  Root cause: Expected value outdated
+  Evidence: fare_calculation rule "daily_cap_v2" is active (new version)
+  Most likely: Business rule change — cap increased from $5 to $6
+
+Suggested fix:
+  Update expected fare: 5.00 → 6.00
+
+Apply fix? [y/n/view/edit]
+> y
+
+Updated flows/daily-fare-cap.yaml
+Re-run test? [y/n]
+> y
+
+All tests passed!
+```
+
+---
+
+## CLI Reference
+
+```bash
+# Generate from description
+testmesh generate "Test user registration API"
+testmesh generate "Test payment gateway" -o flows/payment/ --provider anthropic
+testmesh generate "Test order flow" --dry-run  # Preview without creating files
+
+# Import from external sources
+testmesh import openapi swagger.yaml
+testmesh import postman collection.json
+testmesh import pact contracts/web-app--user-service.json
+
+# Coverage analysis
+testmesh analyze coverage
+testmesh analyze coverage --generate-missing
+testmesh analyze coverage --report html
+
+# Conversational interface
+testmesh chat
+testmesh chat --provider anthropic --context ./docs/
+
+# Configure AI
+testmesh config ai --provider anthropic --api-key sk-ant-xxx
+testmesh config ai --model claude-sonnet-4-5
+```
+
+---
+
+## Configuration
+
+```yaml title=".testmesh/config.yaml"
+ai:
+  provider: "anthropic"
+
+  providers:
+    anthropic:
+      api_key: "${ANTHROPIC_API_KEY}"
+      model: "claude-sonnet-4-5"
+      max_tokens: 8000
+      temperature: 0.7
+
+    openai:
+      api_key: "${OPENAI_API_KEY}"
+      model: "gpt-4"
+      max_tokens: 8000
+
+    local:
+      host: "localhost:11434"  # Ollama
+
+  generation:
+    include_comments: true
+    include_examples: true
+    max_steps: 50
+
+  analysis:
+    coverage_threshold: 0.8
+    suggest_improvements: true
+```
+
+<Callout type="warning">
+  Never commit API keys to version control. Use environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`) or a secrets manager.
+</Callout>
+
+<Callout type="tip">
+  Generated flows are always validated against the TestMesh YAML schema before being written to disk. If generation produces an invalid flow, TestMesh will report the issue rather than saving a broken file.
+</Callout>
+
+## What's Next
+
+<Cards>
+  <Card title="testmesh generate" href="/docs/cli/generate" description="CLI reference for AI-powered flow generation." />
+  <Card title="testmesh chat" href="/docs/cli/chat" description="Conversational flow creation." />
+  <Card title="MCP Integration" href="/docs/features/mcp-integration" description="Use AI tools within flows via Model Context Protocol." />
+</Cards>

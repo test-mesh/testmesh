@@ -1,0 +1,60 @@
+graph TD
+    Client([Client])
+
+    subgraph Services
+        US[user-service :5001]
+        PS[product-service :5002]
+        OS[order-service :5003]
+        NS[notification-service :5004]
+    end
+
+    subgraph Kafka
+        KUC([user.created])
+        KUL([user.login])
+        KPC([product.created])
+        KIC([product.inventory.changed])
+        KOP([order.placed])
+        KSC([order.status.changed])
+    end
+
+    PG[(PostgreSQL)]
+    RD[(Redis)]
+
+    Client --> US
+    Client --> PS
+    Client --> OS
+    Client --> NS
+
+    OS -->|HTTP validate user| US
+    OS -->|HTTP validate product| PS
+
+    US -->|produce| KUC
+    US -->|produce| KUL
+    PS -->|produce| KPC
+    PS -->|produce| KIC
+    OS -->|produce| KOP
+    OS -->|produce| KSC
+
+    KUC -->|consume| NS
+    KOP -->|consume| NS
+    KSC -->|consume| NS
+    KOP -->|consume| PS
+
+    US --> PG
+    PS --> PG
+    OS --> PG
+    NS --> PG
+
+    US --> RD
+    PS --> RD
+    OS --> RD
+
+    classDef svc fill:#4f46e5,stroke:#3730a3,color:#fff
+    classDef kafka fill:#f59e0b,stroke:#d97706,color:#000
+    classDef infra fill:#059669,stroke:#047857,color:#fff
+    classDef client fill:#6b7280,stroke:#4b5563,color:#fff
+
+    class US,PS,OS,NS svc
+    class KUC,KUL,KPC,KIC,KOP,KSC kafka
+    class PG,RD infra
+    class Client client

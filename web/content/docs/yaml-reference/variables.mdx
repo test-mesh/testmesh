@@ -1,0 +1,254 @@
+---
+title: Variables
+description: Extracting outputs, template interpolation, built-in variables, and the Faker data library.
+---
+
+TestMesh has a single variable scope shared across all steps in a flow. Variables come from four sources: the `env` block, system built-ins, Faker data generators, and step outputs.
+
+## Template syntax
+
+Variables are referenced with `${VARIABLE_NAME}` in any string field inside a step's `config`, `assert`, or `output` blocks.
+
+```yaml
+config:
+  url: "${API_URL}/users/${user_id}"
+  body:
+    email: "${USER_EMAIL}"
+```
+
+---
+
+## 1. env variables
+
+Defined in the flow's `env` block. Values are strings that can themselves reference system environment variables using the same `${...}` syntax.
+
+```yaml
+flow:
+  env:
+    API_URL: "${API_BASE_URL}/v1"    # References a shell environment variable
+    DB_NAME: "users_test"
+    TIMEOUT: "30s"
+```
+
+<Callout type="info">
+  If a referenced shell variable is not set, the literal string `${API_BASE_URL}` is used as the value. Set a default with `${API_BASE_URL:http://localhost:5016}`.
+</Callout>
+
+### Default values
+
+```yaml
+env:
+  API_URL: "${API_BASE_URL:http://localhost:5016}/v1"
+```
+
+If `API_BASE_URL` is not set in the environment, `API_URL` becomes `http://localhost:5016/v1`.
+
+---
+
+## 2. System variables
+
+These are always available without any declaration.
+
+| Variable | Description | Example value |
+|---|---|---|
+| `${FLOW_ID}` | Current flow ID (UUID) | `"abc123..."` |
+| `${FLOW_NAME}` | Current flow name | `"User Registration"` |
+| `${EXECUTION_ID}` | Current execution ID (UUID) | `"def456..."` |
+| `${TIMESTAMP}` | ISO 8601 UTC timestamp | `"2026-03-16T10:00:00Z"` |
+| `${TIMESTAMP_UNIX}` | Unix timestamp (seconds) | `"1742119200"` |
+| `${RANDOM_ID}` | Random UUID | `"7f3a1b2c..."` |
+| `${RANDOM_INT}` | Random integer 0–999999 | `"482910"` |
+| `${RANDOM_STRING}` | Random 16-char alphanumeric | `"k9mXpQ3rLtN8vWzY"` |
+| `${FLOW_STATUS}` | In teardown: `"passed"` or `"failed"` | `"failed"` |
+
+`${RANDOM_ID}` and `${RANDOM_INT}` are useful for generating unique test data that does not collide across concurrent runs.
+
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/users"
+    body:
+      email: "test-${RANDOM_ID}@example.com"
+      reference: "REF-${RANDOM_INT}"
+```
+
+---
+
+## 3. Faker variables
+
+Faker variables generate realistic test data on demand. They are evaluated fresh for each step execution.
+
+```yaml
+body:
+  first_name: "${FAKER.name.firstName}"
+  last_name: "${FAKER.name.lastName}"
+  email: "${FAKER.internet.email}"
+  phone: "${FAKER.phone.phoneNumber}"
+  street: "${FAKER.address.streetAddress}"
+  city: "${FAKER.address.city}"
+  company: "${FAKER.company.companyName}"
+  product: "${FAKER.commerce.productName}"
+  price: "${FAKER.commerce.price}"
+  user_id: "${FAKER.datatype.uuid}"
+```
+
+Common Faker namespaces:
+
+| Namespace | Examples |
+|---|---|
+| `FAKER.name` | `firstName`, `lastName`, `fullName` |
+| `FAKER.internet` | `email`, `userName`, `url` |
+| `FAKER.phone` | `phoneNumber` |
+| `FAKER.address` | `streetAddress`, `city`, `state`, `country`, `zipCode` |
+| `FAKER.company` | `companyName`, `catchPhrase` |
+| `FAKER.commerce` | `productName`, `price`, `department` |
+| `FAKER.datatype` | `uuid`, `boolean`, `number` |
+
+---
+
+## 4. Step outputs
+
+Steps extract values from their results using the `output` block. Extracted values become variables scoped to the flow and available to all subsequent steps.
+
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/users"
+  output:
+    user_id: "response.body.id"
+    user_email: "response.body.email"
+    auth_token: "response.body.token"
+
+- id: get_profile
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/users/${create_user.user_id}"   # References output from create_user
+    headers:
+      Authorization: "Bearer ${create_user.auth_token}"
+```
+
+The format is `${step_id.output_name}`.
+
+---
+
+## Output path expressions
+
+The right-hand side of each `output` entry is a path expression into the step result.
+
+<Tabs items={["HTTP Request", "Database Query", "Kafka Consumer"]}>
+  <Tab value="HTTP Request">
+    ```yaml
+    output:
+      status_code: "response.status"
+      user_id: "response.body.id"
+      first_user: "response.body.users[0]"
+      first_email: "response.body.users[0].email"
+      all_headers: "response.headers"
+      content_type: "response.headers[\"Content-Type\"]"
+      duration: "response.time"
+    ```
+  </Tab>
+  <Tab value="Database Query">
+    ```yaml
+    output:
+      rows: "result.rows"
+      row_count: "result.count"
+      first_row: "result.rows[0]"
+      user_email: "result.rows[0].email"
+      user_status: "result.rows[0].status"
+    ```
+  </Tab>
+  <Tab value="Kafka Consumer">
+    ```yaml
+    output:
+      messages: "result.messages"
+      message_count: "result.count"
+      first_value: "result.messages[0].value"
+      event_type: "result.messages[0].value.event_type"
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## JSONPath syntax
+
+JSONPath can be used in output expressions and assertions for complex data access.
+
+```yaml
+# Object property
+"$.user.name"
+"response.body.data.id"
+
+# Array access
+"$.users[0]"          # First element
+"$.users[-1]"         # Last element
+"$.users[0:3]"        # Elements 0, 1, 2 (slice)
+
+# Filter
+"$.users[?(@.status == 'active')]"          # Active users only
+"$.products[?(@.price < 100)]"              # Products under $100
+
+# Recursive descent
+"$..email"                                  # All email fields at any depth
+
+# Wildcard
+"$.users[*].id"                             # All user IDs
+
+# Functions
+"$.users.length"                            # Array length
+"$.prices.sum()"                            # Sum of numeric array
+"$.prices.avg()"                            # Average
+"$.prices.min()"                            # Minimum value
+"$.prices.max()"                            # Maximum value
+```
+
+---
+
+## Variable interpolation features
+
+### Nested variable access
+
+```yaml
+url: "${API_URL}/users/${user_id}/posts/${post_id}"
+```
+
+### Conditional expression
+
+```yaml
+message: "${status == 200 ? 'Success' : 'Failed'}"
+```
+
+### Arithmetic
+
+```yaml
+next_page: "${current_page + 1}"
+```
+
+### String functions
+
+```yaml
+uppercase_name: "${name.upper()}"
+lowercase_email: "${email.lower()}"
+```
+
+### Concatenation
+
+```yaml
+full_name: "${first_name} ${last_name}"
+```
+
+---
+
+## Variable scope
+
+All variables share a single flat scope for the duration of a flow execution. There is no block scoping. Variables set in `setup` steps are available in `steps` and `teardown`. Variables set in a `for_each` loop are available to subsequent outer steps after the loop completes.
+
+<Callout type="warn">
+  If two steps define an output with the same variable name, the later step's value overwrites the earlier one. Use distinct, descriptive output names to avoid conflicts.
+</Callout>

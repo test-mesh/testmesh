@@ -1,0 +1,154 @@
+---
+title: Getting Started
+description: Get TestMesh running in minutes and execute your first integration test.
+---
+
+TestMesh is a platform for writing and running end-to-end integration tests across HTTP, databases, Kafka, gRPC, and more. Tests are defined in human-readable YAML files called **flows**.
+
+## Before You Start
+
+<Cards>
+  <Card title="Docker required" description="The demo microservices and infrastructure run in Docker. Install Docker Desktop if you haven't already." />
+  <Card title="Go 1.23+ required" description="The CLI is written in Go. Required if running from source or installing the CLI binary." />
+</Cards>
+
+<Callout type="info">
+**Quickest path:** If you just want to evaluate TestMesh, jump to [Your First Flow](/docs/getting-started/first-flow) and run the demo services with one command.
+</Callout>
+
+<Cards>
+  <Card title="Installation" href="/docs/getting-started/installation" description="Install the CLI and set up your environment." />
+  <Card title="Your First Flow" href="/docs/getting-started/first-flow" description="Write and run your first test in under five minutes." />
+  <Card title="Core Concepts" href="/docs/getting-started/concepts" description="Understand flows, steps, actions, and the variable system." />
+</Cards>
+
+## Choose Your Setup
+
+<Tabs items={["Pre-built Docker Image", "Run from Source"]}>
+  <Tab value="Pre-built Docker Image">
+    ### With Your Own Infrastructure
+
+    If you already have PostgreSQL, Redis, and optionally Kafka running, pull the image and connect:
+
+    ```bash
+    docker run -d \
+      --name testmesh \
+      --network <your-network> \
+      -p 5016:5016 \
+      -p 3000:3000 \
+      -e DATABASE_URL=postgres://<user>:<password>@<host>:<port>/<db>?sslmode=disable \
+      -e REDIS_URL=redis://<host>:6379 \
+      -e KAFKA_ENABLED=true \
+      -e KAFKA_BROKERS=<host>:9092 \
+      ghcr.io/test-mesh/testmesh:latest
+    ```
+
+    ### Without Existing Infrastructure
+
+    Use the bundled Docker Compose file to spin up everything at once:
+
+    <Steps>
+      <Step>
+        Download the compose file:
+
+        ```bash
+        curl -O https://raw.githubusercontent.com/test-mesh/testmesh/main/deploy/docker-compose/docker-compose.yml
+        ```
+      </Step>
+      <Step>
+        Start all services:
+
+        ```bash
+        docker compose up -d
+        ```
+
+        This starts PostgreSQL, Redis, Kafka, the TestMesh API, and the dashboard.
+      </Step>
+      <Step>
+        Verify everything is healthy:
+
+        ```bash
+        curl http://localhost:5016/health
+        ```
+
+        <Callout type="info">
+          A successful response looks like `{"status":"ok"}`. If you see a connection error, wait a few seconds for the containers to finish starting.
+        </Callout>
+      </Step>
+      <Step>
+        Open the dashboard at [http://localhost:3000](http://localhost:3000).
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab value="Run from Source">
+    Running from source gives you hot-reload for API development and access to the demo microservices.
+
+    <Steps>
+      <Step>
+        Clone the repository:
+
+        ```bash
+        git clone https://github.com/test-mesh/testmesh.git
+        cd testmesh
+        ```
+      </Step>
+      <Step>
+        Start infrastructure (PostgreSQL on 5432, Redis on 6379, Kafka on 9092):
+
+        ```bash
+        ./infra.sh up
+        ```
+      </Step>
+      <Step>
+        Start the API server (port 5016) and dashboard (port 3000):
+
+        ```bash
+        docker-compose -f docker-compose.dev.yml up --build
+        ```
+      </Step>
+      <Step>
+        Optionally, start the demo microservices on ports 5001–5004:
+
+        ```bash
+        docker-compose -f docker-compose.services.yml up --build
+        ```
+
+        These four services (user, product, order, notification) are used in the example flows.
+      </Step>
+      <Step>
+        Verify the API is healthy:
+
+        ```bash
+        curl http://localhost:5016/health
+        ```
+
+        <Callout type="info">
+          Expected response: `{"status":"ok"}`
+        </Callout>
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Run Your First Test
+
+Once TestMesh is running, execute the bundled example flow from the CLI:
+
+```bash
+cd cli
+go run main.go run ../examples/microservices/e2e-order-flow.yaml
+```
+
+You should see each step execute with a pass/fail result. If all steps pass, you're ready to [write your own flows](/docs/getting-started/first-flow).
+
+<Callout type="tip">
+  The demo microservices must be running for the example order flow to work. Start them with `docker-compose -f docker-compose.services.yml up --build`.
+</Callout>
+
+## What's Next
+
+<Cards>
+  <Card title="Your First Flow" href="/docs/getting-started/first-flow" description="Write and run your first test in 5 minutes." />
+  <Card title="Core Concepts" href="/docs/getting-started/concepts" description="Understand flows, steps, actions, and the variable system." />
+  <Card title="CLI Reference" href="/docs/cli" description="All CLI commands and options." />
+</Cards>

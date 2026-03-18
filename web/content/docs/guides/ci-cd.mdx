@@ -1,0 +1,289 @@
+---
+title: CI/CD Integration
+description: Integrate TestMesh into your CI/CD pipeline with GitHub Actions or GitLab CI.
+---
+
+The TestMesh CLI exits with code `0` when all flows pass and `1` when any flow fails. This makes it a drop-in for any CI system that reads exit codes.
+
+## Setup Pattern
+
+The typical CI workflow is:
+
+<Steps>
+  <Step>
+    Start ephemeral infrastructure with `docker-compose.infra.yml`
+  </Step>
+  <Step>
+    Wait for databases to be ready
+  </Step>
+  <Step>
+    Run your services (or use the demo services)
+  </Step>
+  <Step>
+    Run TestMesh flows against them
+  </Step>
+  <Step>
+    Report results and clean up
+  </Step>
+</Steps>
+
+---
+
+## GitHub Actions
+
+### Basic Integration Test Workflow
+
+```yaml title=".github/workflows/integration-tests.yml"
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Start infrastructure
+        run: |
+          docker-compose -f docker-compose.infra.yml up -d
+          # Wait for postgres to be ready
+          docker-compose -f docker-compose.infra.yml exec -T postgres \
+            sh -c 'until pg_isready -U testmesh; do sleep 1; done'
+          # Wait for redis
+          docker-compose -f docker-compose.infra.yml exec -T redis \
+            sh -c 'until redis-cli ping; do sleep 1; done'
+
+      - name: Start demo microservices
+        run: |
+          docker-compose -f docker-compose.services.yml up -d
+          # Wait for services to be healthy
+          for port in 5001 5002 5003 5004; do
+            until curl -sf http://localhost:$port/health; do sleep 2; done
+          done
+
+      - name: Run integration flows
+        env:
+          DATABASE_HOST: localhost
+          REDIS_HOST: localhost
+          USER_SERVICE_URL: http://localhost:5001
+          PRODUCT_SERVICE_URL: http://localhost:5002
+          ORDER_SERVICE_URL: http://localhost:5003
+          NOTIFICATION_SERVICE_URL: http://localhost:5004
+        run: |
+          cd cli
+          go run main.go run ../examples/microservices/e2e-order-flow.yaml
+          go run main.go run ../examples/microservices/user-service-flow.yaml
+          go run main.go run ../examples/microservices/product-service-flow.yaml
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose -f docker-compose.services.yml down
+          docker-compose -f docker-compose.infra.yml down -v
+```
+
+### Running Multiple Flows in Parallel
+
+```yaml title=".github/workflows/integration-tests.yml (parallel)"
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        flow:
+          - examples/microservices/user-service-flow.yaml
+          - examples/microservices/product-service-flow.yaml
+          - examples/microservices/order-service-flow.yaml
+          - examples/microservices/notification-service-flow.yaml
+      fail-fast: false  # Run all even if one fails
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start infrastructure
+        run: docker-compose -f docker-compose.infra.yml up -d
+
+      - name: Start services
+        run: docker-compose -f docker-compose.services.yml up -d
+
+      - name: Run flow
+        run: |
+          cd cli
+          go run main.go run ../${{ matrix.flow }}
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose -f docker-compose.infra.yml down -v
+```
+
+### With a Pre-built CLI Binary
+
+If you release the CLI as a binary (via goreleaser), download it instead of building from source:
+
+```yaml
+- name: Install TestMesh CLI
+  run: |
+    curl -sSL https://github.com/test-mesh/testmesh/releases/latest/download/testmesh-linux-amd64 \
+      -o /usr/local/bin/testmesh
+    chmod +x /usr/local/bin/testmesh
+
+- name: Run flows
+  run: |
+    testmesh run examples/microservices/e2e-order-flow.yaml
+```
+
+---
+
+## GitLab CI
+
+```yaml title=".gitlab-ci.yml"
+stages:
+  - infrastructure
+  - test
+  - cleanup
+
+variables:
+  DATABASE_HOST: postgres
+  REDIS_HOST: redis
+  COMPOSE_FILE: docker-compose.infra.yml
+
+start-infrastructure:
+  stage: infrastructure
+  script:
+    - docker-compose -f docker-compose.infra.yml up -d
+    - docker-compose -f docker-compose.services.yml up -d
+    - |
+      for port in 5001 5002 5003 5004; do
+        until curl -sf http://localhost:$port/health; do sleep 2; done
+      done
+
+integration-tests:
+  stage: test
+  parallel:
+    matrix:
+      - FLOW: examples/microservices/user-service-flow.yaml
+      - FLOW: examples/microservices/product-service-flow.yaml
+      - FLOW: examples/microservices/e2e-order-flow.yaml
+  script:
+    - cd cli && go run main.go run ../$FLOW
+  variables:
+    USER_SERVICE_URL: http://localhost:5001
+    PRODUCT_SERVICE_URL: http://localhost:5002
+    ORDER_SERVICE_URL: http://localhost:5003
+    NOTIFICATION_SERVICE_URL: http://localhost:5004
+
+cleanup:
+  stage: cleanup
+  when: always
+  script:
+    - docker-compose -f docker-compose.services.yml down
+    - docker-compose -f docker-compose.infra.yml down -v
+```
+
+---
+
+## Environment Variables in CI
+
+Configure service URLs and credentials as environment variables in your CI provider's secrets:
+
+```bash
+# In GitHub Actions secrets or GitLab CI/CD variables
+DATABASE_HOST=my-test-db.internal
+DATABASE_PASSWORD=ci-test-password
+REDIS_HOST=my-redis.internal
+USER_SERVICE_URL=http://user-service.staging.internal
+```
+
+Reference them in your flow's `env` block:
+
+```yaml
+flow:
+  name: "Order flow"
+  env:
+    USER_SERVICE_URL: "${USER_SERVICE_URL}"
+    ORDER_SERVICE_URL: "${ORDER_SERVICE_URL}"
+    DB_URL: "postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_HOST}:5432/testmesh"
+```
+
+<Callout type="info">
+Environment variables set on the host are available inside flows via the `${VAR_NAME}` syntax. You can also use `{{VAR_NAME}}` for variables captured from previous steps.
+</Callout>
+
+---
+
+## Exit Codes
+
+| Exit Code | Meaning |
+|-----------|---------|
+| `0` | All flows passed |
+| `1` | One or more flows failed |
+| `2` | Flow file not found or invalid YAML |
+
+Use exit codes in shell scripts:
+
+```bash
+cd cli
+go run main.go run ../examples/e2e-order-flow.yaml
+if [ $? -ne 0 ]; then
+  echo "Integration tests failed"
+  exit 1
+fi
+```
+
+---
+
+## Reporting Results
+
+The CLI outputs a summary table after each run:
+
+```
+Flow: E2E Order Creation Flow
+┌─────────────────────────────┬─────────┬──────────┐
+│ Step                        │ Status  │ Duration │
+├─────────────────────────────┼─────────┼──────────┤
+│ create_user                 │ PASS    │ 45ms     │
+│ verify_user_event           │ PASS    │ 2.1s     │
+│ verify_user_in_db           │ PASS    │ 12ms     │
+│ create_product              │ PASS    │ 38ms     │
+│ create_order                │ PASS    │ 156ms    │
+│ verify_order_event          │ PASS    │ 1.8s     │
+│ verify_inventory_decreased  │ PASS    │ 9ms      │
+└─────────────────────────────┴─────────┴──────────┘
+
+Result: PASSED (14 steps, 4.2s total)
+```
+
+For structured output (JSON) that CI tools can parse:
+
+```bash
+go run main.go run flow.yaml --output json > results.json
+```
+
+---
+
+## Tips for CI/CD
+
+- **Use `--fail-fast` to stop on first failure** during development; remove it in CI to see all failures at once.
+- **Set timeouts explicitly** so flows don't hang indefinitely in CI: `go run main.go run flow.yaml --timeout 120s`.
+- **Cache the Go module download** in GitHub Actions with `actions/cache` on `~/go/pkg/mod` to avoid re-downloading modules on every run.
+- **Use Docker Compose health checks** rather than `sleep` — `docker-compose.infra.yml` includes health checks; wait for them instead of guessing how long services take to start.
+- **Keep test data isolated** by using unique identifiers (email = `ci-test-{{timestamp}}@example.com`) or setup/teardown blocks that clean up before each run.
+
+## What's Next
+
+<Cards>
+  <Card title="testmesh run" href="/docs/cli/run" description="CLI options for controlling flow execution." />
+  <Card title="Reporting" href="/docs/features/reporting" description="JUnit XML and HTML reports for CI systems." />
+  <Card title="Docker Setup" href="/docs/deployment/docker" description="Docker Compose configurations for CI environments." />
+</Cards>

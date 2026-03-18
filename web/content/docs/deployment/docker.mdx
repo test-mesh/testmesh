@@ -1,0 +1,366 @@
+---
+title: Docker Setup
+description: Run TestMesh with Docker Compose in different configurations.
+---
+
+TestMesh provides four Docker Compose files to match different environments. All of them share a common Docker network (`testmesh-network`) so containers from different files can reach each other by container name.
+
+## The Four Compose Files
+
+### docker-compose.yml — Production Ready
+
+The default file contains **only the TestMesh API and dashboard**. It expects you to supply PostgreSQL and Redis via environment variables.
+
+**What it includes:**
+- TestMesh API (port 5016)
+- TestMesh Dashboard (port 3000)
+
+**What it does NOT include:**
+- PostgreSQL (expects external)
+- Redis (expects external)
+- Kafka (optional, expects external)
+
+**Use when:**
+- Deploying to production with AWS RDS + ElastiCache
+- You already have local databases running
+- You want to avoid port conflicts with bundled services
+
+```bash title="Quick start"
+export DATABASE_HOST=localhost
+export DATABASE_PORT=5432
+export REDIS_HOST=localhost
+export REDIS_PORT=6379
+
+docker-compose up -d
+
+# Verify
+curl http://localhost:5016/health
+```
+
+You can also use a `.env` file:
+
+```bash title=".env"
+DATABASE_HOST=my-postgres.example.com
+DATABASE_PORT=5432
+DATABASE_USER=testmesh
+DATABASE_PASSWORD=secure_password
+DATABASE_DBNAME=testmesh
+DATABASE_SSLMODE=require
+
+REDIS_HOST=my-redis.example.com
+REDIS_PORT=6379
+REDIS_PASSWORD=secure_password
+REDIS_TLS_ENABLED=true
+
+API_PORT=5016
+DASHBOARD_PORT=3000
+JWT_SECRET=your-secret-key
+```
+
+---
+
+### docker-compose.dev.yml — Full Local Stack
+
+Bundles **everything** including infrastructure, the TestMesh services, and all four demo microservices.
+
+**What it includes:**
+
+| Service | Port |
+|---------|------|
+| PostgreSQL | 5432 |
+| Redis | 6379 |
+| Kafka | 9092, 9093 |
+| TestMesh API | 5016 |
+| Dashboard | 3000 |
+| User Service | 5001 |
+| Product Service | 5002 |
+| Order Service | 5003 |
+| Notification Service | 5004 |
+
+**Use when:**
+- Getting started for the first time
+- Running demos or presentations
+- You have no existing infrastructure
+- Offline development with no cloud dependencies
+
+```bash title="Quick start"
+docker-compose -f docker-compose.dev.yml up -d
+
+# Check everything
+docker-compose -f docker-compose.dev.yml ps
+
+# Run the example E2E test
+cd cli
+go run main.go run ../examples/microservices/e2e-order-flow.yaml
+```
+
+**Custom port configuration** (if defaults conflict):
+
+```bash title=".env"
+POSTGRES_PORT=5433
+REDIS_PORT=6380
+KAFKA_PORT=9094
+API_PORT=5017
+DASHBOARD_PORT=3001
+USER_SERVICE_PORT=5011
+PRODUCT_SERVICE_PORT=5012
+ORDER_SERVICE_PORT=5013
+NOTIFICATION_SERVICE_PORT=5014
+```
+
+---
+
+### docker-compose.infra.yml — Infrastructure Only
+
+Starts only the backing services — no TestMesh API or dashboard.
+
+**What it includes:**
+- PostgreSQL (port 5432)
+- Redis (port 6379)
+- Kafka (port 9092, optional via `--profile kafka`)
+
+**Use when:**
+- Running TestMesh from source (`go run main.go`)
+- CI/CD pipelines that need ephemeral databases
+- Sharing infrastructure across multiple TestMesh instances
+- Your local Postgres port 5432 is in use, so you run on 5433
+
+```bash title="Quick start"
+# Databases only
+docker-compose -f docker-compose.infra.yml up -d
+
+# Include Kafka
+docker-compose -f docker-compose.infra.yml --profile kafka up -d
+
+# Then start TestMesh pointing at them
+docker-compose up -d
+```
+
+**CI/CD usage:**
+
+```yaml title=".github/workflows/test.yml"
+- name: Start test databases
+  run: docker-compose -f docker-compose.infra.yml up -d
+
+- name: Wait for postgres
+  run: |
+    docker-compose -f docker-compose.infra.yml exec -T postgres \
+      pg_isready -U testmesh
+
+- name: Run tests
+  run: |
+    export DATABASE_HOST=localhost
+    export REDIS_HOST=localhost
+    go test ./...
+
+- name: Cleanup
+  run: docker-compose -f docker-compose.infra.yml down -v
+```
+
+---
+
+### docker-compose.services.yml — Demo Microservices
+
+Starts the four demo microservices that the example flows test against.
+
+**What it includes:**
+- User Service (port 5001)
+- Product Service (port 5002)
+- Order Service (port 5003)
+- Notification Service (port 5004)
+
+**What it does NOT include:**
+- Infrastructure (start `docker-compose.infra.yml` first)
+- TestMesh API or Dashboard
+
+**Use when:**
+- Running the example E2E flows
+- Demonstrating multi-service testing scenarios
+- Integration testing against real services
+
+```bash title="Quick start"
+# 1. Start infrastructure first
+docker-compose -f docker-compose.infra.yml up -d
+
+# 2. Start demo microservices
+docker-compose -f docker-compose.services.yml up -d
+
+# 3. Run E2E test
+cd cli
+go run main.go run ../examples/microservices/e2e-order-flow.yaml
+```
+
+---
+
+## Common Scenarios
+
+### Complete Local Development
+
+```bash
+# Check what's in use
+lsof -i :5432 -i :6379 -i :5016 -i :3000
+
+# If ports are free
+docker-compose -f docker-compose.dev.yml up -d
+
+# If ports conflict, customize via .env
+cat > .env << 'EOF'
+POSTGRES_PORT=15432
+REDIS_PORT=16379
+API_PORT=15016
+DASHBOARD_PORT=13000
+EOF
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+### Production with AWS
+
+```bash
+cat > .env << 'EOF'
+ENV=production
+DATABASE_HOST=mydb.abc123.us-east-1.rds.amazonaws.com
+DATABASE_PORT=5432
+DATABASE_USER=testmesh
+DATABASE_PASSWORD=${RDS_PASSWORD}
+DATABASE_SSLMODE=require
+
+REDIS_HOST=mycache.abc123.cache.amazonaws.com
+REDIS_PORT=6379
+REDIS_TLS_ENABLED=true
+
+JWT_SECRET=${JWT_SECRET}
+LOG_LEVEL=info
+EOF
+
+docker-compose up -d
+curl http://localhost:5016/health
+```
+
+### Hybrid: Local Postgres, Bundled Redis
+
+```bash
+# Start only Redis from infra
+docker-compose -f docker-compose.infra.yml up -d redis
+
+# Point TestMesh at your local Postgres
+DATABASE_HOST=host.docker.internal \
+REDIS_HOST=redis \
+  docker-compose up -d
+```
+
+---
+
+## Port Reference
+
+| Service | Default Port | Override Variable |
+|---------|-------------|-------------------|
+| PostgreSQL | 5432 | `POSTGRES_PORT` |
+| Redis | 6379 | `REDIS_PORT` |
+| Kafka | 9092 | `KAFKA_PORT` |
+| TestMesh API | 5016 | `API_PORT` |
+| Dashboard | 3000 | `DASHBOARD_PORT` |
+| User Service | 5001 | `USER_SERVICE_PORT` |
+| Product Service | 5002 | `PRODUCT_SERVICE_PORT` |
+| Order Service | 5003 | `ORDER_SERVICE_PORT` |
+| Notification Service | 5004 | `NOTIFICATION_SERVICE_PORT` |
+
+Check if a port is in use:
+
+```bash
+lsof -i :5432
+# or
+for port in {5432..5442}; do
+  ! lsof -i :$port && echo "Port $port is available" && break
+done
+```
+
+---
+
+## Networking
+
+All compose files use a shared network called `testmesh-network`. This allows containers from different compose files to reach each other by container name.
+
+```
+testmesh-network (bridge)
+├── postgres        (testmesh-postgres)
+├── redis           (testmesh-redis)
+├── kafka           (testmesh-kafka)
+├── api             (testmesh-api)
+├── dashboard       (testmesh-dashboard)
+├── user-service    (testmesh-user-service)
+├── product-service (testmesh-product-service)
+├── order-service   (testmesh-order-service)
+└── notification-service (testmesh-notification-service)
+```
+
+Start infra, then API, then services — they'll all discover each other:
+
+```bash
+docker-compose -f docker-compose.infra.yml up -d
+docker-compose up -d
+docker-compose -f docker-compose.services.yml up -d
+```
+
+---
+
+## Troubleshooting
+
+### Port Already in Use
+
+```bash
+# Find what's using it
+lsof -i :5432
+
+# Kill it
+kill -9 <PID>
+
+# Or use a different port
+POSTGRES_PORT=5433 docker-compose -f docker-compose.infra.yml up -d
+```
+
+### Can't Connect to Database
+
+```bash
+# Is the container running?
+docker ps | grep postgres
+
+# Check logs
+docker logs testmesh-postgres
+
+# Test connection from host
+psql postgres://testmesh:testmesh_dev@localhost:5432/testmesh
+
+# Test from inside container
+docker exec testmesh-postgres pg_isready -U testmesh
+```
+
+### Network Issues
+
+```bash
+# Recreate the network
+docker network rm testmesh-network
+docker network create testmesh-network
+
+docker-compose down
+docker-compose up -d
+```
+
+### Full Reset
+
+<Callout type="warn">
+This removes all data stored in Docker volumes.
+</Callout>
+
+```bash
+docker-compose -f docker-compose.dev.yml down
+docker-compose down
+docker-compose -f docker-compose.infra.yml down
+docker-compose -f docker-compose.services.yml down
+
+docker volume rm testmesh_postgres_data testmesh_redis_data
+
+docker network rm testmesh-network
+docker network create testmesh-network
+
+docker-compose -f docker-compose.dev.yml up -d
+```

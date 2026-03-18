@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 
-
-
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/runner"
 	"github.com/test-mesh/testmesh/internal/storage/models"
@@ -16,7 +17,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// toolContent wraps tool call results in the MCP content format.
 // defaultPluginDir returns the user-level plugin installation directory.
 func defaultPluginDir() string {
 	home, err := os.UserHomeDir()
@@ -26,55 +26,16 @@ func defaultPluginDir() string {
 	return filepath.Join(home, ".testmesh", "plugins")
 }
 
-func toolContent(text string) map[string]interface{} {
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": text},
-		},
+func toolContent(text string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: text}},
 	}
 }
 
-func toolError(msg string) map[string]interface{} {
-	return map[string]interface{}{
-		"content": []map[string]interface{}{
-			{"type": "text", "text": "ERROR: " + msg},
-		},
-		"isError": true,
-	}
-}
-
-// ---------------------------------------------------------------------------
-// tools/call dispatcher
-// ---------------------------------------------------------------------------
-
-func handleToolsCall(params json.RawMessage) (interface{}, *rpcError) {
-	var p struct {
-		Name      string                 `json:"name"`
-		Arguments map[string]interface{} `json:"arguments"`
-	}
-	if err := json.Unmarshal(params, &p); err != nil {
-		return nil, &rpcError{Code: -32602, Message: "Invalid params: " + err.Error()}
-	}
-
-	switch p.Name {
-	case "analyze_service":
-		return toolAnalyzeService(p.Arguments)
-	case "generate_flow":
-		return toolGenerateFlow(p.Arguments)
-	case "run_flow":
-		return toolRunFlow(p.Arguments)
-	case "validate_flow":
-		return toolValidateFlow(p.Arguments)
-	case "list_flows":
-		return toolListFlows(p.Arguments)
-	case "get_action_types":
-		return toolGetActionTypes()
-	case "analyze_workspace":
-		return toolAnalyzeWorkspace(p.Arguments)
-	case "generate_e2e_flow":
-		return toolGenerateE2EFlow(p.Arguments)
-	default:
-		return nil, &rpcError{Code: -32601, Message: "Unknown tool: " + p.Name}
+func toolError(msg string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: "ERROR: " + msg}},
+		IsError: true,
 	}
 }
 
@@ -82,7 +43,7 @@ func handleToolsCall(params json.RawMessage) (interface{}, *rpcError) {
 // analyze_service
 // ---------------------------------------------------------------------------
 
-func toolAnalyzeService(args map[string]interface{}) (interface{}, *rpcError) {
+func toolAnalyzeService(args map[string]any) (*mcp.CallToolResult, error) {
 	path, _ := args["path"].(string)
 	if path == "" {
 		return toolError("path is required"), nil
@@ -93,75 +54,74 @@ func toolAnalyzeService(args map[string]interface{}) (interface{}, *rpcError) {
 		return toolError(err.Error()), nil
 	}
 
-	out, err := json.MarshalIndent(analysis, "", "  ")
-	if err != nil {
-		return toolError("failed to marshal analysis: " + err.Error()), nil
+	workspace := &WorkspaceAnalysis{
+		RootDir:  path,
+		Services: []*ServiceAnalysis{analysis},
 	}
-
-	return toolContent(string(out)), nil
-}
-
-// ---------------------------------------------------------------------------
-// generate_flow
-// ---------------------------------------------------------------------------
-
-func toolGenerateFlow(args map[string]interface{}) (interface{}, *rpcError) {
-	servicePath, _ := args["service_path"].(string)
-	if servicePath == "" {
-		return toolError("service_path is required"), nil
-	}
-
-	analysis, err := AnalyzeService(servicePath)
-	if err != nil {
-		return toolError("failed to analyze service: " + err.Error()), nil
-	}
-
-	opts := GenerateFlowOptions{
-		FlowName:     strArg(args, "flow_name"),
-		BaseURL:      strArg(args, "base_url"),
+	opts := AnalysisReportOptions{
 		DBConnection: strArg(args, "db_connection"),
 		KafkaBrokers: strArg(args, "kafka_brokers"),
 		RedisAddr:    strArg(args, "redis_addr"),
-		Focus:        strArg(args, "focus"),
+	}
+	return toolContent(GenerateE2EAnalysisReport(workspace, opts)), nil
+}
+
+// ---------------------------------------------------------------------------
+// write_flow
+// ---------------------------------------------------------------------------
+
+func toolWriteFlow(args map[string]any) (*mcp.CallToolResult, error) {
+	path, _ := args["path"].(string)
+	content, _ := args["yaml_content"].(string)
+	if path == "" {
+		return toolError("path is required"), nil
+	}
+	if content == "" {
+		return toolError("yaml_content is required"), nil
 	}
 
-	generatedYAML := GenerateFlow(analysis, opts)
-
-	outputPath := strArg(args, "output_path")
-	var savedMsg string
-	if outputPath != "" {
-		abs, err := filepath.Abs(outputPath)
-		if err != nil {
-			return toolError("invalid output_path: " + err.Error()), nil
-		}
-		if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
-			return toolError("failed to create output directory: " + err.Error()), nil
-		}
-		if err := os.WriteFile(abs, []byte(generatedYAML), 0644); err != nil {
-			return toolError("failed to write file: " + err.Error()), nil
-		}
-		savedMsg = fmt.Sprintf("\nSaved to: %s", abs)
+	// Basic structural validation before writing.
+	var raw map[string]any
+	if err := yaml.Unmarshal([]byte(content), &raw); err != nil {
+		return toolError("invalid YAML: " + err.Error()), nil
+	}
+	if _, hasFlow := raw["flow"]; !hasFlow {
+		return toolError("missing 'flow:' root key"), nil
 	}
 
-	summary := fmt.Sprintf(
-		"Generated flow for %s (%s)\nEndpoints found: %d | Models: %d | Kafka topics: %d%s\n\n---\n\n%s",
-		analysis.ServiceName,
-		analysis.Language,
-		len(analysis.Endpoints),
-		len(analysis.Models),
-		len(analysis.KafkaTopics),
-		savedMsg,
-		generatedYAML,
-	)
+	var flowWrapper struct {
+		Flow struct {
+			Name  string           `yaml:"name"`
+			Steps []map[string]any `yaml:"steps"`
+		} `yaml:"flow"`
+	}
+	_ = yaml.Unmarshal([]byte(content), &flowWrapper)
+	if flowWrapper.Flow.Name == "" {
+		return toolError("flow.name is required"), nil
+	}
+	if len(flowWrapper.Flow.Steps) == 0 {
+		return toolError("flow.steps must have at least one step"), nil
+	}
 
-	return toolContent(summary), nil
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return toolError("invalid path: " + err.Error()), nil
+	}
+	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+		return toolError("failed to create directory: " + err.Error()), nil
+	}
+	if err := os.WriteFile(abs, []byte(content), 0644); err != nil {
+		return toolError("failed to write file: " + err.Error()), nil
+	}
+
+	return toolContent(fmt.Sprintf("✅ Saved %q → %s (%d steps)", flowWrapper.Flow.Name, abs, len(flowWrapper.Flow.Steps))), nil
 }
 
 // ---------------------------------------------------------------------------
 // run_flow
 // ---------------------------------------------------------------------------
 
-func toolRunFlow(args map[string]interface{}) (interface{}, *rpcError) {
+func toolRunFlow(args map[string]any) (*mcp.CallToolResult, error) {
 	yamlContent, _ := args["yaml_content"].(string)
 	filePath, _ := args["file_path"].(string)
 
@@ -231,7 +191,7 @@ func toolRunFlow(args map[string]interface{}) (interface{}, *rpcError) {
 // validate_flow
 // ---------------------------------------------------------------------------
 
-func toolValidateFlow(args map[string]interface{}) (interface{}, *rpcError) {
+func toolValidateFlow(args map[string]any) (*mcp.CallToolResult, error) {
 	yamlContent, _ := args["yaml_content"].(string)
 	filePath, _ := args["file_path"].(string)
 
@@ -250,9 +210,9 @@ func toolValidateFlow(args map[string]interface{}) (interface{}, *rpcError) {
 	var flowWrapper struct {
 		Flow struct {
 			Name     string                   `yaml:"name"`
-			Steps    []map[string]interface{} `yaml:"steps"`
-			Setup    []map[string]interface{} `yaml:"setup"`
-			Teardown []map[string]interface{} `yaml:"teardown"`
+			Steps    []map[string]any `yaml:"steps"`
+			Setup    []map[string]any `yaml:"setup"`
+			Teardown []map[string]any `yaml:"teardown"`
 		} `yaml:"flow"`
 	}
 
@@ -260,7 +220,7 @@ func toolValidateFlow(args map[string]interface{}) (interface{}, *rpcError) {
 		return toolContent(fmt.Sprintf("❌ Invalid YAML: %v", err)), nil
 	}
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	_ = yaml.Unmarshal([]byte(yamlContent), &raw)
 	if _, hasFlow := raw["flow"]; !hasFlow {
 		return toolContent("❌ Missing 'flow:' root key"), nil
@@ -284,7 +244,13 @@ func toolValidateFlow(args map[string]interface{}) (interface{}, *rpcError) {
 		"websocket": true, "grpc": true, "wait_for": true, "db_poll": true, "mcp": true,
 	}
 
-	checkSteps := func(steps []map[string]interface{}, phase string) {
+	// defined tracks variables available at each point in execution.
+	// Pre-seed with RANDOM_ID which is always available.
+	defined := map[string]string{"RANDOM_ID": "built-in"}
+
+	reTemplateVar := regexp.MustCompile(`\{\{(\w+)\}\}`)
+
+	checkSteps := func(steps []map[string]any, phase string) {
 		for i, s := range steps {
 			action, _ := s["action"].(string)
 			if action == "" {
@@ -298,6 +264,34 @@ func toolValidateFlow(args map[string]interface{}) (interface{}, *rpcError) {
 			if id == "" {
 				errs = append(errs, fmt.Sprintf("%s step %d (%s): id is required", phase, i+1, action))
 			}
+
+			// Check that all {{var}} references in config are defined by prior steps.
+			if cfg, ok := s["config"]; ok {
+				cfgBytes, _ := json.Marshal(cfg)
+				for _, m := range reTemplateVar.FindAllStringSubmatch(string(cfgBytes), -1) {
+					varName := m[1]
+					if _, ok := defined[varName]; !ok {
+						errs = append(errs, fmt.Sprintf("%s step %d (%s): uses {{%s}} but it is not captured by any prior step's output", phase, i+1, id, varName))
+					}
+				}
+			}
+
+			// Check assert expressions for basic syntax (must not be empty strings).
+			if assertRaw, ok := s["assert"].([]any); ok {
+				for j, a := range assertRaw {
+					expr, _ := a.(string)
+					if strings.TrimSpace(expr) == "" {
+						errs = append(errs, fmt.Sprintf("%s step %d (%s): assert[%d] is empty", phase, i+1, id, j))
+					}
+				}
+			}
+
+			// Register variables captured by this step's output block.
+			if outputRaw, ok := s["output"].(map[string]any); ok {
+				for varName := range outputRaw {
+					defined[varName] = fmt.Sprintf("%s.%s", phase, id)
+				}
+			}
 		}
 	}
 
@@ -309,15 +303,130 @@ func toolValidateFlow(args map[string]interface{}) (interface{}, *rpcError) {
 		return toolContent(fmt.Sprintf("❌ Validation failed (%d errors):\n• %s", len(errs), strings.Join(errs, "\n• "))), nil
 	}
 
-	return toolContent(fmt.Sprintf("✅ Valid flow: %q\n   %d setup, %d steps, %d teardown",
-		flow.Name, len(flow.Setup), len(flow.Steps), len(flow.Teardown))), nil
+	var notes []string
+	notes = append(notes, fmt.Sprintf("✅ Valid flow: %q", flow.Name))
+	notes = append(notes, fmt.Sprintf("   %d setup, %d steps, %d teardown", len(flow.Setup), len(flow.Steps), len(flow.Teardown)))
+	if len(defined) > 1 { // more than just RANDOM_ID
+		var captured []string
+		for k, src := range defined {
+			if k != "RANDOM_ID" {
+				captured = append(captured, fmt.Sprintf("%s (from %s)", k, src))
+			}
+		}
+		sort.Strings(captured)
+		notes = append(notes, fmt.Sprintf("   Captured variables: %s", strings.Join(captured, ", ")))
+	}
+	return toolContent(strings.Join(notes, "\n")), nil
+}
+
+// ---------------------------------------------------------------------------
+// read_flow
+// ---------------------------------------------------------------------------
+
+func toolReadFlow(args map[string]any) (*mcp.CallToolResult, error) {
+	filePath, _ := args["file_path"].(string)
+	if filePath == "" {
+		return toolError("file_path is required"), nil
+	}
+	abs, err := filepath.Abs(filePath)
+	if err != nil {
+		return toolError("invalid path: " + err.Error()), nil
+	}
+	data, err := os.ReadFile(abs)
+	if err != nil {
+		return toolError("failed to read file: " + err.Error()), nil
+	}
+	return toolContent(fmt.Sprintf("# %s\n\n```yaml\n%s\n```", abs, string(data))), nil
+}
+
+// ---------------------------------------------------------------------------
+// run_step
+// ---------------------------------------------------------------------------
+
+func toolRunStep(args map[string]any) (*mcp.CallToolResult, error) {
+	action, _ := args["action"].(string)
+	if action == "" {
+		return toolError("action is required"), nil
+	}
+
+	// Build a minimal single-step flow from provided args.
+	// config may arrive as map[string]any (object) or as a JSON string.
+	var config map[string]any
+	switch v := args["config"].(type) {
+	case map[string]any:
+		config = v
+	case string:
+		_ = json.Unmarshal([]byte(v), &config)
+	}
+	assertRaw, _ := args["assert"].([]any)
+	var asserts []string
+	for _, a := range assertRaw {
+		if s, ok := a.(string); ok {
+			asserts = append(asserts, s)
+		}
+	}
+
+	// Inject caller-supplied variables so {{var}} templates resolve.
+	var vars map[string]string
+	if v, ok := args["vars"].(map[string]any); ok {
+		vars = make(map[string]string, len(v))
+		for k, val := range v {
+			vars[k] = fmt.Sprintf("%v", val)
+		}
+	}
+
+	step := models.Step{
+		ID:     "run_step",
+		Action: action,
+		Config: config,
+		Assert: asserts,
+	}
+	flow := &models.FlowDefinition{
+		Name:  "run_step",
+		Steps: []models.Step{step},
+	}
+
+	logger := zap.NewNop()
+	pDir := defaultPluginDir()
+	registry := plugins.NewRegistry(pDir, logger)
+	registry.RegisterAction("redis", plugins.NewRedisNativePlugin(logger))
+	registry.RegisterAction("kafka", plugins.NewKafkaNativePlugin(logger))
+	registry.RegisterAction("postgresql", plugins.NewPostgreSQLNativePlugin(logger))
+	_ = registry.Discover()
+	_ = registry.LoadAll()
+
+	exec := runner.NewExecutor(nil, logger, nil, nil)
+	exec.SetPluginRegistry(registry)
+	result, err := exec.ExecuteInline(flow, vars)
+	if err != nil {
+		return toolContent(fmt.Sprintf("Execution error: %v", err)), nil
+	}
+
+	var sb strings.Builder
+	if len(result.Steps) == 0 {
+		return toolContent("No step result returned"), nil
+	}
+	sr := result.Steps[0]
+	icon := "✅"
+	if sr.Status != "passed" {
+		icon = "❌"
+	}
+	sb.WriteString(fmt.Sprintf("%s %s (%s) — %dms\n", icon, sr.StepID, sr.Action, sr.DurationMs))
+	if sr.Error != "" {
+		sb.WriteString(fmt.Sprintf("\nError: %s\n", sr.Error))
+	}
+	if len(sr.Output) > 0 {
+		out, _ := json.MarshalIndent(sr.Output, "", "  ")
+		sb.WriteString(fmt.Sprintf("\nOutput:\n%s\n", string(out)))
+	}
+	return toolContent(sb.String()), nil
 }
 
 // ---------------------------------------------------------------------------
 // list_flows
 // ---------------------------------------------------------------------------
 
-func toolListFlows(args map[string]interface{}) (interface{}, *rpcError) {
+func toolListFlows(args map[string]any) (*mcp.CallToolResult, error) {
 	dir, _ := args["directory"].(string)
 	if dir == "" {
 		return toolError("directory is required"), nil
@@ -358,98 +467,98 @@ func toolListFlows(args map[string]interface{}) (interface{}, *rpcError) {
 // get_action_types
 // ---------------------------------------------------------------------------
 
-func toolGetActionTypes() (interface{}, *rpcError) {
-	actions := map[string]interface{}{
-		"http_request": map[string]interface{}{
+func toolGetActionTypes() (*mcp.CallToolResult, error) {
+	actions := map[string]any{
+		"http_request": map[string]any{
 			"description": "Make HTTP requests (GET, POST, PUT, PATCH, DELETE)",
 			"required":    []string{"url"},
 			"optional":    []string{"method", "headers", "body", "timeout"},
 		},
-		"database_query": map[string]interface{}{
+		"database_query": map[string]any{
 			"description": "Execute SQL queries against a database",
 			"required":    []string{"connection", "query"},
 			"optional":    []string{"params"},
 		},
-		"kafka_producer": map[string]interface{}{
+		"kafka_producer": map[string]any{
 			"description": "Produce a message to a Kafka topic",
 			"required":    []string{"brokers", "topic"},
 			"optional":    []string{"key", "value", "headers"},
 		},
-		"kafka_consumer": map[string]interface{}{
+		"kafka_consumer": map[string]any{
 			"description": "Consume messages from a Kafka topic",
 			"required":    []string{"brokers", "topic"},
 			"optional":    []string{"group_id", "timeout", "expected_count", "auto_offset_reset", "from_beginning"},
 		},
-		"grpc": map[string]interface{}{
+		"grpc": map[string]any{
 			"description": "Make a gRPC call",
 			"required":    []string{"host", "method"},
 			"optional":    []string{"request", "metadata", "timeout"},
 		},
-		"websocket": map[string]interface{}{
+		"websocket": map[string]any{
 			"description": "Connect to a WebSocket and send/receive messages",
 			"required":    []string{"url"},
 			"optional":    []string{"message", "timeout"},
 		},
-		"delay": map[string]interface{}{
+		"delay": map[string]any{
 			"description": "Wait for a duration",
 			"required":    []string{"duration"},
 		},
-		"log": map[string]interface{}{
+		"log": map[string]any{
 			"description": "Log a message during execution",
 			"optional":    []string{"message", "level"},
 		},
-		"assert": map[string]interface{}{
+		"assert": map[string]any{
 			"description": "Assert conditions on variables",
 			"optional":    []string{"conditions"},
 		},
-		"transform": map[string]interface{}{
+		"transform": map[string]any{
 			"description": "Transform data and store in variables",
 		},
-		"condition": map[string]interface{}{
+		"condition": map[string]any{
 			"description": "Conditional branching (if/else)",
 		},
-		"for_each": map[string]interface{}{
+		"for_each": map[string]any{
 			"description": "Loop over an array and execute steps",
 		},
-		"wait_for": map[string]interface{}{
+		"wait_for": map[string]any{
 			"description": "Wait for a condition to become true",
 		},
-		"db_poll": map[string]interface{}{
+		"db_poll": map[string]any{
 			"description": "Poll a database query until condition is met",
 			"required":    []string{"connection", "query"},
 			"optional":    []string{"interval", "timeout", "condition"},
 		},
-		"mock_server_start": map[string]interface{}{
+		"mock_server_start": map[string]any{
 			"description": "Start a mock HTTP server",
 		},
-		"mock_server_stop": map[string]interface{}{
+		"mock_server_stop": map[string]any{
 			"description": "Stop a mock HTTP server",
 		},
-		"mock_server_configure": map[string]interface{}{
+		"mock_server_configure": map[string]any{
 			"description": "Configure mock server response rules",
 		},
-		"mcp": map[string]interface{}{
+		"mcp": map[string]any{
 			"description": "Call an external MCP tool",
 			"required":    []string{"server_url", "tool"},
 			"optional":    []string{"arguments"},
 		},
 		// Native plugin actions (prefix-routed to built-in plugins)
-		"redis.get": map[string]interface{}{
+		"redis.get": map[string]any{
 			"description": "Get a value from Redis by key",
 			"required":    []string{"key"},
 			"optional":    []string{"host", "port"},
 		},
-		"redis.set": map[string]interface{}{
+		"redis.set": map[string]any{
 			"description": "Set a key in Redis",
 			"required":    []string{"key", "value"},
 			"optional":    []string{"host", "port", "ttl"},
 		},
-		"redis.del": map[string]interface{}{
+		"redis.del": map[string]any{
 			"description": "Delete a key from Redis",
 			"required":    []string{"key"},
 			"optional":    []string{"host", "port"},
 		},
-		"redis.exists": map[string]interface{}{
+		"redis.exists": map[string]any{
 			"description": "Check if a Redis key exists",
 			"required":    []string{"key"},
 			"optional":    []string{"host", "port"},
@@ -464,10 +573,14 @@ func toolGetActionTypes() (interface{}, *rpcError) {
 // analyze_workspace
 // ---------------------------------------------------------------------------
 
-func toolAnalyzeWorkspace(args map[string]interface{}) (interface{}, *rpcError) {
-	directory, _ := args["directory"].(string)
+func toolAnalyzeWorkspace(args map[string]any) (*mcp.CallToolResult, error) {
+	// Accept both "workspace_path" (new) and "directory" (legacy) parameter names.
+	directory, _ := args["workspace_path"].(string)
 	if directory == "" {
-		return toolError("directory is required"), nil
+		directory, _ = args["directory"].(string)
+	}
+	if directory == "" {
+		return toolError("workspace_path is required"), nil
 	}
 
 	workspace, err := AnalyzeWorkspace(directory)
@@ -475,87 +588,180 @@ func toolAnalyzeWorkspace(args map[string]interface{}) (interface{}, *rpcError) 
 		return toolError(err.Error()), nil
 	}
 
-	out, err := json.MarshalIndent(workspace, "", "  ")
-	if err != nil {
-		return toolError("failed to marshal analysis: " + err.Error()), nil
-	}
-
-	summary := fmt.Sprintf("Found %d services, %d dependencies\n\n%s",
-		len(workspace.Services), len(workspace.Dependencies), string(out))
-
-	return toolContent(summary), nil
-}
-
-// ---------------------------------------------------------------------------
-// generate_e2e_flow
-// ---------------------------------------------------------------------------
-
-func toolGenerateE2EFlow(args map[string]interface{}) (interface{}, *rpcError) {
-	workspacePath, _ := args["workspace_path"].(string)
-	if workspacePath == "" {
-		return toolError("workspace_path is required"), nil
-	}
-
-	workspace, err := AnalyzeWorkspace(workspacePath)
-	if err != nil {
-		return toolError("failed to analyze workspace: " + err.Error()), nil
-	}
-
-	// Convert service_urls from map[string]interface{} to map[string]string.
-	var serviceURLs map[string]string
-	if raw, ok := args["service_urls"].(map[string]interface{}); ok && len(raw) > 0 {
-		serviceURLs = make(map[string]string, len(raw))
-		for k, v := range raw {
-			if s, ok := v.(string); ok {
-				serviceURLs[k] = s
-			}
-		}
-	}
-
-	opts := GenerateFlowOptions{
-		FlowName:     strArg(args, "flow_name"),
+	opts := AnalysisReportOptions{
 		DBConnection: strArg(args, "db_connection"),
 		KafkaBrokers: strArg(args, "kafka_brokers"),
 		RedisAddr:    strArg(args, "redis_addr"),
-		Focus:        strArg(args, "focus"),
-		ServiceURLs:  serviceURLs,
 	}
 
-	generatedYAML := GenerateWorkspaceFlow(workspace, opts)
+	report := fmt.Sprintf("Analyzed workspace: %s\nFound %d services, %d dependencies.\n\n%s",
+		workspace.RootDir, len(workspace.Services), len(workspace.Dependencies),
+		GenerateE2EAnalysisReport(workspace, opts))
 
-	outputPath := strArg(args, "output_path")
-	var savedMsg string
-	if outputPath != "" {
-		abs, err := filepath.Abs(outputPath)
-		if err != nil {
-			return toolError("invalid output_path: " + err.Error()), nil
-		}
-		if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
-			return toolError("failed to create output directory: " + err.Error()), nil
-		}
-		if err := os.WriteFile(abs, []byte(generatedYAML), 0644); err != nil {
-			return toolError("failed to write file: " + err.Error()), nil
-		}
-		savedMsg = fmt.Sprintf("\nSaved to: %s", abs)
-	}
+	return toolContent(report), nil
+}
 
-	summary := fmt.Sprintf(
-		"Generated E2E flow for workspace %s\nServices: %d | Dependencies: %d%s\n\n---\n\n%s",
-		workspace.RootDir,
-		len(workspace.Services),
-		len(workspace.Dependencies),
-		savedMsg,
-		generatedYAML,
-	)
+// ---------------------------------------------------------------------------
+// get_yaml_schema
+// ---------------------------------------------------------------------------
 
-	return toolContent(summary), nil
+func toolGetYAMLSchema() (*mcp.CallToolResult, error) {
+	schema := `# TestMesh YAML Schema Reference
+
+## Full Flow Structure
+` + "```yaml" + `
+flow:
+  name: "Flow Name"                    # required
+  description: "optional description"
+  steps:                               # required, at least 1
+    - id: step_id                      # required, unique snake_case
+      action: action_type              # required
+      config:                          # action-specific config
+        key: value
+      assert:                          # optional list of expressions
+        - "status == 200"
+      output:                          # optional variable capture
+        var_name: "$.body.field"
+  setup:                               # optional, runs before steps
+    - id: setup_step
+      action: log
+      config:
+        message: "starting"
+  teardown:                            # optional, runs after steps
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "postgres://..."
+        query: "DELETE FROM ..."
+` + "```" + `
+
+## Action Types
+
+### http_request
+` + "```yaml" + `
+- id: create_user
+  action: http_request
+  config:
+    method: POST                       # GET POST PUT PATCH DELETE
+    url: "http://localhost:5001/api/v1/users"
+    headers:
+      Content-Type: "application/json"
+      Authorization: "Bearer {{token}}"
+    body:                              # for POST/PUT/PATCH only
+      name: "Test User"
+      email: "test@example.com"
+    timeout: "30s"                     # optional default 30s
+  assert:
+    - "status == 201"
+    - "body.id != nil"
+    - "body.email == 'test@example.com'"
+  output:
+    user_id: "$.body.id"              # JSONPath from response
+    user_name: "$.body.name"
+` + "```" + `
+Assert variables: status (int), body (object), headers (map)
+
+### database_query
+` + "```yaml" + `
+- id: verify_user
+  action: database_query
+  config:
+    connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    query: "SELECT id, name, email FROM user_service.users WHERE id = '{{user_id}}' LIMIT 1"
+    # NOTE: Do NOT use COUNT(*) — use SELECT * so row_count reflects actual row existence
+  assert:
+    - "row_count == 1"                 # number of rows returned
+    - "first_row.name != nil"          # access first row fields
+` + "```" + `
+Assert variables: row_count (int), rows (array), first_row (map), query_type
+
+### db_poll — wait for async/eventual consistency
+` + "```yaml" + `
+- id: wait_notification
+  action: db_poll
+  config:
+    connection: "postgres://..."
+    query: "SELECT id FROM notification_service.notifications WHERE user_id = '{{user_id}}' LIMIT 1"
+    # Query returns rows only when condition is satisfied
+    # Polling stops when len(rows) > 0 (no condition field needed)
+    interval: "1s"
+    timeout: "15s"
+` + "```" + `
+
+### kafka_consumer
+` + "```yaml" + `
+- id: verify_event
+  action: kafka_consumer
+  config:
+    brokers:
+      - "localhost:9092"               # list of brokers
+    topic: "user.created"
+    group_id: "testmesh-e2e-{{RANDOM_ID}}"  # unique per run — prevents reading old messages
+    auto_offset_reset: "earliest"
+    from_beginning: true              # reads from start of topic for this group
+    timeout: "10s"
+    count: 1                          # how many messages to wait for
+  assert:
+    - "len(messages) > 0"
+` + "```" + `
+Assert variables: messages (array of {value, key, topic, offset})
+
+### redis.get
+` + "```yaml" + `
+- id: check_cache
+  action: redis.get
+  config:
+    host: "localhost"
+    port: "6379"
+    key: "user:{{user_id}}"
+  assert:
+    - "value != nil"
+` + "```" + `
+
+### delay
+` + "```yaml" + `
+- id: wait
+  action: delay
+  config:
+    duration: "2s"
+` + "```" + `
+
+### log
+` + "```yaml" + `
+- id: debug_log
+  action: log
+  config:
+    message: "user_id is {{user_id}}"
+    level: "info"
+` + "```" + `
+
+## Template Variables
+- {{RANDOM_ID}}     — generates a new UUID at runtime (unique per step)
+- {{variable_name}} — substituted with captured output from previous steps
+
+## Assertion Expression Syntax
+Expressions use Go-like syntax evaluated with expr-lang:
+- Comparison: == != < > <= >=
+- Logical: && || !
+- Null check: != nil, == nil
+- String ops: body.status == "pending"
+- Arithmetic: body.total > 0
+- Array length: len(messages) > 0
+- Index access: rows[0].id != nil
+
+## Output Capture (JSONPath)
+- $.body.id          → response body field
+- $.body.items[0].id → nested array access
+- $.status           → status code
+`
+	return toolContent(schema), nil
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-func strArg(args map[string]interface{}, key string) string {
+func strArg(args map[string]any, key string) string {
 	v, _ := args[key].(string)
 	return v
 }

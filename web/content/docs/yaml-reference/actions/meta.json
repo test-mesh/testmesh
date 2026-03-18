@@ -1,0 +1,4 @@
+{
+  "title": "Actions",
+  "pages": ["index", "http-request", "database-query", "kafka", "grpc", "websocket", "redis", "mock-server", "control-flow", "transform"]
+}

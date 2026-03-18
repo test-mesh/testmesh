@@ -1,0 +1,84 @@
+---
+title: testmesh chat
+description: Conversational test creation with AI assistance.
+---
+
+The `chat` command starts an interactive AI conversation where you describe what you want to test in natural language. The AI generates YAML and refines it based on your feedback.
+
+## Usage
+
+```bash
+testmesh chat
+```
+
+## How It Works
+
+`chat` opens an interactive prompt in your terminal. Type your requirements, and the AI responds with a TestMesh flow YAML. You can then ask it to change, add, or remove steps in natural language.
+
+```
+testmesh chat
+
+TestMesh AI › What would you like to test?
+
+> I want to test creating a user and then placing an order for them.
+
+Generating flow...
+
+flow:
+  name: "Create User and Place Order"
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/users"
+        body:
+          name: "Test User"
+          email: "test@example.com"
+      assert:
+        - status == 201
+      output:
+        user_id: $.body.id
+
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5003/orders"
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "prod-001"
+              quantity: 1
+      assert:
+        - status == 201
+
+TestMesh AI › Does this look right? What would you like to change?
+
+> Add a step that checks the order shows up in the user's order history.
+
+Updating flow...
+```
+
+Continue the conversation until the flow matches your needs, then save it:
+
+```
+TestMesh AI › Save this flow? Enter a filename (or press Enter to skip):
+> ./flows/user-order-flow.yaml
+
+Saved to ./flows/user-order-flow.yaml
+```
+
+<Callout type="warn">
+  `chat` requires an AI provider API key. Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` before running.
+
+  ```bash
+  export ANTHROPIC_API_KEY=sk-ant-...
+  ```
+</Callout>
+
+## Tips
+
+- Be specific about endpoint URLs, request bodies, and expected response shapes for more accurate output.
+- Ask the AI to add error cases, edge cases, or database verification steps.
+- Use [`testmesh generate`](/docs/cli/generate) instead if you have an OpenAPI spec — it produces more accurate results when a machine-readable spec is available.

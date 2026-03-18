@@ -1,0 +1,292 @@
+---
+title: YAML Cheat Sheet
+description: Quick reference for the most common TestMesh flow patterns.
+---
+
+
+# YAML Cheat Sheet
+
+Quick reference for the most common flow patterns. No long explanations — just patterns you can copy.
+
+---
+
+## Flow Skeleton
+
+```yaml title="flow.yaml"
+flow:
+  name: "Flow Name"
+  description: "Optional"
+  env:
+    BASE_URL: "http://localhost:5001"
+  setup:    # runs before steps
+    - id: setup_step
+      action: ...
+  steps:
+    - id: step_one
+      ...
+  teardown: # always runs, even on failure
+    - id: cleanup
+      action: ...
+```
+
+---
+
+## HTTP Request
+
+```yaml title="http_request"
+- id: create_user
+  action: http_request
+  config:
+    method: POST          # GET POST PUT PATCH DELETE
+    url: "{{BASE_URL}}/users"
+    headers:
+      Authorization: "Bearer {{token}}"
+      Content-Type: application/json
+    body:
+      name: "Alice"
+      email: "alice@example.com"
+    timeout: 30s
+  assert:
+    - status == 201
+    - body.id != ""
+    - body.name == "Alice"
+  output:
+    user_id: $.body.id    # JSONPath extraction
+    token:   $.body.token
+```
+
+---
+
+## Assertions Reference
+
+```yaml title="assertions"
+assert:
+  # Status
+  - status == 200
+  - status != 500
+  - status >= 200 && status < 300
+
+  # Body fields
+  - body.name == "Alice"
+  - body.email contains "@"
+  - body.count > 0
+  - body.items != nil
+  - len(body.items) == 3
+
+  # String
+  - body.message startsWith "Success"
+  - body.url matches "^https://"
+
+  # Nested
+  - body.user.address.city == "NYC"
+  - body.tags[0] == "admin"
+```
+
+---
+
+## Variables / Template Syntax
+
+```yaml title="variables"
+# Extract in output block
+output:
+  user_id:    $.body.id          # JSONPath
+  user_email: $.body.user.email  # Nested
+  status_msg: $.body.message
+
+# Use in later steps with {{variable}}
+- id: next_step
+  config:
+    url: "{{BASE_URL}}/users/{{user_id}}"
+    body:
+      ref_email: "{{user_email}}"
+
+# Built-in variables
+- "{{$timestamp}}"   # current Unix timestamp
+- "{{$uuid}}"        # random UUID
+- "{{$random_int}}"  # random integer
+```
+
+---
+
+## Database Query
+
+```yaml title="database_query"
+- id: check_db
+  action: database_query
+  config:
+    connection_string: "postgres://user:pass@localhost:5432/db?sslmode=disable"
+    query: "SELECT id, status FROM orders WHERE id = $1"
+    params: ["{{order_id}}"]
+  assert:
+    - rows[0].status == "confirmed"
+    - row_count == 1
+  output:
+    db_status: $.rows[0].status
+```
+
+---
+
+## Kafka Producer
+
+```yaml title="kafka_producer"
+- id: publish_event
+  action: kafka_producer
+  config:
+    brokers: ["localhost:9092"]
+    topic: "order-events"
+    key: "order-{{order_id}}"
+    value:
+      event_type: "order.placed"
+      order_id: "{{order_id}}"
+    headers:
+      source: "test-flow"
+```
+
+---
+
+## Kafka Consumer
+
+```yaml title="kafka_consumer"
+- id: consume_event
+  action: kafka_consumer
+  config:
+    brokers: ["localhost:9092"]
+    topic: "notifications"
+    group_id: "test-consumer-group"
+    timeout: 15s
+    from_beginning: false
+  assert:
+    - len(messages) > 0
+    - messages[0].value.order_id == "{{order_id}}"
+  output:
+    notification_id: $.messages[0].value.id
+```
+
+---
+
+## gRPC
+
+```yaml title="grpc_call"
+- id: call_grpc
+  action: grpc_call
+  config:
+    address: "localhost:50051"
+    service: "orders.OrderService"
+    method: "CreateOrder"
+    message:
+      user_id: "{{user_id}}"
+      product_id: "{{product_id}}"
+  assert:
+    - body.status == "CREATED"
+```
+
+---
+
+## Redis
+
+```yaml title="redis"
+- id: check_cache
+  action: redis_get
+  config:
+    host: "localhost"
+    port: 6379
+    key: "user:{{user_id}}"
+  assert:
+    - value != nil
+
+- id: set_cache
+  action: redis_set
+  config:
+    host: "localhost"
+    port: 6379
+    key: "session:{{session_id}}"
+    value: "{{token}}"
+    ttl: 3600s
+```
+
+---
+
+## Mock Server
+
+```yaml title="mock_server"
+setup:
+  - id: start_mock
+    action: mock_server_start
+    config:
+      port: 9090
+      endpoints:
+        - path: /api/charge
+          method: POST
+          response:
+            status: 200
+            body:
+              id: "{{random.uuid}}"
+              status: "succeeded"
+    output:
+      mock_url: $.base_url
+
+teardown:
+  - id: stop_mock
+    action: mock_server_stop
+    config:
+      server: start_mock
+```
+
+---
+
+## Retry
+
+```yaml title="retry"
+- id: flaky_step
+  action: http_request
+  config:
+    method: GET
+    url: "{{BASE_URL}}/slow-resource"
+  retry:
+    max_attempts: 5
+    delay: 2s
+    backoff: exponential   # or: linear, constant
+  assert:
+    - status == 200
+```
+
+---
+
+## Conditional
+
+```yaml title="condition"
+- id: maybe_cleanup
+  action: condition
+  config:
+    when: "{{user_id}} != ''"
+    steps:
+      - id: delete_user
+        action: http_request
+        config:
+          method: DELETE
+          url: "{{BASE_URL}}/users/{{user_id}}"
+```
+
+---
+
+## Delay / Log
+
+```yaml title="delay-log"
+- id: wait
+  action: delay
+  config:
+    duration: 2s
+
+- id: print
+  action: log
+  config:
+    message: "order_id is: {{order_id}}"
+```
+
+---
+
+<Cards>
+  <Card title="Full YAML Reference" description="Complete schema documentation for all fields" href="/docs/yaml-reference" />
+  <Card title="All Actions" description="Detailed reference for every action type" href="/docs/yaml-reference/actions" />
+  <Card title="Your First Flow" description="Walk through a working example end to end" href="/docs/getting-started/first-flow" />
+</Cards>

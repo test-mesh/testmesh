@@ -1,0 +1,409 @@
+---
+title: Contract Testing
+description: Consumer-driven contract testing ensures that API providers fulfill the expectations of their consumers, catching breaking changes before deployment.
+---
+
+Contract testing verifies that services can communicate correctly without running all services simultaneously. Consumers define what they expect from providers, and providers verify those expectations in isolation.
+
+TestMesh implements **Pact-compatible** consumer-driven contract testing using a flow-based approach.
+
+<Cards>
+  <Card title="Consumer Side" href="#consumer-side-generate-contracts" description="Define expectations and generate contract files" />
+  <Card title="Provider Side" href="#provider-side-verify-contracts" description="Verify your API fulfills consumer contracts" />
+  <Card title="Contract Registry" href="#contract-registrybroker" description="Publish and share contracts via a Pact broker" />
+  <Card title="CI/CD Integration" href="#cicd-integration" description="Automate contract verification in pipelines" />
+</Cards>
+
+---
+
+## Why Contract Testing?
+
+**Without contracts**, provider changes break consumers unexpectedly and integration testing requires running all services together.
+
+**With contracts**, providers know exactly what each consumer depends on. Breaking changes are caught automatically, and each service can be tested independently.
+
+```
+Consumer (Client)  ──request──>  Provider (API)
+                   <──response──
+```
+
+A **contract** defines:
+- Request: method, path, headers, body structure
+- Expected response: status code, headers, body structure and types
+
+---
+
+## Consumer Side: Generate Contracts
+
+Define your expectations in a flow using `contract_expectation` on each step. Run the flow to generate a Pact-format contract file.
+
+```yaml title="consumer-contract.yaml"
+flow:
+  name: "User Service Consumer Contract"
+  description: "Web app's expectations of User Service"
+
+  contract:
+    enabled: true
+    consumer: "web-app"
+    provider: "user-service"
+    output: "contracts/web-app--user-service.json"
+
+  steps:
+    - id: get_user
+      name: "Get User by ID"
+      action: http_request
+      config:
+        method: GET
+        url: "/users/${user_id}"
+        headers:
+          Authorization: "Bearer ${token}"
+
+      contract_expectation:
+        request:
+          method: GET
+          path: "/users/123"
+          headers:
+            Authorization: "Bearer token123"
+
+        response:
+          status: 200
+          headers:
+            Content-Type: "application/json"
+          body:
+            type: object
+            required: [id, email, name]
+            properties:
+              id:
+                type: string
+                example: "123"
+              email:
+                type: string
+                format: email
+                example: "user@example.com"
+              name:
+                type: string
+                example: "John Doe"
+
+    - id: create_user
+      name: "Create User"
+      action: http_request
+      config:
+        method: POST
+        url: "/users"
+        body:
+          email: "newuser@example.com"
+          name: "New User"
+
+      contract_expectation:
+        request:
+          method: POST
+          path: "/users"
+          body:
+            type: object
+            required: [email, name]
+            properties:
+              email: { type: string, format: email }
+              name: { type: string }
+
+        response:
+          status: 201
+          body:
+            type: object
+            required: [id, email, name]
+            properties:
+              id: { type: string }
+              email: { type: string }
+              name: { type: string }
+```
+
+Run with:
+
+```bash
+testmesh run consumer-contract.yaml --generate-contract
+```
+
+This produces `contracts/web-app--user-service.json` in Pact v2/v3 format, compatible with Pact Broker, Pactflow, and all Pact language libraries.
+
+---
+
+## Provider Side: Verify Contracts
+
+The provider reads the generated contract files and replays each interaction against the real service, verifying the responses match the contract.
+
+```yaml title="provider-verification.yaml"
+flow:
+  name: "User Service Provider Verification"
+
+  contract_verification:
+    enabled: true
+    provider: "user-service"
+    contracts_dir: "contracts/"
+    provider_base_url: "${PROVIDER_URL}"
+
+    states:
+      - state: "user with ID 123 exists"
+        setup:
+          - action: database_query
+            config:
+              query: |
+                INSERT INTO users (id, email, name)
+                VALUES ('123', 'user@example.com', 'John Doe')
+                ON CONFLICT (id) DO NOTHING
+
+      - state: "no users exist"
+        setup:
+          - action: database_query
+            config:
+              query: "DELETE FROM users WHERE id IN ('123', '456')"
+
+  steps:
+    - id: verify_get_user
+      action: verify_contract_interaction
+      config:
+        contract: "web-app--user-service.json"
+        interaction: "Get User by ID"
+        provider_state: "user with ID 123 exists"
+
+    - id: verify_create_user
+      action: verify_contract_interaction
+      config:
+        contract: "web-app--user-service.json"
+        interaction: "Create User"
+```
+
+```bash
+# Verify all contracts
+testmesh run provider-verification.yaml
+
+# Verify contracts from a specific consumer
+testmesh run provider-verification.yaml --contracts web-app
+```
+
+---
+
+## Advanced Features
+
+### Flexible Matching Rules
+
+Use type matching instead of exact values to avoid brittle contracts:
+
+<Tabs items={["Good Practice", "Avoid"]}>
+  <Tab value="Good Practice">
+    ```yaml
+    contract_expectation:
+      response:
+        body:
+          id:
+            match: "type"      # Any string works
+          created_at:
+            match: "datetime"
+            format: "iso8601"
+          email:
+            match: "regex"
+            regex: "^[\\w.]+@[\\w.]+\\.[a-zA-Z]{2,}$"
+          items:
+            match: "array"
+            min_length: 1
+            each:
+              id: { match: "type" }
+              price: { match: "decimal" }
+    ```
+  </Tab>
+  <Tab value="Avoid">
+    ```yaml
+    contract_expectation:
+      response:
+        body:
+          id: "123"                          # Exact match — too brittle
+          created_at: "2026-02-09T10:00:00Z" # Will break on any other run
+    ```
+  </Tab>
+</Tabs>
+
+### Provider States
+
+Provider states let consumers declare what data must exist before an interaction is verified. The provider sets up that data before replaying the interaction:
+
+```yaml
+# Consumer declares required state
+contract_expectation:
+  provider_states:
+    - "user with email user@example.com exists"
+    - "user has 3 orders"
+
+# Provider sets up state before verification
+states:
+  - state: "user with email user@example.com exists"
+    setup:
+      - action: database_query
+        config:
+          query: |
+            INSERT INTO users (email, name)
+            VALUES ('user@example.com', 'Test User')
+    teardown:
+      - action: database_query
+        config:
+          query: "DELETE FROM users WHERE email = 'user@example.com'"
+```
+
+### Multi-Consumer Verification
+
+A provider must satisfy contracts from all of its consumers:
+
+```yaml
+contract_verification:
+  provider: "user-service"
+  contracts:
+    - consumer: "web-app"
+      contract_file: "contracts/web-app--user-service.json"
+    - consumer: "mobile-app"
+      contract_file: "contracts/mobile-app--user-service.json"
+    - consumer: "admin-portal"
+      contract_file: "contracts/admin-portal--user-service.json"
+```
+
+---
+
+## Contract Registry / Broker
+
+Use a Pact Broker to share contracts between teams:
+
+```bash
+# Publish consumer contract
+testmesh contract publish \
+  --contract contracts/web-app--user-service.json \
+  --consumer web-app \
+  --consumer-version 1.2.3 \
+  --broker-url http://pact-broker.example.com
+
+# Verify provider against contracts in the registry
+testmesh contract verify \
+  --provider user-service \
+  --provider-version 2.1.0 \
+  --consumer-tags production \
+  --broker-url http://pact-broker.example.com
+
+# Check if it's safe to deploy
+testmesh contract can-i-deploy \
+  --pacticipant web-app \
+  --version 1.2.3 \
+  --to production \
+  --broker-url http://pact-broker.example.com
+```
+
+---
+
+## Breaking Change Detection
+
+When a provider renames a required field, contract verification catches it before deployment:
+
+```
+Contract Verification Failed:
+
+  Consumer: web-app
+  Provider: user-service
+  Interaction: Get User by ID
+
+  Expected response body to have field: name
+  Actual response body has field: full_name
+
+  This is a BREAKING CHANGE.
+```
+
+Non-breaking changes (adding optional fields, removing non-required fields) pass verification automatically.
+
+---
+
+## CI/CD Integration
+
+<Tabs items={["Consumer Pipeline", "Provider Pipeline"]}>
+  <Tab value="Consumer Pipeline">
+    ```yaml title=".github/workflows/consumer-contract.yml"
+    name: Consumer Contract Tests
+    on: [push]
+    jobs:
+      contract-tests:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v2
+
+          - name: Run Contract Tests
+            run: testmesh run consumer-contract.yaml --generate-contract
+
+          - name: Publish Contract
+            run: |
+              testmesh contract publish \
+                --contract contracts/web-app--user-service.json \
+                --consumer web-app \
+                --consumer-version ${{ github.sha }} \
+                --broker-url ${{ secrets.PACT_BROKER_URL }}
+
+          - name: Can I Deploy?
+            run: |
+              testmesh contract can-i-deploy \
+                --pacticipant web-app \
+                --version ${{ github.sha }} \
+                --to production \
+                --broker-url ${{ secrets.PACT_BROKER_URL }}
+    ```
+  </Tab>
+  <Tab value="Provider Pipeline">
+    ```yaml title=".github/workflows/provider-verification.yml"
+    name: Provider Contract Verification
+    on: [push]
+    jobs:
+      verify-contracts:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v2
+
+          - name: Start Provider Service
+            run: docker-compose up -d user-service
+
+          - name: Verify Contracts
+            run: |
+              testmesh contract verify \
+                --provider user-service \
+                --provider-version ${{ github.sha }} \
+                --consumer-tags production \
+                --broker-url ${{ secrets.PACT_BROKER_URL }}
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## CLI Reference
+
+```bash
+# Generate contract from flow
+testmesh run flow.yaml --generate-contract
+
+# Verify contracts against a provider
+testmesh contract verify --provider user-service --contracts-dir ./contracts
+
+# Publish to broker
+testmesh contract publish --contract contract.json --broker-url URL
+
+# Deployment safety check
+testmesh contract can-i-deploy --pacticipant web-app --version 1.0.0
+
+# Compare two versions
+testmesh contract diff --consumer web-app --version1 1.0.0 --version2 1.1.0
+
+# Validate contract file format
+testmesh contract validate contract.json
+```
+
+---
+
+## Best Practices
+
+<Callout type="tip">
+  **Define minimal expectations.** Consumers should only assert fields they actually use. Requiring every field in the response makes contracts fragile and causes unnecessary provider failures when new optional fields are added.
+</Callout>
+
+- Use `match: "type"` instead of exact values wherever possible
+- Use provider states to set up specific test data rather than relying on production data
+- Run contract generation on every consumer commit, contract verification on every provider commit
+- Use `can-i-deploy` as a deployment gate to prevent breaking consumers in production

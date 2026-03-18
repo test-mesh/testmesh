@@ -1,0 +1,17 @@
+{
+  "title": "Docs",
+  "pages": [
+    "index",
+    "getting-started",
+    "yaml-reference",
+    "cli",
+    "features",
+    "deployment",
+    "architecture",
+    "guides",
+    "cheat-sheet",
+    "comparison",
+    "changelog",
+    "contributing"
+  ]
+}

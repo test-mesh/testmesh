@@ -1,0 +1,343 @@
+flow:
+  name: "Demo Microservices Full E2E"
+  description: >
+    Complete cross-service E2E covering product-service, user-service, order-service,
+    and notification-service. Verifies HTTP responses, Redis cache, Kafka events,
+    DB persistence, inter-service calls, async Kafka consumers, and validation errors.
+
+  steps:
+    # ── Health checks ────────────────────────────────────────────────────────
+    - id: product_service_health
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5002/health
+      assert:
+        - "status == 200"
+
+    - id: user_service_health
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5001/health
+      assert:
+        - "status == 200"
+
+    - id: order_service_health
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5003/health
+      assert:
+        - "status == 200"
+
+    - id: notification_service_health
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5004/health
+      assert:
+        - "status == 200"
+
+    # ── Create product ────────────────────────────────────────────────────────
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Widget {{RANDOM_ID}}"
+          description: "A test widget created by the E2E flow"
+          price: 29.99
+          inventory: 10
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.name != nil"
+        - "body.inventory == 10"
+        - "body.price == 29.99"
+      output:
+        product_id: "$.body.id"
+        product_initial_inventory: "$.body.inventory"
+        product_initial_price: "$.body.price"
+
+    - id: verify_redis_product
+      action: redis.get
+      config:
+        host: localhost
+        port: "6379"
+        key: "product:{{product_id}}"
+      assert:
+        - "value != nil"
+
+    - id: verify_kafka_product_created
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: product.created
+        group_id: "testmesh-e2e-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    - id: verify_db_product
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, name, price, inventory FROM product_service.products WHERE id = '{{product_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.inventory == 10"
+
+    # ── Validation: missing required fields on product ────────────────────────
+    - id: create_product_missing_name
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          price: 9.99
+      assert:
+        - "status == 400"
+
+    - id: create_product_missing_price
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: "No Price Widget"
+      assert:
+        - "status == 400"
+
+    # ── Create user ───────────────────────────────────────────────────────────
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Alice {{RANDOM_ID}}"
+          email: "alice-{{RANDOM_ID}}@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.email != nil"
+        - "body.name != nil"
+      output:
+        user_id: "$.body.id"
+        user_email: "$.body.email"
+
+    - id: verify_redis_user
+      action: redis.get
+      config:
+        host: localhost
+        port: "6379"
+        key: "user:{{user_id}}"
+      assert:
+        - "value != nil"
+
+    - id: verify_kafka_user_created
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: user.created
+        group_id: "testmesh-e2e-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    - id: verify_db_user
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, name, email FROM user_service.users WHERE id = '{{user_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.email == \"{{user_email}}\""
+
+    - id: get_user_by_id
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5001/api/v1/users/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == \"{{user_id}}\""
+        - "body.email == \"{{user_email}}\""
+
+    # ── Validation: missing required fields on user ───────────────────────────
+    - id: create_user_missing_email
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: "No Email User"
+      assert:
+        - "status == 400"
+
+    # ── Create order (triggers inter-service calls to user-service + product-service) ──
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 2
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.user_id == \"{{user_id}}\""
+        - "body.status == \"pending\""
+      output:
+        order_id: "$.body.id"
+
+    - id: verify_redis_order
+      action: redis.get
+      config:
+        host: localhost
+        port: "6379"
+        key: "order:{{order_id}}"
+      assert:
+        - "value != nil"
+
+    - id: verify_kafka_order_placed
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: order.placed
+        group_id: "testmesh-e2e-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    - id: verify_db_order
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, user_id, status FROM order_service.orders WHERE id = '{{order_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.user_id == \"{{user_id}}\""
+        - "first_row.status == \"pending\""
+
+    - id: verify_db_order_items
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, product_id, quantity FROM order_service.order_items WHERE order_id = '{{order_id}}' LIMIT 5"
+      assert:
+        - "row_count >= 1"
+        - "first_row.product_id == \"{{product_id}}\""
+        - "first_row.quantity == 2"
+
+    - id: get_order_by_id
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5003/api/v1/orders/{{order_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == \"{{order_id}}\""
+        - "body.user_id == \"{{user_id}}\""
+
+    # ── Validation: order with non-existent IDs ───────────────────────────────
+    - id: create_order_invalid_user
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "00000000-0000-0000-0000-000000000000"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 1
+      assert:
+        - "status == 400"
+
+    - id: create_order_missing_items
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+      assert:
+        - "status == 400"
+
+    # ── Async: wait for notification-service to react to Kafka events ─────────
+    # notification-service consumes user.created, order.placed, order.status.changed
+    - id: poll_notification_for_user
+      action: db_poll
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, type FROM notification_service.notifications WHERE user_id = '{{user_id}}' LIMIT 1"
+        interval: "1s"
+        timeout: "15s"
+
+    - id: verify_notification_exists
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, user_id, type FROM notification_service.notifications WHERE user_id = '{{user_id}}'"
+      assert:
+        - "row_count >= 1"
+
+    - id: get_notifications_via_api
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5004/api/v1/notifications/{{user_id}}"
+      assert:
+        - "status == 200"
+
+    # ── Async: wait for product inventory to decrease (order.placed consumer) ─
+    # product-service consumes order.placed and decreases inventory by quantity ordered
+    - id: poll_product_inventory_decreased
+      action: db_poll
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, inventory FROM product_service.products WHERE id = '{{product_id}}' AND inventory < {{product_initial_inventory}}"
+        interval: "1s"
+        timeout: "15s"
+
+    - id: verify_product_inventory_decreased
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, inventory FROM product_service.products WHERE id = '{{product_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.inventory == 8"

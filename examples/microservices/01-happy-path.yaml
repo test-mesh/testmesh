@@ -1,0 +1,241 @@
+flow:
+  name: "Microservices Happy Path"
+  description: >
+    Creates a product, user, and order in dependency order.
+    Verifies each step via HTTP response fields, Redis cache, Kafka event, and DB row.
+
+  steps:
+    # ── Health ────────────────────────────────────────────────────────────────
+    - id: health_product
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5002/health
+      assert:
+        - "status == 200"
+
+    - id: health_user
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5001/health
+      assert:
+        - "status == 200"
+
+    - id: health_order
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5003/health
+      assert:
+        - "status == 200"
+
+    - id: health_notification
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5004/health
+      assert:
+        - "status == 200"
+
+    # ── Product ───────────────────────────────────────────────────────────────
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Widget {{RANDOM_ID}}"
+          description: "E2E test product"
+          price: 49.99
+          inventory: 20
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.name != nil"
+        - "body.price == 49.99"
+        - "body.inventory == 20"
+      output:
+        product_id: "$.body.id"
+        product_inventory: "$.body.inventory"
+
+    - id: get_product
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5002/api/v1/products/{{product_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == \"{{product_id}}\""
+        - "body.inventory == 20"
+
+    - id: redis_product
+      action: redis.get
+      config:
+        host: localhost
+        port: "6379"
+        key: "product:{{product_id}}"
+      assert:
+        - "value != nil"
+
+    - id: kafka_product_created
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: product.created
+        group_id: "testmesh-e2e-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    - id: db_product
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, name, price, inventory FROM product_service.products WHERE id = '{{product_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.inventory == 20"
+        - "first_row.price == 49.99"
+
+    # ── User ──────────────────────────────────────────────────────────────────
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Alice {{RANDOM_ID}}"
+          email: "alice-{{RANDOM_ID}}@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.name != nil"
+        - "body.email != nil"
+      output:
+        user_id: "$.body.id"
+        user_email: "$.body.email"
+
+    - id: get_user
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5001/api/v1/users/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == \"{{user_id}}\""
+        - "body.email == \"{{user_email}}\""
+
+    - id: redis_user
+      action: redis.get
+      config:
+        host: localhost
+        port: "6379"
+        key: "user:{{user_id}}"
+      assert:
+        - "value != nil"
+
+    - id: kafka_user_created
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: user.created
+        group_id: "testmesh-e2e-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    - id: db_user
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, email, name FROM user_service.users WHERE id = '{{user_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.email == \"{{user_email}}\""
+
+    # ── Order (calls user-service + product-service internally) ───────────────
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 3
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.user_id == \"{{user_id}}\""
+        - "body.status == \"pending\""
+      output:
+        order_id: "$.body.id"
+
+    - id: get_order
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5003/api/v1/orders/{{order_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == \"{{order_id}}\""
+        - "body.user_id == \"{{user_id}}\""
+
+    - id: redis_order
+      action: redis.get
+      config:
+        host: localhost
+        port: "6379"
+        key: "order:{{order_id}}"
+      assert:
+        - "value != nil"
+
+    - id: kafka_order_placed
+      action: kafka_consumer
+      config:
+        brokers:
+          - localhost:9092
+        topic: order.placed
+        group_id: "testmesh-e2e-{{RANDOM_ID}}"
+        auto_offset_reset: earliest
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    - id: db_order
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, user_id, status FROM order_service.orders WHERE id = '{{order_id}}' LIMIT 1"
+      assert:
+        - "row_count == 1"
+        - "first_row.user_id == \"{{user_id}}\""
+        - "first_row.status == \"pending\""
+
+    - id: db_order_items
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT id, product_id, quantity FROM order_service.order_items WHERE order_id = '{{order_id}}' LIMIT 5"
+      assert:
+        - "row_count >= 1"
+        - "first_row.product_id == \"{{product_id}}\""
+        - "first_row.quantity == 3"

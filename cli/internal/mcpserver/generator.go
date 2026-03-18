@@ -7,6 +7,276 @@ import (
 	"strings"
 )
 
+// AnalysisReportOptions controls analysis report generation.
+type AnalysisReportOptions struct {
+	DBConnection string
+	KafkaBrokers string
+	RedisAddr    string
+	ServiceURLs  map[string]string
+	OutputPath   string
+}
+
+// GenerateE2EAnalysisReport returns a rich analysis report for LLM-driven flow generation.
+// It does NOT generate YAML — that is the LLM's job.
+func GenerateE2EAnalysisReport(workspace *WorkspaceAnalysis, opts AnalysisReportOptions) string {
+	var b strings.Builder
+
+	// Build HTTP deps for topo sort.
+	httpDeps := map[string][]string{}
+	for _, dep := range workspace.Dependencies {
+		if dep.Via == "http" {
+			httpDeps[dep.From] = append(httpDeps[dep.From], dep.To)
+		}
+	}
+	sorted := topoSortServices(workspace.Services, httpDeps)
+
+	urlFor := func(svc *ServiceAnalysis) string {
+		if opts.ServiceURLs != nil {
+			if u := opts.ServiceURLs[svc.ServiceName]; u != "" {
+				return u
+			}
+		}
+		return svc.BaseURL
+	}
+
+	b.WriteString("# TestMesh E2E Analysis Report\n\n")
+	b.WriteString("This report contains everything needed to write a complete, accurate E2E test flow.\n")
+	b.WriteString("You are the flow author — use this analysis to write YAML, not a template.\n\n")
+
+	// ── SECTION 1: Infrastructure ──────────────────────────────────────────
+	b.WriteString("## INFRASTRUCTURE\n\n")
+	if opts.DBConnection != "" {
+		b.WriteString(fmt.Sprintf("Database: %s\n", opts.DBConnection))
+	}
+	if opts.KafkaBrokers != "" {
+		b.WriteString(fmt.Sprintf("Kafka: %s\n", opts.KafkaBrokers))
+	}
+	if opts.RedisAddr != "" {
+		b.WriteString(fmt.Sprintf("Redis: %s\n", opts.RedisAddr))
+	}
+	for svc, url := range opts.ServiceURLs {
+		b.WriteString(fmt.Sprintf("Service %s: %s\n", svc, url))
+	}
+	if opts.OutputPath != "" {
+		b.WriteString(fmt.Sprintf("\n⚠️  OUTPUT: When you have generated the complete YAML flow, write it to: %s\n", opts.OutputPath))
+	}
+	b.WriteString("\n")
+
+	// ── SECTION 2: Dependency Graph ────────────────────────────────────────
+	b.WriteString("## DEPENDENCY GRAPH\n\n")
+	b.WriteString("EXECUTION ORDER (dependencies must be created before dependents):\n")
+	for i, svc := range sorted {
+		b.WriteString(fmt.Sprintf("  %d. %s (%s)\n", i+1, svc.ServiceName, urlFor(svc)))
+	}
+	b.WriteString("\nINTER-SERVICE CALLS:\n")
+	for _, dep := range workspace.Dependencies {
+		if dep.Via == "http" {
+			b.WriteString(fmt.Sprintf("  %s → HTTP → %s  (via env: %s)\n", dep.From, dep.To, dep.Detail))
+		}
+	}
+	for _, dep := range workspace.Dependencies {
+		if dep.Via == "kafka" {
+			b.WriteString(fmt.Sprintf("  %s → Kafka topic '%s' → %s\n", dep.From, dep.Detail, dep.To))
+		}
+	}
+	b.WriteString("\n")
+
+	// ── SECTION 3: Service + Endpoint Catalog ─────────────────────────────
+	b.WriteString("## SERVICES\n\n")
+	for _, svc := range sorted {
+		b.WriteString(fmt.Sprintf("### %s\n", svc.ServiceName))
+		b.WriteString(fmt.Sprintf("  URL: %s\n", urlFor(svc)))
+		if len(svc.DBSchemas) > 0 {
+			b.WriteString(fmt.Sprintf("  DB schemas: %s\n", strings.Join(svc.DBSchemas, ", ")))
+		}
+		if len(svc.RedisKeyPatterns) > 0 {
+			for _, kp := range svc.RedisKeyPatterns {
+				b.WriteString(fmt.Sprintf("  Redis cache key: %s  (set on CREATE)\n", kp.KeyFormat))
+			}
+		}
+		if len(svc.InterServiceCalls) > 0 {
+			b.WriteString("  Outbound calls:\n")
+			for _, call := range svc.InterServiceCalls {
+				b.WriteString(fmt.Sprintf("    %s %s on %s\n", call.Method, call.PathTemplate, call.ToService))
+			}
+		}
+		b.WriteString("\n")
+
+		// Endpoints
+		if len(svc.Endpoints) > 0 {
+			b.WriteString("  ENDPOINTS:\n")
+			for _, ep := range svc.Endpoints {
+				b.WriteString(fmt.Sprintf("    %s %s\n", ep.Method, ep.Path))
+				if ep.RequestSchema != nil {
+					b.WriteString(fmt.Sprintf("      Request body (%s):\n", ep.RequestSchema.StructName))
+					for _, f := range ep.RequestSchema.Fields {
+						req := ""
+						if f.Required {
+							req = " (required)"
+						}
+						if f.IsArray {
+							b.WriteString(fmt.Sprintf("        %s: []object%s\n", f.JSONName, req))
+							for _, item := range f.Items {
+								itemReq := ""
+								if item.Required {
+									itemReq = " (required)"
+								}
+								b.WriteString(fmt.Sprintf("          - %s: %s%s\n", item.JSONName, item.GoType, itemReq))
+							}
+						} else {
+							b.WriteString(fmt.Sprintf("        %s: %s%s\n", f.JSONName, f.GoType, req))
+						}
+					}
+				} else if len(ep.PathParams) > 0 {
+					b.WriteString(fmt.Sprintf("      Path params: %s\n", strings.Join(ep.PathParams, ", ")))
+				}
+			}
+			b.WriteString("\n")
+		}
+
+		// Models (DB tables)
+		if len(svc.Models) > 0 {
+			b.WriteString("  DATABASE TABLES:\n")
+			for _, m := range svc.Models {
+				if m.Table == "" {
+					continue
+				}
+				b.WriteString(fmt.Sprintf("    %s  → fields: %s\n", m.Table, strings.Join(m.Fields, ", ")))
+			}
+			b.WriteString("\n")
+		}
+
+		// Kafka
+		if len(svc.KafkaTopics) > 0 {
+			b.WriteString("  KAFKA TOPICS:\n")
+			for _, topic := range svc.KafkaTopics {
+				b.WriteString(fmt.Sprintf("    [%s] %s\n", strings.ToUpper(topic.Direction), topic.Name))
+				if topic.MessageSchema != nil {
+					if topic.MessageSchema.EventType != "" {
+						b.WriteString(fmt.Sprintf("      event_type: \"%s\"\n", topic.MessageSchema.EventType))
+					}
+					for _, f := range topic.MessageSchema.Fields {
+						b.WriteString(fmt.Sprintf("      %s: %s\n", f.JSONName, f.GoType))
+					}
+				}
+			}
+			b.WriteString("\n")
+		}
+	}
+
+	// ── SECTION 4: Testing Guidance ────────────────────────────────────────
+	b.WriteString("## WHAT TO TEST\n\n")
+
+	b.WriteString("### Happy path (recommended complete flow):\n")
+	step := 1
+	for _, svc := range sorted {
+		hasPOST := false
+		for _, ep := range svc.Endpoints {
+			if ep.Method == "POST" && !isAuthPath(ep.Path) && ep.Path != "/health" {
+				hasPOST = true
+				base := epBasePath(ep.Path)
+				rName := epResourceName(base)
+				idVar := rName + "_id"
+				b.WriteString(fmt.Sprintf("  %d. POST %s%s → capture %s\n", step, urlFor(svc), ep.Path, idVar))
+				if len(svc.RedisKeyPatterns) > 0 {
+					for _, kp := range svc.RedisKeyPatterns {
+						if strings.EqualFold(kp.Prefix, rName) {
+							b.WriteString(fmt.Sprintf("     → verify Redis key: %s\n", strings.Replace(kp.KeyFormat, "%s", "{"+idVar+"}", 1)))
+						}
+					}
+				}
+				for _, topic := range svc.KafkaTopics {
+					if topic.Direction == "produce" && isCreationTopic(topic.Name) {
+						b.WriteString(fmt.Sprintf("     → verify Kafka: %s published\n", topic.Name))
+					}
+				}
+				if len(svc.DBSchemas) > 0 {
+					for _, m := range svc.Models {
+						if m.Table != "" && isPrimaryModel(m, svc) {
+							b.WriteString(fmt.Sprintf("     → verify DB: SELECT FROM %s WHERE id = '{%s}'\n", m.Table, idVar))
+						}
+					}
+				}
+				step++
+				break
+			}
+		}
+		if !hasPOST {
+			b.WriteString(fmt.Sprintf("  (note: %s has no create endpoint — it is driven by Kafka events)\n", svc.ServiceName))
+		}
+	}
+	b.WriteString("\n")
+
+	b.WriteString("### Kafka async effects (poll with db_poll, timeout 15s):\n")
+	for _, dep := range workspace.Dependencies {
+		if dep.Via != "kafka" {
+			continue
+		}
+		toSvc := findServiceByName(workspace, dep.To)
+		if toSvc == nil {
+			continue
+		}
+		for _, m := range toSvc.Models {
+			if m.Table == "" {
+				continue
+			}
+			b.WriteString(fmt.Sprintf("  - poll %s for records triggered by '%s' event\n", m.Table, dep.Detail))
+			break
+		}
+	}
+	b.WriteString("\n")
+
+	b.WriteString("### Validation errors to test:\n")
+	for _, svc := range sorted {
+		for _, ep := range svc.Endpoints {
+			if ep.Method == "POST" && ep.RequestSchema != nil {
+				for _, f := range ep.RequestSchema.Fields {
+					if f.Required {
+						b.WriteString(fmt.Sprintf("  - POST %s without '%s' → expect 400\n", ep.Path, f.JSONName))
+						break
+					}
+				}
+				if len(svc.InterServiceCalls) > 0 {
+					b.WriteString(fmt.Sprintf("  - POST %s with non-existent dependency IDs (use UUID zeros) → expect 400\n", ep.Path))
+				}
+				break
+			}
+		}
+	}
+
+	// ── SECTION 5: TestMesh YAML Quick Reference ───────────────────────────
+	b.WriteString("\n## TESTMESH YAML QUICK REFERENCE\n\n")
+
+	b.WriteString("### Flow structure:\n```yaml\nflow:\n  name: \"My E2E Test\"\n  steps:\n    - id: step_id\n      action: http_request\n      config:\n        method: POST\n        url: http://localhost:5001/api/v1/users\n        headers:\n          Content-Type: application/json\n        body:\n          name: \"Test User {{RANDOM_ID}}\"\n          email: \"test-{{RANDOM_ID}}@example.com\"\n      assert:\n        - \"status == 201\"\n        - \"body.id != nil\"\n      output:\n        user_id: \"$.body.id\"\n```\n\n")
+
+	b.WriteString("### Available actions:\n")
+	b.WriteString("- `http_request`: method, url, headers, body, timeout\n")
+	b.WriteString("- `database_query`: connection, query → asserts: row_count, rows[0].field\n")
+	b.WriteString("- `db_poll`: connection, query, interval, timeout → polls until len(rows)>0\n")
+	b.WriteString("- `kafka_consumer`: brokers (list), topic, timeout, count, group_id, auto_offset_reset, from_beginning\n")
+	b.WriteString("  → asserts: len(messages) > 0\n")
+	b.WriteString("- `redis.get`: host, port, key → asserts: value != nil\n")
+	b.WriteString("- `delay`: duration (e.g. \"2s\")\n")
+	b.WriteString("- `log`: message\n\n")
+
+	b.WriteString("### Template variables:\n")
+	b.WriteString("- `{{RANDOM_ID}}` - random UUID generated at runtime\n")
+	b.WriteString("- `{{variable_name}}` - value captured from a previous step's output\n\n")
+
+	b.WriteString("### database_query assertions:\n")
+	b.WriteString("- `row_count == 1` means exactly 1 row was returned by the SELECT\n")
+	b.WriteString("- Use `SELECT * FROM table WHERE id = '{{id}}'` (NOT COUNT!) so row_count is meaningful\n")
+	b.WriteString("- Access fields: `first_row.name`, `rows[0].status`\n\n")
+
+	b.WriteString("### db_poll — wait for async events:\n")
+	b.WriteString("```yaml\n- id: wait_for_notification\n  action: db_poll\n  config:\n    connection: \"postgres://...\"\n    query: \"SELECT id FROM notification_service.notifications WHERE user_id = '{{user_id}}' LIMIT 1\"\n    interval: \"1s\"\n    timeout: \"15s\"\n```\n\n")
+
+	b.WriteString("### kafka_consumer — unique group per run (prevents catching old messages):\n")
+	b.WriteString("```yaml\n- id: verify_kafka_event\n  action: kafka_consumer\n  config:\n    brokers:\n      - localhost:9092\n    topic: \"user.created\"\n    group_id: \"testmesh-e2e-{{RANDOM_ID}}\"\n    auto_offset_reset: \"earliest\"\n    from_beginning: true\n    timeout: \"10s\"\n    count: 1\n  assert:\n    - \"len(messages) > 0\"\n```\n\n")
+
+	return b.String()
+}
+
 // GenerateFlowOptions controls what gets included in the generated flow.
 type GenerateFlowOptions struct {
 	FlowName     string
@@ -51,7 +321,7 @@ func GenerateFlow(analysis *ServiceAnalysis, opts GenerateFlowOptions) string {
 	b.WriteString("  steps:\n")
 
 	// Health check.
-	b.WriteString(flowStep("health_check", "http_request", map[string]interface{}{
+	b.WriteString(flowStep("health_check", "http_request", map[string]any{
 		"method": "GET",
 		"url":    opts.BaseURL + "/health",
 	}, []string{"status == 200"}, nil))
@@ -100,7 +370,7 @@ func buildSetupSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []stri
 		steps = append(steps, flowStep(
 			"setup_log",
 			"log",
-			map[string]interface{}{"message": fmt.Sprintf("Starting E2E tests for %s", analysis.ServiceName)},
+			map[string]any{"message": fmt.Sprintf("Starting E2E tests for %s", analysis.ServiceName)},
 			nil, nil,
 		))
 	}
@@ -168,10 +438,10 @@ func buildEndpointSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []s
 				steps = append(steps, flowStep(
 					rName,
 					"http_request",
-					map[string]interface{}{
+					map[string]any{
 						"method": "POST",
 						"url":    opts.BaseURL + g.post.Path,
-						"headers": map[string]interface{}{
+						"headers": map[string]any{
 							"Content-Type": "application/json",
 						},
 						"body": body,
@@ -183,16 +453,16 @@ func buildEndpointSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []s
 				steps = append(steps, flowStep(
 					"create_"+rName,
 					"http_request",
-					map[string]interface{}{
+					map[string]any{
 						"method": "POST",
 						"url":    opts.BaseURL + g.post.Path,
-						"headers": map[string]interface{}{
+						"headers": map[string]any{
 							"Content-Type": "application/json",
 						},
 						"body": body,
 					},
 					[]string{"status == 201", "body.id != nil"},
-					map[string]interface{}{idVar: "$.body.id"},
+					map[string]any{idVar: "$.body.id"},
 				))
 			}
 		}
@@ -210,7 +480,7 @@ func buildEndpointSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []s
 			steps = append(steps, flowStep(
 				stepID,
 				"http_request",
-				map[string]interface{}{
+				map[string]any{
 					"method": "GET",
 					"url":    opts.BaseURL + g.getAll.Path,
 				},
@@ -224,7 +494,7 @@ func buildEndpointSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []s
 			steps = append(steps, flowStep(
 				"get_"+rName,
 				"http_request",
-				map[string]interface{}{
+				map[string]any{
 					"method": "GET",
 					"url":    opts.BaseURL + getPath,
 				},
@@ -242,10 +512,10 @@ func buildEndpointSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []s
 			steps = append(steps, flowStep(
 				"update_"+rName,
 				"http_request",
-				map[string]interface{}{
+				map[string]any{
 					"method": updateEp.Method,
 					"url":    opts.BaseURL + updatePath,
-					"headers": map[string]interface{}{
+					"headers": map[string]any{
 						"Content-Type": "application/json",
 					},
 					"body": inferUpdateBody(analysis, rName),
@@ -260,7 +530,7 @@ func buildEndpointSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []s
 			steps = append(steps, flowStep(
 				"delete_"+rName,
 				"http_request",
-				map[string]interface{}{
+				map[string]any{
 					"method": "DELETE",
 					"url":    opts.BaseURL + deletePath,
 				},
@@ -273,7 +543,7 @@ func buildEndpointSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []s
 				steps = append(steps, flowStep(
 					"verify_"+rName+"_deleted",
 					"http_request",
-					map[string]interface{}{
+					map[string]any{
 						"method": "GET",
 						"url":    opts.BaseURL + getPath,
 					},
@@ -301,9 +571,9 @@ func buildDBVerificationSteps(analysis *ServiceAnalysis, opts GenerateFlowOption
 		steps = append(steps, flowStep(
 			stepID,
 			"database_query",
-			map[string]interface{}{
+			map[string]any{
 				"connection": opts.DBConnection,
-				"query":      fmt.Sprintf("SELECT COUNT(*) as count FROM %s", m.Table),
+				"query":      fmt.Sprintf("SELECT id FROM %s LIMIT 5", m.Table),
 			},
 			[]string{"row_count >= 1"},
 			nil,
@@ -326,7 +596,7 @@ func buildKafkaVerificationSteps(analysis *ServiceAnalysis, opts GenerateFlowOpt
 		steps = append(steps, flowStep(
 			stepID,
 			"kafka_consumer",
-			map[string]interface{}{
+			map[string]any{
 				"brokers":           opts.KafkaBrokers,
 				"topic":             topic.Name,
 				"group_id":          "testmesh-e2e-verifier",
@@ -359,7 +629,7 @@ func buildErrorSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []stri
 			steps = append(steps, flowStep(
 				"not_found_"+rName,
 				"http_request",
-				map[string]interface{}{
+				map[string]any{
 					"method": "GET",
 					"url":    opts.BaseURL + getPath,
 				},
@@ -375,11 +645,11 @@ func buildErrorSteps(analysis *ServiceAnalysis, opts GenerateFlowOptions) []stri
 			steps = append(steps, flowStep(
 				"bad_request_"+rName,
 				"http_request",
-				map[string]interface{}{
+				map[string]any{
 					"method":  "POST",
 					"url":     opts.BaseURL + ep.Path,
-					"headers": map[string]interface{}{"Content-Type": "application/json"},
-					"body":    map[string]interface{}{},
+					"headers": map[string]any{"Content-Type": "application/json"},
+					"body":    map[string]any{},
 				},
 				[]string{"status == 400 || status == 422"},
 				nil,
@@ -404,7 +674,7 @@ func buildTeardownSteps(_ *ServiceAnalysis, _ GenerateFlowOptions) []string {
 // ---------------------------------------------------------------------------
 
 // flowStep renders a single flow step as YAML.
-func flowStep(id, action string, config map[string]interface{}, assert []string, output map[string]interface{}) string {
+func flowStep(id, action string, config map[string]any, assert []string, output map[string]any) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("    - id: %s\n", id))
 	b.WriteString(fmt.Sprintf("      action: %s\n", action))
@@ -432,14 +702,14 @@ func flowStep(id, action string, config map[string]interface{}, assert []string,
 	return b.String()
 }
 
-func writeYAMLMap(b *strings.Builder, m map[string]interface{}, indent int) {
+func writeYAMLMap(b *strings.Builder, m map[string]any, indent int) {
 	prefix := strings.Repeat(" ", indent)
 	for k, v := range m {
 		switch val := v.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			b.WriteString(fmt.Sprintf("%s%s:\n", prefix, k))
 			writeYAMLMap(b, val, indent+2)
-		case []interface{}:
+		case []any:
 			b.WriteString(fmt.Sprintf("%s%s:\n", prefix, k))
 			writeYAMLSlice(b, val, indent+2)
 		case string:
@@ -452,11 +722,11 @@ func writeYAMLMap(b *strings.Builder, m map[string]interface{}, indent int) {
 	}
 }
 
-func writeYAMLSlice(b *strings.Builder, items []interface{}, indent int) {
+func writeYAMLSlice(b *strings.Builder, items []any, indent int) {
 	prefix := strings.Repeat(" ", indent)
 	for _, item := range items {
 		switch val := item.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			first := true
 			for k, v := range val {
 				if first {
@@ -540,8 +810,8 @@ func replaceAllPathParams(path, value string) string {
 // Body inference helpers
 // ---------------------------------------------------------------------------
 
-func inferCreateBody(analysis *ServiceAnalysis, resource string) map[string]interface{} {
-	body := map[string]interface{}{}
+func inferCreateBody(analysis *ServiceAnalysis, resource string) map[string]any {
+	body := map[string]any{}
 
 	for _, m := range analysis.Models {
 		if strings.EqualFold(m.Name, resource) || strings.EqualFold(camelToSnake(m.Name), resource) {
@@ -560,7 +830,7 @@ func inferCreateBody(analysis *ServiceAnalysis, resource string) map[string]inte
 	return body
 }
 
-func inferUpdateBody(analysis *ServiceAnalysis, resource string) map[string]interface{} {
+func inferUpdateBody(analysis *ServiceAnalysis, resource string) map[string]any {
 	body := inferCreateBody(analysis, resource)
 	for k := range body {
 		if k == "name" {
@@ -570,7 +840,7 @@ func inferUpdateBody(analysis *ServiceAnalysis, resource string) map[string]inte
 	return body
 }
 
-func inferFieldValue(field, resource, goType string) interface{} {
+func inferFieldValue(field, resource, goType string) any {
 	// Use the extracted Go type first — this is the most reliable signal.
 	switch {
 	case isIntType(goType):
@@ -728,7 +998,7 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 		b.WriteString(flowStep(
 			svcNameToID(svc.ServiceName)+"_health",
 			"http_request",
-			map[string]interface{}{
+			map[string]any{
 				"method": "GET",
 				"url":    urlFor(svc) + "/health",
 			},
@@ -765,7 +1035,7 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 		body := buildCrossServiceBody(svc, rName, depsOnThis, workspace, availableIDs)
 
 		// Build the outputs map: always capture the ID.
-		outputs := map[string]interface{}{idVar: "$.body.id"}
+		outputs := map[string]any{idVar: "$.body.id"}
 
 		// If this service is also a Kafka consumer that UPDATES its own model,
 		// capture numeric fields as trackable initials so we can detect changes.
@@ -792,18 +1062,30 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 			}
 		}
 
+		// Build assertions: always check status and ID, plus verify injected dep IDs in response.
+		createAsserts := []string{"status == 201", "body.id != nil"}
+		for _, depName := range depsOnThis {
+			depSvc := findServiceByName(workspace, depName)
+			if depSvc == nil {
+				continue
+			}
+			depIDVar := primaryResourceName(depSvc) + "_id"
+			if availableIDs[depIDVar] {
+				createAsserts = append(createAsserts, fmt.Sprintf(`body.%s == "{{%s}}"`, depIDVar, depIDVar))
+			}
+		}
 		b.WriteString(flowStep(
 			"create_"+svcNameToID(svc.ServiceName)+"_"+rName,
 			"http_request",
-			map[string]interface{}{
+			map[string]any{
 				"method": "POST",
 				"url":    urlFor(svc) + primaryPost.Path,
-				"headers": map[string]interface{}{
+				"headers": map[string]any{
 					"Content-Type": "application/json",
 				},
 				"body": body,
 			},
-			[]string{"status == 201", "body.id != nil"},
+			createAsserts,
 			outputs,
 		))
 
@@ -824,7 +1106,7 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 				b.WriteString(flowStep(
 					"verify_redis_"+svcNameToID(svc.ServiceName)+"_"+kp.Prefix,
 					"redis.get",
-					map[string]interface{}{
+					map[string]any{
 						"host": host,
 						"port": port,
 						"key":  redisKey,
@@ -839,7 +1121,7 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 		// Skip topics that require separate triggers (status changes, logins, etc.).
 		if opts.KafkaBrokers != "" {
 			brokerList := strings.Split(opts.KafkaBrokers, ",")
-			brokers := make([]interface{}, len(brokerList))
+			brokers := make([]any, len(brokerList))
 			for i, br := range brokerList {
 				brokers[i] = strings.TrimSpace(br)
 			}
@@ -853,13 +1135,14 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 				b.WriteString(flowStep(
 					"verify_kafka_"+svcNameToID(svc.ServiceName)+"_"+strings.ReplaceAll(topic.Name, ".", "_"),
 					"kafka_consumer",
-					map[string]interface{}{
+					map[string]any{
 						"brokers":           brokers,
 						"topic":             topic.Name,
 						"timeout":           "10s",
 						"count":             1,
 						"auto_offset_reset": "earliest",
 						"from_beginning":    true,
+						"group_id":          "testmesh-e2e-{{RANDOM_ID}}",
 					},
 					[]string{"len(messages) > 0"},
 					nil,
@@ -892,9 +1175,9 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 						b.WriteString(flowStep(
 							"verify_db_"+svcNameToID(svc.ServiceName)+"_"+camelToSnake(m.Name),
 							"database_query",
-							map[string]interface{}{
+							map[string]any{
 								"connection": opts.DBConnection,
-								"query":      fmt.Sprintf("SELECT COUNT(*) as count FROM %s WHERE id = '{{%s}}'", m.Table, idVar),
+								"query":      fmt.Sprintf("SELECT id, name FROM %s WHERE id = '{{%s}}' LIMIT 1", m.Table, idVar),
 							},
 							[]string{"row_count == 1"},
 							nil,
@@ -911,9 +1194,9 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 						b.WriteString(flowStep(
 							"verify_db_"+svcNameToID(svc.ServiceName)+"_"+camelToSnake(m.Name),
 							"database_query",
-							map[string]interface{}{
+							map[string]any{
 								"connection": opts.DBConnection,
-								"query":      fmt.Sprintf("SELECT COUNT(*) as count FROM %s WHERE %s = '{{%s}}'", m.Table, fkField, fkVar),
+								"query":      fmt.Sprintf("SELECT id FROM %s WHERE %s = '{{%s}}' LIMIT 5", m.Table, fkField, fkVar),
 							},
 							[]string{"row_count >= 1"},
 							nil,
@@ -943,41 +1226,57 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 
 				if hasPrimaryID {
 					// Case 1: Consumer UPDATES its own model (e.g. product decreases inventory).
-					// Look for a trackable initial value to detect the change.
-					foundInitial := false
+					// Pick the best trackable initial field deterministically: prefer inventory-type over price-type.
+					type initialCandidate struct {
+						outVar    string
+						fieldName string
+						score     int
+					}
+					var candidates []initialCandidate
+					expectedPrefix := rName + "_initial_"
 					for outVar, fieldName := range trackableInitials {
-						// outVar is like "product_initial_inventory", check it matches this resource.
-						expectedPrefix := rName + "_initial_"
 						if !strings.HasPrefix(outVar, expectedPrefix) {
 							continue
 						}
+						score := 0
+						for _, kw := range []string{"inventory", "stock", "count", "quantity", "available"} {
+							if strings.Contains(fieldName, kw) {
+								score = 1
+								break
+							}
+						}
+						candidates = append(candidates, initialCandidate{outVar, fieldName, score})
+					}
+					sort.Slice(candidates, func(i, j int) bool {
+						if candidates[i].score != candidates[j].score {
+							return candidates[i].score > candidates[j].score
+						}
+						return candidates[i].outVar < candidates[j].outVar
+					})
+					if len(candidates) > 0 {
+						c := candidates[0]
 						b.WriteString(flowStep(
 							"poll_"+svcNameToID(svc.ServiceName)+"_"+camelToSnake(m.Name),
 							"db_poll",
-							map[string]interface{}{
+							map[string]any{
 								"connection": opts.DBConnection,
-								"query":      fmt.Sprintf("SELECT COUNT(*) as row_count FROM %s WHERE id = '{{%s}}' AND %s < {{%s}}", m.Table, idVar, fieldName, outVar),
+								"query":      fmt.Sprintf("SELECT id FROM %s WHERE id = '{{%s}}' AND %s < {{%s}}", m.Table, idVar, c.fieldName, c.outVar),
 								"interval":   "1s",
 								"timeout":    "15s",
-								"condition":  "row_count == 1",
 							},
 							nil,
 							nil,
 						))
-						foundInitial = true
-						break
-					}
-					if !foundInitial {
+					} else {
 						// Fallback: just verify the record exists.
 						b.WriteString(flowStep(
 							"poll_"+svcNameToID(svc.ServiceName)+"_"+camelToSnake(m.Name),
 							"db_poll",
-							map[string]interface{}{
+							map[string]any{
 								"connection": opts.DBConnection,
-								"query":      fmt.Sprintf("SELECT COUNT(*) as row_count FROM %s WHERE id = '{{%s}}'", m.Table, idVar),
+								"query":      fmt.Sprintf("SELECT id FROM %s WHERE id = '{{%s}}'", m.Table, idVar),
 								"interval":   "1s",
 								"timeout":    "15s",
-								"condition":  "row_count == 1",
 							},
 							nil,
 							nil,
@@ -991,12 +1290,11 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 						b.WriteString(flowStep(
 							"poll_"+svcNameToID(svc.ServiceName)+"_"+camelToSnake(m.Name),
 							"db_poll",
-							map[string]interface{}{
+							map[string]any{
 								"connection": opts.DBConnection,
-								"query":      fmt.Sprintf("SELECT COUNT(*) as row_count FROM %s WHERE %s = '{{%s}}'", m.Table, fkField, fkVar),
+								"query":      fmt.Sprintf("SELECT id FROM %s WHERE %s = '{{%s}}' LIMIT 1", m.Table, fkField, fkVar),
 								"interval":   "1s",
 								"timeout":    "15s",
-								"condition":  "row_count >= 1",
 							},
 							nil,
 							nil,
@@ -1006,12 +1304,11 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 						b.WriteString(flowStep(
 							"poll_"+svcNameToID(svc.ServiceName)+"_"+camelToSnake(m.Name),
 							"db_poll",
-							map[string]interface{}{
+							map[string]any{
 								"connection": opts.DBConnection,
-								"query":      fmt.Sprintf("SELECT COUNT(*) as row_count FROM %s", m.Table),
+								"query":      fmt.Sprintf("SELECT id FROM %s LIMIT 1", m.Table),
 								"interval":   "1s",
 								"timeout":    "15s",
-								"condition":  "row_count >= 1",
 							},
 							nil,
 							nil,
@@ -1027,7 +1324,7 @@ func GenerateWorkspaceFlow(workspace *WorkspaceAnalysis, opts GenerateFlowOption
 }
 
 // buildCrossServiceBody builds a POST body for svc, injecting IDs from HTTP dependencies.
-func buildCrossServiceBody(svc *ServiceAnalysis, rName string, deps []string, workspace *WorkspaceAnalysis, available map[string]bool) map[string]interface{} {
+func buildCrossServiceBody(svc *ServiceAnalysis, rName string, deps []string, workspace *WorkspaceAnalysis, available map[string]bool) map[string]any {
 	body := inferCreateBody(svc, rName)
 
 	if len(deps) > 0 {
@@ -1080,8 +1377,8 @@ func buildCrossServiceBody(svc *ServiceAnalysis, rName string, deps []string, wo
 					}
 				}
 				if hasOwnerRef && hasDepRef {
-					body["items"] = []interface{}{
-						map[string]interface{}{
+					body["items"] = []any{
+						map[string]any{
 							idVar:      "{{" + idVar + "}}",
 							"quantity": 1,
 						},

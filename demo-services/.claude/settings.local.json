@@ -7,7 +7,8 @@
       "mcp__testmesh__get_action_types",
       "mcp__testmesh__list_flows",
       "mcp__testmesh__validate_flow",
-      "mcp__testmesh__generate_e2e_flow"
+      "mcp__testmesh__generate_e2e_flow",
+      "mcp__testmesh__analyze_workspace"
     ]
   },
   "enableAllProjectMcpServers": true,

@@ -1,13 +1,92 @@
 ---
-title: Hello World
-description: Your first document
+title: Introduction
+description: TestMesh is an integration testing platform that runs end-to-end flows across HTTP, Kafka, databases, gRPC, WebSocket, and more — defined in human-readable YAML.
 ---
 
-Welcome to the docs! You can start writing documents in `/content/docs`.
+# TestMesh Documentation
 
-## What is Next?
+TestMesh runs end-to-end integration tests across your full stack. A single YAML flow can make an HTTP call, verify a Kafka message was produced, assert the database row was updated, and check the Redis cache — all chained together with shared variables.
+
+```yaml title="order-flow.yaml"
+flow:
+  name: "Order Lifecycle"
+  steps:
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "{{BASE_URL}}/orders"
+        body: { user_id: "{{user_id}}", product_id: "prod-1" }
+      assert: [status == 201]
+      output:
+        order_id: $.body.id
+
+    - id: verify_kafka_event
+      action: kafka_consumer
+      config:
+        brokers: ["localhost:9092"]
+        topic: "order-events"
+        timeout: 10s
+      assert:
+        - messages[0].value.order_id == "{{order_id}}"
+
+    - id: check_database
+      action: database_query
+      config:
+        connection_string: "{{DB_URL}}"
+        query: "SELECT status FROM orders WHERE id = $1"
+        params: ["{{order_id}}"]
+      assert:
+        - rows[0].status == "confirmed"
+```
+
+## Choose Your Path
 
 <Cards>
-  <Card title="Learn more about Next.js" href="https://nextjs.org/docs" />
-  <Card title="Learn more about Fumadocs" href="https://fumadocs.dev" />
+  <Card
+    title="I'm new here"
+    href="/docs/getting-started"
+    description="Install TestMesh and write your first flow in 5 minutes."
+  />
+  <Card
+    title="Testing microservices"
+    href="/docs/guides/microservices-testing"
+    description="Full E2E guide: HTTP + Kafka + database + notifications in one flow."
+  />
+  <Card
+    title="YAML quick reference"
+    href="/docs/cheat-sheet"
+    description="One-page cheat sheet for the most common flow patterns."
+  />
+  <Card
+    title="Migrating from Postman"
+    href="/docs/guides/migrating"
+    description="Map Postman collections and requests to TestMesh flows."
+  />
+</Cards>
+
+## Core Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Flow** | A YAML file defining a test sequence. Must have a `flow:` wrapper at root. |
+| **Step** | One action within a flow. Has an `id`, `action`, `config`, optional `assert` and `output`. |
+| **Action** | The type of operation: `http_request`, `kafka_consumer`, `database_query`, etc. |
+| **Assert** | Expressions evaluated against step output using [expr-lang](https://github.com/expr-lang/expr) syntax. |
+| **Output** | JSONPath extractions that become variables for later steps. |
+| **Variable** | Values passed between steps using `{{variable_name}}` template syntax. |
+
+## All Documentation
+
+<Cards>
+  <Card title="Getting Started" href="/docs/getting-started" description="Installation, your first flow, core concepts, and troubleshooting." />
+  <Card title="YAML Reference" href="/docs/yaml-reference" description="Complete specification: flow structure, steps, assertions, variables, all action types." />
+  <Card title="CLI" href="/docs/cli" description="testmesh run, debug, watch, generate, chat, mock, and more." />
+  <Card title="Features" href="/docs/features" description="Mock servers, async patterns, AI generation, contract testing, observability." />
+  <Card title="Deployment" href="/docs/deployment" description="Docker Compose, Kubernetes, Helm, and external cloud services." />
+  <Card title="Architecture" href="/docs/architecture" description="Modular monolith design, tech stack decisions, domain structure." />
+  <Card title="Guides" href="/docs/guides" description="Microservices testing, CI/CD integration, best practices, migrating from other tools." />
+  <Card title="Cheat Sheet" href="/docs/cheat-sheet" description="One-page quick reference for all common flow patterns." />
+  <Card title="Comparison" href="/docs/comparison" description="How TestMesh compares to Postman, k6, Playwright, and Cypress." />
+  <Card title="Changelog" href="/docs/changelog" description="Release history and what's new in each version." />
 </Cards>

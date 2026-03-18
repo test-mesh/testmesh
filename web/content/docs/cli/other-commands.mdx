@@ -1,0 +1,159 @@
+---
+title: Other Commands
+description: Additional CLI commands for project management and integration.
+---
+
+These commands handle project setup, server integration, reporting, and extensibility.
+
+## Command Reference
+
+### `init`
+
+Initialize a new TestMesh project in the current directory. Creates a `testmesh.yaml` config file and an `examples/` directory with a starter flow.
+
+```bash
+testmesh init
+```
+
+### `login`
+
+Authenticate with a remote TestMesh API server. Saves credentials to the local CLI config so subsequent commands can push/pull flows and execution results to the server.
+
+```bash
+testmesh login --server https://testmesh.example.com
+```
+
+You will be prompted for your email and password, or you can pass an API token:
+
+```bash
+testmesh login --server https://testmesh.example.com --token <api-token>
+```
+
+### `report`
+
+View execution reports for flows that have been run against a connected TestMesh server.
+
+```bash
+# List recent executions
+testmesh report list
+
+# View a specific execution
+testmesh report view <execution-id>
+
+# Export a report
+testmesh report export <execution-id> --format html --output ./report.html
+```
+
+### `import`
+
+Import flows from external formats into TestMesh YAML.
+
+```bash
+# Import from a Postman collection
+testmesh import --format postman --input ./collection.json --output ./flows/
+
+# Import from an OpenAPI spec
+testmesh import --format openapi --input ./openapi.yaml --output ./flows/
+```
+
+Imported flows are written as `.yaml` files to the output directory. Review and adjust them before running, as imports may require manual tuning of assertions.
+
+### `export`
+
+Export TestMesh flows to other formats.
+
+```bash
+# Export to Postman collection
+testmesh export --format postman --input ./flows/ --output ./collection.json
+
+# Export to OpenAPI spec
+testmesh export --format openapi --input ./flows/ --output ./openapi.yaml
+```
+
+### `config`
+
+Manage CLI configuration (server URL, default API keys, output preferences).
+
+```bash
+# Show current config
+testmesh config show
+
+# Set a value
+testmesh config set server.url https://testmesh.example.com
+
+# Reset to defaults
+testmesh config reset
+```
+
+Config is stored at `~/.testmesh/config.yaml`.
+
+### `schedule`
+
+Manage scheduled flow runs on a connected TestMesh server.
+
+```bash
+# List schedules
+testmesh schedule list
+
+# Create a schedule (cron expression)
+testmesh schedule create --flow ./flows/smoke.yaml --cron "0 * * * *"
+
+# Delete a schedule
+testmesh schedule delete <schedule-id>
+
+# Pause/resume a schedule
+testmesh schedule pause <schedule-id>
+testmesh schedule resume <schedule-id>
+```
+
+<Callout type="info">
+  Schedules require an active connection to a TestMesh server. Run `testmesh login` first.
+</Callout>
+
+### `plugin`
+
+Install and manage CLI plugins that add new action types or integrations.
+
+```bash
+# List installed plugins
+testmesh plugin list
+
+# Install a plugin
+testmesh plugin install <plugin-name>
+
+# Remove a plugin
+testmesh plugin remove <plugin-name>
+```
+
+### `mcp`
+
+Start the TestMesh MCP (Model Context Protocol) server, which exposes flow management and execution tools to AI agents and editors that support MCP.
+
+```bash
+testmesh mcp
+```
+
+The MCP server runs on stdio by default and exposes tools such as `run_flow`, `validate_flow`, `generate_flow`, and `list_flows` to any connected MCP client.
+
+```bash
+# Start with a specific workspace directory
+testmesh mcp --workspace ./flows/
+```
+
+<Callout type="tip">
+  The MCP server is what enables TestMesh integration in Claude, Cursor, and other AI-powered editors. Configure your editor to launch `testmesh mcp` as an MCP server.
+</Callout>
+
+## Summary Table
+
+| Command | Requires Server | Description |
+|---------|----------------|-------------|
+| `init` | No | Create a new project skeleton |
+| `login` | Yes | Authenticate with a TestMesh server |
+| `report` | Yes | View and export execution reports |
+| `import` | No | Import from Postman / OpenAPI |
+| `export` | No | Export to Postman / OpenAPI |
+| `config` | No | Manage CLI configuration |
+| `schedule` | Yes | Manage cron-based scheduled runs |
+| `plugin` | No | Install and manage plugins |
+| `mcp` | No | Start MCP server for AI integration |

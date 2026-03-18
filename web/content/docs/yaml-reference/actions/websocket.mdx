@@ -1,0 +1,276 @@
+---
+title: websocket
+description: Connect to a WebSocket server, send and receive messages, and assert on real-time communication.
+---
+
+The `websocket` action opens a WebSocket connection and executes a sequence of sub-actions: connect, send, receive, wait for a specific message pattern, and close. This makes it possible to test real-time features like chat, live notifications, and subscription systems.
+
+## Minimal example
+
+```yaml title="ws-ping-pong.yaml"
+- id: ping_pong
+  action: websocket
+  config:
+    url: "ws://localhost:5016/ws"
+    actions:
+      - type: connect
+        timeout: "5s"
+
+      - type: send
+        message: "ping"
+
+      - type: receive
+        timeout: "5s"
+
+      - type: close
+  assert:
+    - result.messages.length == 1
+```
+
+---
+
+## Config fields
+
+### url (required)
+
+The WebSocket URL. Use `ws://` for plain connections and `wss://` for TLS.
+
+```yaml
+config:
+  url: "ws://notification-service:8004/ws"
+```
+
+Variables are supported:
+
+```yaml
+config:
+  url: "${WS_URL}/chat/${room_id}"
+```
+
+### protocols
+
+Optional subprotocol negotiation.
+
+```yaml
+config:
+  protocols:
+    - "chat"
+    - "v1"
+```
+
+### headers
+
+HTTP headers sent during the WebSocket handshake.
+
+```yaml
+config:
+  headers:
+    Authorization: "Bearer ${TOKEN}"
+    X-User-ID: "${user_id}"
+```
+
+### actions (required)
+
+An ordered array of sub-actions to execute after the connection is established.
+
+---
+
+## Sub-action types
+
+### connect
+
+Opens the WebSocket connection. Always the first action.
+
+```yaml
+- type: connect
+  timeout: "5s"
+```
+
+### send
+
+Sends a message. The `message` field can be a JSON object (sent as a JSON string) or a plain string.
+
+```yaml
+# Send a JSON message
+- type: send
+  message:
+    type: "subscribe"
+    channel: "user-${user_id}"
+    token: "${auth_token}"
+
+# Send a plain string
+- type: send
+  message: "ping"
+```
+
+### receive
+
+Waits for the next message from the server and stores it.
+
+```yaml
+- type: receive
+  timeout: "10s"
+```
+
+### wait_for
+
+Waits until a message matching the expected pattern arrives. Other messages received before the match are ignored but still recorded.
+
+```yaml
+- type: wait_for
+  message:
+    type: "subscribed"
+    channel: "user-${user_id}"
+  timeout: "15s"
+```
+
+All fields in `message` must match corresponding fields in the received message. Partial matches are supported — only specified fields are checked.
+
+### close
+
+Closes the WebSocket connection cleanly.
+
+```yaml
+- type: close
+```
+
+---
+
+## Response data
+
+| Path | Description |
+|---|---|
+| `result.messages` | Array of all messages received during the session |
+| `result.messages[0]` | First received message |
+| `result.messages[0].type` | Field in a JSON message |
+| `result.messages.length` | Total number of messages received |
+
+---
+
+## Output extraction
+
+```yaml
+output:
+  ws_messages: "result.messages"
+  first_message: "result.messages[0]"
+  message_count: "result.messages.length"
+```
+
+---
+
+## Assertions
+
+```yaml
+assert:
+  - result.messages.length > 0
+  - result.messages[0].type == "subscribed"
+  - result.messages.length >= 2
+```
+
+---
+
+## Full example: subscribe and receive notification
+
+```yaml title="ws-notification-test.yaml"
+flow:
+  name: "WebSocket Notification Test"
+
+  steps:
+    # Create the resource that will trigger a notification
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/orders"
+        headers:
+          Authorization: "Bearer ${USER_TOKEN}"
+        body:
+          user_id: "${user_id}"
+          items: ["item_1"]
+      output:
+        order_id: "response.body.id"
+      assert:
+        - status == 201
+
+    # Connect over WebSocket and verify the real-time notification arrives
+    - id: websocket_notification
+      action: websocket
+      config:
+        url: "ws://notification-service:8004/ws"
+        headers:
+          Authorization: "Bearer ${USER_TOKEN}"
+        actions:
+          - type: connect
+            timeout: "5s"
+
+          # Subscribe to user's notification channel
+          - type: send
+            message:
+              type: "subscribe"
+              user_id: "${user_id}"
+
+          # Wait for subscription confirmation
+          - type: wait_for
+            message:
+              type: "subscribed"
+            timeout: "10s"
+
+          # Trigger a test notification
+          - type: send
+            message:
+              type: "trigger_test_notification"
+              order_id: "${create_order.order_id}"
+
+          # Wait for the order update notification
+          - type: wait_for
+            message:
+              type: "order_update"
+            timeout: "15s"
+
+          - type: close
+      output:
+        ws_messages: "result.messages"
+      assert:
+        - result.messages.length >= 2
+        - result.messages[0].type == "subscribed"
+```
+
+---
+
+## Microservices integration pattern
+
+When testing microservices that push updates over WebSocket, combine an HTTP trigger with a WebSocket listener:
+
+```yaml
+steps:
+  # 1. Open WebSocket before triggering the action
+  - id: listen_for_updates
+    action: websocket
+    config:
+      url: "${WS_URL}/events"
+      headers:
+        Authorization: "Bearer ${TOKEN}"
+      actions:
+        - type: connect
+
+        - type: send
+          message:
+            type: "subscribe"
+            resource: "order"
+            id: "${order_id}"
+
+        - type: wait_for
+          message:
+            type: "order.status_changed"
+            data:
+              status: "shipped"
+          timeout: "60s"
+
+        - type: close
+    assert:
+      - result.messages.length > 0
+```
+
+<Callout type="tip">
+  If the action that triggers the WebSocket event happens before the connection is open, you may miss the message. Open the WebSocket connection first, then trigger the action in a subsequent step.
+</Callout>

@@ -1,0 +1,274 @@
+---
+title: Troubleshooting
+description: Common errors and how to fix them when running TestMesh flows.
+---
+
+
+# Troubleshooting
+
+This page covers the most common errors you'll encounter when running TestMesh flows and how to fix them.
+
+## Connection Errors
+
+### "connection refused" on localhost:5001
+
+```
+Error: http_request failed: dial tcp 127.0.0.1:5001: connect: connection refused
+```
+
+**Cause**: The demo microservices aren't running.
+
+**Fix**: Start the demo services:
+
+```bash
+docker-compose -f docker-compose.services.yml up -d
+```
+
+Then verify they're healthy:
+
+```bash
+curl http://localhost:5001/health  # User Service
+curl http://localhost:5002/health  # Product Service
+curl http://localhost:5003/health  # Order Service
+curl http://localhost:5004/health  # Notification Service
+```
+
+---
+
+### "connection refused" on localhost:5016 (API)
+
+```
+Error: cannot connect to TestMesh API
+```
+
+**Fix**: Start the API server:
+
+```bash
+# With Docker
+docker-compose -f docker-compose.dev.yml up -d
+
+# Or run directly
+cd api && go run main.go
+```
+
+---
+
+### "connection refused" on postgres/redis
+
+```
+Error: dial tcp: ...5432: connect: connection refused
+```
+
+**Fix**: Start the infrastructure layer:
+
+```bash
+./infra.sh up
+# or
+docker-compose -f docker-compose.infra.yml up -d
+```
+
+This starts PostgreSQL, Redis, and Kafka. All other services depend on these being up first.
+
+---
+
+## Assertion Failures
+
+### "assertion failed: status == 200, got 404"
+
+- Check the URL in your `url:` field for typos
+- Verify the service is running and has been seeded with data
+- Run with `testmesh debug` to see the full response body and confirm the route exists
+
+---
+
+### "assertion failed: body.id != '', got ''"
+
+The field path is probably wrong. Check the actual response structure:
+
+```bash
+testmesh debug my-flow.yaml
+```
+
+**JSONPath extraction**: `$.body.id` extracts `id` from the response body. The matching assertion uses the short form: `body.id != ""`.
+
+---
+
+### "variable user_id is not defined"
+
+```
+Error: template: variable 'user_id' not found in context
+```
+
+**Cause**: You're using `{{user_id}}` in a step that runs before the step that defines it.
+
+**Fix**: Check that an earlier step has an `output:` block that sets the variable:
+
+```yaml title="flow.yaml"
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "{{BASE_URL}}/users"
+    body:
+      name: "Alice"
+  output:
+    user_id: $.body.id    # This must run before any step using {{user_id}}
+
+- id: get_user
+  action: http_request
+  config:
+    method: GET
+    url: "{{BASE_URL}}/users/{{user_id}}"   # Safe to use here
+```
+
+---
+
+## Kafka Issues
+
+### "context deadline exceeded" on kafka_consumer
+
+```
+Error: kafka_consumer timed out after 10s: no messages received
+```
+
+**Possible causes**:
+
+- The producer step failed or was skipped — check earlier steps passed
+- Wrong topic name — topic names are case-sensitive
+- The consumer group already consumed the message — use a new `group_id` or set `from_beginning: true`
+- Kafka is not running — check `docker ps` for your Kafka container
+
+**Fix**:
+
+```yaml title="kafka_consumer"
+- id: consume_event
+  action: kafka_consumer
+  config:
+    brokers: ["localhost:9092"]
+    topic: "order-events"         # Double-check exact topic name
+    group_id: "test-group-2"      # Use a new group_id to avoid offset issues
+    timeout: 30s                  # Increase timeout for slow producers
+    from_beginning: true          # Start from earliest offset
+```
+
+---
+
+## YAML Syntax Errors
+
+### "flow: wrapper missing"
+
+```
+Error: invalid flow: missing required field 'name'
+```
+
+**Cause**: The flow must start with `flow:` at the root level.
+
+```yaml title="Wrong"
+name: "My Test"
+steps:
+  - ...
+```
+
+```yaml title="Correct"
+flow:
+  name: "My Test"
+  steps:
+    - ...
+```
+
+---
+
+### "duplicate step id"
+
+All step `id:` values must be unique within a flow. If you copy-pasted a step, make sure to rename the `id`.
+
+---
+
+### "invalid action type"
+
+Check the spelling. Valid action types are:
+
+`http_request`, `database_query`, `kafka_producer`, `kafka_consumer`, `grpc_call`, `websocket`, `redis_get`, `redis_set`, `mock_server_start`, `mock_server_stop`, `delay`, `log`, `assert`, `condition`, `for_each`
+
+---
+
+## Database Issues
+
+### "pq: relation does not exist"
+
+The database schema hasn't been created yet. Seed the database:
+
+```bash
+cd api/cmd/seed && go run main.go
+```
+
+---
+
+### "password authentication failed"
+
+Check that the `connection_string` in your flow matches your actual database credentials. The default local credentials are:
+
+```
+postgres://root:admin@localhost:5432/postgres?sslmode=disable
+```
+
+---
+
+## CLI Issues
+
+### "testmesh: command not found"
+
+Either use `go run` directly or build the binary first:
+
+```bash
+# Run without installing
+cd cli && go run main.go run flow.yaml
+
+# Or build and install the binary
+cd cli && go build -o testmesh main.go
+./testmesh run flow.yaml
+```
+
+---
+
+### "no such file or directory"
+
+The path to your flow file is wrong. Use an absolute path or check your current working directory:
+
+```bash
+# Use absolute path to avoid confusion
+testmesh run /absolute/path/to/flow.yaml
+
+# Or verify your cwd
+pwd
+ls *.yaml
+```
+
+---
+
+## Debug Mode
+
+When you're stuck, always try debug mode first. It shows everything:
+
+```bash
+testmesh debug my-flow.yaml
+```
+
+Debug mode shows:
+
+- Full request — URL, headers, body
+- Full response — status, headers, body
+- Extracted variables after each step
+- Which assertion failed and what the actual value was
+
+You can step through each action interactively, which makes it easy to identify exactly where things go wrong.
+
+---
+
+## Getting More Help
+
+<Cards>
+  <Card title="GitHub Issues" description="Report a bug or search existing issues" href="https://github.com/test-mesh/testmesh/issues" />
+  <Card title="CLI Debug Command" description="Full reference for the debug command" href="/docs/cli/debug" />
+  <Card title="Your First Flow" description="Start from scratch with a working example" href="/docs/getting-started/first-flow" />
+</Cards>

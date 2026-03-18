@@ -1,0 +1,159 @@
+---
+title: Installation
+description: Install the TestMesh CLI and set up your environment.
+---
+
+<Callout type="info">
+**Not sure which option to choose?** Use **Option A (Docker)** if you want to evaluate TestMesh quickly. Use **Option B (from source)** if you're contributing to the project or need the latest changes.
+</Callout>
+
+The TestMesh CLI runs flows locally without needing the full API server. It connects directly to your services and infrastructure.
+
+## Prerequisites
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Go | 1.23+ | Required only for `go install` or building from source |
+| Docker | Any recent version | Required for local infrastructure |
+| Anthropic or OpenAI API key | — | Required only for AI features (`generate`, `chat`) |
+
+## Install the CLI
+
+<Tabs items={["Homebrew", "curl", "Install via Go", "Build from Source"]}>
+  <Tab value="Homebrew">
+    ```bash
+    brew install test-mesh/brew/testmesh
+    ```
+
+    Verify the installation:
+
+    ```bash
+    testmesh --version
+    ```
+  </Tab>
+  <Tab value="curl">
+    ```bash
+    curl -fsSL https://testmesh.io/install.sh | sh
+    ```
+  </Tab>
+  <Tab value="Install via Go">
+    Install the latest released version directly with `go install`:
+
+    ```bash
+    go install github.com/test-mesh/testmesh/cli@latest
+    ```
+
+    Verify the installation:
+
+    ```bash
+    testmesh --help
+    ```
+  </Tab>
+  <Tab value="Build from Source">
+    Clone the repository and build the binary:
+
+    <Steps>
+      <Step>
+        Clone the repo:
+
+        ```bash
+        git clone https://github.com/test-mesh/testmesh.git
+        cd testmesh/cli
+        ```
+      </Step>
+      <Step>
+        Build the binary:
+
+        ```bash
+        go build -o testmesh main.go
+        ```
+      </Step>
+      <Step>
+        Run it:
+
+        ```bash
+        ./testmesh --help
+        ```
+
+        Or move it to a location on your `PATH` for global access:
+
+        ```bash
+        mv testmesh /usr/local/bin/testmesh
+        ```
+      </Step>
+    </Steps>
+
+    During development, you can skip the build step and use `go run` directly:
+
+    ```bash
+    go run main.go run ../examples/microservices/e2e-order-flow.yaml
+    ```
+  </Tab>
+</Tabs>
+
+## Environment Variables
+
+The CLI reads configuration from environment variables. Set these before running flows:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | For AI features | Used by `generate` and `chat` commands |
+| `OPENAI_API_KEY` | For AI features (alternative) | Alternative to Anthropic key |
+| `DATABASE_URL` | For database steps | PostgreSQL connection string |
+| `REDIS_URL` | For Redis steps | Redis connection string |
+
+<Callout type="info">
+  If you're only running HTTP-based flows, no environment variables are required. Database, Redis, and Kafka steps each require their respective connection details inside the flow YAML config.
+</Callout>
+
+You can set variables inline when running a flow:
+
+```bash
+BASE_URL=https://staging.example.com testmesh run ./flow.yaml
+```
+
+Or export them for the session:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+testmesh generate --description "Test the login endpoint"
+```
+
+## Verify the Installation
+
+Running `testmesh --help` should print the available commands:
+
+```
+Usage:
+  testmesh [command]
+
+Available Commands:
+  run         Execute a flow
+  validate    Validate flow YAML without executing
+  debug       Execute a flow step-by-step interactively
+  watch       Auto-run a flow on file changes
+  generate    AI-powered test flow generation
+  chat        Conversational test creation
+  mock        Start a local mock HTTP server
+  init        Initialize a new TestMesh project
+  login       Authenticate with a TestMesh server
+  report      View execution reports
+  import      Import flows from Postman or OpenAPI
+  export      Export flows to other formats
+  config      Manage CLI configuration
+  schedule    Manage scheduled flows
+  mcp         Start the MCP server for AI integration
+
+Use "testmesh [command] --help" for more information about a command.
+```
+
+<Callout type="tip">
+  Next, follow the [Your First Flow](/docs/getting-started/first-flow) guide to write and run a test.
+</Callout>
+
+## What's Next
+
+<Cards>
+  <Card title="Your First Flow" href="/docs/getting-started/first-flow" description="Write and run your first test." />
+  <Card title="CLI Reference" href="/docs/cli" description="All testmesh commands explained." />
+</Cards>

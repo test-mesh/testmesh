@@ -1,0 +1,321 @@
+---
+title: Data Generation
+description: Generate realistic, unique test data using Faker integration, built-in random variables, and reusable data factory templates.
+---
+
+Hardcoded test data causes collisions on reruns and makes tests brittle. TestMesh provides deep Faker integration and built-in random generators so every test run uses fresh, realistic data.
+
+---
+
+## Built-in Random Variables
+
+Quick generators available anywhere in your flow config:
+
+```yaml
+flow:
+  name: "Basic Random Data"
+  steps:
+    - action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        body:
+          id: "${RANDOM_ID}"           # UUID: "550e8400-e29b-41d4-a716-446655440000"
+          code: "${RANDOM_INT}"        # Integer: 742891
+          token: "${RANDOM_STRING}"    # Alphanumeric: "aB3kD9mN2pQ5rT8w"
+          timestamp: "${TIMESTAMP}"    # ISO 8601: "2024-01-15T10:30:00Z"
+          unix_time: "${TIMESTAMP_UNIX}" # Unix: 1705315800
+```
+
+---
+
+## Faker Library Integration
+
+TestMesh integrates with Faker for realistic, domain-appropriate test data across all action types.
+
+### Personal Information
+
+```yaml
+body:
+  first_name: "${FAKER.name.firstName}"        # "John"
+  last_name: "${FAKER.name.lastName}"          # "Doe"
+  full_name: "${FAKER.name.fullName}"          # "John Doe"
+  email: "${FAKER.internet.email}"             # "john.doe@example.com"
+  username: "${FAKER.internet.userName}"       # "john.doe123"
+  phone: "${FAKER.phone.phoneNumber}"          # "+1-555-123-4567"
+  street: "${FAKER.address.streetAddress}"     # "123 Main St"
+  city: "${FAKER.address.city}"               # "San Francisco"
+  state: "${FAKER.address.state}"             # "California"
+  zip: "${FAKER.address.zipCode}"             # "94102"
+  country: "${FAKER.address.country}"         # "United States"
+```
+
+### Financial and Commerce
+
+```yaml
+body:
+  product: "${FAKER.commerce.productName}"     # "Ergonomic Keyboard"
+  price: "${FAKER.commerce.price}"             # "49.99"
+  color: "${FAKER.commerce.color}"             # "blue"
+  account_number: "${FAKER.finance.account}"  # "12345678"
+  credit_card: "${FAKER.finance.creditCardNumber}" # "4111111111111111"
+  amount: "${FAKER.finance.amount}"            # "1234.56"
+  currency: "${FAKER.finance.currencyCode}"   # "USD"
+```
+
+### Internet and Tech
+
+```yaml
+body:
+  url: "${FAKER.internet.url}"                 # "https://example.com"
+  ip: "${FAKER.internet.ip}"                  # "192.168.1.1"
+  user_agent: "${FAKER.internet.userAgent}"   # "Mozilla/5.0..."
+  uuid: "${FAKER.datatype.uuid}"              # "550e8400-e29b-41d4-a716-446655440000"
+  boolean: "${FAKER.datatype.boolean}"        # true/false
+  number: "${FAKER.datatype.number}"          # 42
+```
+
+### Dates and Times
+
+```yaml
+body:
+  past_date: "${FAKER.date.past}"             # "2023-06-15T10:30:00Z"
+  future_date: "${FAKER.date.future}"         # "2025-06-15T10:30:00Z"
+  recent_date: "${FAKER.date.recent}"         # "2024-01-14T10:30:00Z"
+  birthdate: "${FAKER.date.birthdate}"        # "1990-05-20T00:00:00Z"
+```
+
+---
+
+## Large Payloads with Mixed Static and Dynamic Fields
+
+Combine static business-logic values with dynamic test data:
+
+```yaml title="create-user-full.yaml"
+flow:
+  name: "Create User with Full Profile"
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        body:
+          email: "${FAKER.internet.email}"
+          username: "${FAKER.internet.userName}"
+          password: "Test123!@#"  # Static — predictable for login steps
+
+          profile:
+            first_name: "${FAKER.name.firstName}"
+            last_name: "${FAKER.name.lastName}"
+            date_of_birth: "${FAKER.date.birthdate}"
+            gender: "male"
+            phone: "${FAKER.phone.phoneNumber}"
+
+            address:
+              street: "${FAKER.address.streetAddress}"
+              city: "${FAKER.address.city}"
+              state: "${FAKER.address.state}"
+              zip_code: "${FAKER.address.zipCode}"
+              country: "US"  # Static — test US-specific business logic
+
+            bio: "${FAKER.lorem.paragraph}"
+
+          preferences:
+            language: "en"
+            timezone: "America/New_York"
+            newsletter: true
+            notifications_enabled: "${FAKER.datatype.boolean}"
+
+          metadata:
+            signup_source: "web"
+            referral_code: "${RANDOM_STRING}"
+            device_id: "${FAKER.datatype.uuid}"
+            ip_address: "${FAKER.internet.ip}"
+```
+
+---
+
+## Saving Generated Values for Later Assertions
+
+Always capture generated values so you can assert the API echoed them back correctly:
+
+```yaml
+flow:
+  name: "Create and Verify User"
+  steps:
+    - id: create
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        body:
+          email: "${FAKER.internet.email}"
+          name: "${FAKER.name.fullName}"
+          age: "${FAKER.datatype.number(min: 18, max: 80)}"
+      save:
+        generated_email: "${body.email}"
+        generated_name: "${body.name}"
+        user_id: "$.id"
+
+    - action: http_request
+      config:
+        method: GET
+        url: "${API_URL}/users/${create.user_id}"
+        assert:
+          - json_path: "$.email == '${create.generated_email}'"
+          - json_path: "$.name == '${create.generated_name}'"
+```
+
+---
+
+## Kafka Messages with Generated Data
+
+Generated data works across all action types, including Kafka producers:
+
+```yaml
+flow:
+  name: "Publish User Event"
+  steps:
+    - action: kafka_publish
+      config:
+        topic: "user.events"
+        key: "${RANDOM_ID}"
+        message:
+          event_id: "${FAKER.datatype.uuid}"
+          event_type: "user.created"
+          timestamp: "${TIMESTAMP}"
+
+          data:
+            user_id: "${RANDOM_ID}"
+            email: "${FAKER.internet.email}"
+            name: "${FAKER.name.fullName}"
+            age: "${FAKER.datatype.number(min: 18, max: 80)}"
+            country: "US"
+
+            preferences:
+              language: "en"
+              marketing_opt_in: "${FAKER.datatype.boolean}"
+
+          trace:
+            correlation_id: "${RANDOM_ID}"
+            source_system: "web-app"
+```
+
+---
+
+## Data Factories (Reusable Templates)
+
+Define base templates in `env` and compose them across steps:
+
+```yaml
+flow:
+  name: "User Factory Pattern"
+
+  env:
+    BASE_USER:
+      email: "${FAKER.internet.email}"
+      username: "${FAKER.internet.userName}"
+      password: "Test123!@#"
+      profile:
+        first_name: "${FAKER.name.firstName}"
+        last_name: "${FAKER.name.lastName}"
+        phone: "${FAKER.phone.phoneNumber}"
+
+    ADMIN_USER:
+      <<: ${BASE_USER}
+      role: "admin"
+      permissions: ["read", "write", "delete"]
+
+    BASIC_USER:
+      <<: ${BASE_USER}
+      role: "user"
+      permissions: ["read"]
+
+  steps:
+    - id: create_admin
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        body: ${ADMIN_USER}
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        body: ${BASIC_USER}
+```
+
+---
+
+## Template Functions
+
+### String Manipulation
+
+```yaml
+body:
+  full_email: "test+${RANDOM_STRING}@example.com"   # Unique test email
+  username: "user_${RANDOM_INT}"                    # "user_742891"
+  short_id: "${RANDOM_ID.substring(0, 8)}"           # "550e8400"
+  email_upper: "${FAKER.internet.email.upper()}"    # "JOHN.DOE@EXAMPLE.COM"
+```
+
+### Arithmetic
+
+```yaml
+body:
+  quantity: "${RANDOM_INT % 10 + 1}"          # Random 1–10
+  total: "${FAKER.commerce.price * 1.08}"     # Price + 8% tax
+  discount: "${FAKER.commerce.price > 50 ? 10 : 0}"
+```
+
+### Custom Ranges
+
+```yaml
+body:
+  age: "${FAKER.datatype.number(min: 18, max: 80)}"
+  score: "${FAKER.datatype.number(min: 0, max: 100, precision: 0.01)}"
+  signup_date: "${FAKER.date.between('2023-01-01', '2024-12-31')}"
+  tags: "${FAKER.random.words(5)}"
+```
+
+---
+
+## Reproducibility with Seeds
+
+Set a seed for deterministic data generation — useful for debugging specific scenarios:
+
+```yaml
+flow:
+  name: "Reproducible Test"
+
+  config:
+    faker:
+      locale: "en_US"
+      seed: 12345  # Every run produces the same values
+
+  steps:
+    - action: http_request
+      config:
+        body:
+          name: "${FAKER.name.fullName}"     # Always "John Doe" with seed 12345
+          email: "${FAKER.internet.email}"   # Always the same email
+```
+
+<Callout type="tip">
+  Use seeding when debugging a flaky test that uses random data. Reproduce the exact data that caused the failure by setting the same seed, then remove the seed once fixed.
+</Callout>
+
+---
+
+## Best Practices
+
+| Do | Avoid |
+|---|---|
+| `email: "${FAKER.internet.email}"` — realistic format | `email: "test@example.com"` — collides on reruns |
+| `name: "${FAKER.name.fullName}"` — readable in logs | `name: "${RANDOM_STRING}"` — not realistic |
+| Save generated values to assert round-trip correctness | Hardcode expected values that change each run |
+| Use static values for business logic (role, country) | Randomize values that affect business rules |
+| Use seeds when reproducing specific failures | Leave seeds in production test suites |

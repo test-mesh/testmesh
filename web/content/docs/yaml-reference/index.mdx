@@ -1,0 +1,74 @@
+---
+title: YAML Reference
+description: Complete reference for TestMesh flow YAML schema — every field, every action, every option.
+---
+
+TestMesh flows are defined in YAML files. Each file contains a single flow wrapped in a `flow:` key at the root level. This reference covers every field, action type, and expression the schema supports.
+
+<Callout type="warn">
+  The `flow:` wrapper at the root level is required. A file that starts directly with `name:` or `steps:` will be rejected by the CLI and API.
+</Callout>
+
+## Minimal valid flow
+
+```yaml title="minimal.yaml"
+flow:
+  name: "Health Check"
+  steps:
+    - id: ping
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5016/health"
+      assert:
+        - status == 200
+```
+
+## Top-level fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | Yes | Human-readable name, 1–255 characters |
+| `description` | string | No | Longer description of what the flow tests |
+| `version` | string | No | Semver string, defaults to `"1.0.0"` |
+| `env` | object | No | Flow-scoped environment variables |
+| `setup` | array | No | Steps that run before `steps`, used for preconditions |
+| `teardown` | array | No | Steps that run after `steps`, even on failure |
+| `steps` | array | Yes | The main test steps, minimum 1 |
+| `config` | object | No | Flow-level timeout, retry, and fail-fast settings |
+| `tags` | array | No | Labels for filtering and grouping flows |
+| `suite` | string | No | Suite name for grouping related flows |
+| `author` | string | No | Email address of the flow author |
+
+## Design principles
+
+TestMesh flows are designed around five principles:
+
+**Human-readable** — YAML maps naturally to the intent of each test step. No code required to write or understand a flow.
+
+**Type-safe** — Every field has a defined type and validation rule. Invalid YAML produces a clear error before execution begins.
+
+**Composable** — Flows can call other flows using `run_flow`. Reuse login sequences, setup routines, and data fixtures across many tests.
+
+**Extensible** — New action types plug into the same step structure. Adding a new protocol doesn't change how flows are written.
+
+**IDE-friendly** — The full JSON Schema is published, enabling autocomplete and inline validation in VS Code and JetBrains IDEs.
+
+## Reference sections
+
+<Cards>
+  <Card title="Flow Structure" href="/docs/yaml-reference/flow-structure" description="Metadata, env, config, setup, and teardown." />
+  <Card title="Steps" href="/docs/yaml-reference/steps" description="Step anatomy: id, action, config, assert, output, when, retry." />
+  <Card title="Assertions" href="/docs/yaml-reference/assertions" description="Expression syntax for validating step results." />
+  <Card title="Variables" href="/docs/yaml-reference/variables" description="Variable extraction, interpolation, and built-in values." />
+  <Card title="Actions" href="/docs/yaml-reference/actions" description="All action types: HTTP, database, Kafka, gRPC, WebSocket, and more." />
+</Cards>
+
+## What's Next
+
+<Cards>
+  <Card title="Flow Structure" href="/docs/yaml-reference/flow-structure" description="name, env, setup, teardown, config fields." />
+  <Card title="Steps" href="/docs/yaml-reference/steps" description="Step anatomy: id, action, assert, output, when, retry." />
+  <Card title="Actions" href="/docs/yaml-reference/actions" description="All action types: HTTP, Kafka, database, gRPC, and more." />
+  <Card title="Cheat Sheet" href="/docs/cheat-sheet" description="One-page quick reference for the most common patterns." />
+</Cards>

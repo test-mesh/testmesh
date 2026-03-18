@@ -1,0 +1,420 @@
+---
+title: Control Flow
+description: Branching, looping, parallel execution, polling, delays, logging, and sub-flow invocation.
+---
+
+Control flow actions let you build complex test scenarios: branch on conditions, iterate over lists, run steps in parallel, wait for async events, and compose flows from reusable sub-flows.
+
+## condition
+
+Executes one of two branches based on a boolean expression.
+
+```yaml
+- id: branch_on_status
+  action: condition
+  config:
+    condition: "${check_response.status} == 200"
+    then:
+      - id: success_path
+        action: http_request
+        config:
+          method: POST
+          url: "${API_URL}/success"
+
+      - id: log_success
+        action: log
+        config:
+          message: "Processing succeeded"
+
+    else:
+      - id: error_path
+        action: http_request
+        config:
+          method: POST
+          url: "${API_URL}/error"
+
+      - id: log_error
+        action: log
+        config:
+          level: error
+          message: "Processing failed: ${check_response.body.error}"
+```
+
+### Config fields
+
+| Field | Required | Description |
+|---|---|---|
+| `condition` | Yes | Boolean expression to evaluate |
+| `then` | Yes | Steps to run when condition is true |
+| `else` | No | Steps to run when condition is false |
+
+### Simpler if/else using `when`
+
+For simple cases, use the `when` field on individual steps rather than the `condition` action:
+
+```yaml
+- id: handle_ready
+  when: "${is_ready} == true"
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/process"
+
+- id: handle_not_ready
+  when: "${is_ready} == false"
+  action: log
+  config:
+    message: "Service not ready"
+```
+
+---
+
+## for_each
+
+Iterates over an array, a range, or a glob pattern of files.
+
+### Iterate over an array
+
+```yaml
+- id: process_each_user
+  action: for_each
+  config:
+    items: "${get_users.users}"      # Variable holding an array
+    item_name: "user"                # Name for the current item
+
+    steps:
+      - id: update_user
+        action: http_request
+        config:
+          method: PUT
+          url: "${API_URL}/users/${user.id}"
+          body:
+            last_processed: "${TIMESTAMP}"
+        assert:
+          - status == 200
+```
+
+### Iterate over inline items
+
+```yaml
+- id: add_items_to_cart
+  action: for_each
+  config:
+    items:
+      - { product_id: "prod_1", quantity: 2 }
+      - { product_id: "prod_2", quantity: 1 }
+      - { product_id: "prod_3", quantity: 3 }
+    item_name: "item"
+
+    steps:
+      - id: add_item
+        action: http_request
+        config:
+          method: POST
+          url: "${API_URL}/carts/${cart_id}/items"
+          body:
+            product_id: "${item.product_id}"
+            quantity: "${item.quantity}"
+        assert:
+          - status == 201
+```
+
+### Iterate with index
+
+```yaml
+- id: loop_with_index
+  action: for_each
+  config:
+    items: "${items}"
+    item_name: "item"
+    index_name: "index"          # Zero-based index variable
+
+    steps:
+      - action: log
+        config:
+          message: "Processing item ${index}: ${item.name}"
+```
+
+### Iterate over a numeric range
+
+```yaml
+- id: paginate_through_results
+  action: for_each
+  config:
+    range:
+      start: 1
+      end: 10
+      step: 1
+    item_name: "page"
+
+    steps:
+      - action: http_request
+        config:
+          method: GET
+          url: "${API_URL}/users?page=${page}"
+```
+
+### Iterate over files matching a glob
+
+```yaml
+- id: process_fixture_files
+  action: for_each
+  config:
+    items_from_glob: "data/*.json"
+    item_name: "file_path"
+
+    steps:
+      - action: run_flow
+        config:
+          flow: "import-test-data"
+          input_file: "${file_path}"
+```
+
+### Loop configuration
+
+```yaml
+config:
+  items: "${list}"
+  item_name: "item"
+  max_iterations: 100       # Safety limit to prevent infinite loops
+  continue_on_error: true   # Don't stop if one iteration fails
+  parallel: false           # Run iterations sequentially (default)
+```
+
+---
+
+## parallel
+
+Runs multiple steps concurrently and waits for them all to complete.
+
+```yaml
+- id: parallel_api_calls
+  action: parallel
+  config:
+    steps:
+      - id: fetch_users
+        action: http_request
+        config:
+          method: GET
+          url: "${API_URL}/users"
+
+      - id: fetch_products
+        action: http_request
+        config:
+          method: GET
+          url: "${API_URL}/products"
+
+      - id: fetch_orders
+        action: http_request
+        config:
+          method: GET
+          url: "${API_URL}/orders"
+
+    wait_for_all: true        # Default: true
+    fail_fast: false          # Don't stop on first sub-step failure
+    max_concurrent: 3         # Limit concurrent execution
+
+  # Access results by step ID
+  output:
+    users: "parallel_api_calls.fetch_users.response.body"
+    products: "parallel_api_calls.fetch_products.response.body"
+
+  assert:
+    - fetch_users.status == 200
+    - fetch_products.status == 200
+    - fetch_orders.status == 200
+```
+
+---
+
+## wait_until
+
+Polls repeatedly until a condition becomes true, or a timeout is reached.
+
+```yaml
+- id: wait_for_job_completion
+  action: wait_until
+  config:
+    condition: "${check_job.status} == 'completed'"
+    max_duration: "5m"
+    interval: "10s"
+    on_timeout: "fail"        # "fail" (default) or "continue"
+
+    steps:
+      - id: check_job
+        action: http_request
+        config:
+          method: GET
+          url: "${API_URL}/jobs/${job_id}"
+        output:
+          status: "response.body.status"
+          progress: "response.body.progress"
+
+  output:
+    final_status: "check_job.status"
+```
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `condition` | Yes | — | Boolean expression evaluated after each poll |
+| `max_duration` | Yes | — | Maximum time to wait |
+| `interval` | No | `"1s"` | Time between polls |
+| `steps` | Yes | — | Steps executed on each poll cycle |
+| `on_timeout` | No | `"fail"` | What to do when `max_duration` is exceeded |
+
+---
+
+## assert (standalone)
+
+Evaluates assertions independently of any action. Useful for checking accumulated variable state.
+
+```yaml
+- id: verify_preconditions
+  action: assert
+  config:
+    assertions:
+      - expression: "${user_id} exists"
+        message: "User ID must be set before placing an order"
+
+      - expression: "${auth_token} exists"
+        message: "Auth token is required"
+
+      - expression: "${cart_total} > 0"
+        message: "Cart must have items with a total greater than zero"
+```
+
+---
+
+## log
+
+Prints a message to the execution log. Useful for debugging and documenting test progress.
+
+```yaml
+- id: log_step_info
+  action: log
+  config:
+    level: info              # debug, info, warn, error
+    message: "Created user with ID ${user_id}"
+    data:
+      user_id: "${user_id}"
+      timestamp: "${TIMESTAMP}"
+```
+
+---
+
+## delay
+
+Pauses execution for a fixed duration. Use sparingly — prefer `wait_until` for polling.
+
+```yaml
+- id: wait_for_propagation
+  action: delay
+  config:
+    duration: "5s"
+```
+
+---
+
+## run_flow (sub-flow)
+
+Calls another flow as a sub-flow and passes input variables. The calling flow waits for the sub-flow to complete before continuing.
+
+```yaml
+- id: login
+  action: run_flow
+  config:
+    flow: "user-login"         # Flow name or ID
+    input:
+      email: "${USER_EMAIL}"
+      password: "${USER_PASSWORD}"
+    inherit_env: true          # Pass env vars to sub-flow (default: true)
+  output:
+    auth_token: "flow.output.token"
+    user_id: "flow.output.user_id"
+  assert:
+    - flow.status == "success"
+```
+
+### Load input from file
+
+```yaml
+- id: run_with_fixtures
+  action: run_flow
+  config:
+    flow: "product-import-test"
+    input_file: "fixtures/products.json"
+```
+
+<Callout type="warn">
+  Flows cannot call themselves directly or indirectly. Circular sub-flow references are detected at validation time and rejected.
+</Callout>
+
+---
+
+## Try/catch pattern
+
+Use `on_error: "continue"` with a conditional follow-up step to implement try/catch:
+
+```yaml
+- id: try_operation
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/risky-operation"
+  on_error: "continue"
+  output:
+    operation_status: "response.status"
+    operation_error: "error.message"
+
+- id: handle_error
+  when: "${try_operation.operation_status} >= 400"
+  action: http_request
+  config:
+    method: POST
+    url: "${WEBHOOK_URL}/alert"
+    body:
+      error: "${try_operation.operation_error}"
+      timestamp: "${TIMESTAMP}"
+```
+
+---
+
+## Switch/case pattern
+
+Simulate switch/case logic using multiple steps with `when` conditions:
+
+```yaml
+- id: get_order_status
+  action: http_request
+  config:
+    method: GET
+    url: "${API_URL}/orders/${order_id}"
+  output:
+    status: "response.body.status"
+
+- id: handle_pending
+  when: "${get_order_status.status} == 'pending'"
+  action: log
+  config:
+    message: "Order is pending"
+
+- id: handle_processing
+  when: "${get_order_status.status} == 'processing'"
+  action: log
+  config:
+    message: "Order is processing"
+
+- id: handle_completed
+  when: "${get_order_status.status} == 'completed'"
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/finalize/${order_id}"
+
+- id: handle_unknown
+  when: "${get_order_status.status} not in ['pending', 'processing', 'completed']"
+  action: log
+  config:
+    level: error
+    message: "Unknown order status: ${get_order_status.status}"
+```

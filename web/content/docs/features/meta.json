@@ -1,0 +1,14 @@
+{
+  "title": "Features",
+  "pages": [
+    "mock-server",
+    "async-patterns",
+    "contract-testing",
+    "data-generation",
+    "ai-integration",
+    "mcp-integration",
+    "observability",
+    "scheduling",
+    "reporting"
+  ]
+}

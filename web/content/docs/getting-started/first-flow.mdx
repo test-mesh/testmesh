@@ -1,0 +1,275 @@
+---
+title: Your First Flow
+description: Write and run your first TestMesh flow.
+---
+
+<Callout type="warn">
+**Demo services required.** The examples on this page hit `localhost:5001` (user-service). Start the demo services before running:
+
+```bash
+docker-compose -f docker-compose.services.yml up -d
+```
+
+Or follow the [full installation guide](/docs/getting-started/installation) to start everything.
+</Callout>
+
+A **flow** is a YAML file that defines a sequence of steps. Each step performs an action — an HTTP request, a database query, a Kafka message, and more — and optionally asserts the result and extracts values for use in later steps.
+
+## The Minimal Flow
+
+Create a file called `my-first-flow.yaml`:
+
+```yaml title="my-first-flow.yaml"
+flow:
+  name: "My First Test"
+  steps:
+    - id: check_health
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5001/health"
+      assert:
+        - status == 200
+```
+
+Run it:
+
+```bash
+cd cli
+go run main.go run ../my-first-flow.yaml
+```
+
+<Callout type="info">
+  The `flow:` wrapper at the root level is required. The CLI will reject files that start directly with `name:` or `steps:`.
+</Callout>
+
+## Asserting Response Data
+
+Assertions use [expr-lang](https://expr-lang.org/) expressions. You can access `status`, `body`, and `headers` from the HTTP response:
+
+```yaml title="assert-body.yaml"
+flow:
+  name: "Check User Response"
+  steps:
+    - id: get_user
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5001/users/1"
+      assert:
+        - status == 200
+        - body.name != ""
+        - body.email contains "@"
+```
+
+<Callout type="info">
+  Supported assertion operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `contains`, `matches`, `in`, `not in`. Expressions are evaluated per step after the action completes.
+</Callout>
+
+## Passing Data Between Steps
+
+Use the `output` block to extract values from a step's response using JSONPath, then reference them in later steps with `{{variable_name}}`:
+
+```yaml title="chained-steps.yaml"
+flow:
+  name: "Create Then Fetch"
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/users"
+        body:
+          name: "Alice"
+          email: "alice@example.com"
+      assert:
+        - status == 201
+      output:
+        user_id: $.body.id
+        user_name: $.body.name
+
+    - id: get_user
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5001/users/{{user_id}}"
+      assert:
+        - status == 200
+        - body.name == "Alice"
+```
+
+Variables extracted in `output` are available to all subsequent steps via the `{{variable_name}}` template syntax.
+
+## Headers and Authentication
+
+Pass headers per-step in the `config.headers` map. A common pattern is to log in first, extract the token, then use it in subsequent requests:
+
+```yaml title="auth-flow.yaml"
+flow:
+  name: "Authenticated Requests"
+  steps:
+    - id: login
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5016/api/v1/auth/login"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "admin@example.com"
+          password: "password"
+      assert:
+        - status == 200
+      output:
+        token: $.body.token
+
+    - id: list_flows
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5016/api/v1/workspaces/{{workspace_id}}/flows"
+        headers:
+          Authorization: "Bearer {{token}}"
+      assert:
+        - status == 200
+```
+
+## Database Steps
+
+Query your database and assert on the returned rows:
+
+```yaml title="db-step.yaml"
+flow:
+  name: "Database Check"
+  steps:
+    - id: check_db
+      action: database_query
+      config:
+        connection_string: "postgres://testmesh:testmesh@localhost:5432/testmesh?sslmode=disable"
+        query: "SELECT id, name FROM flows WHERE id = $1"
+        params:
+          - "{{flow_id}}"
+      assert:
+        - rows[0].name == "Expected Flow Name"
+```
+
+## Kafka Steps
+
+Publish events and consume them to verify async workflows:
+
+```yaml title="kafka-steps.yaml"
+flow:
+  name: "Kafka Event Flow"
+  steps:
+    - id: publish_event
+      action: kafka_producer
+      config:
+        brokers: ["localhost:9092"]
+        topic: "orders"
+        key: "order-{{order_id}}"
+        value:
+          order_id: "{{order_id}}"
+          status: "placed"
+
+    - id: consume_event
+      action: kafka_consumer
+      config:
+        brokers: ["localhost:9092"]
+        topic: "order-notifications"
+        group_id: "test-group"
+        timeout: 10s
+      assert:
+        - messages[0].value.status == "confirmed"
+```
+
+## Running and Debugging
+
+```bash
+# Execute the flow
+go run main.go run path/to/my-flow.yaml
+
+# Validate YAML without executing
+go run main.go validate path/to/my-flow.yaml
+
+# Step through interactively
+go run main.go debug path/to/my-flow.yaml
+```
+
+## Complete Multi-Step Example
+
+This flow tests an entire order lifecycle across four microservices:
+
+```yaml title="order-lifecycle.yaml"
+flow:
+  name: "Order Lifecycle"
+  description: "Create user, place order, verify notification"
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/users"
+        body:
+          name: "Test User"
+          email: "test@example.com"
+      assert:
+        - status == 201
+      output:
+        user_id: $.body.id
+
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5002/products"
+        body:
+          name: "Widget"
+          price: 9.99
+          inventory: 100
+      assert:
+        - status == 201
+      output:
+        product_id: $.body.id
+
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5003/orders"
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 2
+      assert:
+        - status == 201
+        - body.total > 0
+      output:
+        order_id: $.body.id
+
+    - id: verify_notification
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5004/notifications?user_id={{user_id}}"
+      assert:
+        - status == 200
+        - body.notifications[0].type == "order_placed"
+```
+
+## Next Steps
+
+<Cards>
+  <Card title="Core Concepts" href="/docs/getting-started/concepts" description="Deep-dive into flows, steps, actions, assertions, and variable scoping." />
+  <Card title="CLI Reference" href="/docs/cli" description="Full reference for all CLI commands and flags." />
+  <Card title="Action Types" href="/docs/actions" description="Every available action type and its configuration options." />
+</Cards>
+
+## What's Next
+
+<Cards>
+  <Card title="Core Concepts" href="/docs/getting-started/concepts" description="Deep dive into flows, assertions, and the variable system." />
+  <Card title="YAML Reference" href="/docs/yaml-reference" description="Complete reference for all action types and options." />
+  <Card title="CLI Commands" href="/docs/cli" description="Run, debug, watch, and generate flows from the command line." />
+  <Card title="Troubleshooting" href="/docs/getting-started/troubleshooting" description="Common errors and how to fix them." />
+</Cards>

@@ -1,0 +1,69 @@
+---
+title: testmesh debug
+description: Execute a flow step-by-step with interactive inspection.
+---
+
+The `debug` command runs a flow interactively, pausing after each step so you can inspect the full response and extracted variables before continuing.
+
+## Usage
+
+```bash
+testmesh debug <flow.yaml>
+```
+
+## Example
+
+```bash
+testmesh debug ./my-flow.yaml
+```
+
+## How It Works
+
+Debug mode executes steps one at a time:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Step 1/4: create_user (http_request)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Request:
+  POST http://localhost:5001/users
+  Body: {"name":"Alice","email":"alice@example.com"}
+
+Response:
+  Status: 201
+  Body: {
+    "id": "a1b2c3d4",
+    "name": "Alice",
+    "email": "alice@example.com",
+    "created_at": "2026-03-16T10:00:00Z"
+  }
+
+Assertions:
+  [PASS] status == 201
+
+Extracted variables:
+  user_id = "a1b2c3d4"
+
+[Enter] continue  [r] retry step  [q] quit
+```
+
+After each step you can:
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Continue to the next step |
+| `r` | Retry the current step |
+| `q` | Quit without running remaining steps |
+
+## When to Use Debug Mode
+
+Debug mode is most useful when:
+
+- **Building a new flow** — run it step by step to confirm each request and response looks correct before writing assertions.
+- **Diagnosing a failing test** — see exactly what the API returned versus what you asserted.
+- **Exploring an unfamiliar API** — make requests interactively and inspect real responses to discover the shape of the data.
+
+<Callout type="tip">
+  Pair `debug` with `watch` during active development. Use `debug` to get a step working, then switch to `watch` for rapid iteration as you refine assertions.
+</Callout>

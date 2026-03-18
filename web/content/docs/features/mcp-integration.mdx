@@ -1,0 +1,508 @@
+---
+title: MCP Integration
+description: Use the Model Context Protocol to embed AI reasoning directly in test flows — for intelligent assertions, dynamic test data, error analysis, and natural language validation.
+---
+
+**Model Context Protocol (MCP)** is an open protocol by Anthropic that enables AI assistants to securely connect to external tools and data sources. TestMesh supports two directions of MCP integration:
+
+1. **`mcp_call` action** — Call an MCP server from within a flow step (AI as a test step)
+2. **`testmesh mcp` command** — Expose TestMesh itself as an MCP server for use with Claude Code, Cursor, and other MCP clients
+
+---
+
+## The `mcp` Action
+
+Use AI reasoning inline within your test flows for intelligent validation, data extraction, and dynamic decision making.
+
+### Basic Usage
+
+```yaml
+- id: ai_analysis
+  action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      Analyze this API response and determine if it's valid:
+      ${api_response.body}
+
+      Check for:
+      1. Required fields are present
+      2. Data types are correct
+      3. Values are reasonable
+
+      Return JSON with: {valid: boolean, issues: string[]}
+
+    response_format: "json"
+    model: "claude-sonnet-4-5"
+    temperature: 0
+
+  output:
+    is_valid: "response.valid"
+    issues: "response.issues"
+
+  assert:
+    - response.valid == true
+```
+
+### MCP Action Configuration
+
+```yaml
+- id: mcp_step
+  action: mcp
+  config:
+    server: string           # Required: "claude" or custom server name
+    prompt: string           # Required: instruction for the AI
+    context:                 # Optional data/files for the AI to access
+      - type: "text"
+        content: string
+      - type: "file"
+        path: string
+      - type: "data"
+        data: object
+    tools: array             # Optional tools the AI can call
+    response_format: "json"  # "json", "text", or "structured"
+    model: string
+    max_tokens: number       # Default: 4000
+    temperature: number      # 0 = deterministic, 0.7 = creative
+    conversation_id: string  # Continue a multi-turn conversation
+    cache_prompt: boolean    # Cache large context (cheaper + faster)
+    cache_ttl: duration
+    timeout: duration
+```
+
+---
+
+## Server Configuration
+
+Configure MCP servers in `.testmesh.yaml`:
+
+```yaml title=".testmesh.yaml"
+mcp:
+  servers:
+    - name: "claude"
+      type: "anthropic"
+      config:
+        api_key: "${ANTHROPIC_API_KEY}"
+        model: "claude-sonnet-4-5"
+        max_tokens: 4000
+        temperature: 0
+
+    - name: "claude-opus"
+      type: "anthropic"
+      config:
+        api_key: "${ANTHROPIC_API_KEY}"
+        model: "claude-opus-4-6"
+        max_tokens: 8000
+
+    - name: "custom-analyzer"
+      type: "custom"
+      config:
+        url: "http://localhost:5016/mcp"
+        auth:
+          type: "bearer"
+          token: "${CUSTOM_MCP_TOKEN}"
+
+  settings:
+    timeout: "30s"
+    cache_enabled: true
+    retry_attempts: 3
+    log_prompts: true
+```
+
+---
+
+## Use Cases
+
+### Natural Language Assertions
+
+Write validation rules in plain English instead of complex JSONPath:
+
+```yaml
+- id: verify_response
+  action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      Check if this API response is valid:
+      ${api_response.body}
+
+      Requirements:
+      - User must have an email address
+      - User must be over 18 years old
+      - Account must be verified
+      - No error fields should be present
+
+      Return JSON: {valid: boolean, reason: string}
+
+    response_format: "json"
+
+  assert:
+    - response.valid == true
+```
+
+### Intelligent Data Extraction
+
+Extract structured data from unstructured or complex responses:
+
+```yaml
+- id: extract_data
+  action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      Extract user information from this API response:
+      ${scrape_api.response.body}
+
+      Return JSON with:
+      {
+        "full_name": "first and last name combined",
+        "email": "email address",
+        "phone": "phone number in E.164 format",
+        "age": "calculated from birthday",
+        "is_active": "true if status is 'active' or 'verified'"
+      }
+
+      If any field is missing, return null for that field.
+
+    response_format: "json"
+
+  output:
+    user_name: "response.full_name"
+    user_email: "response.email"
+```
+
+### Complex Business Logic Validation
+
+Validate invoice calculations with business rules that would be tedious to express in assertions:
+
+```yaml
+- id: validate_invoice
+  action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      Validate this invoice for correctness:
+      ${get_invoice.response.body}
+
+      Business rules:
+      1. Subtotal must equal sum of line items
+      2. Tax must be 8.5% of subtotal (rounded to 2 decimals)
+      3. Total must equal subtotal + tax - discount
+      4. Discount cannot exceed 20% of subtotal
+      5. All line items must have positive quantities
+
+      Return JSON:
+      {
+        "valid": boolean,
+        "issues": [{"field": string, "issue": string, "expected": string, "actual": string}],
+        "calculations": {"subtotal": number, "tax": number, "total": number}
+      }
+
+    context:
+      - type: "data"
+        data: "${product_catalog}"
+
+    response_format: "json"
+
+  assert:
+    - response.valid == true
+    - response.issues.length == 0
+```
+
+### AI-Powered Error Analysis
+
+When a step fails, use AI to diagnose the cause:
+
+```yaml
+- id: failing_checkout
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/checkout"
+    body: { cart_id: "${cart_id}" }
+  on_error: "continue"
+
+- id: analyze_failure
+  when: "${failing_checkout.status} >= 400"
+  action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      This API call failed. Analyze the error and suggest fixes:
+
+      Request: POST ${failing_checkout.config.url}
+      Body: ${failing_checkout.config.body}
+      Response Status: ${failing_checkout.status}
+      Response Body: ${failing_checkout.response.body}
+
+      Previous steps succeeded:
+      - Cart creation: ${create_cart.status}
+      - Cart ID: ${cart_id}
+
+      Return JSON: {
+        "root_cause": string,
+        "suggested_fix": string,
+        "additional_tests": string[]
+      }
+
+    response_format: "json"
+
+  output:
+    analysis: "response"
+```
+
+### Dynamic Decision Making
+
+Let AI decide which code path to follow based on a complex status response:
+
+```yaml
+- id: decide_action
+  action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      Based on this job status, what should we do next?
+      ${check_status.response.body}
+
+      Options:
+      1. "continue" - Job is still processing, check again
+      2. "success" - Job completed successfully
+      3. "retry" - Job failed but should retry
+      4. "fail" - Job failed permanently
+
+      Return JSON: {action: string, reason: string}
+
+    response_format: "json"
+
+  output:
+    next_action: "response.action"
+
+- id: handle_retry
+  when: "${decide_action.next_action} == 'retry'"
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/job/${job_id}/retry"
+```
+
+### Multi-Turn Conversations
+
+Maintain context across multiple AI steps:
+
+```yaml
+- id: start_analysis
+  action: mcp
+  config:
+    server: "claude"
+    prompt: "Analyze this API documentation and tell me what test cases I need. ${api_docs}"
+    context:
+      - type: "file"
+        path: "./api-docs.yaml"
+  output:
+    conversation_id: "conversation_id"
+
+- id: generate_test_data
+  action: mcp
+  config:
+    server: "claude"
+    conversation_id: "${start_analysis.conversation_id}"
+    prompt: "Based on the test cases you identified, generate test data for each case. Return as JSON array."
+    response_format: "json"
+  output:
+    test_data: "response"
+
+- id: refine_tests
+  action: mcp
+  config:
+    server: "claude"
+    conversation_id: "${start_analysis.conversation_id}"
+    prompt: "Are we missing any edge cases? Add 3 more edge case tests."
+    response_format: "json"
+```
+
+---
+
+## Built-in Tools for AI
+
+Give the AI access to TestMesh actions so it can perform tasks autonomously:
+
+### HTTP Request Tool
+
+```yaml
+- id: ai_with_api_access
+  action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      Check if user with email "test@example.com" exists.
+      If not, create one. Return the user ID.
+
+    tools:
+      - name: "http_request"
+        config:
+          base_url: "${API_URL}"
+          auth:
+            type: "bearer"
+            token: "${API_TOKEN}"
+
+    response_format: "json"
+
+  output:
+    user_id: "response.user_id"
+```
+
+### Database Query Tool
+
+```yaml
+- id: ai_database_check
+  action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      Check if we have any users with duplicate emails.
+      If found, return their IDs and emails.
+
+    tools:
+      - name: "database_query"
+        config:
+          connection: "${DATABASE_URL}"
+
+    response_format: "json"
+```
+
+### Tool Permissions
+
+Restrict what actions the AI is allowed to take:
+
+```yaml
+tools:
+  - name: "http_request"
+    permissions:
+      methods: ["GET"]                     # Read-only
+      allowed_hosts: ["api.example.com"]   # Specific host only
+      forbidden_paths: ["/admin/*"]
+
+  - name: "database_query"
+    permissions:
+      read_only: true                      # No INSERT/UPDATE/DELETE
+      allowed_tables: ["users", "orders"]
+```
+
+---
+
+## Model Selection
+
+Choose the right model for each task:
+
+```yaml
+# Fast validation tasks → Haiku
+- action: mcp
+  config:
+    model: "claude-haiku-4-5"
+    prompt: "Is this JSON valid?"
+
+# General tasks → Sonnet
+- action: mcp
+  config:
+    model: "claude-sonnet-4-5"
+    prompt: "Extract data from response"
+
+# Complex reasoning → Opus
+- action: mcp
+  config:
+    model: "claude-opus-4-6"
+    prompt: "Analyze this complex business logic and identify all edge cases..."
+```
+
+---
+
+## TestMesh as an MCP Server
+
+Run TestMesh as an MCP server so AI tools like Claude Code can directly analyze workspaces, generate flows, and execute tests:
+
+```bash
+testmesh mcp
+```
+
+This exposes the following tools to MCP clients:
+
+| Tool | Description |
+|---|---|
+| `analyze_workspace` | Analyze a directory of flows and report coverage |
+| `analyze_service` | Analyze a running service's API endpoints |
+| `generate_flow` | Generate a test flow from a description |
+| `generate_e2e_flow` | Generate an end-to-end flow across multiple services |
+| `list_flows` | List available flows in the workspace |
+| `run_flow` | Execute a flow and return results |
+| `validate_flow` | Validate a flow YAML file |
+| `get_action_types` | List all supported action types |
+
+### Using with Claude Code
+
+Add TestMesh to Claude Code's MCP configuration:
+
+```json title="~/.claude/mcp_servers.json"
+{
+  "testmesh": {
+    "command": "testmesh",
+    "args": ["mcp"]
+  }
+}
+```
+
+Once configured, you can ask Claude Code to analyze your services, generate test flows, and run tests directly from your IDE.
+
+---
+
+## Performance and Cost
+
+### Caching Large Context
+
+When your prompt includes a large, static document (like an OpenAPI spec), enable caching to reduce cost and latency:
+
+```yaml
+- action: mcp
+  config:
+    server: "claude"
+    prompt: |
+      Using this API specification:
+      ${large_api_spec}
+
+      Generate test cases for the /users endpoint.
+
+    cache_prompt: true
+    cache_ttl: "24h"   # Cached tokens cost ~90% less
+```
+
+### Parallel AI Calls
+
+Run independent AI analysis steps concurrently:
+
+```yaml
+- action: parallel
+  config:
+    steps:
+      - id: analyze_response
+        action: mcp
+        config:
+          prompt: "Analyze response..."
+
+      - id: analyze_logs
+        action: mcp
+        config:
+          prompt: "Analyze logs..."
+```
+
+---
+
+## Best Practices
+
+<Callout type="tip">
+  Use `temperature: 0` for validation and data extraction tasks where you need consistent, deterministic results. Use higher temperatures (0.5–0.7) only for creative tasks like generating diverse test data.
+</Callout>
+
+- **Be specific in prompts.** Tell the AI exactly what fields to return and what rules to check.
+- **Always request structured output.** Set `response_format: "json"` and describe the exact JSON structure in the prompt.
+- **Handle AI failures gracefully.** Set `on_error: "continue"` and use `error_steps` for fallback logic.
+- **Never hardcode API keys.** Always use `${ANTHROPIC_API_KEY}` or equivalent environment variables.
+- **Use `response_schema`** to enforce JSON structure when the AI must return exact field types.

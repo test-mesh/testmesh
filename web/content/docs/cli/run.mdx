@@ -1,0 +1,68 @@
+---
+title: testmesh run
+description: Execute a flow file and see results.
+---
+
+The `run` command parses a flow YAML file and executes all steps in order, printing results as it goes.
+
+## Usage
+
+```bash
+testmesh run <flow.yaml>
+```
+
+## Examples
+
+```bash
+# Run the bundled example flow
+testmesh run ../examples/microservices/e2e-order-flow.yaml
+
+# Run a local flow file
+testmesh run ./my-test.yaml
+
+# Run against a staging environment
+BASE_URL=https://staging.example.com testmesh run ./flow.yaml
+
+# Run with an explicit database URL
+DATABASE_URL=postgres://user:pass@host:5432/db testmesh run ./db-flow.yaml
+```
+
+## Output Format
+
+Each step is printed as it executes:
+
+```
+[PASS] check_health       http_request    42ms
+[PASS] create_user        http_request    128ms
+[PASS] verify_db          database_query  15ms
+[FAIL] check_notification http_request    201ms
+       Assertion failed: body.notifications[0].type == "order_placed"
+       Got: body.notifications = []
+```
+
+Each line shows:
+- **Status** — `PASS` or `FAIL`
+- **Step ID** — the `id` field from your flow
+- **Action type** — the action that was executed
+- **Duration** — how long the step took
+
+If an assertion fails, the failing expression and the actual value are printed below the step line.
+
+## Behavior
+
+- Steps execute sequentially in the order they appear in the YAML.
+- Execution stops at the first failed assertion (unless the step is in `teardown`, which always runs).
+- Variables extracted via `output` blocks are immediately available to subsequent steps.
+- Exit code `0` means all steps passed; exit code `1` means at least one step failed.
+
+<Callout type="tip">
+  Use `testmesh validate` to catch YAML and configuration errors before running. Use `testmesh debug` to step through a flow interactively and inspect intermediate state.
+</Callout>
+
+## What's Next
+
+<Cards>
+  <Card title="testmesh debug" href="/docs/cli/debug" description="Run flows step-by-step with full inspection." />
+  <Card title="testmesh watch" href="/docs/cli/watch" description="Auto-rerun on file changes for TDD." />
+  <Card title="CI/CD Integration" href="/docs/guides/ci-cd" description="Run flows in GitHub Actions and GitLab CI." />
+</Cards>

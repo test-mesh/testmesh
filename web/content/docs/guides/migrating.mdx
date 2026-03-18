@@ -1,0 +1,263 @@
+---
+title: Migrating from Other Tools
+description: Migrate your existing tests from Postman, Insomnia, or other tools.
+---
+
+If you are coming from Postman, Insomnia, or writing ad-hoc shell scripts with `curl`, this page maps the concepts you already know to TestMesh equivalents.
+
+---
+
+## Migrating from Postman
+
+Postman and TestMesh solve similar problems with different mental models. Postman is request-centric (you send requests and inspect responses). TestMesh is flow-centric (you define a sequence of steps that test a complete scenario).
+
+### Concept Mapping
+
+| Postman Concept | TestMesh Equivalent |
+|----------------|---------------------|
+| Collection | Flow file (`.yaml`) |
+| Request | `http_request` step |
+| Pre-request Script | Steps before the main action (setup steps or earlier flow steps) |
+| Tests | `assert` block on each step |
+| Environment | `env` block in the flow + environment variables |
+| Variables | `output` block captures values; `{{variable}}` references them |
+| Collection Runner | `testmesh run flow.yaml` |
+| Data-driven testing (CSV) | `env` block parameterized from environment variables |
+
+### Mapping a Postman Request to a TestMesh Step
+
+**Postman request:**
+```
+POST https://{{base_url}}/api/users
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com"
+}
+
+Tests:
+  pm.test("Status 201", () => pm.response.to.have.status(201));
+  pm.test("Has user ID", () => pm.expect(pm.response.json().id).to.not.be.undefined);
+  pm.environment.set("user_id", pm.response.json().id);
+```
+
+**TestMesh equivalent:**
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${BASE_URL}/api/users"
+    headers:
+      Authorization: "Bearer ${ACCESS_TOKEN}"
+      Content-Type: application/json
+    body:
+      name: "John Doe"
+      email: "john@example.com"
+  assert:
+    - status == 201
+    - body.id != nil
+  output:
+    user_id: $.body.id
+```
+
+### Mapping a Postman Collection to a Flow
+
+A Postman collection groups related requests. In TestMesh, a flow is the complete scenario. If your Postman collection has "Authentication", "Create User", "Place Order" — that sequence becomes one flow with steps for each request.
+
+**Postman collection structure:**
+```
+📁 E-commerce API
+  📄 POST /auth/login         → captures access_token
+  📄 POST /users              → creates user
+  📄 POST /orders             → places order
+  📄 GET  /orders/{{orderId}} → verifies order
+```
+
+**TestMesh flow:**
+```yaml
+flow:
+  name: "User places an order"
+  env:
+    BASE_URL: "${API_BASE_URL}"
+
+  steps:
+    - id: login
+      action: http_request
+      config:
+        method: POST
+        url: "${BASE_URL}/auth/login"
+        body:
+          email: "test@example.com"
+          password: "password"
+      assert:
+        - status == 200
+      output:
+        access_token: $.body.token
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${BASE_URL}/users"
+        headers:
+          Authorization: "Bearer {{access_token}}"
+        body:
+          name: "John Doe"
+          email: "john@example.com"
+      assert:
+        - status == 201
+      output:
+        user_id: $.body.id
+
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "${BASE_URL}/orders"
+        headers:
+          Authorization: "Bearer {{access_token}}"
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "prod_123"
+              quantity: 1
+      assert:
+        - status == 201
+      output:
+        order_id: $.body.id
+
+    - id: verify_order
+      action: http_request
+      config:
+        method: GET
+        url: "${BASE_URL}/orders/{{order_id}}"
+        headers:
+          Authorization: "Bearer {{access_token}}"
+      assert:
+        - status == 200
+        - body.status == "confirmed"
+```
+
+### Postman Pre-request Scripts
+
+Postman pre-request scripts run JavaScript before a request. In TestMesh, any computation needed before a step is done in an earlier step.
+
+Common Postman pre-request patterns and their TestMesh equivalents:
+
+| Postman Pre-request Script | TestMesh Equivalent |
+|---------------------------|---------------------|
+| `pm.environment.set("timestamp", Date.now())` | Use a step to call a utility endpoint or set via environment variable |
+| `pm.environment.set("token", btoa(user + ":" + pass))` | Pass the pre-computed value as an environment variable |
+| Generate random data | Use environment variables set by your CI system |
+
+### Importing from Postman
+
+TestMesh can import Postman Collection v2.1 format:
+
+```bash
+testmesh import --postman ./my-collection.json
+```
+
+This generates a `.yaml` flow file with one step per request. Review and adjust the generated assertions — the importer creates basic status code assertions, but you will likely want to add field-level assertions and `output` blocks.
+
+---
+
+## Migrating from Insomnia
+
+Insomnia collections map to TestMesh flows in the same way as Postman collections. The main difference is Insomnia uses its own export format:
+
+```bash
+testmesh import --insomnia ./insomnia-export.json
+```
+
+---
+
+## Migrating from OpenAPI / Swagger
+
+If you have an OpenAPI spec, TestMesh can scaffold test flows from it:
+
+```bash
+testmesh import --openapi ./api-spec.yaml
+```
+
+This creates one flow per endpoint with basic request structure and status code assertions. Use it as a starting point — add meaningful assertions and chain steps together to test actual user scenarios, not just individual endpoints.
+
+---
+
+## Migrating from Shell Scripts with curl
+
+If your integration tests are shell scripts:
+
+```bash
+# Before: shell script
+TOKEN=$(curl -s -X POST http://api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"pw"}' \
+  | jq -r '.token')
+
+USER_ID=$(curl -s -X POST http://api/users \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"John"}' \
+  | jq -r '.id')
+
+ORDER_RESPONSE=$(curl -s -X POST http://api/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"user_id\":\"$USER_ID\"}")
+
+echo $ORDER_RESPONSE | jq '.status' | grep -q '"confirmed"' || exit 1
+```
+
+```yaml title="After: TestMesh flow"
+flow:
+  name: "User places order"
+  steps:
+    - id: login
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/auth/login"
+        body: {email: "test@example.com", password: "pw"}
+      assert: [status == 200]
+      output:
+        token: $.body.token
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/users"
+        headers: {Authorization: "Bearer {{token}}"}
+        body: {name: "John"}
+      assert: [status == 201]
+      output:
+        user_id: $.body.id
+
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "${API_URL}/orders"
+        headers: {Authorization: "Bearer {{token}}"}
+        body: {user_id: "{{user_id}}"}
+      assert:
+        - status == 201
+        - body.status == "confirmed"
+```
+
+The TestMesh flow is more readable, produces structured output, integrates with the dashboard for history and reporting, and supports assertions without shell string manipulation.
+
+---
+
+## What TestMesh Adds Beyond HTTP
+
+Once you have migrated your HTTP tests, you can extend them with:
+
+- **Database assertions**: verify data was actually persisted after API calls
+- **Kafka**: consume events and assert they were published
+- **Cross-service flows**: test interactions across multiple services in a single flow
+- **Scheduled runs**: run flows on a cron schedule and receive alerts on failure
+- **Dashboard**: view execution history, trends, and failure details without digging through CI logs

@@ -1,0 +1,100 @@
+---
+title: testmesh mock
+description: Start a local mock HTTP server for testing.
+---
+
+The `mock` command starts a local HTTP server that responds to requests according to a YAML configuration. Use it to test flows against services that aren't available yet, or to isolate a component under test from its dependencies.
+
+## Usage
+
+```bash
+testmesh mock --config ./mock-config.yaml --port 8080
+```
+
+## Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--config <file>` | — | Path to the mock server configuration YAML (required) |
+| `--port <port>` | `8080` | Port to listen on |
+| `--host <host>` | `localhost` | Host/interface to bind to |
+
+## Mock Configuration Format
+
+Define routes in the mock configuration file. Each route specifies a method, path, and the response to return:
+
+```yaml title="mock-config.yaml"
+routes:
+  - method: GET
+    path: /users/1
+    response:
+      status: 200
+      body:
+        id: "1"
+        name: "Alice"
+        email: "alice@example.com"
+
+  - method: POST
+    path: /users
+    response:
+      status: 201
+      body:
+        id: "new-user-id"
+        name: "{{request.body.name}}"
+      headers:
+        Location: "/users/new-user-id"
+
+  - method: GET
+    path: /health
+    response:
+      status: 200
+      body:
+        status: ok
+```
+
+## Running the Mock Alongside a Flow
+
+A common pattern is to start the mock server as part of a flow using the `mock_server_start` action, run your test steps against it, and stop it in teardown:
+
+```yaml title="flow-with-mock.yaml"
+flow:
+  name: "Test Against Mock"
+  setup:
+    - id: start_mock
+      action: mock_server_start
+      config:
+        port: 8080
+        routes:
+          - method: GET
+            path: /health
+            response:
+              status: 200
+              body:
+                status: ok
+
+  steps:
+    - id: check_health
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:8080/health"
+      assert:
+        - status == 200
+        - body.status == "ok"
+
+  teardown:
+    - id: stop_mock
+      action: mock_server_stop
+      config:
+        port: 8080
+```
+
+<Callout type="info">
+  For full mock server configuration options — including dynamic responses, request matching, and response delays — see the Mock Server feature documentation.
+</Callout>
+
+## Use Cases
+
+- **Test flows before the real service exists** — define the expected API contract as a mock and write tests against it.
+- **Isolate a service under test** — mock out downstream dependencies to test one service in isolation.
+- **Simulate error conditions** — return 500, 429, or timeout responses to test error handling in your flow.

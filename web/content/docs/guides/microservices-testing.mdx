@@ -1,0 +1,323 @@
+---
+title: Testing Microservices
+description: End-to-end testing strategy for microservice architectures.
+---
+
+The hardest part of testing microservices is not writing individual service tests — it's testing the **flows that cross service boundaries**. A user registration that triggers a welcome email, an order that deducts inventory and notifies the customer, a payment that updates multiple services atomically. These are the flows that break in production and are hardest to reproduce.
+
+TestMesh is designed specifically for this: write flows that exercise multiple services in sequence, verify state at each step, and assert that the whole chain worked correctly.
+
+---
+
+## The Challenge
+
+When you test services in isolation (mocking their dependencies), you prove each service works independently. You do not prove they work together. Integration bugs appear at the boundaries:
+
+- Service A sends a field named `userId`, Service B expects `user_id`
+- Service A publishes a Kafka event, Service B's consumer has a bug that silently drops it
+- The order service calls the user service to validate a user, but the user service is temporarily down
+
+**The TestMesh approach**: test from the user's perspective, across all service boundaries, against real services. A test that creates a user, places an order, and verifies the notification email was queued exercises every service boundary in that flow.
+
+---
+
+## The Demo Architecture
+
+TestMesh ships with four demo microservices that illustrate common patterns:
+
+| Service | Port | Responsibility |
+|---------|------|---------------|
+| User Service | 5001 | Create and manage users; publishes `user.created` to Kafka |
+| Product Service | 5002 | Manage product catalog and inventory |
+| Order Service | 5003 | Place orders; calls User Service and Product Service; publishes `order.placed` |
+| Notification Service | 5004 | Consumes Kafka events and creates notifications |
+
+Each service has its own PostgreSQL schema and communicates via HTTP (synchronous) and Kafka (async).
+
+### Start the Demo Environment
+
+```bash
+# 1. Start infrastructure
+docker-compose -f docker-compose.infra.yml up -d
+
+# 2. Start demo microservices
+docker-compose -f docker-compose.services.yml up -d
+
+# 3. Verify all services are healthy
+curl http://localhost:5001/health
+curl http://localhost:5002/health
+curl http://localhost:5003/health
+curl http://localhost:5004/health
+```
+
+---
+
+## The Complete E2E Flow
+
+This flow tests the complete order lifecycle:
+
+1. Create a user
+2. Verify the `user.created` Kafka event was published
+3. Verify the user was persisted to the database
+4. Create a product
+5. Place an order (exercises the Order Service calling User Service + Product Service)
+6. Verify the `order.placed` Kafka event was published
+7. Verify order and order items in the database
+8. Wait for the Notification Service to process events
+9. Assert notifications were created for both events
+10. Verify inventory was decremented
+
+```yaml title="examples/microservices/e2e-order-flow.yaml"
+flow:
+  name: "E2E Order Creation Flow"
+  description: "Complete end-to-end test of order flow across all microservices with PostgreSQL and Kafka"
+
+  env:
+    DB_URL: "postgresql://root:admin@localhost:5432/postgres"
+    KAFKA_BROKERS: "localhost:9092"
+    USER_SERVICE_URL: "http://localhost:5001"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+    ORDER_SERVICE_URL: "http://localhost:5003"
+    NOTIFICATION_SERVICE_URL: "http://localhost:5004"
+
+  setup:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM notification_service.notifications
+          WHERE user_id IN (
+            SELECT id::text FROM user_service.users WHERE email = 'john@example.com'
+          )
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'john@example.com')
+          )
+    - id: cleanup_order_records
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'john@example.com')
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Test Widget'"
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'john@example.com'"
+
+  steps:
+    # Step 1: Create a user
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "John Doe"
+          email: "john@example.com"
+      assert:
+        - status == 201
+        - body.id != nil
+        - body.email == "john@example.com"
+      output:
+        user_id: $.body.id
+
+    # Step 2: Verify user.created event in Kafka
+    - id: verify_user_event
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: user.created
+        group_id: testmesh-test
+        timeout: 15s
+        from_beginning: true
+      assert:
+        - len(messages) > 0
+
+    # Step 3: Verify user in database
+    - id: verify_user_in_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM user_service.users WHERE id = $1"
+        params: ["{{user_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].email == "john@example.com"
+
+    # Step 4: Create a product
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Test Widget"
+          description: "A test product"
+          price: 29.99
+          inventory: 100
+      assert:
+        - status == 201
+        - body.inventory == 100
+      output:
+        product_id: $.body.id
+
+    # Step 5: Place an order (calls User Service + Product Service internally)
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 2
+      assert:
+        - status == 201
+        - body.total == 59.98
+        - len(body.items) == 1
+      output:
+        order_id: $.body.id
+
+    # Step 6: Verify order.placed event in Kafka
+    - id: verify_order_event
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: order.placed
+        group_id: testmesh-test
+        timeout: 15s
+        from_beginning: true
+      assert:
+        - len(messages) > 0
+
+    # Step 7: Verify order in database
+    - id: verify_order_in_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM order_service.orders WHERE id = $1"
+        params: ["{{order_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].total == 59.98
+        - rows[0].status == "pending"
+
+    # Step 8: Wait for async Kafka processing
+    - id: wait_for_notifications
+      action: delay
+      config:
+        duration: 3s
+
+    # Step 9: Assert notifications were created
+    - id: check_notifications
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{user_id}}"
+      assert:
+        - status == 200
+        - body.count >= 2
+
+    # Step 10: Verify inventory was decremented
+    - id: verify_inventory_decreased
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT inventory FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - row_count == 1
+        - rows[0].inventory == 98
+```
+
+Run it:
+
+```bash
+cd cli
+go run main.go run ../examples/microservices/e2e-order-flow.yaml
+```
+
+---
+
+## Key Patterns
+
+### Use Setup/Teardown for Idempotency
+
+The `setup` block deletes test data before the flow runs. This makes the flow repeatable — you can run it multiple times without "user already exists" errors. Delete in reverse dependency order (notifications → order items → orders → products → users).
+
+### Capture IDs with Output
+
+```yaml
+output:
+  user_id: $.body.id
+```
+
+The `output` block extracts values from the response using JSONPath. Use them in subsequent steps with `{{user_id}}`. This is how you thread state across services.
+
+### Verify State Directly in the Database
+
+HTTP responses tell you what the service says happened. Database queries tell you what actually happened. Assert both:
+
+```yaml
+# The API told us
+- status == 201
+- body.email == "john@example.com"
+
+# Then verify in the database
+- rows[0].email == "john@example.com"
+```
+
+### Use `delay` Before Asserting Async Effects
+
+Kafka consumers process events asynchronously. After placing an order, the notification service needs a moment to consume the `order.placed` event. A `delay` step accounts for this:
+
+```yaml
+- id: wait_for_processing
+  action: delay
+  config:
+    duration: 3s
+```
+
+For production test suites, consider using a polling step that retries until a condition is met rather than a fixed sleep.
+
+### Test Cross-Service Calls Implicitly
+
+When you place an order, the Order Service internally calls the User Service (to validate the user) and the Product Service (to check inventory). Your flow doesn't call these services directly — but if either were broken, the order creation would fail. You get coverage of service-to-service calls as a side effect of testing the user-facing flow.
+
+---
+
+## Tips
+
+- **Use real services, not mocks.** Mocks prove your understanding of the contract, not the contract itself. Run against real services in a test environment.
+- **One scenario per flow.** The order flow tests the order scenario. A separate flow tests the "insufficient inventory" scenario. Mixing them makes failures hard to diagnose.
+- **Name steps with the behavior, not the action.** `create_order` is better than `step4`. When a test fails, you want to know immediately which step failed and what it was doing.
+- **Keep env vars in flow `env` blocks or `.env` files.** Never hardcode URLs or credentials in the step config.
+
+## What's Next
+
+<Cards>
+  <Card title="CI/CD Integration" href="/docs/guides/ci-cd" description="Run your microservices test flows in GitHub Actions." />
+  <Card title="Async Patterns" href="/docs/features/async-patterns" description="Advanced patterns for Kafka and event-driven testing." />
+  <Card title="Best Practices" href="/docs/guides/best-practices" description="Flow design patterns and conventions." />
+</Cards>
