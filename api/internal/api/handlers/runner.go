@@ -179,9 +179,25 @@ func (h *RunnerHandler) mergeEnvironmentVariables(environmentRef string, workspa
 					merged[v.Key] = v.Value
 				}
 			}
+			// Serialize routing headers as __rthr__<name> so the executor can inject them
+			for header, value := range env.Routing.Headers {
+				merged["__rthr__"+header] = value
+			}
+			// Serialize service URL overrides as service.<name> regular variables
+			for svc, url := range env.Routing.Services {
+				merged["service."+svc] = url
+			}
+			// Serialize per-action-type overrides as __rtov__<actionType>__<field>
+			for actionType, fields := range env.Routing.Overrides {
+				for field, value := range fields {
+					merged["__rtov__"+actionType+"__"+field] = value
+				}
+			}
 			h.logger.Debug("Loaded environment variables",
 				zap.String("environment", env.Name),
-				zap.Int("variable_count", len(env.Variables)))
+				zap.Int("variable_count", len(env.Variables)),
+				zap.Int("routing_headers", len(env.Routing.Headers)),
+				zap.Int("routing_services", len(env.Routing.Services)))
 		}
 	}
 

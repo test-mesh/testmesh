@@ -1,6 +1,7 @@
 {
   "title": "Guides",
   "pages": [
+    "production-infrastructure",
     "microservices-testing",
     "ci-cd",
     "best-practices",

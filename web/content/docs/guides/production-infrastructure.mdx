@@ -1,0 +1,486 @@
+---
+title: Testing Against Production Infrastructure
+description: A practical guide for teams deploying TestMesh to a Kubernetes cluster and connecting it to real databases, Kafka, Redis, and other shared infrastructure.
+---
+
+This guide walks through a realistic company setup: TestMesh deployed to a Kubernetes cluster, connected to shared infrastructure (RDS, ElastiCache, MSK), with separate environments per deployment stage and isolated ephemeral containers for test data that shouldn't pollute shared systems.
+
+---
+
+## The Architecture
+
+```
+                    ┌─────────────────────────────────────┐
+                    │  Kubernetes Cluster (testmesh ns)    │
+                    │                                      │
+  Engineers  ──────▶│  TestMesh Dashboard  (:3000)         │
+  CI/CD      ──────▶│  TestMesh API        (:5016)         │
+                    └──────────────┬──────────────────────┘
+                                   │ connects to
+                    ┌──────────────▼──────────────────────┐
+                    │  Shared Infrastructure               │
+                    │                                      │
+                    │  ● RDS PostgreSQL    (staging/prod)  │
+                    │  ● ElastiCache Redis (staging/prod)  │
+                    │  ● MSK Kafka         (staging/prod)  │
+                    │  ● Internal APIs     (staging/prod)  │
+                    └─────────────────────────────────────┘
+```
+
+TestMesh flows reference services by logical name (`${service.user-api}`, `${service.postgres}`). Environments swap the actual addresses — no flow changes needed to run against staging vs production.
+
+---
+
+## Step 1: Deploy TestMesh
+
+Install the Helm chart into your cluster, pointing it at your managed infrastructure:
+
+```bash
+helm install testmesh testmesh/testmesh \
+  --namespace testmesh \
+  --create-namespace \
+  --set database.external.host=testmesh-db.cluster.example.com \
+  --set database.external.user=testmesh \
+  --set database.external.password=<secret> \
+  --set database.external.dbname=testmesh \
+  --set redis.external.host=testmesh-cache.abc123.cache.amazonaws.com \
+  --set api.dockerSocket.enabled=true
+```
+
+`dockerSocket.enabled=true` mounts `/var/run/docker.sock` into the API pod. This is required for `docker_run` flows that spin up ephemeral containers. If your cluster uses containerd without Docker daemon access (common on EKS), see [Ephemeral containers without Docker](#ephemeral-containers-without-docker) below.
+
+---
+
+## Step 2: Create Environments
+
+Each deployment target gets its own environment. Set the service URLs and infrastructure connection strings once — flows reference them by name.
+
+### Staging environment
+
+Create via the dashboard (**Environments → New Environment**) or API:
+
+```json
+POST /api/v1/environments
+{
+  "name": "staging",
+  "color": "#F59E0B",
+  "variables": [
+    { "key": "AUTH_TOKEN", "value": "stg-token-abc", "is_secret": true, "enabled": true }
+  ],
+  "routing": {
+    "services": {
+      "user-api":     "http://user-service.staging.svc.cluster.local:5001",
+      "order-api":    "http://order-service.staging.svc.cluster.local:5003",
+      "product-api":  "http://product-service.staging.svc.cluster.local:5002",
+      "postgres":     "postgres://app:pass@rds-staging.cluster.example.com:5432/app",
+      "redis":        "redis://elasticache-staging.abc.cache.amazonaws.com:6379",
+      "kafka":        "b-1.msk-staging.abc.kafka.us-east-1.amazonaws.com:9092"
+    },
+    "overrides": {
+      "database_query": {
+        "connection_string": "${service.postgres}"
+      },
+      "kafka_producer": {
+        "brokers": "${service.kafka}"
+      },
+      "kafka_consumer": {
+        "brokers": "${service.kafka}"
+      }
+    }
+  }
+}
+```
+
+### Production environment
+
+```json
+POST /api/v1/environments
+{
+  "name": "production",
+  "color": "#EF4444",
+  "variables": [
+    { "key": "AUTH_TOKEN", "value": "prod-token-xyz", "is_secret": true, "enabled": true }
+  ],
+  "routing": {
+    "services": {
+      "user-api":    "http://user-service.production.svc.cluster.local:5001",
+      "order-api":   "http://order-service.production.svc.cluster.local:5003",
+      "product-api": "http://product-service.production.svc.cluster.local:5002",
+      "postgres":    "postgres://app:pass@rds-prod.cluster.example.com:5432/app",
+      "redis":       "redis://elasticache-prod.xyz.cache.amazonaws.com:6379",
+      "kafka":       "b-1.msk-prod.xyz.kafka.us-east-1.amazonaws.com:9092"
+    },
+    "overrides": {
+      "database_query":  { "connection_string": "${service.postgres}" },
+      "kafka_producer":  { "brokers": "${service.kafka}" },
+      "kafka_consumer":  { "brokers": "${service.kafka}" }
+    }
+  }
+}
+```
+
+Now the same flow runs against staging or production just by selecting the environment at run time. No YAML edits.
+
+---
+
+## Step 3: Write Flows Against Real Infrastructure
+
+Flows reference services and infrastructure by logical name. They work identically across all environments.
+
+### Cross-service order flow
+
+```yaml title="flows/e2e-order-flow.yaml"
+flow:
+  name: "E2E — Place Order"
+  description: "User → Product → Order → Kafka notification"
+
+  setup:
+    - id: clean_test_data
+      action: database_query
+      # connection_string comes from environment override — no need to specify
+      config:
+        query: |
+          DELETE FROM order_service.orders WHERE user_id = 'test-user-e2e';
+          DELETE FROM user_service.users  WHERE id = 'test-user-e2e';
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${service.user-api}/users"
+        headers:
+          Authorization: "Bearer ${AUTH_TOKEN}"
+        body:
+          id: "test-user-e2e"
+          name: "E2E Test User"
+          email: "e2e@example.com"
+      assert:
+        - status == 201
+      output:
+        user_id: $.body.id
+
+    - id: get_product
+      action: http_request
+      config:
+        method: GET
+        url: "${service.product-api}/products/prod-001"
+        headers:
+          Authorization: "Bearer ${AUTH_TOKEN}"
+      assert:
+        - status == 200
+        - body.stock > 0
+      output:
+        product_id: $.body.id
+        price: $.body.price
+
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "${service.order-api}/orders"
+        headers:
+          Authorization: "Bearer ${AUTH_TOKEN}"
+        body:
+          user_id: "${user_id}"
+          product_id: "${product_id}"
+          quantity: 1
+      assert:
+        - status == 201
+        - body.status == "confirmed"
+      output:
+        order_id: $.body.id
+
+    - id: verify_order_in_db
+      action: database_query
+      config:
+        query: "SELECT status FROM order_service.orders WHERE id = $1"
+        params: ["${order_id}"]
+      assert:
+        - rows[0].status == "confirmed"
+
+    - id: verify_kafka_event
+      action: kafka_consumer
+      # brokers comes from environment override
+      config:
+        topic: "order.confirmed"
+        group_id: "testmesh-e2e-${RANDOM_ID}"
+        timeout: 10s
+      assert:
+        - messages[0].order_id == "${order_id}"
+
+    - id: verify_redis_cache
+      action: http_request
+      config:
+        method: GET
+        url: "${service.order-api}/orders/${order_id}"
+        headers:
+          Authorization: "Bearer ${AUTH_TOKEN}"
+      assert:
+        - status == 200
+        - body.cached == true
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        query: |
+          DELETE FROM order_service.orders WHERE id = '${order_id}';
+          DELETE FROM user_service.users  WHERE id = 'test-user-e2e';
+```
+
+Run this against staging:
+
+```bash
+testmesh run flows/e2e-order-flow.yaml --env staging
+```
+
+Run against production (smoke test after deploy):
+
+```bash
+testmesh run flows/e2e-order-flow.yaml --env production
+```
+
+---
+
+## Step 4: Ephemeral Containers for Isolated Data
+
+Shared staging databases accumulate state. When multiple engineers or CI runs execute tests concurrently, they corrupt each other's data. The solution: spin up a fresh database container per flow run, seed it with known data, and destroy it after.
+
+This is the role of `docker_run` — not to replace your staging cluster, but to give each test its own isolated data layer.
+
+```yaml title="flows/user-service-isolated.yaml"
+flow:
+  name: "User Service — Isolated DB"
+  description: "Runs against a fresh Postgres container seeded with known state.
+                Safe to run concurrently. Does not touch shared staging DB."
+
+  setup:
+    - id: db
+      action: docker_run
+      config:
+        image: postgres:16-alpine
+        name: test-users-${RANDOM_ID}
+        network: testmesh          # must be the same network as the API pod
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          "5432": "0"
+        wait_for_port: "5432"
+        timeout: 30s
+      output:
+        db_dsn: $.dsn              # postgres://test:test@<container-name>:5432/test
+
+    - id: migrate
+      action: database_query
+      config:
+        connection_string: "${db_dsn}"
+        query: |
+          CREATE SCHEMA user_service;
+          CREATE TABLE user_service.users (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT now()
+          );
+
+    - id: seed
+      action: database_query
+      config:
+        connection_string: "${db_dsn}"
+        query: |
+          INSERT INTO user_service.users (id, name, email) VALUES
+            ('u-001', 'Alice',   'alice@example.com'),
+            ('u-002', 'Bob',     'bob@example.com'),
+            ('u-003', 'Charlie', 'charlie@example.com');
+
+  steps:
+    - id: get_alice
+      action: http_request
+      config:
+        method: GET
+        url: "${service.user-api}/users/u-001"
+        headers:
+          # Tell the user-service to use our ephemeral DB for this request.
+          # Requires the service to support a test DB header — see note below.
+          X-Test-DB: "${db_dsn}"
+      assert:
+        - status == 200
+        - body.name == "Alice"
+
+    - id: verify_directly
+      action: database_query
+      config:
+        connection_string: "${db_dsn}"
+        query: "SELECT count(*) as total FROM user_service.users"
+      assert:
+        - rows[0].total == 3
+
+  teardown:
+    - id: destroy_db
+      action: docker_stop
+      config:
+        container_id: ${db.container_id}
+```
+
+### Two approaches to isolated data
+
+**Approach A — Service supports a test DB header** (shown above): The service reads `X-Test-DB` and uses that connection for the request. Your routing policy injects the header automatically for the environment. Requires service-side support but gives full end-to-end isolation.
+
+**Approach B — Verify state directly**: Skip the service entirely for state verification. Run the action through the real API, then query the ephemeral DB directly to check side effects. Works without any service changes.
+
+```yaml
+steps:
+  - id: create_user
+    action: http_request
+    config:
+      method: POST
+      url: "${service.user-api}/users"
+      body: { id: "u-new", name: "Dave", email: "dave@example.com" }
+    assert:
+      - status == 201
+
+  - id: verify_persisted
+    action: database_query
+    config:
+      connection_string: "${db_dsn}"       # ephemeral DB
+      query: "SELECT name FROM user_service.users WHERE id = 'u-new'"
+    assert:
+      - rows[0].name == "Dave"
+```
+
+---
+
+## Step 5: Schedule Continuous Verification
+
+Once flows work against staging, schedule them to run automatically. Failed runs surface regressions before engineers notice.
+
+```json
+POST /api/v1/schedules
+{
+  "name": "Staging E2E — Hourly",
+  "flow_id": "<order-flow-uuid>",
+  "environment": "staging",
+  "cron": "0 * * * *",
+  "enabled": true,
+  "notify_on_failure": true
+}
+```
+
+```json
+POST /api/v1/schedules
+{
+  "name": "Production Smoke — Every 15min",
+  "flow_id": "<smoke-test-uuid>",
+  "environment": "production",
+  "cron": "*/15 * * * *",
+  "enabled": true,
+  "notify_on_failure": true
+}
+```
+
+---
+
+## Step 6: Integrate With CI/CD
+
+Run the full staging suite on every pull request. Fail the build if any flow fails.
+
+```yaml title=".github/workflows/integration.yml"
+name: Integration Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install TestMesh CLI
+        run: |
+          curl -sSL https://get.test-mesh.io/install.sh | bash
+
+      - name: Run E2E flows against staging
+        env:
+          TESTMESH_API_URL: ${{ secrets.TESTMESH_API_URL }}
+          TESTMESH_API_KEY: ${{ secrets.TESTMESH_API_KEY }}
+        run: |
+          testmesh run flows/e2e-order-flow.yaml --env staging --api $TESTMESH_API_URL
+          testmesh run flows/user-service-isolated.yaml --env staging --api $TESTMESH_API_URL
+```
+
+---
+
+## Ephemeral Containers Without Docker
+
+On clusters where Docker socket access is unavailable (EKS with containerd, GKE Autopilot), `docker_run` won't work. Use one of these alternatives:
+
+**Option A — Namespace-scoped test databases**: Pre-provision a lightweight Postgres and Redis in the `testmesh` namespace. Give each test its own schema rather than its own container. Faster, no Docker needed.
+
+```yaml
+setup:
+  - id: create_schema
+    action: database_query
+    config:
+      connection_string: "${service.postgres}"
+      query: |
+        CREATE SCHEMA IF NOT EXISTS test_${RANDOM_ID};
+        SET search_path TO test_${RANDOM_ID};
+        -- run migrations here
+```
+
+**Option B — Kubernetes Job provisioning**: Create a `k8s_job` action that spawns a Kubernetes Job to provision infrastructure. This requires a custom plugin — see [Plugin Development](/docs/features/plugin-development).
+
+**Option C — External ephemeral DB services**: Use services like [Neon](https://neon.tech) (serverless Postgres) or [Upstash](https://upstash.com) (serverless Redis) that spin up a fresh instance per API call. Reference them via environment variables.
+
+---
+
+## Reference: Environment Configuration by Cloud Provider
+
+### AWS
+
+```json
+{
+  "name": "aws-staging",
+  "routing": {
+    "services": {
+      "postgres": "postgres://app:${DB_PASS}@mydb.cluster-abc.us-east-1.rds.amazonaws.com:5432/app",
+      "redis":    "rediss://myredis.abc.0001.use1.cache.amazonaws.com:6379",
+      "kafka":    "b-1.mycluster.abc.c3.kafka.us-east-1.amazonaws.com:9092,b-2.mycluster.abc.c3.kafka.us-east-1.amazonaws.com:9092"
+    }
+  }
+}
+```
+
+### GCP
+
+```json
+{
+  "name": "gcp-staging",
+  "routing": {
+    "services": {
+      "postgres": "postgres://app:${DB_PASS}@/app?host=/cloudsql/project:region:instance",
+      "redis":    "redis://10.0.0.5:6379",
+      "pubsub":   "projects/my-project/topics"
+    }
+  }
+}
+```
+
+### Azure
+
+```json
+{
+  "name": "azure-staging",
+  "routing": {
+    "services": {
+      "postgres": "postgres://app@myserver:${DB_PASS}@myserver.postgres.database.azure.com:5432/app",
+      "redis":    "rediss://:${REDIS_PASS}@myredis.redis.cache.windows.net:6380"
+    }
+  }
+}
+```

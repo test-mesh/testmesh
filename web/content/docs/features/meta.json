@@ -1,6 +1,7 @@
 {
   "title": "Features",
   "pages": [
+    "environments",
     "mock-server",
     "async-patterns",
     "contract-testing",
@@ -9,6 +10,11 @@
     "mcp-integration",
     "observability",
     "scheduling",
-    "reporting"
+    "reporting",
+    "load-testing",
+    "debugging",
+    "git-integration",
+    "import-export",
+    "plugins"
   ]
 }

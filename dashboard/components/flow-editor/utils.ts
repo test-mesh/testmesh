@@ -161,6 +161,17 @@ export const defaultConfigs: Record<ActionType, Record<string, any>> = {
     contract_id: '',
     provider_base_url: '',
   },
+  docker_run: {
+    image: '',
+    env: {},
+    ports: {},
+    wait_for_port: '',
+    timeout: '30s',
+  },
+  docker_stop: {
+    container_id: '',
+    remove: true,
+  },
 };
 
 // Node layout constants
@@ -804,6 +815,18 @@ export function validateNodeConfig(node: FlowNode): string[] {
         errors.push('Provider base URL is required');
       }
       break;
+
+    case 'docker_run':
+      if (!data.config.image) {
+        errors.push('Docker image is required');
+      }
+      break;
+
+    case 'docker_stop':
+      if (!data.config.container_id) {
+        errors.push('container_id is required (use ${step_id.container_id} from docker_run)');
+      }
+      break;
   }
 
   return errors;
@@ -853,6 +876,9 @@ export function getActionColor(action: ActionType): string {
     case 'contract_generate':
     case 'contract_verify':
       return 'bg-teal-500';
+    case 'docker_run':
+    case 'docker_stop':
+      return 'bg-orange-500';
     default:
       return 'bg-gray-500';
   }
@@ -909,6 +935,10 @@ export function getActionIcon(action: ActionType): string {
       return 'FileCode';
     case 'contract_verify':
       return 'FileCheck';
+    case 'docker_run':
+      return 'Box';
+    case 'docker_stop':
+      return 'XCircle';
     default:
       return 'Box';
   }

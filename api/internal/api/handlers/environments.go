@@ -32,6 +32,7 @@ type CreateEnvironmentRequest struct {
 	Color       string                       `json:"color"`
 	IsDefault   bool                         `json:"is_default"`
 	Variables   []models.EnvironmentVariable `json:"variables"`
+	Routing     models.RoutingPolicy         `json:"routing"`
 }
 
 // UpdateEnvironmentRequest represents a request to update an environment
@@ -41,6 +42,7 @@ type UpdateEnvironmentRequest struct {
 	Color       *string                       `json:"color"`
 	IsDefault   *bool                         `json:"is_default"`
 	Variables   *[]models.EnvironmentVariable `json:"variables"`
+	Routing     *models.RoutingPolicy         `json:"routing"`
 }
 
 // List handles GET /api/v1/workspaces/:workspace_id/environments
@@ -139,6 +141,7 @@ func (h *EnvironmentHandler) Create(c *gin.Context) {
 		Color:       req.Color,
 		IsDefault:   req.IsDefault,
 		Variables:   req.Variables,
+		Routing:     req.Routing,
 	}
 
 	if err := h.repo.Create(env, workspaceID); err != nil {
@@ -196,6 +199,9 @@ func (h *EnvironmentHandler) Update(c *gin.Context) {
 	}
 	if req.Variables != nil {
 		env.Variables = *req.Variables
+	}
+	if req.Routing != nil {
+		env.Routing = *req.Routing
 	}
 
 	if err := h.repo.Update(env, workspaceID); err != nil {
@@ -335,6 +341,7 @@ func (h *EnvironmentHandler) Import(c *gin.Context) {
 		Name:        req.Name,
 		Description: req.Description,
 		Variables:   req.Variables,
+		Routing:     req.Routing,
 		Color:       "#6B7280", // Default gray
 	}
 

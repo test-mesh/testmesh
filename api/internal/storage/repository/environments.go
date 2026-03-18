@@ -189,6 +189,7 @@ func (r *EnvironmentRepository) Duplicate(id uuid.UUID, newName string, workspac
 		Color:       original.Color,
 		IsDefault:   false,
 		Variables:   varsCopy,
+		Routing:     original.Routing,
 	}
 
 	if err := r.db.Create(newEnv).Error; err != nil {

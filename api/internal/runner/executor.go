@@ -392,6 +392,36 @@ func (e *Executor) executeStepWithDebug(ctx context.Context, step *models.Step, 
 		}
 	}
 
+	// Apply environment routing overrides for this action type.
+	// Step-level config takes precedence (overrides are merged first, then step config on top).
+	if overrides := execCtx.GetRoutingOverrides(step.Action); len(overrides) > 0 {
+		merged := make(map[string]interface{})
+		for k, v := range overrides {
+			merged[k] = v // routing default
+		}
+		for k, v := range config {
+			merged[k] = v // step config wins
+		}
+		config = merged
+	}
+
+	// For HTTP requests, also inject environment-level routing headers.
+	// Step-level headers take precedence over routing headers.
+	if step.Action == "http_request" {
+		if routingHeaders := execCtx.GetRoutingHeaders(); len(routingHeaders) > 0 {
+			merged := make(map[string]interface{})
+			for k, v := range routingHeaders {
+				merged[k] = v
+			}
+			if stepHeaders, ok := config["headers"].(map[string]interface{}); ok {
+				for k, v := range stepHeaders {
+					merged[k] = v // step headers win
+				}
+			}
+			config["headers"] = merged
+		}
+	}
+
 	// Get action handler
 	handler, err := e.getActionHandler(step.Action)
 	if err != nil {
@@ -476,6 +506,10 @@ func (e *Executor) getActionHandler(actionType string) (actions.Handler, error) 
 		return actions.NewWebSocketHandler(e.logger), nil
 	case "grpc":
 		return actions.NewGRPCHandler(e.logger), nil
+	case "docker_run":
+		return actions.NewDockerRunHandler(e.logger), nil
+	case "docker_stop":
+		return actions.NewDockerStopHandler(e.logger), nil
 	default:
 		// Check plugin registry for custom actions
 		if e.pluginRegistry != nil {

@@ -379,8 +379,8 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             {QUOTES.map((q, i) => (
               <div key={i} className="rounded-lg border bg-fd-card p-5">
-                <p className="text-sm mb-3 leading-relaxed before:content-['\u201c'] after:content-['\u201d']">
-                  {q.text}
+                <p className="text-sm mb-3 leading-relaxed">
+                  {'\u201c'}{q.text}{'\u201d'}
                 </p>
                 <p className="text-xs text-fd-muted-foreground">{q.author}</p>
               </div>

@@ -10,28 +10,61 @@ import (
 
 // Context holds execution context with variables and step outputs
 type Context struct {
-	variables   map[string]string
-	stepOutputs map[string]map[string]interface{}
+	variables       map[string]string
+	stepOutputs     map[string]map[string]interface{}
+	routingHeaders  map[string]string            // auto-injected into all http_request steps
+	routingOverrides map[string]map[string]string // per-action-type config defaults
 }
 
-// NewContext creates a new execution context
+// NewContext creates a new execution context.
+// Variables prefixed with "__rthr__" are extracted as routing headers and not
+// exposed as regular template variables.
 func NewContext(variables map[string]string, envVars map[string]interface{}) *Context {
 	ctx := &Context{
-		variables:   make(map[string]string),
-		stepOutputs: make(map[string]map[string]interface{}),
+		variables:        make(map[string]string),
+		stepOutputs:      make(map[string]map[string]interface{}),
+		routingHeaders:   make(map[string]string),
+		routingOverrides: make(map[string]map[string]string),
 	}
 
-	// Add user-provided variables
+	// Add user-provided variables, extracting routing metadata.
+	// __rthr__<header>              → routing header injected into http_request steps
+	// __rtov__<actionType>__<field> → routing override for a specific action type's config field
 	for k, v := range variables {
-		ctx.variables[k] = v
+		if after, ok := strings.CutPrefix(k, "__rthr__"); ok {
+			ctx.routingHeaders[after] = v
+		} else if after, ok := strings.CutPrefix(k, "__rtov__"); ok {
+			// format: __rtov__<actionType>__<field>
+			parts := strings.SplitN(after, "__", 2)
+			if len(parts) == 2 {
+				actionType, field := parts[0], parts[1]
+				if ctx.routingOverrides[actionType] == nil {
+					ctx.routingOverrides[actionType] = make(map[string]string)
+				}
+				ctx.routingOverrides[actionType][field] = v
+			}
+		} else {
+			ctx.variables[k] = v
+		}
 	}
 
-	// Add environment variables
+	// Add flow-level env vars
 	for k, v := range envVars {
 		ctx.variables[k] = fmt.Sprintf("%v", v)
 	}
 
 	return ctx
+}
+
+// GetRoutingHeaders returns the environment-level headers to inject into HTTP requests.
+func (c *Context) GetRoutingHeaders() map[string]string {
+	return c.routingHeaders
+}
+
+// GetRoutingOverrides returns the config defaults for a given action type.
+// Step-level config takes precedence over these defaults.
+func (c *Context) GetRoutingOverrides(actionType string) map[string]string {
+	return c.routingOverrides[actionType]
 }
 
 // Get retrieves a variable value

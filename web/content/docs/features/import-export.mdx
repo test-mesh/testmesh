@@ -1,0 +1,218 @@
+---
+title: Import & Export
+description: Import test flows from Postman, OpenAPI, and HAR files — or export your flows to share with other tools.
+---
+
+TestMesh can import collections from popular API tools and export flows to standard formats. This makes it easy to migrate from Postman, generate tests from OpenAPI specs, or share flows with teams using other tools.
+
+<Cards>
+  <Card title="Import Formats" href="#import-formats" description="Postman, OpenAPI, HAR, TestMesh YAML" />
+  <Card title="Export Formats" href="#export-formats" description="Postman, OpenAPI, HAR, TestMesh YAML" />
+  <Card title="Dashboard Import" href="#importing-via-dashboard" description="Import through the UI" />
+  <Card title="API" href="#api" description="Automate import/export via REST" />
+</Cards>
+
+## Import Formats
+
+### Postman Collection
+
+Import a Postman Collection v2.0 or v2.1 JSON file. TestMesh converts each request in the collection to a flow step:
+
+- HTTP requests → `http_request` steps
+- Pre-request scripts → `log` steps (with a note that script logic needs manual translation)
+- Test scripts → `assert` steps where possible
+- Collection variables → environment variables
+- Folder structure → TestMesh collections
+
+### OpenAPI / Swagger
+
+Import an OpenAPI 3.0 or Swagger 2.0 spec (JSON or YAML). TestMesh generates a flow for each endpoint:
+
+- Each path + method becomes a separate flow
+- Request body schemas are used to generate example payloads
+- Response schemas are used to generate assertions
+- Security schemes are noted in step comments
+
+Useful for generating a baseline test suite from an existing API spec.
+
+### HAR (HTTP Archive)
+
+Import a `.har` file captured from browser DevTools or a proxy. Each request entry becomes an `http_request` step.
+
+HAR import is particularly useful for:
+- Capturing a user journey from the browser and converting it to a repeatable test
+- Importing traffic recorded by tools like Charles, Proxyman, or mitmproxy
+
+### TestMesh YAML
+
+Import flows exported from another TestMesh instance. All flow metadata, steps, assertions, and output mappings are preserved exactly.
+
+---
+
+## Import via Dashboard
+
+1. Navigate to **Flows** → **Import**
+2. Select the import format
+3. Upload your file or paste the content
+4. TestMesh shows a preview of what will be imported
+5. Optionally select a collection to place the flows in
+6. Click **Import**
+
+Import history is tracked under **Flows → Import History**, showing each import operation with its status and what was created.
+
+---
+
+## Import via API
+
+### Parse and Preview
+
+Before importing, parse the file to see what would be created:
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/import/parse \
+  -F "file=@collection.json" \
+  -F "format=postman"
+```
+
+Response:
+
+```json
+{
+  "format": "postman",
+  "flows": [
+    {
+      "name": "Get User",
+      "steps": 1,
+      "preview": { ... }
+    },
+    {
+      "name": "Create User",
+      "steps": 1,
+      "preview": { ... }
+    }
+  ],
+  "total": 12,
+  "warnings": [
+    "Step 'Login' has a pre-request script that could not be automatically converted"
+  ]
+}
+```
+
+### Execute Import
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/import \
+  -F "file=@collection.json" \
+  -F "format=postman" \
+  -F "collection_id=optional-collection-uuid"
+```
+
+Response:
+
+```json
+{
+  "id": "import-abc123",
+  "status": "completed",
+  "created": 12,
+  "skipped": 0,
+  "errors": [],
+  "flows": ["flow-uuid-1", "flow-uuid-2", "..."]
+}
+```
+
+### Supported Formats
+
+| Format | `format` value |
+|--------|----------------|
+| Postman Collection | `postman` |
+| OpenAPI / Swagger | `openapi` |
+| HAR | `har` |
+| TestMesh YAML | `testmesh` |
+
+---
+
+## Export Formats
+
+### Postman Collection
+
+Export flows as a Postman Collection v2.1 that can be imported into Postman:
+
+- `http_request` steps → Postman requests
+- Variables → collection variables
+- Collection hierarchy is preserved
+
+### OpenAPI
+
+Export as an OpenAPI 3.0 spec. Useful for generating API documentation from your tests.
+
+### HAR
+
+Export as an HTTP Archive file. Useful for importing into performance tools.
+
+### TestMesh YAML
+
+Export as TestMesh YAML — the full flow definition that can be re-imported or run with the CLI. This is the lossless format that preserves all TestMesh-specific features.
+
+---
+
+## Export via Dashboard
+
+1. Navigate to **Flows**
+2. Select one or more flows using the checkboxes
+3. Click **Export** in the toolbar
+4. Choose format and download
+
+Or export a single flow from its detail page via the **⋮ menu → Export**.
+
+---
+
+## Export via API
+
+### Single Flow
+
+```bash
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/flows/$FLOW_ID/export?format=testmesh \
+  -o my-flow.yaml
+```
+
+### Bulk Export
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/export \
+  -H "Content-Type: application/json" \
+  -d '{
+    "flow_ids": ["flow-uuid-1", "flow-uuid-2"],
+    "format": "postman"
+  }' \
+  -o collection.json
+```
+
+### Export a Collection
+
+```bash
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/collections/$COLLECTION_ID/export?format=testmesh \
+  -o collection-export.yaml
+```
+
+---
+
+## CLI Export
+
+Run a flow locally using the exported YAML:
+
+```bash
+cd cli
+go run main.go run exported-flow.yaml
+```
+
+The CLI accepts any valid TestMesh flow YAML. You can export from the dashboard, edit locally, and re-import — or keep the YAML in version control and run it directly without importing.
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="YAML Reference" href="/docs/yaml-reference" description="Complete reference for TestMesh flow YAML." />
+  <Card title="CI/CD Integration" href="/docs/guides/ci-cd" description="Run flows in your pipeline." />
+  <Card title="Git Integration" href="/docs/features/git-integration" description="Auto-run flows from version control." />
+</Cards>

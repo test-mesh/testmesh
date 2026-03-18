@@ -1,0 +1,170 @@
+---
+title: Environments & Routing
+description: Manage variables, sandbox headers, and service URL overrides per deployment target — run the same flow against dev, staging, and production without editing a single YAML file.
+---
+
+Environments let you define named sets of variables and routing rules that are applied at execution time. The same flow can run against different infrastructure by simply switching environments.
+
+---
+
+## Variables
+
+Each environment holds a list of key-value variables. At execution time these are merged into the flow context so any `${VARIABLE}` reference is resolved.
+
+```yaml
+# Flow uses variables — no hardcoded URLs or credentials
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${API_URL}/users"
+    headers:
+      Authorization: "Bearer ${AUTH_TOKEN}"
+```
+
+With a **Staging** environment:
+```
+API_URL   = https://staging.api.example.com
+AUTH_TOKEN = stg-token-abc
+```
+
+With a **Production** environment:
+```
+API_URL    = https://api.example.com
+AUTH_TOKEN = prod-token-xyz
+```
+
+The flow YAML stays unchanged — only the environment differs.
+
+### Secret variables
+
+Mark a variable as **Secret** to mask its value in the UI and exported files. Secrets are stored encrypted and never appear in execution logs.
+
+---
+
+## Routing Policy
+
+Beyond simple variable substitution, environments support a **Routing Policy** — rules that are applied automatically to every HTTP request in an execution without modifying individual flow steps.
+
+### HTTP Headers
+
+Headers defined in the routing policy are injected into every `http_request` step. This is how you implement sandbox or canary routing using a service mesh like Istio or Linkerd.
+
+```yaml
+# Environment: sandbox-pr-123
+routing:
+  headers:
+    X-Sandbox-ID: "pr-123"
+    X-Tenant-ID: "acme"
+```
+
+Any HTTP request executed under this environment will carry these headers automatically. Step-level `headers` take precedence if there is a conflict.
+
+### Service URLs
+
+The `services` map lets you override the base URL for each logical service in your system. In flows, reference services as `${service.<name>}` instead of hardcoding URLs.
+
+```yaml
+# Environment: sandbox-pr-123
+routing:
+  services:
+    user-service:  "http://pr-123.sandbox.internal:5001"
+    order-service: "http://pr-123.sandbox.internal:5003"
+```
+
+In a flow:
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${service.user-service}/users"
+```
+
+Switch to the **Staging** environment and `${service.user-service}` resolves to `https://staging.user.example.com` instead — no flow changes needed.
+
+### Action-type overrides
+
+For non-HTTP protocols you can inject config defaults per action type. These are merged before the step's own config — the step always wins on conflict.
+
+```yaml
+routing:
+  services:
+    postgres: "postgres://test:test@sandbox.internal:5432/test"
+    kafka:    "sandbox-kafka.internal:9092"
+
+  overrides:
+    # Every database_query step gets this connection string by default
+    database_query:
+      connection_string: "${service.postgres}"
+
+    # Every kafka_producer/consumer step gets these brokers by default
+    kafka_producer:
+      brokers: "${service.kafka}"
+    kafka_consumer:
+      brokers: "${service.kafka}"
+```
+
+This means flows don't need to hardcode `connection_string` or `brokers` — they inherit them from the environment and only override when necessary.
+
+---
+
+## Managing environments
+
+Environments are managed in the **Environments** section of the dashboard.
+
+### Creating an environment
+
+1. Click **New Environment**
+2. Set a name, color, and optional description
+3. Add variables under **Variables**
+4. Optionally configure routing under **Routing Policy**
+5. Click **Create Environment**
+
+### Setting a default
+
+Mark one environment as the default. Flows that don't specify an environment will use it automatically.
+
+### Duplicate, export, import
+
+- **Duplicate** — clone an existing environment with a new name (useful for creating sandbox variants)
+- **Export** — download as JSON (secrets masked or included)
+- **Import** — paste a previously exported JSON to restore or share environments across workspaces
+
+---
+
+## Using environments in flows
+
+### Via the dashboard
+
+Select an environment when running a flow or collection from the **Run** dialog.
+
+### Via the API
+
+Pass `"environment"` in the run request body:
+
+```json
+POST /api/v1/runner/run
+{
+  "flow_ids": ["<flow-uuid>"],
+  "environment": "staging"
+}
+```
+
+You can pass the environment name or UUID. Runtime `variables` in the same request override environment variables.
+
+### Via the CLI
+
+```bash
+testmesh run my-flow.yaml --env staging
+```
+
+---
+
+## Priority order
+
+When the same key is defined in multiple places, later values win:
+
+1. Environment variables (lowest priority)
+2. Runtime variables passed at execution time (override environment)
+3. Step-level `headers` in `http_request` (override routing headers)

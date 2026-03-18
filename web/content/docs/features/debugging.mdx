@@ -1,0 +1,261 @@
+---
+title: Debugging
+description: Step through test flows interactively with breakpoints, variable inspection, and step-over execution.
+---
+
+TestMesh includes an interactive debugger for diagnosing failures in complex flows. Set breakpoints at any step, inspect variables and outputs at each point in execution, and step through one action at a time.
+
+<Cards>
+  <Card title="Debug Sessions" href="#debug-sessions" description="Start a debug session on any flow" />
+  <Card title="Breakpoints" href="#breakpoints" description="Pause execution at specific steps" />
+  <Card title="Inspecting State" href="#inspecting-state" description="View variables and step outputs" />
+  <Card title="CLI Debugger" href="#cli-debugger" description="Interactive debugging from the terminal" />
+</Cards>
+
+## Debug Sessions
+
+A debug session runs a flow in paused mode. Execution halts at each breakpoint and waits for you to continue, step over, or inspect state before proceeding.
+
+### From the Dashboard
+
+Open any flow and click the **Debug** button instead of **Run**. The debug panel opens alongside the flow editor showing:
+
+- Current step highlighted
+- All variables in scope
+- Output from the last completed step
+- Step execution history
+
+### Via the API
+
+```bash
+# Start a debug session
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/flows/$FLOW_ID/debug \
+  -H "Content-Type: application/json" \
+  -d '{
+    "breakpoints": ["step_id_1", "step_id_3"],
+    "environment_id": "env-uuid"
+  }'
+```
+
+The response includes a session ID. Use this to control execution via subsequent API calls or the debug panel.
+
+---
+
+## Breakpoints
+
+Set breakpoints by step ID to pause execution before a step runs:
+
+```json
+{
+  "breakpoints": ["create_user", "send_email", "verify_response"]
+}
+```
+
+When execution reaches a breakpoint, the session transitions to `paused` state and waits for one of:
+
+| Action | Description |
+|--------|-------------|
+| **Continue** | Resume until the next breakpoint (or end) |
+| **Step Over** | Execute only the next step, then pause again |
+| **Stop** | Abort the execution entirely |
+
+### Conditional Breakpoints
+
+Breakpoints can include a condition expression evaluated against the current variables:
+
+```json
+{
+  "breakpoints": [
+    {
+      "step_id": "process_order",
+      "condition": "order_total > 1000"
+    }
+  ]
+}
+```
+
+The execution only pauses at `process_order` when `order_total` exceeds 1000.
+
+---
+
+## Inspecting State
+
+When paused, you can inspect:
+
+### Variables
+
+All variables set via `output` mappings from previous steps are available in the variable inspector:
+
+```
+Variables:
+  user_id     = "usr_abc123"
+  auth_token  = "Bearer eyJ..."
+  order_total = 1250.00
+  env.BASE_URL = "https://staging.api.example.com"
+```
+
+### Step Output
+
+The raw output data from the last executed step:
+
+```json
+{
+  "status": 201,
+  "body": {
+    "id": "usr_abc123",
+    "name": "Test User",
+    "created_at": "2024-01-15T10:30:00Z"
+  },
+  "headers": {
+    "Content-Type": "application/json",
+    "X-Request-Id": "req_xyz789"
+  },
+  "duration_ms": 145
+}
+```
+
+### Execution History
+
+A timeline of all steps completed so far with their status (passed/failed), duration, and any assertion failures.
+
+---
+
+## Controlling Execution
+
+### Dashboard
+
+The debug panel shows **Continue**, **Step Over**, and **Stop** buttons. Each action takes effect immediately.
+
+### API
+
+```bash
+# Step over one step
+curl -X POST http://localhost:5016/api/v1/debug/$SESSION_ID/step-over
+
+# Continue to next breakpoint
+curl -X POST http://localhost:5016/api/v1/debug/$SESSION_ID/continue
+
+# Stop the session
+curl -X POST http://localhost:5016/api/v1/debug/$SESSION_ID/stop
+
+# Get current state
+curl http://localhost:5016/api/v1/debug/$SESSION_ID
+```
+
+Session state response:
+
+```json
+{
+  "id": "dbg-abc123",
+  "status": "paused",
+  "current_step": "send_email",
+  "completed_steps": ["create_user", "get_token"],
+  "variables": {
+    "user_id": "usr_abc123",
+    "token": "Bearer eyJ..."
+  },
+  "last_output": { ... }
+}
+```
+
+---
+
+## CLI Debugger
+
+The CLI has an interactive debug mode with a REPL interface:
+
+```bash
+cd cli
+go run main.go debug ../flows/my-flow.yaml
+```
+
+Example session:
+
+```
+TestMesh Debugger v1.0
+Flow: User Registration + Verification
+Steps: 6
+
+> run
+▶ Executing: create_user
+  ✓ POST https://api.example.com/users → 201 (145ms)
+
+> vars
+user_id = "usr_abc123"
+token   = ""
+
+> step
+▶ Executing: get_token
+  ✓ POST https://api.example.com/auth/token → 200 (89ms)
+
+> vars
+user_id = "usr_abc123"
+token   = "Bearer eyJhbGciOiJIUzI1NiJ9..."
+
+> output
+{
+  "access_token": "eyJhbGciOiJIUzI1NiJ9...",
+  "expires_in": 3600
+}
+
+> continue
+▶ Executing: verify_email
+  ✗ FAILED: status == 200 → got 404
+  Error: User not found
+
+> quit
+Debug session ended.
+```
+
+Available CLI debug commands:
+
+| Command | Description |
+|---------|-------------|
+| `run` | Start execution (pauses at first step) |
+| `step` | Execute one step |
+| `continue` | Run until next breakpoint or end |
+| `skip` | Skip the current step |
+| `vars` | Print all current variables |
+| `output` | Print output from last step |
+| `history` | Show executed steps |
+| `break <step_id>` | Add a breakpoint |
+| `clear <step_id>` | Remove a breakpoint |
+| `quit` | Exit the debugger |
+
+---
+
+## Debugging Common Issues
+
+### Assertion Failures
+
+When an assertion fails, the debugger shows the evaluated expression and both the expected and actual values:
+
+```
+✗ FAILED assertion: status == 201
+  Expression: status == 201
+  status = 400
+  Response body: {"error": "email already exists"}
+```
+
+### Missing Variables
+
+If a template like `${create_user.id}` resolves to empty, the variable inspector shows exactly which step outputs are available:
+
+```
+Step outputs:
+  create_user.status  = 201
+  create_user.body.id = ""    ← empty — check the output mapping
+```
+
+### Slow Steps
+
+Each step shows its duration. A step taking much longer than expected likely indicates a network timeout or unresponsive service.
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Observability" href="/docs/features/observability" description="Stream logs and execution events in real time." />
+  <Card title="CLI run command" href="/docs/cli/run" description="Run flows from the terminal." />
+</Cards>

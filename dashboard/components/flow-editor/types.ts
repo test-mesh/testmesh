@@ -37,7 +37,10 @@ export type ActionType =
   | 'mock_server_reset_state'
   // Contract Testing
   | 'contract_generate'
-  | 'contract_verify';
+  | 'contract_verify'
+  // Infrastructure (setup/teardown)
+  | 'docker_run'
+  | 'docker_stop';
 
 // Comment structure for collaboration
 export interface Comment {

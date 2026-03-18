@@ -1,0 +1,243 @@
+---
+title: Load Testing
+description: Run load tests with configurable virtual users, ramp-up profiles, and real-time metrics — using the same flow definitions as your functional tests.
+---
+
+TestMesh can execute any flow as a load test with concurrent virtual users. This means you can reuse your existing integration test flows without modification — the same YAML that passes functionally can be driven at scale.
+
+<Cards>
+  <Card title="Basic Load Test" href="#basic-load-test" description="Run a flow with multiple virtual users" />
+  <Card title="Ramp Profiles" href="#ramp-profiles" description="Gradually increase and decrease load" />
+  <Card title="Metrics" href="#metrics" description="Throughput, latency percentiles, error rates" />
+  <Card title="Thresholds" href="#thresholds" description="Fail the test if SLOs are breached" />
+</Cards>
+
+## Basic Load Test
+
+A load test runs a flow concurrently across multiple virtual users. Each virtual user executes the full flow independently from start to finish, then immediately starts the next iteration.
+
+Configure a load test through the API or the Load Testing page in the dashboard:
+
+```json title="POST /api/v1/workspaces/:id/load-tests"
+{
+  "flow_id": "flow-uuid",
+  "virtual_users": 50,
+  "duration": "5m",
+  "ramp_up": "30s",
+  "ramp_down": "30s",
+  "think_time": "1s"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `virtual_users` | Peak concurrent users |
+| `duration` | How long to sustain peak load |
+| `ramp_up` | Time to reach peak from 0 users |
+| `ramp_down` | Time to scale back to 0 after duration |
+| `think_time` | Pause between iterations per virtual user |
+
+---
+
+## Ramp Profiles
+
+### Gradual Ramp
+
+A typical load test profile: ramp up over 30 seconds, sustain for 5 minutes, ramp down:
+
+```
+Users
+50 |          ______________________
+   |         /                      \
+   |        /                        \
+ 0 |_______/                          \______
+   0s     30s                        5m30s  6m
+```
+
+```json
+{
+  "virtual_users": 50,
+  "duration": "5m",
+  "ramp_up": "30s",
+  "ramp_down": "30s"
+}
+```
+
+### Spike Test
+
+Instantly apply full load to find the breaking point:
+
+```json
+{
+  "virtual_users": 200,
+  "duration": "1m",
+  "ramp_up": "0s",
+  "ramp_down": "0s"
+}
+```
+
+### Stress Test
+
+Gradually increase load until failures appear:
+
+```json
+{
+  "virtual_users": 500,
+  "duration": "10m",
+  "ramp_up": "10m",
+  "ramp_down": "0s"
+}
+```
+
+---
+
+## Metrics
+
+TestMesh collects the following metrics in real-time during execution:
+
+### Latency
+
+| Metric | Description |
+|--------|-------------|
+| Min | Fastest response seen |
+| Max | Slowest response seen |
+| Avg | Mean response time |
+| Median (p50) | 50th percentile |
+| p90 | 90th percentile response time |
+| p95 | 95th percentile response time |
+| p99 | 99th percentile response time |
+
+### Throughput
+
+| Metric | Description |
+|--------|-------------|
+| RPS | Requests per second (current) |
+| Total requests | Cumulative request count |
+| Success rate | Percentage of passing iterations |
+| Error rate | Percentage of failing iterations |
+
+### Virtual Users
+
+The dashboard shows a timeline view of active virtual users, requests per second, and latency percentiles throughout the test.
+
+---
+
+## Thresholds
+
+Define pass/fail criteria for your load test. If any threshold is breached, the test is marked as failed:
+
+```json
+{
+  "virtual_users": 100,
+  "duration": "3m",
+  "ramp_up": "30s",
+  "thresholds": {
+    "p95_latency_ms": 500,
+    "p99_latency_ms": 1000,
+    "error_rate_percent": 1.0,
+    "min_rps": 50
+  }
+}
+```
+
+| Threshold | Description |
+|-----------|-------------|
+| `p95_latency_ms` | p95 must be below this value |
+| `p99_latency_ms` | p99 must be below this value |
+| `error_rate_percent` | Error rate must be below this percentage |
+| `min_rps` | Throughput must exceed this value |
+
+---
+
+## Think Time
+
+Think time adds a delay between each virtual user's iterations, simulating realistic user behavior where people pause between actions:
+
+```json
+{
+  "virtual_users": 100,
+  "duration": "5m",
+  "think_time": "2s"      // fixed 2s pause between iterations
+}
+```
+
+Think time is applied per virtual user, so 100 users with 2s think time and a 1s response time results in ~33 RPS (`100 / (1 + 2) = 33`).
+
+---
+
+## Reusing Functional Tests
+
+Any flow that passes your functional test suite can be run as a load test without modification. A flow using `http_request`, `database_query`, or any other action works the same way under load — each virtual user runs the full flow:
+
+```yaml title="user-registration.yaml"
+flow:
+  name: "User Registration"
+  steps:
+    - id: register
+      action: http_request
+      config:
+        method: POST
+        url: "https://api.example.com/users"
+        body:
+          name: "Test User"
+          email: "test+{{random_id}}@example.com"
+      assert:
+        - status == 201
+      output:
+        user_id: "$.body.id"
+
+    - id: get_user
+      action: http_request
+      config:
+        method: GET
+        url: "https://api.example.com/users/${register.user_id}"
+      assert:
+        - status == 200
+```
+
+Running this as a load test with 50 virtual users creates 50 concurrent registration + lookup sequences.
+
+---
+
+## CI Integration
+
+Load tests can be triggered from CI via the API:
+
+```bash
+# Start a load test
+RESULT=$(curl -s -X POST http://testmesh:5016/api/v1/workspaces/$WORKSPACE_ID/load-tests \
+  -H "Content-Type: application/json" \
+  -d '{
+    "flow_id": "'$FLOW_ID'",
+    "virtual_users": 100,
+    "duration": "2m",
+    "ramp_up": "30s",
+    "thresholds": {
+      "p95_latency_ms": 500,
+      "error_rate_percent": 1.0
+    }
+  }')
+
+TEST_ID=$(echo $RESULT | jq -r '.id')
+
+# Wait for completion and check result
+while true; do
+  STATUS=$(curl -s http://testmesh:5016/api/v1/load-tests/$TEST_ID | jq -r '.status')
+  case $STATUS in
+    "completed") echo "Load test passed"; break ;;
+    "failed")    echo "Load test failed (thresholds breached)"; exit 1 ;;
+    "error")     echo "Load test error"; exit 1 ;;
+    *)           sleep 10 ;;
+  esac
+done
+```
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Scheduling" href="/docs/features/scheduling" description="Run load tests on a schedule." />
+  <Card title="Reporting" href="/docs/features/reporting" description="Generate reports from load test results." />
+  <Card title="Observability" href="/docs/features/observability" description="Stream execution logs and metrics." />
+</Cards>

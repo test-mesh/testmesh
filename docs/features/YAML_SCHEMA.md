@@ -770,7 +770,50 @@ All steps share this common structure:
     - "${check_status.status}" == "completed"
 ```
 
-### 8. Transform Data
+### 8. Docker Provisioning
+
+Spin up ephemeral containers in `setup` blocks and tear them down in `teardown`. Ideal for
+isolated database, cache, or broker instances per test run.
+
+```yaml
+# In setup: provision a fresh Postgres container
+- id: provision_db
+  action: docker_run
+  config:
+    image: postgres:16-alpine       # Required — any Docker image
+    name: test-db-${RANDOM_ID}      # Optional — auto-generated if omitted
+    network: local-infra            # Optional — attach to an existing Docker network
+    env:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: testdb
+    ports:
+      "5432": "0"                   # containerPort: hostPort ("0" = random)
+    wait_for_port: "5432"           # Wait until this port accepts TCP connections
+    timeout: 30s                    # Max wait time (default: 30s)
+  output:
+    container_id: $.container_id    # Full container ID
+    db_host: $.host                 # "localhost"
+    db_port: $.ports.5432           # Assigned host port
+    db_dsn: $.dsn                   # Auto-generated DSN for postgres/redis/mysql/mongo
+
+# In teardown: remove the container
+- id: cleanup_db
+  action: docker_stop
+  config:
+    container_id: ${provision_db.container_id}  # Required
+    remove: true                                 # Optional, default true (rm -f)
+```
+
+**Auto-generated DSN** — for well-known images the `dsn` output is populated automatically:
+- `postgres:*` / `timescale:*` → `postgres://user:pass@localhost:port/db`
+- `redis:*` → `redis://localhost:port`
+- `mysql:*` / `mariadb:*` → `mysql://user:pass@localhost:port/db`
+- `mongo:*` → `mongodb://user:pass@localhost:port`
+
+Use `${provision_db.db_dsn}` as the `connection_string` in subsequent `database_query` steps.
+
+### 9. Transform Data
 
 ```yaml
 - id: transform
@@ -1074,6 +1117,44 @@ All steps share this common structure:
           body:
             users: "{{state.users}}"
 ```
+
+---
+
+## Environment Routing Policy
+
+Environments can declare a `routing` block that applies sandbox/canary rules to every HTTP
+request executed under that environment — without modifying individual flows.
+
+```yaml
+# Example environment definition (via API or dashboard)
+name: sandbox-123
+routing:
+  headers:
+    # Injected into every http_request step automatically.
+    # Step-level headers take precedence if there is a conflict.
+    X-Sandbox-ID: "sandbox-123"
+    X-Tenant-ID: "tenant-abc"
+
+  services:
+    # Accessible in flows as ${service.<name>}
+    # Override base URLs per environment without editing flows.
+    user-service: "http://sandbox-123.internal:5001"
+    order-service: "http://sandbox-123.internal:5003"
+```
+
+In a flow, reference service URLs via `${service.<name>}`:
+```yaml
+- id: create_user
+  action: http_request
+  config:
+    method: POST
+    url: "${service.user-service}/users"   # resolved per environment
+    body:
+      name: "John"
+```
+
+When the same flow runs under different environments, requests are automatically routed to
+the correct service instances. No flow edits needed.
 
 ---
 

@@ -1,0 +1,326 @@
+---
+title: browser
+description: Automate web browsers using Chromium — navigate, click, type, extract content, and take screenshots.
+---
+
+The `browser` action drives a headless Chromium browser via the Chrome DevTools Protocol. Use it to test web UIs, scrape content, or automate interactions that require JavaScript execution.
+
+```yaml
+- id: open_page
+  action: browser
+  config:
+    action: navigate
+    url: "https://app.example.com/login"
+    timeout: "30s"
+    headless: true
+```
+
+---
+
+## Configuration
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | string | yes | Browser sub-action (see below) |
+| `url` | string | context | Target URL (required for `navigate`) |
+| `selector` | string | context | CSS selector for the target element |
+| `text` | string | context | Text to type or check |
+| `value` | string | context | Value to set |
+| `attribute` | string | no | HTML attribute to read |
+| `script` | string | context | JavaScript to evaluate |
+| `timeout` | string | no | Per-action timeout (default: `30s`) |
+| `headless` | bool | no | Run headless (default: `true`) |
+| `screenshot` | bool | no | Take a screenshot after the action |
+| `full_page` | bool | no | Full-page screenshot (default: `false`) |
+| `wait_for` | string | no | CSS selector to wait for after the action |
+| `cookies` | array | no | Cookies to set before navigation |
+| `headers` | object | no | Extra request headers |
+| `viewport` | object | no | `{ width, height }` in pixels |
+
+---
+
+## Sub-actions
+
+All browser actions share the same action type (`browser`) and differ by the `action` field.
+
+### `navigate`
+
+Navigate to a URL and wait for page load:
+
+```yaml
+- id: go_to_login
+  action: browser
+  config:
+    action: navigate
+    url: "https://app.example.com/login"
+    wait_for: "#login-form"
+  output:
+    title: "$.title"
+    url: "$.url"
+```
+
+### `click`
+
+Click an element identified by a CSS selector:
+
+```yaml
+- id: submit_form
+  action: browser
+  config:
+    action: click
+    selector: "button[type=submit]"
+    wait_for: ".success-message"
+```
+
+### `type`
+
+Clear an input field and type text:
+
+```yaml
+- id: enter_email
+  action: browser
+  config:
+    action: type
+    selector: "#email"
+    text: "user@example.com"
+```
+
+### `get_text`
+
+Extract the text content of an element:
+
+```yaml
+- id: read_message
+  action: browser
+  config:
+    action: get_text
+    selector: ".notification-banner"
+  output:
+    message: "$.text"
+```
+
+### `get_attribute`
+
+Read an HTML attribute from an element:
+
+```yaml
+- id: get_href
+  action: browser
+  config:
+    action: get_attribute
+    selector: "a.download-link"
+    attribute: "href"
+  output:
+    download_url: "$.attribute"
+```
+
+### `get_html`
+
+Get the outer HTML of an element:
+
+```yaml
+- id: capture_table
+  action: browser
+  config:
+    action: get_html
+    selector: "#results-table"
+  output:
+    table_html: "$.html"
+```
+
+### `screenshot`
+
+Take a screenshot of the current page:
+
+```yaml
+- id: capture_screen
+  action: browser
+  config:
+    action: screenshot
+    full_page: true
+    screenshot: true
+  output:
+    image_base64: "$.screenshot"
+```
+
+The screenshot is returned as a base64-encoded PNG string.
+
+### `evaluate`
+
+Execute arbitrary JavaScript in the page context:
+
+```yaml
+- id: get_user_data
+  action: browser
+  config:
+    action: evaluate
+    script: "return window.__USER_DATA__"
+  output:
+    user: "$.eval_result"
+```
+
+The script return value must be JSON-serializable.
+
+### `wait_for_selector`
+
+Wait until an element appears on the page (useful after navigation or AJAX):
+
+```yaml
+- id: wait_for_results
+  action: browser
+  config:
+    action: wait_for_selector
+    selector: ".search-results"
+    timeout: "10s"
+```
+
+### `select`
+
+Choose an option in a `<select>` dropdown:
+
+```yaml
+- id: choose_country
+  action: browser
+  config:
+    action: select
+    selector: "#country"
+    value: "US"
+```
+
+### `hover`
+
+Hover over an element (triggers hover states and tooltips):
+
+```yaml
+- id: hover_menu
+  action: browser
+  config:
+    action: hover
+    selector: "#nav-menu"
+```
+
+---
+
+## Output Data
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | bool | Whether the action succeeded |
+| `action` | string | The sub-action that was executed |
+| `url` | string | Current page URL |
+| `title` | string | Current page title |
+| `text` | string | Extracted text content |
+| `value` | string | Extracted value |
+| `attribute` | string | Extracted attribute value |
+| `html` | string | Extracted HTML content |
+| `screenshot` | string | Base64-encoded PNG screenshot |
+| `eval_result` | any | JavaScript evaluation result |
+| `cookies` | array | Current page cookies |
+| `duration_ms` | int | Execution time in milliseconds |
+
+---
+
+## Full Example: Login Flow
+
+```yaml title="login-and-verify.yaml"
+flow:
+  name: "Test Login Flow"
+
+  steps:
+    - id: navigate_to_login
+      action: browser
+      config:
+        action: navigate
+        url: "https://app.example.com/login"
+        wait_for: "#login-form"
+        viewport:
+          width: 1440
+          height: 900
+
+    - id: enter_credentials
+      action: browser
+      config:
+        action: type
+        selector: "#email"
+        text: "admin@example.com"
+
+    - id: enter_password
+      action: browser
+      config:
+        action: type
+        selector: "#password"
+        text: "secret123"
+
+    - id: click_login
+      action: browser
+      config:
+        action: click
+        selector: "button[type=submit]"
+        wait_for: ".dashboard"
+
+    - id: verify_dashboard
+      action: browser
+      config:
+        action: get_text
+        selector: ".welcome-message"
+      output:
+        welcome_text: "$.text"
+
+    - id: screenshot_dashboard
+      action: browser
+      config:
+        action: screenshot
+        full_page: false
+
+  assert:
+    - '"Welcome" in welcome_text'
+```
+
+---
+
+## Authentication with Cookies
+
+Set cookies before navigating to skip a login form:
+
+```yaml
+- id: authenticated_page
+  action: browser
+  config:
+    action: navigate
+    url: "https://app.example.com/dashboard"
+    cookies:
+      - name: "session"
+        value: "${auth_cookie}"
+        domain: "app.example.com"
+        path: "/"
+```
+
+---
+
+## Custom Headers
+
+Send extra HTTP headers on navigation requests:
+
+```yaml
+- id: navigate_with_auth
+  action: browser
+  config:
+    action: navigate
+    url: "https://app.example.com/admin"
+    headers:
+      X-Internal-Token: "${internal_token}"
+      Accept-Language: "en-US"
+```
+
+<Callout type="note">
+  The browser action requires Chromium to be installed on the system running the TestMesh API. In Docker deployments, use the `testmesh/api-with-chrome` image which includes Chromium.
+</Callout>
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Control Flow" href="/docs/yaml-reference/actions/control-flow" description="Conditionals, loops, and branching." />
+  <Card title="HTTP Request" href="/docs/yaml-reference/actions/http-request" description="Make HTTP API calls." />
+</Cards>

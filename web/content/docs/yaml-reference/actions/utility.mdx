@@ -1,0 +1,297 @@
+---
+title: Utility Actions
+description: delay, log, wait_for, and db_poll — actions for timing, output, and polling.
+---
+
+Utility actions handle timing control, logging, and polling patterns that don't fit a specific protocol.
+
+---
+
+## `delay`
+
+Pauses execution for a fixed duration. Useful for introducing wait time between steps when polling isn't appropriate, or simulating think time.
+
+```yaml
+- id: wait_for_processing
+  action: delay
+  config:
+    duration: "2s"
+```
+
+### Configuration
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `duration` | string | yes | How long to wait. Accepts Go duration format: `100ms`, `2s`, `1m`, `1h30m` |
+
+### Output
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `duration` | string | The duration string that was used |
+| `duration_ms` | int | Equivalent in milliseconds |
+| `completed` | bool | Always `true` |
+
+### Example
+
+```yaml
+flow:
+  name: "Wait for async job"
+  steps:
+    - id: trigger_job
+      action: http_request
+      config:
+        method: POST
+        url: "${BASE_URL}/jobs"
+        body:
+          type: "report_generation"
+      output:
+        job_id: "$.body.id"
+
+    - id: wait_for_job
+      action: delay
+      config:
+        duration: "5s"
+
+    - id: check_job_status
+      action: http_request
+      config:
+        method: GET
+        url: "${BASE_URL}/jobs/${trigger_job.job_id}"
+      assert:
+        - 'body.status == "completed"'
+```
+
+<Callout type="tip">
+  Prefer `wait_for` over `delay` when you have a condition to check — it polls until the condition is met rather than waiting a fixed amount of time.
+</Callout>
+
+---
+
+## `log`
+
+Writes a message to the execution log. Useful for annotating test output, recording intermediate values, and making long flows easier to follow.
+
+```yaml
+- id: log_user_id
+  action: log
+  config:
+    message: "Created user with ID: ${create_user.body.id}"
+    level: "info"
+```
+
+### Configuration
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `message` | string | yes | The message to log. Supports `${variable}` interpolation. |
+| `level` | string | no | Log level: `debug`, `info`, `warn`, `error` (default: `info`) |
+
+### Example
+
+```yaml
+steps:
+  - id: note_phase
+    action: log
+    config:
+      message: "--- Phase 2: Verifying order fulfillment ---"
+
+  - id: warn_on_retry
+    action: log
+    config:
+      message: "Retrying after rate limit: attempt ${retry_count}"
+      level: "warn"
+```
+
+Log messages appear in the execution log visible in the dashboard and CLI output.
+
+---
+
+## `wait_for`
+
+Polls a condition repeatedly until it is satisfied or the timeout is reached. More efficient and reliable than a fixed `delay` when waiting for a service to become ready or an async operation to complete.
+
+```yaml
+- id: wait_for_service
+  action: wait_for
+  config:
+    type: http
+    url: "http://my-service/health"
+    status_code: 200
+    timeout: "30s"
+    interval: "1s"
+```
+
+### Configuration
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | yes | What to poll: `http` or `tcp` |
+| `timeout` | string | no | Max total wait time (default: `30s`) |
+| `interval` | string | no | Time between attempts (default: `1s`) |
+| `max_attempts` | int | no | Max number of attempts (overrides timeout) |
+
+#### HTTP-specific fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `url` | string | URL to poll |
+| `method` | string | HTTP method (default: `GET`) |
+| `headers` | object | Request headers |
+| `status_code` | int | Expected HTTP status code |
+| `body_contains` | string | String that must appear in the response body |
+| `json_path` | string | JSONPath expression to evaluate |
+| `json_value` | any | Expected value at the JSONPath |
+
+#### TCP-specific fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `host` | string | Hostname or IP |
+| `port` | int | TCP port number |
+
+### Examples
+
+**Wait for a service to become healthy:**
+
+```yaml
+- id: wait_for_api
+  action: wait_for
+  config:
+    type: http
+    url: "http://user-service:5001/health"
+    status_code: 200
+    timeout: "60s"
+    interval: "2s"
+```
+
+**Wait for a specific JSON value:**
+
+```yaml
+- id: wait_for_job_complete
+  action: wait_for
+  config:
+    type: http
+    url: "${BASE_URL}/jobs/${job_id}"
+    json_path: "$.status"
+    json_value: "completed"
+    timeout: "2m"
+    interval: "5s"
+```
+
+**Wait for a TCP port to open:**
+
+```yaml
+- id: wait_for_postgres
+  action: wait_for
+  config:
+    type: tcp
+    host: "postgres"
+    port: 5432
+    timeout: "30s"
+    interval: "500ms"
+```
+
+**Combining with docker_run to start a dependency:**
+
+```yaml
+steps:
+  - id: start_db
+    action: docker_run
+    config:
+      image: "postgres:15"
+      env:
+        POSTGRES_PASSWORD: "test"
+      ports:
+        - "5432:5432"
+    output:
+      container_id: "$.container_id"
+
+  - id: wait_for_db
+    action: wait_for
+    config:
+      type: tcp
+      host: "localhost"
+      port: 5432
+      timeout: "30s"
+```
+
+---
+
+## `db_poll`
+
+Like `wait_for`, but polls a database query instead of an HTTP endpoint. Retries until the query returns the expected result or the timeout is reached.
+
+```yaml
+- id: wait_for_record
+  action: db_poll
+  config:
+    connection_string: "postgres://user:pass@localhost/testdb"
+    query: "SELECT status FROM orders WHERE id = $1"
+    params:
+      - "${order_id}"
+    expected_value: "shipped"
+    column: "status"
+    timeout: "60s"
+    interval: "2s"
+```
+
+### Configuration
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `connection_string` | string | yes | PostgreSQL connection string |
+| `query` | string | yes | SQL query to execute |
+| `params` | array | no | Query parameters (avoid SQL injection) |
+| `expected_value` | any | yes | Value to wait for |
+| `column` | string | no | Column to check (default: first column) |
+| `timeout` | string | no | Max total wait time (default: `30s`) |
+| `interval` | string | no | Time between retries (default: `1s`) |
+| `max_attempts` | int | no | Max retry count |
+
+### Example: Waiting for Kafka-driven processing
+
+```yaml
+flow:
+  name: "Order Processing via Kafka"
+
+  steps:
+    - id: publish_order
+      action: kafka_producer
+      config:
+        brokers: ["kafka:9092"]
+        topic: "orders"
+        value:
+          id: "order-123"
+          amount: 99.99
+
+    - id: wait_for_order_record
+      action: db_poll
+      config:
+        connection_string: "${DB_URL}"
+        query: "SELECT status FROM orders WHERE external_id = $1"
+        params: ["order-123"]
+        expected_value: "processed"
+        column: "status"
+        timeout: "30s"
+        interval: "2s"
+
+    - id: verify_status
+      action: database_query
+      config:
+        connection_string: "${DB_URL}"
+        query: "SELECT * FROM orders WHERE external_id = $1"
+        params: ["order-123"]
+      assert:
+        - 'rows[0].status == "processed"'
+        - 'rows[0].amount == 99.99'
+```
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Control Flow" href="/docs/yaml-reference/actions/control-flow" description="Conditionals, loops, and for_each iteration." />
+  <Card title="Async Patterns" href="/docs/features/async-patterns" description="Patterns for Kafka, WebSocket, and polling workflows." />
+</Cards>

@@ -16,6 +16,8 @@ import {
   Variable,
   Check,
   X,
+  Route,
+  Server,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,7 +66,7 @@ import {
   useExportEnvironment,
   useImportEnvironment,
 } from '@/lib/hooks/useEnvironments';
-import type { Environment, EnvironmentVariable } from '@/lib/api/environments';
+import type { Environment, EnvironmentVariable, RoutingPolicy } from '@/lib/api/environments';
 
 const PRESET_COLORS = [
   '#3B82F6', // Blue
@@ -92,6 +94,8 @@ export default function EnvironmentsPage() {
   const [formDescription, setFormDescription] = useState('');
   const [formColor, setFormColor] = useState(PRESET_COLORS[0]);
   const [formVariables, setFormVariables] = useState<EnvironmentVariable[]>([]);
+  const [formRoutingHeaders, setFormRoutingHeaders] = useState<[string, string][]>([]);
+  const [formRoutingServices, setFormRoutingServices] = useState<[string, string][]>([]);
 
   const { data: environmentsData, isLoading } = useEnvironments();
   const createEnvironment = useCreateEnvironment();
@@ -104,11 +108,18 @@ export default function EnvironmentsPage() {
 
   const environments = environmentsData?.environments || [];
 
+  const routingFromPairs = (headers: [string, string][], services: [string, string][]): RoutingPolicy => ({
+    headers: Object.fromEntries(headers.filter(([k]) => k.trim())),
+    services: Object.fromEntries(services.filter(([k]) => k.trim())),
+  });
+
   const resetForm = () => {
     setFormName('');
     setFormDescription('');
     setFormColor(PRESET_COLORS[0]);
     setFormVariables([]);
+    setFormRoutingHeaders([]);
+    setFormRoutingServices([]);
   };
 
   const openCreateDialog = () => {
@@ -122,6 +133,8 @@ export default function EnvironmentsPage() {
     setFormDescription(env.description);
     setFormColor(env.color || PRESET_COLORS[0]);
     setFormVariables(env.variables || []);
+    setFormRoutingHeaders(Object.entries(env.routing?.headers || {}));
+    setFormRoutingServices(Object.entries(env.routing?.services || {}));
     setEditingEnv(env);
     setCreateDialogOpen(true);
   };
@@ -134,6 +147,7 @@ export default function EnvironmentsPage() {
       description: formDescription,
       color: formColor,
       variables: formVariables,
+      routing: routingFromPairs(formRoutingHeaders, formRoutingServices),
     };
 
     if (editingEnv) {
@@ -330,10 +344,21 @@ export default function EnvironmentsPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
-                  <span className="flex items-center gap-1">
-                    <Variable className="w-4 h-4" />
-                    {env.variables?.length || 0} variables
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <Variable className="w-4 h-4" />
+                      {env.variables?.length || 0} variables
+                    </span>
+                    {(Object.keys(env.routing?.headers || {}).length > 0 ||
+                      Object.keys(env.routing?.services || {}).length > 0) && (
+                      <span className="flex items-center gap-1">
+                        <Route className="w-4 h-4" />
+                        {Object.keys(env.routing?.headers || {}).length +
+                          Object.keys(env.routing?.services || {}).length}{' '}
+                        routing rules
+                      </span>
+                    )}
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -521,6 +546,141 @@ export default function EnvironmentsPage() {
                   No variables yet. Click "Add Variable" to get started.
                 </div>
               )}
+            </div>
+
+            {/* Routing Policy */}
+            <div className="space-y-4 border rounded-md p-4">
+              <div>
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <Route className="w-4 h-4" />
+                  Routing Policy
+                </h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Headers are injected into every HTTP request. Service URLs are accessible as{' '}
+                  <code className="font-mono">{'${service.<name>}'}</code> in flows.
+                </p>
+              </div>
+
+              {/* Routing Headers */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                    HTTP Headers
+                  </Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormRoutingHeaders([...formRoutingHeaders, ['', '']])}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add Header
+                  </Button>
+                </div>
+                {formRoutingHeaders.length > 0 ? (
+                  <div className="space-y-2">
+                    {formRoutingHeaders.map(([key, value], i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <Input
+                          placeholder="X-Sandbox-ID"
+                          className="font-mono text-sm"
+                          value={key}
+                          onChange={(e) => {
+                            const updated = [...formRoutingHeaders];
+                            updated[i] = [e.target.value, updated[i][1]];
+                            setFormRoutingHeaders(updated);
+                          }}
+                        />
+                        <Input
+                          placeholder="value"
+                          className="font-mono text-sm"
+                          value={value}
+                          onChange={(e) => {
+                            const updated = [...formRoutingHeaders];
+                            updated[i] = [updated[i][0], e.target.value];
+                            setFormRoutingHeaders(updated);
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-destructive"
+                          onClick={() =>
+                            setFormRoutingHeaders(formRoutingHeaders.filter((_, j) => j !== i))
+                          }
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground italic">
+                    No routing headers. Add one to inject it into all HTTP steps.
+                  </div>
+                )}
+              </div>
+
+              {/* Service URLs */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                    <span className="flex items-center gap-1">
+                      <Server className="w-3 h-3" />
+                      Service URLs
+                    </span>
+                  </Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFormRoutingServices([...formRoutingServices, ['', '']])}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add Service
+                  </Button>
+                </div>
+                {formRoutingServices.length > 0 ? (
+                  <div className="space-y-2">
+                    {formRoutingServices.map(([name, url], i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <Input
+                          placeholder="user-service"
+                          className="font-mono text-sm"
+                          value={name}
+                          onChange={(e) => {
+                            const updated = [...formRoutingServices];
+                            updated[i] = [e.target.value, updated[i][1]];
+                            setFormRoutingServices(updated);
+                          }}
+                        />
+                        <Input
+                          placeholder="http://sandbox.internal:5001"
+                          className="font-mono text-sm"
+                          value={url}
+                          onChange={(e) => {
+                            const updated = [...formRoutingServices];
+                            updated[i] = [updated[i][0], e.target.value];
+                            setFormRoutingServices(updated);
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-destructive"
+                          onClick={() =>
+                            setFormRoutingServices(formRoutingServices.filter((_, j) => j !== i))
+                          }
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground italic">
+                    No service URLs. Add one to override base URLs per environment.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

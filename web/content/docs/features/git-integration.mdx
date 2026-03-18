@@ -1,0 +1,245 @@
+---
+title: Git Integration
+description: Automatically run tests when code changes — connect GitHub, GitLab, or Gitea and trigger flows on push, pull request, or commit events.
+---
+
+TestMesh integrates with Git providers to run tests automatically when code changes. Connect your repositories to trigger flows on push, pull request, or specific commit events. AI-powered diff analysis can identify which tests are most relevant to each change.
+
+<Cards>
+  <Card title="Connecting a Provider" href="#connecting-a-provider" description="Set up GitHub, GitLab, or Gitea" />
+  <Card title="Trigger Rules" href="#trigger-rules" description="Define when flows run" />
+  <Card title="Diff Analysis" href="#diff-analysis" description="Smart test selection based on code changes" />
+  <Card title="Self-Healing" href="#self-healing" description="Automatically fix broken tests" />
+</Cards>
+
+## Connecting a Provider
+
+Configure a Git integration in the dashboard under **Settings → Integrations** or via the API:
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/integrations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "github",
+    "name": "My GitHub",
+    "config": {
+      "webhook_secret": "your-webhook-secret",
+      "token": "ghp_your_personal_access_token"
+    }
+  }'
+```
+
+### Supported Providers
+
+| Provider | Type | Webhook Events |
+|----------|------|----------------|
+| GitHub | `github` | push, pull_request, create |
+| GitLab | `gitlab` | Push Hook, Merge Request Hook, Tag Push Hook |
+| Gitea | `gitea` | push, pull_request, create |
+
+### Webhook Setup
+
+After creating the integration, TestMesh provides a webhook URL to register with your Git provider:
+
+```
+https://your-testmesh.example.com/api/v1/webhooks/github
+```
+
+Set this as the webhook URL in your repository or organization settings. Use the same `webhook_secret` value in both TestMesh and your Git provider.
+
+---
+
+## Repository Links
+
+Link flows to specific Git repositories to enable change-aware test selection:
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/repository-links \
+  -H "Content-Type: application/json" \
+  -d '{
+    "flow_id": "flow-uuid",
+    "repository": "owner/my-repo",
+    "service_paths": ["src/user-service/", "src/auth/"],
+    "integration_id": "integration-uuid"
+  }'
+```
+
+`service_paths` tells TestMesh which directories in the repository are relevant to this flow. When a commit touches files in these paths, this flow is a candidate for triggering.
+
+---
+
+## Trigger Rules
+
+Trigger rules define exactly which flows to run for which Git events.
+
+### Create a Trigger Rule
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/git-trigger-rules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Run on PR to main",
+    "integration_id": "integration-uuid",
+    "repository": "owner/my-repo",
+    "event_types": ["pull_request"],
+    "branches": ["main"],
+    "flow_ids": ["flow-uuid-1", "flow-uuid-2"],
+    "environment_id": "staging-env-uuid",
+    "enabled": true
+  }'
+```
+
+### Rule Configuration
+
+| Field | Description |
+|-------|-------------|
+| `event_types` | `push`, `pull_request`, `create` |
+| `branches` | Branch names to match (supports wildcards: `release/*`) |
+| `flow_ids` | Flows to run when the rule matches |
+| `environment_id` | Environment to use for the triggered run |
+| `enabled` | Whether the rule is active |
+
+### Examples
+
+**Run integration tests on every push to main:**
+
+```json
+{
+  "name": "Main branch integration tests",
+  "event_types": ["push"],
+  "branches": ["main"],
+  "flow_ids": ["integration-suite-flow"]
+}
+```
+
+**Run smoke tests on pull requests to any release branch:**
+
+```json
+{
+  "name": "Release branch smoke tests",
+  "event_types": ["pull_request"],
+  "branches": ["release/*"],
+  "flow_ids": ["smoke-test-flow"]
+}
+```
+
+**Run all tests when a tag is created:**
+
+```json
+{
+  "name": "Tag: full test suite",
+  "event_types": ["create"],
+  "branches": ["v*"],
+  "flow_ids": ["smoke-flow", "integration-flow", "e2e-flow"]
+}
+```
+
+---
+
+## Webhook Delivery
+
+TestMesh logs every webhook delivery with its payload and processing result. Access delivery history:
+
+```bash
+# List recent webhook deliveries
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/webhooks/deliveries
+
+# Get a specific delivery
+curl http://localhost:5016/api/v1/webhooks/deliveries/$DELIVERY_ID
+```
+
+Each delivery record includes:
+- Received timestamp
+- Event type and repository
+- Processing status (queued, processed, failed)
+- Which trigger rules matched
+- Which flows were triggered
+
+---
+
+## Diff Analysis
+
+When a webhook arrives, TestMesh can use AI to analyze the diff and determine which flows are most relevant to the change — even for flows not explicitly in a trigger rule.
+
+Enable diff analysis in the integration settings:
+
+```json
+{
+  "type": "github",
+  "config": {
+    "diff_analysis": true,
+    "ai_provider": "anthropic"
+  }
+}
+```
+
+When enabled, TestMesh:
+
+1. Fetches the diff from the Git provider API
+2. Analyzes which services and code paths changed
+3. Matches changes to flows linked to those paths via repository links
+4. Adds those flows to the triggered run queue
+
+This is useful for monorepos where a single push may touch multiple services.
+
+---
+
+## Self-Healing
+
+Self-healing automatically attempts to fix test flows that break after a code change. When a triggered run fails, TestMesh can:
+
+1. Fetch the diff that caused the failure
+2. Analyze the failure alongside the code change using AI
+3. Generate a patch to update the flow
+4. Create a pull request or apply the fix directly
+
+Configure self-healing per integration:
+
+```json
+{
+  "type": "github",
+  "config": {
+    "self_healing": {
+      "enabled": true,
+      "mode": "pr",      // "pr" creates a PR, "auto" applies directly
+      "target_branch": "main"
+    }
+  }
+}
+```
+
+<Callout type="note">
+  Self-healing requires an AI provider to be configured in Settings → Integrations.
+</Callout>
+
+---
+
+## Status Checks
+
+When running flows triggered by a pull request, TestMesh reports the result back to the Git provider as a commit status check. This lets you enforce passing tests as a merge requirement.
+
+The status check name is `testmesh/<flow-name>` and shows:
+- `pending` while the flow is running
+- `success` if the flow passes
+- `failure` if the flow fails
+
+Configure status reporting in the integration settings:
+
+```json
+{
+  "config": {
+    "report_status_checks": true,
+    "status_check_context": "testmesh"
+  }
+}
+```
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Scheduling" href="/docs/features/scheduling" description="Run flows on a time-based schedule." />
+  <Card title="AI Integration" href="/docs/features/ai-integration" description="AI-powered test generation and analysis." />
+  <Card title="Environments" href="/docs/features/environments" description="Use environments to control which services tests hit." />
+</Cards>

@@ -55,6 +55,11 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    # Mount Docker socket so docker_run/docker_stop flow actions can provision
+    # ephemeral containers (postgres, redis, etc.) during test setup/teardown.
+    # Remove this volume if you don't use docker_run actions.
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:5016/health"]

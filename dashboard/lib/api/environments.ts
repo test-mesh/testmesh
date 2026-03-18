@@ -8,6 +8,12 @@ export interface EnvironmentVariable {
   enabled: boolean;
 }
 
+export interface RoutingPolicy {
+  headers?: Record<string, string>;                    // injected into every http_request step
+  services?: Record<string, string>;                   // ${service.<name>} in all action configs
+  overrides?: Record<string, Record<string, string>>;  // per-action-type config defaults
+}
+
 export interface Environment {
   id: string;
   name: string;
@@ -15,6 +21,7 @@ export interface Environment {
   color: string;
   is_default: boolean;
   variables: EnvironmentVariable[];
+  routing: RoutingPolicy;
   created_at: string;
   updated_at: string;
 }
@@ -25,6 +32,7 @@ export interface CreateEnvironmentRequest {
   color?: string;
   is_default?: boolean;
   variables?: EnvironmentVariable[];
+  routing?: RoutingPolicy;
 }
 
 export interface UpdateEnvironmentRequest {
@@ -33,6 +41,7 @@ export interface UpdateEnvironmentRequest {
   color?: string;
   is_default?: boolean;
   variables?: EnvironmentVariable[];
+  routing?: RoutingPolicy;
 }
 
 export interface EnvironmentExport {

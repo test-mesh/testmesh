@@ -1,0 +1,291 @@
+---
+title: docker_run / docker_stop
+description: Spin up ephemeral Docker containers in setup blocks and tear them down in teardown — for isolated databases, caches, and message brokers per test run.
+---
+
+`docker_run` starts a container and waits for it to be ready. `docker_stop` removes it. Use them together in `setup` and `teardown` to give each test run its own isolated infrastructure.
+
+## Requirements
+
+`docker_run` and `docker_stop` call the `docker` CLI under the hood. The TestMesh API process must have access to a Docker daemon:
+
+- **Native (API running on host)**: Docker Desktop or Docker Engine must be installed. Works out of the box.
+- **Containerized (API running in Docker)**: The Docker socket must be mounted into the API container:
+  ```yaml
+  # docker-compose.dev.yml
+  services:
+    api:
+      volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
+  ```
+  This is already configured in `docker-compose.dev.yml`.
+
+## Host vs networked mode
+
+How the API reaches provisioned containers depends on whether `network` is specified:
+
+| | No `network` | `network` specified |
+|---|---|---|
+| **host** output | `localhost` | container name (Docker DNS) |
+| **ports** output | host-mapped ports | raw container ports |
+| **Works when API is** | running natively | running in Docker on the same network |
+
+When running the full stack via `docker-compose.dev.yml`, always specify `network: local-infra` so the API container and the provisioned container can communicate directly.
+
+## Full example
+
+```yaml title="isolated-db-test.yaml"
+flow:
+  name: "User API — isolated DB"
+
+  setup:
+    - id: db
+      action: docker_run
+      config:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        ports:
+          "5432": "0"          # 0 = random host port
+        wait_for_port: "5432"  # block until port accepts TCP connections
+        timeout: 30s
+      output:
+        db_dsn: $.dsn          # postgres://testuser:testpass@localhost:<port>/testdb
+
+    - id: seed
+      action: database_query
+      config:
+        connection_string: "${db_dsn}"
+        query: |
+          INSERT INTO users (id, name, email)
+          VALUES ('u-001', 'Alice', 'alice@example.com')
+
+  steps:
+    - id: get_user
+      action: http_request
+      config:
+        method: GET
+        url: "${API_URL}/users/u-001"
+      assert:
+        - status == 200
+        - body.name == "Alice"
+
+  teardown:
+    - id: cleanup
+      action: docker_stop
+      config:
+        container_id: ${db.container_id}
+```
+
+---
+
+## docker_run
+
+### Config fields
+
+#### image (required)
+
+Any Docker image name and tag.
+
+```yaml
+config:
+  image: postgres:16-alpine
+```
+
+#### env
+
+Environment variables passed to the container.
+
+```yaml
+config:
+  image: postgres:16-alpine
+  env:
+    POSTGRES_USER: testuser
+    POSTGRES_PASSWORD: testpass
+    POSTGRES_DB: testdb
+```
+
+#### ports
+
+Map of `containerPort: hostPort`. Use `"0"` to let Docker assign a random available host port (recommended to avoid conflicts).
+
+```yaml
+config:
+  ports:
+    "5432": "0"    # random host port → find it in $.ports.5432
+    "8080": "9090" # fixed host port
+```
+
+#### wait_for_port
+
+Container port to wait for. `docker_run` will poll the assigned host port via TCP until it accepts a connection or `timeout` is reached. If the port is not ready in time the container is automatically removed and the step fails.
+
+```yaml
+config:
+  wait_for_port: "5432"
+  timeout: 30s
+```
+
+#### timeout
+
+Maximum time to wait for `wait_for_port`. Accepts Go duration strings: `10s`, `1m`, `90s`. Default: `30s`.
+
+#### name
+
+Optional container name. If omitted Docker assigns one automatically. Supports variable interpolation — use `${RANDOM_ID}` to prevent name collisions across parallel runs.
+
+```yaml
+config:
+  name: test-pg-${RANDOM_ID}
+```
+
+#### network
+
+Attach the container to an existing Docker network. Required when the container needs to communicate with other containers (e.g., your API under test).
+
+```yaml
+config:
+  network: local-infra
+```
+
+---
+
+### Output fields
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `container_id` | string | Full container ID |
+| `container_name` | string | Resolved container name |
+| `host` | string | `"localhost"` |
+| `ports` | object | Map of `containerPort → assignedHostPort` |
+| `dsn` | string | Auto-generated connection string (see below) |
+
+#### Auto-generated DSN
+
+For well-known images `dsn` is populated automatically using environment variables passed in `env`:
+
+| Image | DSN format |
+|-------|-----------|
+| `postgres:*`, `timescale:*` | `postgres://user:pass@localhost:port/db` |
+| `redis:*` | `redis://localhost:port` |
+| `mysql:*`, `mariadb:*` | `mysql://user:pass@localhost:port/db` |
+| `mongo:*` | `mongodb://user:pass@localhost:port` |
+
+Use `${step_id.dsn}` directly as `connection_string` in `database_query` steps.
+
+---
+
+## docker_stop
+
+Stops and removes a container. Call this in `teardown` so containers are cleaned up even if the main steps fail.
+
+### Config fields
+
+#### container_id (required)
+
+The container to stop. Use `${step_id.container_id}` to reference the output of a `docker_run` step.
+
+```yaml
+config:
+  container_id: ${db.container_id}
+```
+
+#### remove
+
+Whether to also remove the container after stopping it. Default: `true` (`docker rm -f`). Set to `false` to only stop without removing.
+
+```yaml
+config:
+  container_id: ${db.container_id}
+  remove: false
+```
+
+### Output fields
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `container_id` | string | The container that was stopped |
+| `removed` | bool | Whether the container was removed |
+
+---
+
+## Recipes
+
+### Postgres with schema migration
+
+```yaml
+setup:
+  - id: db
+    action: docker_run
+    config:
+      image: postgres:16-alpine
+      env:
+        POSTGRES_USER: test
+        POSTGRES_PASSWORD: test
+        POSTGRES_DB: test
+      ports: { "5432": "0" }
+      wait_for_port: "5432"
+    output:
+      db_dsn: $.dsn
+
+  - id: migrate
+    action: database_query
+    config:
+      connection_string: "${db_dsn}"
+      query: |
+        CREATE TABLE orders (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          total NUMERIC NOT NULL
+        );
+```
+
+### Redis cache
+
+```yaml
+setup:
+  - id: cache
+    action: docker_run
+    config:
+      image: redis:7-alpine
+      ports: { "6379": "0" }
+      wait_for_port: "6379"
+    output:
+      redis_port: $.ports.6379
+```
+
+### Parallel containers
+
+```yaml
+setup:
+  - id: db
+    action: docker_run
+    config:
+      image: postgres:16-alpine
+      name: test-db-${RANDOM_ID}
+      env: { POSTGRES_USER: test, POSTGRES_PASSWORD: test, POSTGRES_DB: test }
+      ports: { "5432": "0" }
+      wait_for_port: "5432"
+    output:
+      db_dsn: $.dsn
+
+  - id: cache
+    action: docker_run
+    config:
+      image: redis:7-alpine
+      name: test-redis-${RANDOM_ID}
+      ports: { "6379": "0" }
+      wait_for_port: "6379"
+    output:
+      redis_port: $.ports.6379
+
+teardown:
+  - action: docker_stop
+    config:
+      container_id: ${db.container_id}
+  - action: docker_stop
+    config:
+      container_id: ${cache.container_id}
+```

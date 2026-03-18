@@ -22,6 +22,8 @@ import {
   Network,
   Radio,
   Chrome,
+  Box,
+  XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -229,6 +231,24 @@ const paletteItems: PaletteItem[] = [
     category: 'contract',
     defaultConfig: defaultConfigs.contract_verify,
   },
+
+  // Infrastructure
+  {
+    type: 'docker_run',
+    label: 'Docker Run',
+    description: 'Start an ephemeral container (use in setup)',
+    icon: 'Box',
+    category: 'infra',
+    defaultConfig: defaultConfigs.docker_run,
+  },
+  {
+    type: 'docker_stop',
+    label: 'Docker Stop',
+    description: 'Stop and remove a container (use in teardown)',
+    icon: 'XCircle',
+    category: 'infra',
+    defaultConfig: defaultConfigs.docker_stop,
+  },
 ];
 
 // Icon mapping
@@ -250,6 +270,8 @@ const iconMap: Record<string, React.ElementType> = {
   Network,
   Radio,
   Chrome,
+  Box,
+  XCircle,
 };
 
 // Category configuration
@@ -262,6 +284,7 @@ const categories = [
   { id: 'utility', label: 'Utilities', color: 'text-gray-500' },
   { id: 'mock', label: 'Mock Servers', color: 'text-pink-500' },
   { id: 'contract', label: 'Contract Testing', color: 'text-teal-500' },
+  { id: 'infra', label: 'Infrastructure', color: 'text-orange-500' },
 ];
 
 interface NodePaletteProps {
