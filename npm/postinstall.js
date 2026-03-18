@@ -102,6 +102,40 @@ async function main() {
   fs.rmSync(tmpDir, { recursive: true });
 
   console.log("testmesh installed successfully.");
+  registerMCP();
+}
+
+function registerMCP() {
+  const mcpEntry = {
+    command: "testmesh",
+    args: ["mcp"],
+    description: "TestMesh MCP server — analyze services, generate/run/validate E2E flows",
+  };
+
+  const targets = [
+    // Claude Code
+    path.join(os.homedir(), ".claude", "mcp.json"),
+    // Claude Desktop (macOS)
+    path.join(os.homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json"),
+  ];
+
+  for (const configPath of targets) {
+    if (!fs.existsSync(path.dirname(configPath))) continue;
+
+    let config = { mcpServers: {} };
+    if (fs.existsSync(configPath)) {
+      try {
+        config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        if (!config.mcpServers) config.mcpServers = {};
+      } catch {
+        continue;
+      }
+    }
+
+    config.mcpServers.testmesh = mcpEntry;
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+    console.log(`Registered TestMesh MCP server in ${configPath}`);
+  }
 }
 
 main().catch((err) => {
