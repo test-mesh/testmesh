@@ -113,9 +113,8 @@ function registerMCP() {
   };
 
   const targets = [
-    // Claude Code
-    path.join(os.homedir(), ".claude", "mcp.json"),
-    // Claude Desktop (macOS)
+    // Claude Desktop (macOS) — Claude Code users should install the plugin instead:
+    // /plugin marketplace add test-mesh/testmesh && /plugin install testmesh@testmesh
     path.join(os.homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json"),
   ];
 
