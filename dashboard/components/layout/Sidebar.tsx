@@ -13,7 +13,6 @@ import {
   FolderTree,
   Server,
   Calendar,
-  Gauge,
   BarChart3,
   FileBarChart,
   Terminal,
@@ -44,7 +43,6 @@ const navigation: NavItem[] = [
 
   // Test infrastructure
   { title: 'Mock Servers', href: '/mocks', icon: Server },
-  { title: 'Load Testing', href: '/load-testing', icon: Gauge },
 
   // Development tools
   { title: 'Request Builder', href: '/request-builder', icon: Send },

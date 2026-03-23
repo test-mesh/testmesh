@@ -7,6 +7,7 @@ import { AuthProvider } from "@/lib/auth/AuthContext";
 import { MainLayout } from "@/components/layout";
 import { WorkspaceProvider } from "@/components/workspaces/WorkspaceProvider";
 import { Toaster } from "@/components/ui/sonner";
+import { CloudAuthGuard } from "@/components/auth/CloudAuthGuard";
 
 const outfit = Outfit({subsets:['latin'],variable:'--font-sans'});
 
@@ -44,9 +45,11 @@ export default function RootLayout({
         >
           <QueryProvider>
             <AuthProvider>
-              <WorkspaceProvider>
-                <MainLayout>{children}</MainLayout>
-              </WorkspaceProvider>
+              <CloudAuthGuard>
+                <WorkspaceProvider>
+                  <MainLayout>{children}</MainLayout>
+                </WorkspaceProvider>
+              </CloudAuthGuard>
             </AuthProvider>
           </QueryProvider>
           <Toaster />

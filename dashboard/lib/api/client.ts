@@ -98,7 +98,8 @@ const createAxiosInstance = (): AxiosInstance => {
           // Refresh failed - clear auth state and redirect to login
           clearStoredAuth();
           if (typeof window !== 'undefined') {
-            window.location.href = '/login';
+            const loginUrl = process.env.NEXT_PUBLIC_CLOUD_LOGIN_URL || '/login';
+            window.location.href = loginUrl;
           }
         }
       }

@@ -12,7 +12,6 @@ import (
 	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/api/websocket"
 	"github.com/test-mesh/testmesh/internal/auth"
-	"github.com/test-mesh/testmesh/internal/loadtest"
 	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/reporting"
 	"github.com/test-mesh/testmesh/internal/runner"
@@ -178,10 +177,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 
 	// Initialize import/export handler
 	importExportHandler := handlers.NewImportExportHandler(flowRepo, logger)
-
-	// Initialize load test handler
-	loadTester := loadtest.NewLoadTester(logger)
-	loadTestHandler := handlers.NewLoadTestHandler(loadTester, flowRepo, envRepo, logger)
 
 	// Initialize plugin registry
 	pluginDir := filepath.Join(os.TempDir(), "testmesh", "plugins")
@@ -473,17 +468,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 		v1.POST("/import", importExportHandler.Import)
 		v1.POST("/export", importExportHandler.Export)
 		v1.GET("/export/download", importExportHandler.ExportDownload)
-
-		// Load testing routes
-		loadTests := v1.Group("/load-tests")
-		{
-			loadTests.POST("", loadTestHandler.Start)
-			loadTests.GET("", loadTestHandler.List)
-			loadTests.GET("/:id", loadTestHandler.Get)
-			loadTests.POST("/:id/stop", loadTestHandler.Stop)
-			loadTests.GET("/:id/metrics", loadTestHandler.GetMetrics)
-			loadTests.GET("/:id/timeline", loadTestHandler.GetTimeline)
-		}
 
 		// Plugin routes
 		pluginsRoutes := v1.Group("/plugins")

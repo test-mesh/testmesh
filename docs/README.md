@@ -44,7 +44,6 @@ Detailed feature specifications and design documents.
 - **[LOCAL_DEVELOPMENT.md](./features/LOCAL_DEVELOPMENT.md)** - Local development setup
 - **[ADVANCED_REPORTING.md](./features/ADVANCED_REPORTING.md)** - Test reporting and analytics
 - **[POSTMAN_INSPIRED_FEATURES.md](./features/POSTMAN_INSPIRED_FEATURES.md)** - Postman-like features
-- **[CLOUD_EXECUTION.md](./features/CLOUD_EXECUTION.md)** - Cloud-based test execution
 
 ### 🚀 Deployment (`/deployment/`)
 Deployment guides for production and development environments.
@@ -88,7 +87,6 @@ Guidelines and standards for contributing to TestMesh.
 - [External Services Configuration](./deployment/EXTERNAL_SERVICES.md)
 - [Deployment Guide](/deploy/README.md)
 - [Observability](./features/OBSERVABILITY.md)
-- [Cloud Execution](./features/CLOUD_EXECUTION.md)
 - [Security Guidelines](./process/SECURITY_GUIDELINES.md)
 
 ---

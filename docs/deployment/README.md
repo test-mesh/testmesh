@@ -265,4 +265,4 @@ kubectl logs -f deployment/testmesh-api
 
 - **Issues**: https://github.com/test-mesh/testmesh/issues
 - **Discussions**: https://github.com/test-mesh/testmesh/discussions
-- **Documentation**: https://testmesh.dev/docs
+- **Documentation**: https://testmesh.io/docs
