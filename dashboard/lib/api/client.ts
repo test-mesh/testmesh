@@ -93,6 +93,13 @@ const createAxiosInstance = (): AxiosInstance => {
             // Retry the original request with new token
             originalRequest.headers.Authorization = `Bearer ${access_token}`;
             return instance(originalRequest);
+          } else {
+            // No refresh token — session is unrecoverable, send to login.
+            clearStoredAuth();
+            if (typeof window !== 'undefined') {
+              const loginUrl = process.env.NEXT_PUBLIC_CLOUD_LOGIN_URL || '/login';
+              window.location.href = loginUrl;
+            }
           }
         } catch (refreshError) {
           // Refresh failed - clear auth state and redirect to login

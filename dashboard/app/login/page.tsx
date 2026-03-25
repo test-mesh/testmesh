@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Mail, Lock, Github, Chrome } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,19 @@ import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { apiClient } from '@/lib/api/client';
 
+const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
+
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+
+  // When cloud is configured, redirect to cloud login with a callback to /auth/callback.
+  useEffect(() => {
+    if (CLOUD_URL) {
+      const next = encodeURIComponent(`${window.location.origin}/auth/callback`);
+      window.location.replace(`${CLOUD_URL}/login?next=${next}`);
+    }
+  }, []);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -65,6 +75,15 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  // Show a spinner while redirecting to cloud login (avoids form flash).
+  if (CLOUD_URL) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">

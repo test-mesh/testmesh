@@ -18,7 +18,10 @@ import {
   Terminal,
   Settings,
   Send,
+  ExternalLink,
 } from 'lucide-react';
+
+const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
 interface NavItem {
   title: string;
@@ -118,6 +121,24 @@ export function Sidebar({ mobileMenuOpen, onMobileMenuClose }: SidebarProps) {
               })}
             </nav>
           </ScrollArea>
+
+          {/* Cloud dashboard link — only shown in SaaS mode */}
+          {CLOUD_URL && (
+            <div className="px-2 py-2 border-t border-border">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <a href={CLOUD_URL} target="_blank" rel="noopener noreferrer">
+                    <Button variant="ghost" className="w-full justify-center px-2">
+                      <ExternalLink className="h-5 w-5" />
+                    </Button>
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  Cloud Dashboard
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
         </div>
       </>
     </TooltipProvider>
