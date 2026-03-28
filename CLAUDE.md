@@ -19,6 +19,8 @@ testmesh/
 │   │   ├── runner/   # Test execution engine & action handlers
 │   │   ├── scheduler/# Cron-based test scheduling
 │   │   ├── storage/  # Data models & repositories
+│   │   ├── graph/    # System Graph (scanners, merge engine, Neo4j)
+│   │   ├── ai/       # AI agents (coverage, diagnosis, impact, etc.)
 │   │   ├── mcp/      # Model Context Protocol (AI integration)
 │   │   └── shared/   # Config, database, logging utilities
 │   └── cmd/seed/     # Database seeding tool

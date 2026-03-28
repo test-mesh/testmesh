@@ -26,6 +26,11 @@ import {
   Clock,
   Target,
   Loader2,
+  Shield,
+  Stethoscope,
+  Eye,
+  Workflow,
+  Zap,
   CheckCircle2,
   XCircle,
   AlertCircle,
@@ -276,6 +281,82 @@ export default function AnalyticsPage() {
             <CardContent>
               <p className="text-xs text-muted-foreground">Analyze individual step execution times and success rates</p>
               <div className="flex items-center text-sm text-primary mt-2">View Details <ArrowRight className="h-4 w-4 ml-1" /></div>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Graph Agent Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
+        <Link href="/analytics/coverage">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Graph Coverage</CardTitle>
+              <Shield className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Analyze test coverage gaps using the dependency graph</p>
+              <div className="flex items-center text-sm text-primary mt-2">Run Analysis <ArrowRight className="h-4 w-4 ml-1" /></div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/analytics/diagnosis">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Diagnosis</CardTitle>
+              <Stethoscope className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Root cause analysis for test failures using graph context</p>
+              <div className="flex items-center text-sm text-primary mt-2">Diagnose <ArrowRight className="h-4 w-4 ml-1" /></div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/analytics/impact">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Impact Analysis</CardTitle>
+              <Zap className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Analyze code change impact on test flows</p>
+              <div className="flex items-center text-sm text-primary mt-2">Analyze <ArrowRight className="h-4 w-4 ml-1" /></div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/analytics/watch">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Watch Monitor</CardTitle>
+              <Eye className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Detect regressions and performance degradation</p>
+              <div className="flex items-center text-sm text-primary mt-2">Monitor <ArrowRight className="h-4 w-4 ml-1" /></div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/analytics/schedule">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Schedule Optimizer</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Optimize test scheduling and detect redundancy</p>
+              <div className="flex items-center text-sm text-primary mt-2">Optimize <ArrowRight className="h-4 w-4 ml-1" /></div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/analytics/orchestrator">
+          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Orchestrator</CardTitle>
+              <Workflow className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground">Coordinate multiple AI agents for comprehensive analysis</p>
+              <div className="flex items-center text-sm text-primary mt-2">Orchestrate <ArrowRight className="h-4 w-4 ml-1" /></div>
             </CardContent>
           </Card>
         </Link>

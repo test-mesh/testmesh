@@ -20,6 +20,7 @@ import (
 var (
 	runEnv    string
 	runRemote bool
+	runGraph  bool
 )
 
 var runCmd = &cobra.Command{
@@ -37,6 +38,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	runCmd.Flags().StringVarP(&runEnv, "env", "e", "development", "Environment name")
 	runCmd.Flags().BoolVar(&runRemote, "remote", false, "Submit to the TestMesh API instead of running locally")
+	runCmd.Flags().BoolVar(&runGraph, "graph", false, "Enable graph-aware execution (resolve service: and endpoint: references)")
 }
 
 func runFlow(cmd *cobra.Command, args []string) error {

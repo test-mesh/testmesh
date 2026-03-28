@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/test-mesh/testmesh/internal/api"
 	"github.com/test-mesh/testmesh/internal/api/websocket"
+	"github.com/test-mesh/testmesh/internal/graph"
 	"github.com/test-mesh/testmesh/internal/shared/config"
 	"github.com/test-mesh/testmesh/internal/shared/database"
 	"github.com/test-mesh/testmesh/internal/shared/logger"
@@ -39,12 +41,49 @@ func main() {
 		log.Fatal("Failed to auto-migrate database", zap.Error(err))
 	}
 
+	// Initialize graph engine
+	var graphEngine graph.Engine
+	if cfg.Graph.Enabled {
+		neo4jClient, err := database.NewNeo4j(cfg.Neo4j, log)
+		if err != nil {
+			log.Warn("Failed to connect to Neo4j — graph traversal disabled", zap.Error(err))
+		}
+		if neo4jClient != nil {
+			if err := neo4jClient.EnsureConstraints(context.Background()); err != nil {
+				log.Warn("Failed to ensure Neo4j constraints", zap.Error(err))
+			}
+			defer neo4jClient.Close(context.Background())
+		}
+
+		engine := graph.NewEngine(db, neo4jClient, log)
+
+		// Wrap with Redis cache if Redis is configured
+		rdb := redis.NewClient(&redis.Options{
+			Addr:     fmt.Sprintf("%s:%d", cfg.Redis.Host, cfg.Redis.Port),
+			Password: cfg.Redis.Password,
+			DB:       cfg.Redis.DB,
+		})
+		if err := rdb.Ping(context.Background()).Err(); err != nil {
+			log.Warn("Redis not available for graph cache", zap.Error(err))
+			graphEngine = engine
+		} else {
+			graphEngine = graph.NewCachedEngine(engine, rdb, log)
+		}
+
+		log.Info("Graph engine initialized",
+			zap.Bool("neo4j_available", engine.IsAvailable()),
+			zap.String("embedding_provider", cfg.Graph.EmbeddingProvider),
+		)
+	} else {
+		graphEngine = graph.NewNoopEngine()
+		log.Info("Graph features disabled")
+	}
 	// Initialize WebSocket hub
 	wsHub := websocket.NewHub(log)
 	go wsHub.Run()
 
 	// Initialize API server
-	router := api.NewRouter(db, log, wsHub, cfg.Server.Port)
+	router := api.NewRouter(db, log, wsHub, cfg.Server.Port, graphEngine)
 
 	// Create HTTP server
 	srv := &http.Server{

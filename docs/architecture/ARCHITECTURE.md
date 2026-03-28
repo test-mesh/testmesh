@@ -48,13 +48,15 @@ Clients                       │  │  - REST API (port 5016)       │ │
                                             │
                                             ▼
                               ┌─────────────────────────────────────┐
-                              │  External Infrastructure            │
-                              ├─────────────────────────────────────┤
-                              │  ┌──────────┐  ┌───────┐  ┌──────┐│
-                              │  │PostgreSQL│  │ Redis │  │Redis Streams││
-                              │  │  (DB)    │  │(Cache)│  │(Queue)││
-                              │  └──────────┘  └───────┘  └──────┘│
-                              └─────────────────────────────────────┘
+                              │  External Infrastructure                    │
+                              ├────────────────────────────────────────────┤
+                              │  ┌──────────┐  ┌───────┐  ┌──────┐  ┌───┐│
+                              │  │PostgreSQL│  │ Redis │  │Redis │  │Neo│││
+                              │  │  (DB)    │  │(Cache)│  │Streams│  │4j │││
+                              │  └──────────┘  └───────┘  │(Queue)│  │(*)│││
+                              │                           └──────┘  └───┘│
+                              │  (*) Neo4j is optional — graph features   │
+                              └────────────────────────────────────────────┘
 ```
 
 ## Architecture Pattern: Modular Monolith
@@ -70,7 +72,7 @@ Clients                       │  │  - REST API (port 5016)       │ │
 
 ## Domain Structure
 
-The TestMesh server is organized into four main domains, each with clear responsibilities:
+The TestMesh server is organized into six main domains, each with clear responsibilities:
 
 ### 1. API Domain
 
@@ -202,6 +204,54 @@ runner/
 - `models/` - Database models
 - `migrations/` - Schema migrations
 
+### 5. Graph Domain
+
+**Location**: `api/internal/graph/`
+
+**Responsibilities**:
+- Build and maintain the system graph from 6 layers (code, infra, spec, flow, runtime, history)
+- Multi-language code scanning (Go, TypeScript, Python, Java, C#)
+- Merge engine with identity resolution and conflict detection
+- Graph-aware test execution (resolve `service:` and `endpoint:` references)
+- Coverage analysis, contract inference, impact analysis
+
+**Key Components**:
+```
+graph/
+├── engine.go             # Engine interface (Neo4j + PostgreSQL)
+├── models.go             # GraphNode, GraphEdge, Subgraph types
+├── merge.go              # Merge engine (identity resolution, layer precedence)
+├── resolver.go           # Graph-aware step resolution for executor
+├── repo/
+│   └── manager.go        # Git repository connection
+├── scanner/
+│   ├── scanner.go        # Scanner interface
+│   ├── orchestrator.go   # Runs scanners in dependency order
+│   ├── code/             # Language-specific code scanners
+│   ├── infra/            # Docker, K8s, Terraform, Helm
+│   ├── spec/             # OpenAPI, gRPC, AsyncAPI, Avro, GraphQL
+│   └── flow/             # TestMesh YAML flow coverage
+└── cloud/
+    ├── runtime_scanner.go  # Live execution → graph (Cloud)
+    ├── history_scanner.go  # Graph snapshots per commit (Cloud)
+    └── handlers.go         # Cloud graph HTTP endpoints
+```
+
+**Storage**: PostgreSQL `graph.` schema (metadata) + Neo4j (traversal). Neo4j is optional — all features work without it; graph endpoints return 503.
+
+See `docs/features/SYSTEM_GRAPH.md` for the full feature reference.
+
+### 6. AI Agent Domain (Cloud)
+
+**Location**: `api/internal/ai/`
+
+**Responsibilities**:
+- 9 specialized agents analyzing graph structure for insights
+- Confidence scoring based on multi-layer corroboration
+- Event-driven agent orchestration (graph updates, executions, PRs)
+
+**Key Agents**: coverage, diagnosis, flakiness, generation, impact, repair, watch, scheduler_optimizer, orchestrator
+
 ## Database Schema Organization
 
 **Strategy**: Single PostgreSQL database with separate schemas per domain for clear ownership and future microservices extraction.
@@ -213,6 +263,7 @@ CREATE SCHEMA executions;   -- Storage Domain
 CREATE SCHEMA scheduler;    -- Scheduler Domain
 CREATE SCHEMA agents;       -- Agent Domain
 CREATE SCHEMA users;        -- Storage Domain
+CREATE SCHEMA graph;        -- Graph Domain (nodes, edges, conflicts, snapshots)
 
 -- Flow definitions
 CREATE TABLE flows.flows (

@@ -84,28 +84,52 @@ start_kafka() {
     confluentinc/cp-kafka:7.5.0
 }
 
+start_neo4j() {
+  if docker ps -q -f name=neo4j | grep -q .; then
+    echo "neo4j     already running"
+    return
+  fi
+  if docker ps -aq -f name=neo4j | grep -q .; then
+    echo "neo4j     starting (stopped container)"
+    docker start neo4j
+    return
+  fi
+  echo "neo4j     creating"
+  docker run -d \
+    --name neo4j \
+    --network "$NETWORK" \
+    -p 7474:7474 \
+    -p 7687:7687 \
+    -e NEO4J_AUTH=neo4j/testmesh \
+    -e NEO4J_PLUGINS='["apoc"]' \
+    -v neo4j-data:/data \
+    neo4j:5-community
+}
+
 case "$ACTION" in
   up)
     create_network
     start_postgres
     start_redis
     start_kafka
+    start_neo4j
     echo ""
     echo "PostgreSQL  postgresql://root:admin@localhost:5432/postgres"
     echo "Redis       redis://localhost:6379"
     echo "Kafka       localhost:9092"
+    echo "Neo4j       bolt://localhost:7687 (browser: http://localhost:7474)"
     ;;
   down)
     echo "Stopping containers (data volumes preserved)"
-    docker stop postgres redis kafka 2>/dev/null || true
+    docker stop postgres redis kafka neo4j 2>/dev/null || true
     ;;
   destroy)
     echo "Removing containers and volumes"
-    docker rm -f postgres redis kafka 2>/dev/null || true
-    docker volume rm postgres-data redis-data 2>/dev/null || true
+    docker rm -f postgres redis kafka neo4j 2>/dev/null || true
+    docker volume rm postgres-data redis-data neo4j-data 2>/dev/null || true
     ;;
   status)
-    docker ps --filter name=postgres --filter name=redis --filter name=kafka \
+    docker ps --filter name=postgres --filter name=redis --filter name=kafka --filter name=neo4j \
       --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     ;;
   *)

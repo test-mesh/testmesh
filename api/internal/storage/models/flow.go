@@ -102,9 +102,17 @@ type FlowDefinition struct {
 	Suite       string                 `json:"suite" yaml:"suite"`
 	Tags        []string               `json:"tags" yaml:"tags"`
 	Env         map[string]interface{} `json:"env" yaml:"env"`
+	Graph       *FlowGraphConfig       `json:"graph,omitempty" yaml:"graph,omitempty"`
 	Setup       []Step                 `json:"setup" yaml:"setup"`
 	Steps       []Step                 `json:"steps" yaml:"steps"`
 	Teardown    []Step                 `json:"teardown" yaml:"teardown"`
+}
+
+// FlowGraphConfig holds graph-aware configuration for a flow.
+type FlowGraphConfig struct {
+	Require           []map[string]string `json:"require,omitempty" yaml:"require,omitempty"`
+	Environment       string              `json:"environment,omitempty" yaml:"environment,omitempty"`
+	ValidateContracts bool                `json:"validate_contracts,omitempty" yaml:"validate_contracts,omitempty"`
 }
 
 // Step represents a single step in a flow

@@ -946,8 +946,184 @@ func AutoMigrate(db *gorm.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
 	`)
 
+	// Create graph schema and tables
+	if err := migrateGraphSchema(db); err != nil {
+		return err
+	}
+
 	// Seed comprehensive sample data
 	seedSampleData(db)
+
+	return nil
+}
+
+// migrateGraphSchema creates the graph schema and all graph-related tables.
+func migrateGraphSchema(db *gorm.DB) error {
+	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS graph").Error; err != nil {
+		return err
+	}
+
+	// Enable pgvector extension (safe to call repeatedly)
+	db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
+
+	// Graph repos (referenced by graph_nodes, so must come first)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.graph_repos (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			name TEXT NOT NULL,
+			url TEXT,
+			branch TEXT DEFAULT 'main',
+			credentials JSONB,
+			scan_config JSONB DEFAULT '{}',
+			last_scan_at TIMESTAMP WITH TIME ZONE,
+			last_scan_status TEXT DEFAULT 'pending',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			deleted_at TIMESTAMP WITH TIME ZONE
+		);
+		CREATE INDEX IF NOT EXISTS idx_graph_repos_workspace ON graph.graph_repos(workspace_id);
+	`)
+
+	// Graph config (per-workspace embedding settings)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.graph_config (
+			workspace_id UUID PRIMARY KEY,
+			embedding_dimension INT DEFAULT 1536,
+			embedding_provider TEXT DEFAULT 'openai',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`)
+
+	// Graph nodes
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.graph_nodes (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			neo4j_id TEXT NOT NULL,
+			type TEXT NOT NULL,
+			name TEXT NOT NULL,
+			service TEXT,
+			source_layer TEXT NOT NULL,
+			source_file TEXT,
+			repo_id UUID REFERENCES graph.graph_repos(id),
+			metadata JSONB DEFAULT '{}',
+			tags TEXT[] DEFAULT '{}',
+			confidence FLOAT DEFAULT 1.0,
+			version INT DEFAULT 1,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_graph_nodes_workspace ON graph.graph_nodes(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_graph_nodes_type ON graph.graph_nodes(workspace_id, type);
+		CREATE INDEX IF NOT EXISTS idx_graph_nodes_service ON graph.graph_nodes(workspace_id, service);
+		CREATE INDEX IF NOT EXISTS idx_graph_nodes_repo ON graph.graph_nodes(repo_id);
+	`)
+
+	// Add embedding column separately (vector type may not exist if pgvector not installed)
+	db.Exec(`
+		DO $$
+		BEGIN
+			IF NOT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = 'graph' AND table_name = 'graph_nodes' AND column_name = 'embedding'
+			) THEN
+				ALTER TABLE graph.graph_nodes ADD COLUMN embedding vector;
+			END IF;
+		END $$;
+	`)
+
+	// Graph edges
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.graph_edges (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			neo4j_id TEXT NOT NULL,
+			type TEXT NOT NULL,
+			from_node UUID NOT NULL REFERENCES graph.graph_nodes(id),
+			to_node UUID NOT NULL REFERENCES graph.graph_nodes(id),
+			source_layer TEXT NOT NULL,
+			properties JSONB DEFAULT '{}',
+			confidence FLOAT DEFAULT 1.0,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_graph_edges_workspace ON graph.graph_edges(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_graph_edges_from ON graph.graph_edges(from_node);
+		CREATE INDEX IF NOT EXISTS idx_graph_edges_to ON graph.graph_edges(to_node);
+	`)
+
+	// Graph scans (history of scan operations)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.graph_scans (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			repo_id UUID REFERENCES graph.graph_repos(id),
+			type TEXT NOT NULL,
+			status TEXT DEFAULT 'running',
+			layers_scanned TEXT[] DEFAULT '{}',
+			nodes_added INT DEFAULT 0,
+			nodes_updated INT DEFAULT 0,
+			edges_added INT DEFAULT 0,
+			conflicts INT DEFAULT 0,
+			warnings JSONB DEFAULT '[]',
+			started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			completed_at TIMESTAMP WITH TIME ZONE,
+			duration_ms INT
+		);
+		CREATE INDEX IF NOT EXISTS idx_graph_scans_workspace ON graph.graph_scans(workspace_id);
+	`)
+
+	// Graph conflicts (merge conflicts between layers)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.graph_conflicts (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			node_a UUID REFERENCES graph.graph_nodes(id),
+			node_b UUID REFERENCES graph.graph_nodes(id),
+			edge_a UUID REFERENCES graph.graph_edges(id),
+			edge_b UUID REFERENCES graph.graph_edges(id),
+			type TEXT NOT NULL,
+			resolution TEXT DEFAULT 'pending',
+			details JSONB DEFAULT '{}',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			resolved_at TIMESTAMP WITH TIME ZONE
+		);
+		CREATE INDEX IF NOT EXISTS idx_graph_conflicts_workspace ON graph.graph_conflicts(workspace_id);
+	`)
+
+	// Graph snapshots (point-in-time graph state for history tracking)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.graph_snapshots (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			commit_sha TEXT NOT NULL,
+			branch TEXT,
+			node_count INT DEFAULT 0,
+			edge_count INT DEFAULT 0,
+			node_hash TEXT,
+			edge_hash TEXT,
+			metadata JSONB DEFAULT '{}',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_graph_snapshots_workspace ON graph.graph_snapshots(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_graph_snapshots_commit ON graph.graph_snapshots(commit_sha);
+	`)
+
+	// Graph diffs (changes between two snapshots)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.graph_diffs (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			from_commit TEXT NOT NULL,
+			to_commit TEXT NOT NULL,
+			nodes_added JSONB DEFAULT '[]',
+			nodes_removed JSONB DEFAULT '[]',
+			nodes_changed JSONB DEFAULT '[]',
+			edges_added JSONB DEFAULT '[]',
+			edges_removed JSONB DEFAULT '[]',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_graph_diffs_workspace ON graph.graph_diffs(workspace_id);
+	`)
 
 	return nil
 }

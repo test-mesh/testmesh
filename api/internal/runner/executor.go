@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/test-mesh/testmesh/internal/graph"
 	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/runner/actions"
 	"github.com/test-mesh/testmesh/internal/runner/assertions"
@@ -25,6 +26,7 @@ type Executor struct {
 	mockManager     *mocks.Manager
 	pluginRegistry  *plugins.Registry
 	debugController *debugger.Controller
+	graphResolver   *graph.GraphResolver
 }
 
 // WSHub interface for WebSocket broadcasting
@@ -55,6 +57,11 @@ func (e *Executor) SetPluginRegistry(registry *plugins.Registry) {
 // SetDebugController sets the debug controller for debugging support
 func (e *Executor) SetDebugController(controller *debugger.Controller) {
 	e.debugController = controller
+}
+
+// SetGraphResolver sets the graph resolver for graph-aware step resolution.
+func (e *Executor) SetGraphResolver(resolver *graph.GraphResolver) {
+	e.graphResolver = resolver
 }
 
 // GetDebugController returns the debug controller
@@ -131,6 +138,25 @@ func (e *Executor) Execute(execution *models.Execution, definition *models.FlowD
 
 	// Create execution context
 	execCtx := NewContext(variables, definition.Env)
+
+	// Validate graph requirements if specified
+	if definition.Graph != nil && e.graphResolver != nil {
+		if len(definition.Graph.Require) > 0 {
+			workspaceID := uuid.Nil
+			if wsID, ok := execCtx.Get("workspace_id"); ok {
+				if parsed, err := uuid.Parse(wsID); err == nil {
+					workspaceID = parsed
+				}
+			}
+			if err := e.graphResolver.ValidateGraphRequirements(ctx, workspaceID, definition.Graph.Require); err != nil {
+				return fmt.Errorf("graph requirement check failed: %w", err)
+			}
+		}
+		// Store environment for graph-aware step resolution
+		if definition.Graph.Environment != "" {
+			execCtx.Set("environment", definition.Graph.Environment)
+		}
+	}
 
 	// Count total steps
 	totalSteps := len(definition.Setup) + len(definition.Steps) + len(definition.Teardown)
@@ -419,6 +445,25 @@ func (e *Executor) executeStepWithDebug(ctx context.Context, step *models.Step, 
 				}
 			}
 			config["headers"] = merged
+		}
+	}
+
+	// Graph-aware resolution: resolve `service:` and `endpoint:` references
+	if e.graphResolver != nil {
+		if _, hasService := config["service"]; hasService {
+			workspaceID := uuid.Nil
+			if wsID, ok := execCtx.Get("workspace_id"); ok {
+				if parsed, err := uuid.Parse(wsID); err == nil {
+					workspaceID = parsed
+				}
+			}
+			envStr, _ := execCtx.Get("environment")
+			resolved, err := e.graphResolver.ResolveStep(ctx, workspaceID, config, envStr)
+			if err != nil {
+				e.notifyDebugAfterStep(executionID, step.ID, nil, err, time.Since(startTime))
+				return nil, fmt.Errorf("graph resolution failed: %w", err)
+			}
+			config = resolved
 		}
 	}
 

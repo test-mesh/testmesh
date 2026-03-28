@@ -12,6 +12,14 @@ import (
 	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/api/websocket"
 	"github.com/test-mesh/testmesh/internal/auth"
+	"github.com/test-mesh/testmesh/internal/graph"
+	"github.com/test-mesh/testmesh/internal/graph/cloud"
+	codescanner "github.com/test-mesh/testmesh/internal/graph/scanner/code"
+	"github.com/test-mesh/testmesh/internal/graph/scanner/flow"
+	"github.com/test-mesh/testmesh/internal/graph/scanner/infra"
+	"github.com/test-mesh/testmesh/internal/graph/scanner/spec"
+	graphrepo "github.com/test-mesh/testmesh/internal/graph/repo"
+	graphscanner "github.com/test-mesh/testmesh/internal/graph/scanner"
 	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/reporting"
 	"github.com/test-mesh/testmesh/internal/runner"
@@ -56,7 +64,7 @@ func (a *integrationRepoAdapter) GetAIIntegrations() ([]*ai.IntegrationData, err
 }
 
 // NewRouter creates and configures the API router
-func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) *gin.Engine {
+func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, graphEngine ...graph.Engine) *gin.Engine {
 	// Set Gin mode
 	gin.SetMode(gin.ReleaseMode)
 
@@ -331,6 +339,93 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int) 
 				wsReports.GET("/:id", reportingHandler.GetReport)
 				wsReports.GET("/:id/download", reportingHandler.DownloadReport)
 				wsReports.DELETE("/:id", reportingHandler.DeleteReport)
+			}
+
+			// Graph routes (workspace-scoped)
+			if len(graphEngine) > 0 && graphEngine[0] != nil && graphEngine[0].IsAvailable() || (len(graphEngine) > 0 && graphEngine[0] != nil) {
+				ge := graphEngine[0]
+				scanners := []graphscanner.Scanner{
+					infra.New(logger),
+					spec.New(logger),
+					flow.New(logger),
+					codescanner.NewGoScanner(logger),
+					codescanner.NewTypeScriptScanner(logger),
+					codescanner.NewPythonScanner(logger),
+					codescanner.NewJavaScanner(logger),
+					codescanner.NewDotNetScanner(logger),
+				}
+				mergeEngine := graph.NewMergeEngine(db, ge, logger)
+				orchestrator := graphscanner.NewOrchestrator(ge, mergeEngine, scanners, logger)
+
+				// Wire graph resolver into the executor for graph-aware step resolution
+				graphResolver := graph.NewGraphResolver(ge, logger)
+				executor.SetGraphResolver(graphResolver)
+				clonePath := os.Getenv("GRAPH_REPO_CLONE_PATH")
+				if clonePath == "" {
+					clonePath = "/tmp/testmesh-repos"
+				}
+				repoMgr := graphrepo.NewManager(ge, clonePath, logger)
+				graphHandler := handlers.NewGraphHandler(ge, orchestrator, repoMgr, logger)
+
+				graphRoutes := ws.Group("/graph")
+				{
+					// Graph management
+					graphRoutes.POST("/scan", graphHandler.TriggerScan)
+					graphRoutes.GET("/status", graphHandler.GetGraphStatus)
+					graphRoutes.DELETE("", graphHandler.ClearGraph)
+					graphRoutes.GET("/stats", graphHandler.GetStats)
+
+					// Repos
+					repos := graphRoutes.Group("/repos")
+					{
+						repos.POST("", graphHandler.CreateRepo)
+						repos.GET("", graphHandler.ListRepos)
+						repos.PUT("/:repo_id", graphHandler.UpdateRepo)
+						repos.DELETE("/:repo_id", graphHandler.DeleteRepo)
+						repos.POST("/:repo_id/scan", graphHandler.TriggerRepoScan)
+					}
+
+					// Nodes
+					nodes := graphRoutes.Group("/nodes")
+					{
+						nodes.GET("", graphHandler.ListNodes)
+						nodes.GET("/:node_id", graphHandler.GetNode)
+						nodes.GET("/:node_id/dependencies", graphHandler.GetNodeDependencies)
+						nodes.GET("/:node_id/dependents", graphHandler.GetNodeDependents)
+					}
+
+					// Queries
+					graphRoutes.GET("/paths", graphHandler.FindPaths)
+					graphRoutes.POST("/search", graphHandler.SearchNodes)
+
+					// Coverage & Contracts
+					graphRoutes.GET("/coverage", graphHandler.GetCoverage)
+					graphRoutes.GET("/contracts", graphHandler.GetContracts)
+					graphRoutes.GET("/conflicts", graphHandler.GetConflicts)
+					graphRoutes.POST("/conflicts/:id/resolve", graphHandler.ResolveConflict)
+
+					// Cloud graph endpoints (runtime, history, AI agents)
+					runtimeScanner := cloud.NewRuntimeScanner(ge, logger)
+					historyScanner := cloud.NewHistoryScanner(db, ge, logger)
+					cloudHandler := cloud.NewCloudGraphHandler(ge, runtimeScanner, historyScanner, logger)
+					agentHandler := ai.NewAgentHandler(ge, runtimeScanner, historyScanner, logger)
+
+					cloudRoutes := graphRoutes.Group("/cloud")
+					{
+						cloudRoutes.POST("/executions", cloudHandler.IngestExecution)
+						cloudRoutes.POST("/snapshots", cloudHandler.TakeSnapshot)
+						cloudRoutes.GET("/history", cloudHandler.GetHistory)
+						cloudRoutes.GET("/diff", cloudHandler.GetDiff)
+						cloudRoutes.POST("/impact", cloudHandler.GetImpact)
+						cloudRoutes.GET("/contracts/evolution", cloudHandler.GetContractEvolution)
+
+						// AI agents
+						cloudRoutes.GET("/agents", agentHandler.ListAgents)
+						cloudRoutes.POST("/agents/orchestrate", agentHandler.RunOrchestrator)
+						cloudRoutes.POST("/agents/:agent_name", agentHandler.RunAgent)
+						cloudRoutes.POST("/confidence", agentHandler.ScoreConfidence)
+					}
+				}
 			}
 		}
 
