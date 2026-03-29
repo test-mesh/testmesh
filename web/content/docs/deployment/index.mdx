@@ -1,14 +1,16 @@
 ---
 title: Deployment Overview
-description: Deploy TestMesh with Docker, Kubernetes, or connect to existing infrastructure.
+description: Deploy TestMesh with Docker, Kubernetes, or connect to existing infrastructure. Run site agents for private networks or use TestMesh Cloud.
 ---
 
-TestMesh ships as a single Go binary (API) and a Next.js dashboard. You can run it with Docker Compose in several configurations depending on what infrastructure you already have.
+TestMesh ships as a single Go binary (API) and a Next.js dashboard. You can run it fully self-hosted, use TestMesh Cloud with site agents in your private network, or mix both.
 
 <Cards>
   <Card title="Docker Setup" href="/docs/deployment/docker" description="Run TestMesh locally or in production with Docker Compose." />
   <Card title="Kubernetes & Helm" href="/docs/deployment/kubernetes" description="Deploy to Kubernetes using the TestMesh Helm chart." />
   <Card title="External Services" href="/docs/deployment/external-services" description="Connect to managed PostgreSQL, Redis, and Kafka." />
+  <Card title="Site Agent" href="/docs/deployment/site-agent" description="Run flows against private services behind firewalls." />
+  <Card title="Cloud vs Self-Hosted" href="/docs/deployment/cloud-vs-self-hosted" description="Compare deployment models and feature tiers." />
 </Cards>
 
 ## Docker Compose Files

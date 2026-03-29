@@ -66,6 +66,31 @@ func (a *integrationRepoAdapter) GetAIIntegrations() ([]*ai.IntegrationData, err
 	return result, nil
 }
 
+// GetAIIntegrationsForWorkspace implements ai.IntegrationProvider
+func (a *integrationRepoAdapter) GetAIIntegrationsForWorkspace(workspaceID uuid.UUID) ([]*ai.IntegrationData, error) {
+	integrations, err := a.repo.GetAIIntegrationsForWorkspaceWithSecrets(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*ai.IntegrationData
+	for _, integration := range integrations {
+		data := &ai.IntegrationData{
+			Provider: string(integration.Provider),
+			Config: ai.IntegrationConfig{
+				Model:       integration.Config.Model,
+				Endpoint:    integration.Config.Endpoint,
+				Temperature: integration.Config.Temperature,
+				MaxTokens:   integration.Config.MaxTokens,
+			},
+			Secrets: integration.Secrets,
+		}
+		result = append(result, data)
+	}
+
+	return result, nil
+}
+
 // reloadAIProviders is a helper to reload AI providers from database
 func (h *IntegrationHandler) reloadAIProviders() error {
 	adapter := &integrationRepoAdapter{repo: h.repo}

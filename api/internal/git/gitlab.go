@@ -143,3 +143,28 @@ func (p *GitLabProvider) FetchDiff(ctx context.Context, repo, beforeSHA, afterSH
 
 	return diffBuilder.String(), changedFiles, nil
 }
+
+// CreatePRComment is not supported by the GitLab provider
+func (p *GitLabProvider) CreatePRComment(ctx context.Context, repo string, prNumber int, body string) error {
+	return ErrNotSupported
+}
+
+// CreateCommitStatus is not supported by the GitLab provider
+func (p *GitLabProvider) CreateCommitStatus(ctx context.Context, repo, sha string, status CommitStatus) error {
+	return ErrNotSupported
+}
+
+// CreatePullRequest is not supported by the GitLab provider
+func (p *GitLabProvider) CreatePullRequest(ctx context.Context, repo string, pr PullRequestCreate) (*PullRequest, error) {
+	return nil, ErrNotSupported
+}
+
+// CreateBranch is not supported by the GitLab provider
+func (p *GitLabProvider) CreateBranch(ctx context.Context, repo, branchName, fromSHA string) error {
+	return ErrNotSupported
+}
+
+// PushFileChanges is not supported by the GitLab provider
+func (p *GitLabProvider) PushFileChanges(ctx context.Context, repo, branch, message string, changes []FileChange) (string, error) {
+	return "", ErrNotSupported
+}

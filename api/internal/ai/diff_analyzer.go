@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"go.uber.org/zap"
@@ -15,11 +16,17 @@ import (
 
 // DiffAnalyzer analyzes code changes and generates flow adaptation suggestions
 type DiffAnalyzer struct {
-	db           *gorm.DB
-	providers    *ProviderManager
-	flowRepo     *repository.FlowRepository
-	repoLinkRepo *repository.RepositoryLinkRepository
-	logger       *zap.Logger
+	db             *gorm.DB
+	providers      *ProviderManager
+	flowRepo       *repository.FlowRepository
+	repoLinkRepo   *repository.RepositoryLinkRepository
+	semanticSearch *SemanticSearch
+	logger         *zap.Logger
+}
+
+// SetSemanticSearch sets the semantic search engine for enhanced flow matching
+func (a *DiffAnalyzer) SetSemanticSearch(ss *SemanticSearch) {
+	a.semanticSearch = ss
 }
 
 // NewDiffAnalyzer creates a new diff analyzer
@@ -72,6 +79,35 @@ func (a *DiffAnalyzer) AnalyzeCodeChange(
 	for _, flow := range flows {
 		if a.flowUsesService(flow, affectedServices) {
 			affectedFlows = append(affectedFlows, flow)
+		}
+	}
+
+	// Enhance with semantic search: find flows beyond tag matching
+	if a.semanticSearch != nil {
+		query := fmt.Sprintf("changes to %s in %s", strings.Join(affectedServices, ", "), strings.Join(changedFiles, ", "))
+		similar, err := a.semanticSearch.FindSimilarFlows(ctx, link.WorkspaceID, query, 10)
+		if err == nil {
+			for _, s := range similar {
+				flowID, parseErr := uuid.Parse(s.ID)
+				if parseErr != nil {
+					continue
+				}
+				found := false
+				for _, f := range affectedFlows {
+					if f.ID == flowID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					for _, flow := range flows {
+						if flow.ID == flowID {
+							affectedFlows = append(affectedFlows, flow)
+							break
+						}
+					}
+				}
+			}
 		}
 	}
 

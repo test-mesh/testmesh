@@ -7,7 +7,25 @@ The TestMesh CLI is a standalone tool that parses and executes flow YAML files d
 
 ## Installation
 
-<Tabs items={["go install", "Build from Source", "go run (dev)"]}>
+<Tabs items={["Homebrew", "curl", "npm", "go install", "Build from Source"]}>
+  <Tab value="Homebrew">
+    ```bash
+    brew install test-mesh/brew/testmesh
+    testmesh --help
+    ```
+  </Tab>
+  <Tab value="curl">
+    ```bash
+    curl -fsSL https://testmesh.io/install.sh | sh
+    testmesh --help
+    ```
+  </Tab>
+  <Tab value="npm">
+    ```bash
+    npm install -g testmesh
+    testmesh --help
+    ```
+  </Tab>
   <Tab value="go install">
     ```bash
     go install github.com/test-mesh/testmesh/cli@latest
@@ -19,13 +37,6 @@ The TestMesh CLI is a standalone tool that parses and executes flow YAML files d
     cd cli
     go build -o testmesh main.go
     ./testmesh --help
-    ```
-  </Tab>
-  <Tab value="go run (dev)">
-    ```bash
-    cd cli
-    go run main.go --help
-    go run main.go run ../examples/microservices/e2e-order-flow.yaml
     ```
   </Tab>
 </Tabs>

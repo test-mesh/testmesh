@@ -656,6 +656,43 @@ func AutoMigrate(db *gorm.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_repo_links_deleted_at ON repository_links(deleted_at);
 	`)
 
+	// Phase 1: Add workspace_id to system_integrations for workspace-scoped integrations
+	db.Exec(`
+		ALTER TABLE system_integrations ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id);
+		CREATE INDEX IF NOT EXISTS idx_system_integrations_workspace ON system_integrations(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_system_integrations_ws_type_provider ON system_integrations(workspace_id, type, provider) WHERE deleted_at IS NULL;
+	`)
+
+	// Phase 2.6: Create workspace_ai_configs table for per-workspace AI provider preferences
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS workspace_ai_configs (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL UNIQUE REFERENCES workspaces(id) ON DELETE CASCADE,
+			default_provider VARCHAR(50),
+			agent_overrides JSONB DEFAULT '[]',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+	`)
+
+	// Phase 4.3: Create pgvector extension and embeddings table
+	db.Exec(`CREATE EXTENSION IF NOT EXISTS vector`)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS embeddings (
+			id VARCHAR(255) PRIMARY KEY,
+			workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			item_type VARCHAR(50) NOT NULL,
+			content TEXT NOT NULL,
+			metadata JSONB DEFAULT '{}',
+			embedding vector(1536),
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_embeddings_workspace_type ON embeddings(workspace_id, item_type);
+	`)
+	// HNSW index for fast approximate nearest neighbor search
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_embeddings_hnsw ON embeddings USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64)`)
+
 	// Add code_sync columns to ai.suggestions if they don't exist
 	db.Exec(`ALTER TABLE ai.suggestions ADD COLUMN IF NOT EXISTS commit_sha VARCHAR(64)`)
 	db.Exec(`ALTER TABLE ai.suggestions ADD COLUMN IF NOT EXISTS changed_files TEXT[] DEFAULT '{}'`)

@@ -91,6 +91,24 @@ func (a *ImpactAgent) Run(ctx context.Context, ac *AgentContext, params map[stri
 		})
 	}
 
+	// Enhance with semantic search for broader impact
+	if ac.SemanticSearch != nil {
+		for _, idStr := range nodeIDStrs {
+			similar, err := ac.SemanticSearch.FindSimilarNodes(ctx, ac.WorkspaceID, idStr, 5)
+			if err == nil {
+				for _, s := range similar {
+					result.Findings = append(result.Findings, Finding{
+						Type:        "semantic_impact",
+						Severity:    "info",
+						Title:       fmt.Sprintf("Semantically related: %s (%.0f%%)", s.Content, s.Score*100),
+						Description: "This node may also be affected based on semantic similarity",
+						Metadata:    map[string]any{"related_id": s.ID, "similarity": s.Score},
+					})
+				}
+			}
+		}
+	}
+
 	result.Summary = fmt.Sprintf("Impact: %d nodes affected, %d flows impacted",
 		len(report.AffectedNodes), len(report.AffectedFlows))
 	result.Confidence = 0.85

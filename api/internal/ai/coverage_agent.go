@@ -59,6 +59,25 @@ func (a *CoverageAgent) Run(ctx context.Context, ac *AgentContext, params map[st
 		})
 	}
 
+	// Use semantic search to find similar existing flows (avoid suggesting duplicates)
+	if ac.SemanticSearch != nil {
+		for _, node := range uncovered {
+			similar, err := ac.SemanticSearch.FindSimilarFlows(ctx, ac.WorkspaceID, node.Name, 3)
+			if err == nil && len(similar) > 0 {
+				for _, s := range similar {
+					result.Findings = append(result.Findings, Finding{
+						Type:        "similar_flow",
+						Severity:    "info",
+						Title:       fmt.Sprintf("Similar flow exists: %s (score: %.0f%%)", s.Content, s.Score*100),
+						Description: fmt.Sprintf("Consider extending flow %s to cover %s", s.ID, node.Name),
+						NodeID:      &node.ID,
+						Metadata:    map[string]any{"similar_flow_id": s.ID, "similarity": s.Score},
+					})
+				}
+			}
+		}
+	}
+
 	result.Summary = fmt.Sprintf("Coverage: %.0f%% (%d/%d nodes tested, %d uncovered)",
 		stats.CoveragePercent,
 		stats.TotalNodes-stats.UncoveredCount,

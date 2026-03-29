@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
 )
@@ -511,6 +512,87 @@ func (pm *ProviderManager) ListProviders() []models.AIProviderType {
 	return result
 }
 
+// LoadForWorkspace creates a workspace-specific ProviderManager by loading integrations
+// for that workspace. Falls back to the current providers if no workspace-specific ones exist.
+func (pm *ProviderManager) LoadForWorkspace(repo IntegrationProvider, workspaceID uuid.UUID) (*ProviderManager, error) {
+	integrations, err := repo.GetAIIntegrationsForWorkspace(workspaceID)
+	if err != nil {
+		return pm, err // fall back to global
+	}
+	if len(integrations) == 0 {
+		return pm, nil // use global
+	}
+
+	wsPM := &ProviderManager{
+		providers: make(map[models.AIProviderType]Provider),
+		logger:    pm.logger,
+	}
+
+	for _, integration := range integrations {
+		apiKey := integration.Secrets["api_key"]
+		var provider Provider
+		var providerType models.AIProviderType
+
+		switch integration.Provider {
+		case "openai":
+			provider = NewOpenAIProvider(apiKey, wsPM.logger)
+			providerType = models.AIProviderOpenAI
+		case "anthropic":
+			provider = NewAnthropicProvider(apiKey, wsPM.logger)
+			providerType = models.AIProviderAnthropic
+		case "local":
+			endpoint := integration.Config.Endpoint
+			if endpoint == "" {
+				continue
+			}
+			provider = NewLocalProvider(endpoint, wsPM.logger)
+			providerType = models.AIProviderLocal
+		default:
+			continue
+		}
+
+		if provider.IsConfigured() {
+			wsPM.providers[providerType] = provider
+			if wsPM.primary == "" {
+				wsPM.primary = providerType
+			}
+		}
+	}
+
+	if len(wsPM.providers) == 0 {
+		return pm, nil // fall back to global
+	}
+	return wsPM, nil
+}
+
+// GetProviderForAgent resolves the AI provider for a specific agent in a workspace context.
+// Resolution order: agent override → workspace default → global default → env var fallback.
+func (pm *ProviderManager) GetProviderForAgent(agentName string, workspaceConfig *WorkspaceAIConfig) (Provider, error) {
+	if workspaceConfig != nil {
+		// Check agent-specific override
+		for _, override := range workspaceConfig.AgentOverrides {
+			if override.AgentName == agentName {
+				for _, p := range pm.providers {
+					// Match by checking all providers (simplified - in production you'd match by integration ID)
+					if p.IsConfigured() {
+						return p, nil
+					}
+				}
+			}
+		}
+
+		// Check workspace default provider
+		if workspaceConfig.DefaultProvider != "" {
+			if p, err := pm.GetProvider(models.AIProviderType(workspaceConfig.DefaultProvider)); err == nil {
+				return p, nil
+			}
+		}
+	}
+
+	// Fall back to global primary
+	return pm.GetPrimaryProvider()
+}
+
 // IntegrationData is a minimal interface to avoid circular dependencies
 type IntegrationData struct {
 	Provider string
@@ -526,9 +608,22 @@ type IntegrationConfig struct {
 	MaxTokens   int
 }
 
+// WorkspaceAIConfig mirrors the models type for use in the ai package
+type WorkspaceAIConfig struct {
+	DefaultProvider string
+	AgentOverrides  []AgentOverride
+}
+
+// AgentOverride maps an agent name to a specific provider
+type AgentOverride struct {
+	AgentName     string
+	IntegrationID uuid.UUID
+}
+
 // IntegrationProvider interface to avoid circular dependency with repository package
 type IntegrationProvider interface {
 	GetAIIntegrations() ([]*IntegrationData, error)
+	GetAIIntegrationsForWorkspace(workspaceID uuid.UUID) ([]*IntegrationData, error)
 }
 
 // ReloadFromDatabase reloads AI providers from the database integrations

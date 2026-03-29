@@ -1,0 +1,209 @@
+---
+title: Semantic Search & Embeddings
+description: Use vector embeddings to find similar tests, detect duplicate flows, and enhance AI agent analysis with semantic understanding across your test graph.
+---
+
+TestMesh can index your test flows, graph nodes, and code changes as vector embeddings using OpenAI's `text-embedding-3-small` model. This powers semantic search across your workspace — agents use it to find related tests, detect duplicates, and broaden impact analysis beyond explicit graph edges.
+
+<Cards>
+  <Card title="How It Works" href="#how-it-works" description="Embedding pipeline and vector storage" />
+  <Card title="Setup" href="#setup" description="Configure OpenAI for embeddings" />
+  <Card title="Agent Enhancements" href="#agent-enhancements" description="How agents use semantic search" />
+  <Card title="API" href="#api" description="Query the semantic search API" />
+</Cards>
+
+---
+
+## How It Works
+
+When you save a flow, merge graph nodes, or receive a webhook with code changes, TestMesh converts these objects into text and generates vector embeddings. These are stored in PostgreSQL using the [pgvector](https://github.com/pgvector/pgvector) extension and indexed with an HNSW index for fast approximate nearest-neighbor search.
+
+```
+Flow saved / Node merged / Code change received
+        ↓
+  Text conversion (name, description, metadata → text)
+        ↓
+  OpenAI text-embedding-3-small (1536 dimensions)
+        ↓
+  Stored in PostgreSQL (pgvector, HNSW index)
+        ↓
+  Available for similarity search
+```
+
+### What Gets Indexed
+
+| Item Type | Text Representation | Trigger |
+|-----------|-------------------|---------|
+| Graph node | `"{type}: {name} - {metadata}"` | Node created or updated via merge engine |
+| Flow | `"{name}: {description}. Steps: {step summaries}"` | Flow saved or updated |
+| Code change | `"{file}: {change summary}"` | Webhook received with diff |
+
+### Embedding Pipeline
+
+Indexing happens asynchronously via a worker pool (10 workers, buffered queue of 1000 items). This means:
+
+- Saving a flow or merging nodes does not block on embedding generation
+- If the queue is full, items are dropped with a warning log — they will be picked up on the next update
+- The pipeline starts when the API server boots (if embeddings are configured) and shuts down gracefully
+
+---
+
+## Setup
+
+Semantic search requires an OpenAI API key (for the embedding model) and the pgvector PostgreSQL extension.
+
+### 1. Install pgvector
+
+pgvector is installed automatically via the database migration:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+If you're using a managed PostgreSQL service, ensure pgvector is available. It's supported on:
+- AWS RDS for PostgreSQL 15.2+
+- Google Cloud SQL for PostgreSQL
+- Azure Database for PostgreSQL Flexible Server
+- Supabase, Neon, and most modern managed Postgres providers
+
+### 2. Configure OpenAI Integration
+
+Add an OpenAI integration with your API key — either globally or per-workspace:
+
+```bash
+curl -X POST http://localhost:5016/api/v1/admin/integrations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "OpenAI Embeddings",
+    "type": "ai_provider",
+    "provider": "openai",
+    "config": {
+      "model": "text-embedding-3-small"
+    },
+    "secrets": {
+      "api_key": "sk-xxxxx"
+    }
+  }'
+```
+
+Or set the environment variable:
+
+```bash
+export OPENAI_API_KEY=sk-xxxxx
+```
+
+The embedding pipeline starts automatically when an OpenAI API key is available.
+
+<Callout type="info">
+  Embeddings use `text-embedding-3-small` (1536 dimensions) regardless of which model you configure for text generation. This model is cost-effective at ~$0.02 per million tokens.
+</Callout>
+
+### 3. Verify
+
+Check that the `embeddings` table exists and is being populated:
+
+```sql
+SELECT item_type, COUNT(*) FROM embeddings GROUP BY item_type;
+```
+
+---
+
+## Agent Enhancements
+
+When semantic search is available, several AI agents automatically use it to improve their analysis. If embeddings are not configured, agents skip these steps gracefully — no errors, just narrower results.
+
+### Coverage Agent
+
+Uses `FindSimilarFlows` to detect near-duplicate flows before generating coverage reports. This prevents the coverage agent from suggesting tests that already exist under a different name.
+
+### Impact Agent
+
+Uses `FindSimilarNodes` to find semantically related graph nodes beyond explicit edges. For example, if a `user-service` endpoint changes, the impact agent can discover that `auth-service` has a semantically similar endpoint even if they're not directly connected in the graph.
+
+### Diagnosis Agent
+
+Uses `FindSimilarCode` to search for past fixes to similar failures. If a test fails with a timeout error, the diagnosis agent can find previous timeout-related fixes and suggest analogous solutions.
+
+### Diff Analyzer
+
+Uses `FindSimilarFlows` to discover affected test flows beyond tag-based matching. When a webhook delivers a code diff, the analyzer embeds the changed file descriptions and finds flows that are semantically related — useful in large monorepos where tag coverage is incomplete.
+
+---
+
+## API
+
+### Search Similar Nodes
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/search/nodes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "user authentication login",
+    "top_k": 10
+  }'
+```
+
+Response:
+
+```json
+{
+  "results": [
+    {
+      "id": "embedding-uuid",
+      "content": "api_endpoint: POST /api/auth/login - handles user authentication",
+      "score": 0.92,
+      "metadata": {
+        "node_id": "node-uuid",
+        "node_type": "api_endpoint",
+        "service": "auth-service"
+      }
+    }
+  ]
+}
+```
+
+### Search Similar Flows
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/search/flows \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "test payment processing with retry",
+    "top_k": 5
+  }'
+```
+
+### Search Similar Code
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/search/code \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "database connection timeout handling",
+    "top_k": 5
+  }'
+```
+
+---
+
+## Configuration
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `OPENAI_API_KEY` | — | Required for embedding generation |
+| `EMBEDDING_WORKERS` | `10` | Number of worker goroutines in the pipeline |
+| `EMBEDDING_QUEUE_SIZE` | `1000` | Buffered channel capacity |
+
+<Callout type="warning">
+  The embedding pipeline requires PostgreSQL with the pgvector extension. If pgvector is not installed, the migration will fail and embeddings will be disabled.
+</Callout>
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="AI Integration" href="/docs/features/ai-integration" description="AI-powered test generation and provider configuration." />
+  <Card title="Git Integration" href="/docs/features/git-integration" description="Trigger flows from Git events and write results back to PRs." />
+  <Card title="Workspace Integrations" href="/docs/features/workspace-integrations" description="Configure integrations per workspace." />
+</Cards>

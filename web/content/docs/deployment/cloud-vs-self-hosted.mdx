@@ -1,0 +1,209 @@
+---
+title: Cloud vs Self-Hosted
+description: Compare TestMesh deployment models — fully self-hosted, cloud with site agents, or hybrid — and understand what's included in each tier.
+---
+
+TestMesh supports three deployment models. Choose based on your security requirements, operational preferences, and team size.
+
+<Cards>
+  <Card title="Self-Hosted (OSS)" href="#self-hosted-oss" description="Everything on your infrastructure, fully free" />
+  <Card title="Cloud" href="#cloud" description="Managed control plane with site agents in your network" />
+  <Card title="Feature Comparison" href="#feature-comparison" description="What's included in each tier" />
+</Cards>
+
+---
+
+## Deployment Models
+
+### Self-Hosted (OSS)
+
+Run the entire TestMesh stack on your own infrastructure. Everything is open-source and free — no cloud dependency, no telemetry, no feature gates.
+
+```
+Your Infrastructure
+┌─────────────────────────────────────────────┐
+│  TestMesh API    Dashboard    Site Agent     │
+│  PostgreSQL      Redis        Kafka (opt.)   │
+└─────────────────────────────────────────────┘
+```
+
+**Best for:** Teams that require full data sovereignty, operate in air-gapped environments, or prefer to own their entire stack.
+
+**Get started:** [Docker Setup](/docs/deployment/docker) or [Kubernetes & Helm](/docs/deployment/kubernetes)
+
+---
+
+### Cloud
+
+TestMesh hosts the control plane (API, dashboard, scheduling, AI analysis). You run a lightweight [site agent](/docs/deployment/site-agent) inside your network to execute flows against your internal services.
+
+```
+TestMesh Cloud                    Your Network
+┌────────────────────┐           ┌────────────────────┐
+│  API + Dashboard   │◄── WSS ──│  Site Agent         │
+│  Scheduling        │           │  (executes flows)   │
+│  AI Analysis       │           └────────┬────────────┘
+│  PR Write-Back     │                    │
+└────────────────────┘           internal services
+```
+
+**Best for:** Teams that want a managed platform without maintaining infrastructure, but need to test services behind a firewall.
+
+**Key property:** The site agent connects **outbound** — no inbound firewall rules, no VPN, no exposed ports. Secrets and raw data stay in your network.
+
+---
+
+### Hybrid
+
+Self-host the core stack but connect to TestMesh Cloud for specific capabilities (AI analysis, managed scheduling). This is just the self-hosted model with the site agent pointed at a remote control plane for selected workspaces.
+
+---
+
+## Cloud Tiers
+
+The site agent binary is **always free** — it's the same open-source code regardless of tier. What changes is what the control plane provides.
+
+### Free
+
+For individuals and small teams getting started.
+
+| | |
+|---|---|
+| Workspaces | 1 |
+| Site agents | 1 |
+| Flow runs | 500 / month |
+| AI features | Community (rate-limited) |
+| Git integrations | 1 |
+| Retention | 7 days |
+
+### Pro
+
+For teams running TestMesh in production across multiple environments.
+
+| | |
+|---|---|
+| Workspaces | Unlimited |
+| Site agents | Unlimited |
+| Flow runs | 10,000 / month |
+| AI features | Bring-your-own keys |
+| Git integrations | Unlimited |
+| PR write-back | Yes |
+| Workspace-scoped integrations | Yes |
+| Per-agent AI routing | Yes |
+| Semantic search (embeddings) | Yes |
+| Retention | 90 days |
+
+### Enterprise
+
+For organizations with compliance, security, and scale requirements.
+
+| | |
+|---|---|
+| Workspaces | Unlimited |
+| Site agents | Unlimited |
+| Flow runs | Unlimited |
+| AI features | Bring-your-own keys |
+| Git integrations | Unlimited |
+| PR write-back | Yes |
+| Auto-fix PRs | Yes |
+| Custom agent pools | Yes |
+| SSO / SAML | Yes |
+| Audit logs | Yes |
+| Dedicated support | Yes |
+| Retention | Custom |
+
+---
+
+## Feature Comparison
+
+### Core Platform
+
+| Feature | Self-Hosted (OSS) | Cloud Free | Cloud Pro | Cloud Enterprise |
+|---------|-------------------|------------|-----------|-----------------|
+| Flow execution | Yes | Yes | Yes | Yes |
+| All action types (HTTP, DB, Kafka, gRPC, etc.) | Yes | Yes | Yes | Yes |
+| CLI (`run`, `debug`, `validate`, `watch`) | Yes | Yes | Yes | Yes |
+| Dashboard | Yes | Yes | Yes | Yes |
+| Mock servers | Yes | Yes | Yes | Yes |
+| Scheduling | Yes | Yes | Yes | Yes |
+| Site agent | Yes | 1 | Unlimited | Unlimited |
+| MCP server (Claude Code integration) | Yes | Yes | Yes | Yes |
+
+### AI & Intelligence
+
+| Feature | Self-Hosted (OSS) | Cloud Free | Cloud Pro | Cloud Enterprise |
+|---------|-------------------|------------|-----------|-----------------|
+| AI test generation (`testmesh generate`) | Yes (own keys) | Rate-limited | Own keys | Own keys |
+| Coverage analysis | Yes | Rate-limited | Yes | Yes |
+| Self-healing suggestions | Yes | Rate-limited | Yes | Yes |
+| Diff analysis (impact detection) | Yes | — | Yes | Yes |
+| Workspace-scoped AI providers | Yes | — | Yes | Yes |
+| Per-agent LLM routing | Yes | — | Yes | Yes |
+| Semantic search (embeddings) | Yes (own keys) | — | Yes | Yes |
+
+### Git & CI/CD
+
+| Feature | Self-Hosted (OSS) | Cloud Free | Cloud Pro | Cloud Enterprise |
+|---------|-------------------|------------|-----------|-----------------|
+| Webhook triggers (push, PR) | Yes | 1 repo | Unlimited | Unlimited |
+| Diff analysis on webhooks | Yes | — | Yes | Yes |
+| PR comments (analysis write-back) | Yes | — | Yes | Yes |
+| Commit status checks | Yes | — | Yes | Yes |
+| Auto-fix PRs from self-healing | Yes | — | — | Yes |
+| Webhook delivery logs | Yes | 100/mo | 10,000/mo | Unlimited |
+
+### Operations & Compliance
+
+| Feature | Self-Hosted (OSS) | Cloud Free | Cloud Pro | Cloud Enterprise |
+|---------|-------------------|------------|-----------|-----------------|
+| Execution history | Unlimited | 7 days | 90 days | Custom |
+| Environments | Unlimited | 2 | Unlimited | Unlimited |
+| SSO / SAML | — | — | — | Yes |
+| Audit logs | — | — | — | Yes |
+| Custom agent pools | — | — | — | Yes |
+| Support | Community | Community | Email | Dedicated |
+
+---
+
+## Why the Agent Is Free
+
+The site agent is a thin relay — it dials out, receives jobs, runs them, and streams results back. The value is in the **control plane**: scheduling, AI analysis, PR write-back, dashboard, and semantic search.
+
+Making the agent free removes friction for the exact customers who benefit most from TestMesh — enterprises with private networks that can't expose services publicly. The agent is the **on-ramp**, not the product.
+
+Common industry pattern:
+
+| Product | Agent | What You Pay For |
+|---------|-------|-----------------|
+| GitHub Actions | Self-hosted runner = free | Cloud platform |
+| Datadog | Agent = free | Data platform |
+| GitLab | Runner = free | Premium/Ultimate features |
+| Buildkite | Agent = free | Cloud dashboard |
+| **TestMesh** | **Site agent = free** | **Cloud control plane** |
+
+---
+
+## Choosing a Deployment Model
+
+<Callout type="info">
+**Start self-hosted, upgrade to cloud later.** The same flows, integrations, and agent binaries work in both models. Migration is straightforward — point your agents at the cloud URL and import your workspace data.
+</Callout>
+
+| If you need... | Choose |
+|----------------|--------|
+| Full data sovereignty / air-gapped | Self-hosted |
+| Zero infrastructure management | Cloud |
+| Test internal services from cloud | Cloud + site agent |
+| Mix of cloud convenience + on-prem data | Hybrid |
+| SSO, audit logs, compliance | Cloud Enterprise |
+| Free, unlimited, self-managed | Self-hosted (OSS) |
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Site Agent" href="/docs/deployment/site-agent" description="Set up the agent to test private services." />
+  <Card title="Docker Setup" href="/docs/deployment/docker" description="Self-host with Docker Compose." />
+  <Card title="Kubernetes & Helm" href="/docs/deployment/kubernetes" description="Deploy on Kubernetes." />
+</Cards>

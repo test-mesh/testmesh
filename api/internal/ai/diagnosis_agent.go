@@ -91,6 +91,26 @@ func (a *DiagnosisAgent) Run(ctx context.Context, ac *AgentContext, params map[s
 		}
 	}
 
+	// Search for similar past fixes using semantic search
+	if ac.SemanticSearch != nil {
+		// Use the first finding's description as the search query
+		if len(result.Findings) > 0 {
+			query := result.Findings[0].Description
+			similar, err := ac.SemanticSearch.FindSimilarCode(ctx, ac.WorkspaceID, query, 3)
+			if err == nil && len(similar) > 0 {
+				for _, s := range similar {
+					result.Findings = append(result.Findings, Finding{
+						Type:        "past_fix",
+						Severity:    "info",
+						Title:       fmt.Sprintf("Similar past change: %s", s.Content[:min(80, len(s.Content))]),
+						Description: "A similar code change was previously indexed",
+						Metadata:    map[string]any{"commit_id": s.ID, "similarity": s.Score},
+					})
+				}
+			}
+		}
+	}
+
 	result.Summary = fmt.Sprintf("Diagnosis for %s: %d findings", FormatNodeRef(*node), len(result.Findings))
 	return result, nil
 }

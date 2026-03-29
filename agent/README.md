@@ -33,7 +33,7 @@ docker run -d \
 ### Binary
 
 ```bash
-curl -fsSL https://install.testmesh.io | sh
+curl -fsSL https://testmesh.io/install-agent.sh | sh
 testmesh-agent start --token <your-token>
 ```
 

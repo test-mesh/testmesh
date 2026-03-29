@@ -22,12 +22,18 @@ var layerPrecedence = map[SourceLayer]int{
 	SourceLayerRuntime: 5,
 }
 
+// EmbeddingIndexer is an optional hook for indexing nodes after merge (avoids circular import with ai package)
+type EmbeddingIndexer interface {
+	IndexNodes(workspaceID uuid.UUID, nodes []GraphNode)
+}
+
 // MergeEngine handles identity resolution and conflict detection when
 // scanner output is merged into the existing graph.
 type MergeEngine struct {
-	db     *gorm.DB
-	engine Engine
-	logger *zap.Logger
+	db               *gorm.DB
+	engine           Engine
+	logger           *zap.Logger
+	embeddingIndexer EmbeddingIndexer
 }
 
 // NewMergeEngine creates a merge engine.
@@ -37,6 +43,11 @@ func NewMergeEngine(db *gorm.DB, engine Engine, logger *zap.Logger) *MergeEngine
 		engine: engine,
 		logger: logger,
 	}
+}
+
+// SetEmbeddingIndexer sets the optional embedding indexer for post-merge indexing.
+func (m *MergeEngine) SetEmbeddingIndexer(indexer EmbeddingIndexer) {
+	m.embeddingIndexer = indexer
 }
 
 // MergeResult tracks what happened during a merge pass.
@@ -70,6 +81,9 @@ func (m *MergeEngine) MergeNodes(ctx context.Context, workspaceID uuid.UUID, inc
 	// Build lookup indexes for fast matching
 	byTypeAndName := buildNodeIndex(existing)
 
+	// Track nodes that were created or updated for post-merge indexing
+	var mergedNodes []GraphNode
+
 	for i := range incoming {
 		node := &incoming[i]
 		node.WorkspaceID = workspaceID
@@ -97,6 +111,7 @@ func (m *MergeEngine) MergeNodes(ctx context.Context, workspaceID uuid.UUID, inc
 					continue
 				}
 				result.NodesUpdated++
+				mergedNodes = append(mergedNodes, *match)
 			}
 		} else {
 			// New node — keep the scanner-generated ID
@@ -106,7 +121,13 @@ func (m *MergeEngine) MergeNodes(ctx context.Context, workspaceID uuid.UUID, inc
 				continue
 			}
 			result.NodesCreated++
+			mergedNodes = append(mergedNodes, *node)
 		}
+	}
+
+	// Index merged nodes for semantic search
+	if m.embeddingIndexer != nil && len(mergedNodes) > 0 {
+		m.embeddingIndexer.IndexNodes(workspaceID, mergedNodes)
 	}
 
 	return result, nil

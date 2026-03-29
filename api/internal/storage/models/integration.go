@@ -43,13 +43,14 @@ const (
 	IntegrationStatusError    IntegrationStatus = "error"
 )
 
-// SystemIntegration represents a system-level integration (AI provider or Git)
+// SystemIntegration represents a system-level or workspace-scoped integration (AI provider or Git)
 type SystemIntegration struct {
 	ID               uuid.UUID           `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	Name             string              `gorm:"not null" json:"name"`
 	Type             IntegrationType     `gorm:"type:varchar(50);not null;index" json:"type"`
 	Provider         IntegrationProvider `gorm:"type:varchar(50);not null;index" json:"provider"`
 	Status           IntegrationStatus   `gorm:"type:varchar(20);default:'active'" json:"status"`
+	WorkspaceID      *uuid.UUID          `gorm:"type:uuid;index" json:"workspace_id,omitempty"`
 	Config           IntegrationConfig   `gorm:"type:jsonb;serializer:json;default:'{}'" json:"config"`
 	LastTestAt       *time.Time          `json:"last_test_at,omitempty"`
 	LastTestStatus   string              `json:"last_test_status,omitempty"`
@@ -63,6 +64,14 @@ type SystemIntegration struct {
 	Secrets map[string]string `gorm:"-" json:"secrets,omitempty"`
 }
 
+// PRIntegrationConfig controls PR write-back behavior
+type PRIntegrationConfig struct {
+	CommentOnPR      bool    `json:"comment_on_pr,omitempty"`       // Post analysis as PR comment
+	SetCommitStatus  bool    `json:"set_commit_status,omitempty"`   // Set commit status checks
+	AutoPREnabled    bool    `json:"auto_pr_enabled,omitempty"`     // Create fix PRs from suggestions
+	AutoPRThreshold  float64 `json:"auto_pr_threshold,omitempty"`   // Min confidence for auto-PR (0.0-1.0)
+}
+
 // IntegrationConfig holds non-sensitive configuration
 type IntegrationConfig struct {
 	// AI Provider config
@@ -72,8 +81,9 @@ type IntegrationConfig struct {
 	MaxTokens   int     `json:"max_tokens,omitempty"`
 
 	// GitHub/Gitea config
-	SignatureHeader string `json:"signature_header,omitempty"` // "X-Hub-Signature-256" or "X-Gitea-Signature"
-	BaseURL         string `json:"base_url,omitempty"`         // For self-hosted Gitea: "https://gitea.example.com"
+	SignatureHeader string              `json:"signature_header,omitempty"` // "X-Hub-Signature-256" or "X-Gitea-Signature"
+	BaseURL         string              `json:"base_url,omitempty"`         // For self-hosted Gitea: "https://gitea.example.com"
+	PR              *PRIntegrationConfig `json:"pr,omitempty"`              // PR write-back configuration
 
 	// Notification (Slack) config
 	Channel         string   `json:"channel,omitempty"`          // e.g. "#alerts"

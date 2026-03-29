@@ -224,6 +224,60 @@ func (r *IntegrationRepository) GetAllAIIntegrationsWithSecrets() ([]*models.Sys
 	return result, nil
 }
 
+// FindByWorkspace returns all integrations for a workspace (excluding soft-deleted)
+func (r *IntegrationRepository) FindByWorkspace(workspaceID uuid.UUID) ([]models.SystemIntegration, error) {
+	var integrations []models.SystemIntegration
+	err := r.db.Where("workspace_id = ? AND deleted_at IS NULL", workspaceID).
+		Order("created_at DESC").
+		Find(&integrations).Error
+	return integrations, err
+}
+
+// FindByWorkspaceAndType returns integrations for a workspace filtered by type
+func (r *IntegrationRepository) FindByWorkspaceAndType(workspaceID uuid.UUID, intType models.IntegrationType) ([]models.SystemIntegration, error) {
+	var integrations []models.SystemIntegration
+	err := r.db.Where("workspace_id = ? AND type = ? AND deleted_at IS NULL", workspaceID, intType).
+		Order("created_at DESC").
+		Find(&integrations).Error
+	return integrations, err
+}
+
+// GetAIIntegrationsForWorkspaceWithSecrets returns all active AI integrations for a workspace with decrypted secrets.
+// Falls back to global (workspace_id IS NULL) integrations if none are workspace-scoped.
+func (r *IntegrationRepository) GetAIIntegrationsForWorkspaceWithSecrets(workspaceID uuid.UUID) ([]*models.SystemIntegration, error) {
+	// First try workspace-specific
+	wsIntegrations, err := r.FindByWorkspaceAndType(workspaceID, models.IntegrationTypeAIProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	var source []models.SystemIntegration
+	if len(wsIntegrations) > 0 {
+		source = wsIntegrations
+	} else {
+		// Fall back to global integrations
+		global, err := r.ListByType(models.IntegrationTypeAIProvider, models.IntegrationStatusActive)
+		if err != nil {
+			return nil, err
+		}
+		for _, g := range global {
+			if g.WorkspaceID == nil { // only truly global ones
+				source = append(source, *g)
+			}
+		}
+	}
+
+	var result []*models.SystemIntegration
+	for i := range source {
+		full, err := r.GetWithSecrets(source[i].ID)
+		if err != nil {
+			continue
+		}
+		result = append(result, full)
+	}
+	return result, nil
+}
+
 // GitTriggerRuleRepository handles git trigger rule operations
 type GitTriggerRuleRepository struct {
 	db *gorm.DB

@@ -18,17 +18,36 @@ type AgentContext struct {
 	HistoryScanner *cloud.HistoryScanner
 	WorkspaceID    uuid.UUID
 	Logger         *zap.Logger
+	Providers      *ProviderManager  // workspace-resolved AI providers (nil if not configured)
+	SemanticSearch *SemanticSearch   // semantic vector search (nil if embeddings not configured)
 }
 
 // NewAgentContext creates an agent context for a workspace.
-func NewAgentContext(engine graph.Engine, runtime *cloud.RuntimeScanner, history *cloud.HistoryScanner, workspaceID uuid.UUID, logger *zap.Logger) *AgentContext {
-	return &AgentContext{
+func NewAgentContext(engine graph.Engine, runtime *cloud.RuntimeScanner, history *cloud.HistoryScanner, workspaceID uuid.UUID, logger *zap.Logger, opts ...AgentContextOption) *AgentContext {
+	ac := &AgentContext{
 		Engine:         engine,
 		RuntimeScanner: runtime,
 		HistoryScanner: history,
 		WorkspaceID:    workspaceID,
 		Logger:         logger,
 	}
+	for _, opt := range opts {
+		opt(ac)
+	}
+	return ac
+}
+
+// AgentContextOption configures optional AgentContext fields
+type AgentContextOption func(*AgentContext)
+
+// WithProviders sets the AI provider manager on the context
+func WithProviders(pm *ProviderManager) AgentContextOption {
+	return func(ac *AgentContext) { ac.Providers = pm }
+}
+
+// WithSemanticSearch sets the semantic search engine on the context
+func WithSemanticSearch(ss *SemanticSearch) AgentContextOption {
+	return func(ac *AgentContext) { ac.SemanticSearch = ss }
 }
 
 // GetServiceDependencies returns all dependencies of a service node (1-hop).

@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/ai"
 	"github.com/test-mesh/testmesh/internal/api/handlers"
 	"github.com/test-mesh/testmesh/internal/api/middleware"
@@ -28,6 +30,7 @@ import (
 	"github.com/test-mesh/testmesh/internal/scheduler"
 	"github.com/test-mesh/testmesh/internal/security"
 	"github.com/test-mesh/testmesh/internal/shared/notifications"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -41,6 +44,31 @@ type integrationRepoAdapter struct {
 // GetAIIntegrations implements ai.IntegrationProvider
 func (a *integrationRepoAdapter) GetAIIntegrations() ([]*ai.IntegrationData, error) {
 	integrations, err := a.repo.GetAllAIIntegrationsWithSecrets()
+	if err != nil {
+		return nil, err
+	}
+
+	var result []*ai.IntegrationData
+	for _, integration := range integrations {
+		data := &ai.IntegrationData{
+			Provider: string(integration.Provider),
+			Config: ai.IntegrationConfig{
+				Model:       integration.Config.Model,
+				Endpoint:    integration.Config.Endpoint,
+				Temperature: integration.Config.Temperature,
+				MaxTokens:   integration.Config.MaxTokens,
+			},
+			Secrets: integration.Secrets,
+		}
+		result = append(result, data)
+	}
+
+	return result, nil
+}
+
+// GetAIIntegrationsForWorkspace implements ai.IntegrationProvider
+func (a *integrationRepoAdapter) GetAIIntegrationsForWorkspace(workspaceID uuid.UUID) ([]*ai.IntegrationData, error) {
+	integrations, err := a.repo.GetAIIntegrationsForWorkspaceWithSecrets(workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +166,20 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	repoLinkRepo := repository.NewRepositoryLinkRepository(db)
 	aiDiffAnalyzer := ai.NewDiffAnalyzer(db, aiProviders, flowRepo, repoLinkRepo, logger)
 
+	// Initialize embedding infrastructure (if OpenAI key available for embeddings)
+	var embeddingPipeline *ai.EmbeddingPipeline
+	var semanticSearch *ai.SemanticSearch
+	openAIKey := os.Getenv("OPENAI_API_KEY")
+	if openAIKey != "" {
+		embedder := ai.NewOpenAIEmbeddingProvider(openAIKey)
+		vectorStore := ai.NewPgVectorStore(db, embedder.Dimensions())
+		semanticSearch = ai.NewSemanticSearch(embedder, vectorStore)
+		embeddingPipeline = ai.NewEmbeddingPipeline(embedder, vectorStore, logger)
+		embeddingPipeline.Start(context.Background())
+		aiDiffAnalyzer.SetSemanticSearch(semanticSearch)
+		logger.Info("Embedding pipeline initialized")
+	}
+
 	// Initialize services
 	oauth2Service := auth.NewOAuth2Service(logger)
 
@@ -223,7 +265,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	// Initialize integration handlers
 	integrationHandler := handlers.NewIntegrationHandler(integrationRepo, aiProviders, logger)
 	gitTriggerRuleHandler := handlers.NewGitTriggerRuleHandler(gitTriggerRuleRepo, logger)
-	webhookHandler := handlers.NewWebhookHandler(integrationRepo, gitTriggerRuleRepo, webhookDeliveryRepo, repoLinkRepo, aiDiffAnalyzer, aiSelfHealing, sched, logger)
+	webhookHandler := handlers.NewWebhookHandler(integrationRepo, gitTriggerRuleRepo, webhookDeliveryRepo, repoLinkRepo, aiDiffAnalyzer, aiSelfHealing, sched, embeddingPipeline, logger)
 	repositoryLinkHandler := handlers.NewRepositoryLinkHandler(repoLinkRepo, logger)
 
 	// Health check
@@ -266,6 +308,54 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 				repoLinks.GET("/:link_id", repositoryLinkHandler.Get)
 				repoLinks.PUT("/:link_id", repositoryLinkHandler.Update)
 				repoLinks.DELETE("/:link_id", repositoryLinkHandler.Delete)
+			}
+
+			// Workspace AI config routes
+			wsAIConfig := ws.Group("/ai-config")
+			{
+				wsAIConfig.GET("", func(c *gin.Context) {
+					workspaceIDStr := c.Param("workspace_id")
+					wsID, err := uuid.Parse(workspaceIDStr)
+					if err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+						return
+					}
+					var config models.WorkspaceAIConfig
+					if err := db.Where("workspace_id = ?", wsID).First(&config).Error; err != nil {
+						// Return empty config if none exists
+						c.JSON(http.StatusOK, gin.H{"workspace_id": wsID, "default_provider": "", "agent_overrides": []interface{}{}})
+						return
+					}
+					c.JSON(http.StatusOK, config)
+				})
+				wsAIConfig.PUT("", func(c *gin.Context) {
+					workspaceIDStr := c.Param("workspace_id")
+					wsID, err := uuid.Parse(workspaceIDStr)
+					if err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+						return
+					}
+					var req struct {
+						DefaultProvider string                          `json:"default_provider"`
+						AgentOverrides  []models.AgentProviderOverride  `json:"agent_overrides"`
+					}
+					if err := c.ShouldBindJSON(&req); err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+						return
+					}
+					config := models.WorkspaceAIConfig{
+						WorkspaceID:     wsID,
+						DefaultProvider: req.DefaultProvider,
+						AgentOverrides:  req.AgentOverrides,
+					}
+					// Upsert
+					result := db.Where("workspace_id = ?", wsID).Assign(config).FirstOrCreate(&config)
+					if result.Error != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+						return
+					}
+					c.JSON(http.StatusOK, config)
+				})
 			}
 
 			// Collection routes (workspace-scoped)

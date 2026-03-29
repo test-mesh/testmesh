@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -23,14 +24,15 @@ import (
 
 // WebhookHandler handles incoming webhook events
 type WebhookHandler struct {
-	integrationRepo *repository.IntegrationRepository
-	ruleRepo        *repository.GitTriggerRuleRepository
-	deliveryRepo    *repository.WebhookDeliveryRepository
-	repoLinkRepo    *repository.RepositoryLinkRepository
-	diffAnalyzer    *ai.DiffAnalyzer
-	selfHealing     *ai.SelfHealingEngine
-	scheduler       *scheduler.Scheduler
-	logger          *zap.Logger
+	integrationRepo   *repository.IntegrationRepository
+	ruleRepo          *repository.GitTriggerRuleRepository
+	deliveryRepo      *repository.WebhookDeliveryRepository
+	repoLinkRepo      *repository.RepositoryLinkRepository
+	diffAnalyzer      *ai.DiffAnalyzer
+	selfHealing       *ai.SelfHealingEngine
+	scheduler         *scheduler.Scheduler
+	embeddingPipeline *ai.EmbeddingPipeline
+	logger            *zap.Logger
 }
 
 // NewWebhookHandler creates a new webhook handler
@@ -42,17 +44,19 @@ func NewWebhookHandler(
 	diffAnalyzer *ai.DiffAnalyzer,
 	selfHealing *ai.SelfHealingEngine,
 	scheduler *scheduler.Scheduler,
+	embeddingPipeline *ai.EmbeddingPipeline,
 	logger *zap.Logger,
 ) *WebhookHandler {
 	return &WebhookHandler{
-		integrationRepo: integrationRepo,
-		ruleRepo:        ruleRepo,
-		deliveryRepo:    deliveryRepo,
-		repoLinkRepo:    repoLinkRepo,
-		diffAnalyzer:    diffAnalyzer,
-		selfHealing:     selfHealing,
-		scheduler:       scheduler,
-		logger:          logger,
+		integrationRepo:   integrationRepo,
+		ruleRepo:          ruleRepo,
+		deliveryRepo:      deliveryRepo,
+		repoLinkRepo:      repoLinkRepo,
+		diffAnalyzer:      diffAnalyzer,
+		selfHealing:       selfHealing,
+		scheduler:         scheduler,
+		embeddingPipeline: embeddingPipeline,
+		logger:            logger,
 	}
 }
 
@@ -217,6 +221,15 @@ func (h *WebhookHandler) HandleGitHub(c *gin.Context) {
 
 	// Log successful delivery
 	h.logDelivery(integration.ID, nil, eventType, repository, branch, commitSHA, body, signature, models.WebhookDeliveryStatusSuccess, "", triggeredRuns)
+
+	// Async PR analysis for pull_request events
+	if eventType == "pull_request" {
+		var prEvent GitHubPullRequestEvent
+		json.Unmarshal(body, &prEvent)
+		if prEvent.Action == "opened" || prEvent.Action == "synchronize" {
+			go h.runPRAnalysis(context.Background(), integration, repository, prEvent.Number, commitSHA, prEvent.PullRequest.Base.Ref)
+		}
+	}
 
 	// Async diff analysis for push events
 	if eventType == "push" {
@@ -599,6 +612,144 @@ func (h *WebhookHandler) runDiffAnalysis(ctx context.Context, integration *model
 			}
 		}
 	}
+}
+
+// runPRAnalysis performs analysis on a PR and writes results back to GitHub
+func (h *WebhookHandler) runPRAnalysis(ctx context.Context, integration *models.SystemIntegration, repoName string, prNumber int, headSHA, baseBranch string) {
+	provider, err := gitprovider.NewProvider(integration)
+	if err != nil {
+		h.logger.Error("Failed to create git provider for PR analysis", zap.Error(err))
+		return
+	}
+
+	prConfig := integration.Config.PR
+	if prConfig == nil {
+		return // PR write-back not configured
+	}
+
+	// Step 1: Set commit status to pending
+	if prConfig.SetCommitStatus {
+		_ = provider.CreateCommitStatus(ctx, repoName, headSHA, gitprovider.CommitStatus{
+			State:       "pending",
+			Context:     "testmesh/analysis",
+			Description: "TestMesh is analyzing this PR...",
+		})
+	}
+
+	// Step 2: Fetch diff between base and head
+	diff, changedFiles, err := provider.FetchDiff(ctx, repoName, baseBranch, headSHA)
+	if err != nil {
+		h.logger.Error("Failed to fetch PR diff", zap.Error(err))
+		if prConfig.SetCommitStatus {
+			_ = provider.CreateCommitStatus(ctx, repoName, headSHA, gitprovider.CommitStatus{
+				State:       "error",
+				Context:     "testmesh/analysis",
+				Description: "Failed to fetch diff",
+			})
+		}
+		return
+	}
+
+	// Step 3: Index code changes for semantic search
+	if h.embeddingPipeline != nil {
+		// Find workspace from repo links
+		links, _ := h.repoLinkRepo.FindByRepository(repoName)
+		for _, link := range links {
+			h.embeddingPipeline.IndexCodeChanges(link.WorkspaceID, headSHA, changedFiles, diff)
+		}
+	}
+
+	// Step 4: Run diff analysis for affected flows
+	var allSuggestions []*models.Suggestion
+	links, err := h.repoLinkRepo.FindByRepository(repoName)
+	if err == nil {
+		for _, link := range links {
+			if !link.AutoAdapt {
+				continue
+			}
+			suggestions, err := h.diffAnalyzer.AnalyzeCodeChange(ctx, link, headSHA, diff, changedFiles)
+			if err != nil {
+				h.logger.Error("Diff analysis failed for PR", zap.Error(err))
+				continue
+			}
+			allSuggestions = append(allSuggestions, suggestions...)
+		}
+	}
+
+	// Step 5: Format and post comment
+	if prConfig.CommentOnPR {
+		comment := formatPRComment(changedFiles, allSuggestions)
+		if err := provider.CreatePRComment(ctx, repoName, prNumber, comment); err != nil {
+			h.logger.Error("Failed to post PR comment", zap.Error(err))
+		}
+	}
+
+	// Step 6: Create auto-fix PRs for high-confidence suggestions
+	if prConfig.AutoPREnabled && h.selfHealing != nil {
+		for _, suggestion := range allSuggestions {
+			if suggestion.Confidence >= prConfig.AutoPRThreshold {
+				prURL, err := h.selfHealing.CreateFixPR(ctx, suggestion, provider, repoName, baseBranch, headSHA)
+				if err != nil {
+					h.logger.Error("Failed to create fix PR", zap.Error(err))
+					continue
+				}
+				// Post comment linking to fix PR
+				if prConfig.CommentOnPR {
+					linkComment := fmt.Sprintf("🔧 Auto-fix PR created: %s\n\nFix: **%s** (confidence: %.0f%%)", prURL, suggestion.Title, suggestion.Confidence*100)
+					_ = provider.CreatePRComment(ctx, repoName, prNumber, linkComment)
+				}
+			}
+		}
+	}
+
+	// Step 7: Set final commit status
+	if prConfig.SetCommitStatus {
+		state := "success"
+		desc := fmt.Sprintf("Analysis complete: %d files, %d suggestions", len(changedFiles), len(allSuggestions))
+		if len(allSuggestions) > 0 {
+			// Use "failure" if there are suggestions that indicate issues
+			for _, s := range allSuggestions {
+				if s.Confidence >= 0.8 {
+					state = "failure"
+					desc = fmt.Sprintf("Found %d high-confidence issues", len(allSuggestions))
+					break
+				}
+			}
+		}
+		_ = provider.CreateCommitStatus(ctx, repoName, headSHA, gitprovider.CommitStatus{
+			State:       state,
+			Context:     "testmesh/analysis",
+			Description: desc,
+		})
+	}
+}
+
+// formatPRComment formats the analysis results as a markdown PR comment
+func formatPRComment(changedFiles []string, suggestions []*models.Suggestion) string {
+	var sb strings.Builder
+	sb.WriteString("## 🧪 TestMesh Analysis\n\n")
+	sb.WriteString(fmt.Sprintf("Analyzed **%d** changed files.\n\n", len(changedFiles)))
+
+	if len(suggestions) == 0 {
+		sb.WriteString("✅ No test updates needed — all existing flows are compatible with these changes.\n")
+		return sb.String()
+	}
+
+	sb.WriteString(fmt.Sprintf("Found **%d** suggestion(s):\n\n", len(suggestions)))
+	for i, s := range suggestions {
+		icon := "💡"
+		if s.Confidence >= 0.8 {
+			icon = "⚠️"
+		}
+		sb.WriteString(fmt.Sprintf("%s **%d. %s** (confidence: %.0f%%)\n", icon, i+1, s.Title, s.Confidence*100))
+		if s.Description != "" {
+			sb.WriteString(fmt.Sprintf("   %s\n", s.Description))
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("---\n🤖 Generated by [TestMesh](https://testmesh.io)\n")
+	return sb.String()
 }
 
 // triggerRule triggers a test execution based on a git trigger rule

@@ -402,7 +402,7 @@ jobs:
 
       - name: Install TestMesh CLI
         run: |
-          curl -sSL https://get.test-mesh.io/install.sh | bash
+          curl -fsSL https://testmesh.io/install.sh | sh
 
       - name: Run E2E flows against staging
         env:

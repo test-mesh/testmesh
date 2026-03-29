@@ -251,19 +251,153 @@ The client implements the MCP JSON-RPC protocol: `tools/list`, `tools/call`, `re
 
 ---
 
-## 5. Data Models
+## 5. Workspace-Scoped Provider Routing
+
+**Location:** `api/internal/ai/provider.go`
+
+Providers can be configured globally or per-workspace. Each workspace can also override which provider an individual agent uses.
+
+### Resolution Chain
 
 ```
-system_integrations     AI provider configs (type, provider, model, secrets)
-generation_history      Per-generation record (prompt, tokens, latency, status)
-suggestions             AI-generated fixes (type, confidence, diff, status)
-import_history          OpenAPI/Postman import records
-coverage_analysis       Endpoint coverage results per import
+agent-specific override → workspace default → global default → env var fallback
+```
+
+### WorkspaceAIConfig
+
+**Location:** `api/internal/storage/models/workspace_ai_config.go`
+
+```go
+type WorkspaceAIConfig struct {
+    ID              uuid.UUID              `json:"id"`
+    WorkspaceID     uuid.UUID              `json:"workspace_id"`
+    DefaultProvider *uuid.UUID             `json:"default_provider,omitempty"` // integration ID
+    AgentOverrides  []AgentProviderOverride `json:"agent_overrides"`
+}
+
+type AgentProviderOverride struct {
+    AgentName     string    `json:"agent_name"`
+    IntegrationID uuid.UUID `json:"integration_id"`
+}
+```
+
+### API Endpoints
+
+- `GET /api/v1/workspaces/:id/ai-config` — get workspace AI configuration
+- `PUT /api/v1/workspaces/:id/ai-config` — set default provider and agent overrides
+
+### How It Works
+
+`ProviderManager.GetProviderForAgent(ctx, workspaceID, agentName)` checks the workspace config for an agent-specific override, falls back to the workspace default, then the global default, and finally to env var providers. Results are passed through `AgentContext.Providers`.
+
+---
+
+## 6. Embedding Infrastructure & Semantic Search
+
+**Locations:**
+- `api/internal/ai/embedding.go` — `EmbeddingProvider` interface + OpenAI implementation
+- `api/internal/ai/vectorstore.go` — `VectorStore` interface + pgvector implementation
+- `api/internal/ai/search.go` — `SemanticSearch` consumer
+- `api/internal/ai/embedding_pipeline.go` — async worker pool
+
+### Architecture
+
+```
+Domain events (node merge, flow save, webhook diff)
+    ↓
+EmbeddingPipeline (10 workers, channel cap 1000)
+    ↓
+OpenAI text-embedding-3-small (1536 dims)
+    ↓
+PgVectorStore (HNSW index, cosine distance)
+    ↓
+SemanticSearch.FindSimilar{Nodes,Flows,Code}()
+```
+
+### EmbeddingProvider Interface
+
+```go
+type EmbeddingProvider interface {
+    Embed(ctx context.Context, texts []string) ([][]float32, error)
+    Dimensions() int
+    ModelName() string
+}
+```
+
+Implemented by `OpenAIEmbeddingProvider` using `text-embedding-3-small`.
+
+### VectorStore Interface
+
+```go
+type VectorStore interface {
+    Upsert(ctx context.Context, items []VectorItem) error
+    Search(ctx context.Context, workspaceID uuid.UUID, vector []float32, opts SearchOpts) ([]SearchResult, error)
+    Delete(ctx context.Context, workspaceID uuid.UUID, ids []string) error
+}
+```
+
+Implemented by `PgVectorStore` using raw SQL with pgvector operators (`<=>` for cosine distance).
+
+### Agent Enhancements
+
+All agents check `ac.SemanticSearch != nil` before using — graceful degradation when embeddings are not configured.
+
+| Agent | Method Used | Purpose |
+|-------|-------------|---------|
+| Coverage | `FindSimilarFlows` | Detect near-duplicate flows |
+| Impact | `FindSimilarNodes` | Broader impact beyond graph edges |
+| Diagnosis | `FindSimilarCode` | Find past fixes for similar failures |
+| DiffAnalyzer | `FindSimilarFlows` | Discover affected flows via semantic similarity |
+
+### Merge Engine Hook
+
+`graph/merge.go` defines an `EmbeddingIndexer` interface (avoids circular import with `ai` package):
+
+```go
+type EmbeddingIndexer interface {
+    IndexNodes(workspaceID uuid.UUID, nodes []GraphNode)
+}
+```
+
+`MergeEngine.SetEmbeddingIndexer()` wires the pipeline. After merging nodes, the engine dispatches them to the embedding pipeline for async indexing.
+
+### Database
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS embeddings (
+    id TEXT PRIMARY KEY,
+    workspace_id UUID NOT NULL,
+    item_type TEXT NOT NULL,        -- 'node', 'flow', 'code_change'
+    content TEXT NOT NULL,
+    embedding vector(1536) NOT NULL,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_embeddings_workspace_type ON embeddings(workspace_id, item_type);
+CREATE INDEX IF NOT EXISTS idx_embeddings_vector ON embeddings USING hnsw (embedding vector_cosine_ops);
 ```
 
 ---
 
-## 6. Dashboard AI UX Strategy
+## 7. Data Models
+
+```
+system_integrations     AI provider configs (type, provider, model, secrets, workspace_id)
+workspace_ai_configs    Per-workspace default provider + agent overrides
+generation_history      Per-generation record (prompt, tokens, latency, status)
+suggestions             AI-generated fixes (type, confidence, diff, status)
+import_history          OpenAPI/Postman import records
+coverage_analysis       Endpoint coverage results per import
+embeddings              Vector embeddings for semantic search (pgvector)
+```
+
+---
+
+## 8. Dashboard AI UX Strategy
 
 **Decision: no chat UI in the dashboard.**
 
@@ -292,21 +426,24 @@ The dashboard AI should feel like a **smart assistant embedded in the workflow**
 
 ---
 
-## 7. Roadmap Gaps (vs. "Autonomous QA" vision)
+## 9. Roadmap Gaps (vs. "Autonomous QA" vision)
 
 Current state vs. what's needed to reach full autonomy:
 
 | Capability | Status | Notes |
 |-----------|--------|-------|
 | Multi-provider LLM | ✅ Done | Anthropic, OpenAI, Local |
+| Workspace-scoped providers | ✅ Done | Per-workspace and per-agent routing |
 | Flow generation from prompt | ✅ Done | |
 | OpenAPI import | ✅ Done | |
-| Self-healing suggestions | ✅ Done | Manual approval required |
+| Self-healing suggestions | ✅ Done | Manual approval + auto-PR for high confidence |
 | Code diff → impact analysis | ✅ Done | |
+| PR write-back (comments + status) | ✅ Done | GitHub; GitLab/Gitea planned |
+| Auto-fix PRs from self-healing | ✅ Done | Confidence threshold gated |
+| Embedding-based semantic search | ✅ Done | pgvector + OpenAI text-embedding-3-small |
 | MCP server (AI client integration) | ✅ Done | 10 tools |
 | Static service analysis | ✅ Done | Go/JS/Python |
-| Auto-apply self-healing patches | ⬜ Not done | Requires confidence threshold + approval flow |
 | Orchestrator agent | ⬜ Not done | Coordinates repo→flow→repair pipeline |
-| PR-triggered test selection | ⬜ Not done | DiffAnalyzer exists, CI hook missing |
 | UI test generation (browser) | ⬜ Not done | Current focus is API/integration |
 | Flakiness detection | ⬜ Not done | Execution history exists, analysis agent missing |
+| GitLab/Gitea PR write-back | ⬜ Not done | Interface defined, stubs return ErrNotSupported |

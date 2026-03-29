@@ -19,7 +19,7 @@ The TestMesh CLI runs flows locally without needing the full API server. It conn
 
 ## Install the CLI
 
-<Tabs items={["Homebrew", "curl", "Install via Go", "Build from Source"]}>
+<Tabs items={["Homebrew", "curl", "npm", "Install via Go", "Build from Source"]}>
   <Tab value="Homebrew">
     ```bash
     brew install test-mesh/brew/testmesh
@@ -32,8 +32,27 @@ The TestMesh CLI runs flows locally without needing the full API server. It conn
     ```
   </Tab>
   <Tab value="curl">
+    Downloads the latest release binary for your OS and architecture:
+
     ```bash
     curl -fsSL https://testmesh.io/install.sh | sh
+    ```
+
+    The script verifies checksums before installing. To install to a custom location:
+
+    ```bash
+    TESTMESH_INSTALL_DIR=~/.local/bin curl -fsSL https://testmesh.io/install.sh | sh
+    ```
+  </Tab>
+  <Tab value="npm">
+    ```bash
+    npm install -g testmesh
+    ```
+
+    This downloads the platform-specific binary via the npm postinstall hook. Works with `npx` too:
+
+    ```bash
+    npx testmesh run ./flow.yaml
     ```
   </Tab>
   <Tab value="Install via Go">

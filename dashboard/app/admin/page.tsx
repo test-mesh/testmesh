@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
-  Users,
   Activity,
   Server,
   Database,
@@ -23,8 +22,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface SystemStats {
-  totalUsers: number;
-  activeUsers: number;
   totalFlows: number;
   totalExecutions: number;
   successRate: number;
@@ -44,7 +41,7 @@ interface HealthStatus {
 
 interface RecentActivity {
   id: string;
-  type: 'execution' | 'user' | 'schedule';
+  type: 'execution' | 'schedule';
   description: string;
   timestamp: string;
   status?: 'success' | 'failure';
@@ -57,14 +54,11 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate loading dashboard data
     const loadData = async () => {
       // In production, these would be API calls
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       setStats({
-        totalUsers: 24,
-        activeUsers: 8,
         totalFlows: 156,
         totalExecutions: 12847,
         successRate: 94.2,
@@ -92,19 +86,13 @@ export default function AdminDashboard() {
         },
         {
           id: '2',
-          type: 'user',
-          description: 'New user "john.doe@example.com" registered',
-          timestamp: '15 minutes ago',
-        },
-        {
-          id: '3',
           type: 'execution',
           description: 'Flow "Payment Gateway" failed',
           timestamp: '1 hour ago',
           status: 'failure',
         },
         {
-          id: '4',
+          id: '3',
           type: 'schedule',
           description: 'Schedule "Nightly Regression" triggered',
           timestamp: '3 hours ago',
@@ -164,13 +152,13 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="w-4 h-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Active Schedules</CardTitle>
+            <Calendar className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalUsers}</div>
+            <div className="text-2xl font-bold">{stats?.activeSchedules}</div>
             <p className="text-xs text-muted-foreground">
-              {stats?.activeUsers} active now
+              {stats?.queuedJobs} jobs queued
             </p>
           </CardContent>
         </Card>
@@ -289,9 +277,6 @@ export default function AdminDashboard() {
                     {item.type === 'execution' && item.status === 'failure' && (
                       <AlertCircle className="w-4 h-4 text-red-500" />
                     )}
-                    {item.type === 'user' && (
-                      <Users className="w-4 h-4 text-blue-500" />
-                    )}
                     {item.type === 'schedule' && (
                       <Calendar className="w-4 h-4 text-purple-500" />
                     )}
@@ -308,19 +293,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Quick Links */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link href="/admin/users">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-blue-500" />
-                <CardTitle className="text-base">User Management</CardTitle>
-              </div>
-              <CardDescription>Manage users, roles, and permissions</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link href="/admin/integrations">
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
             <CardHeader>
@@ -333,30 +306,6 @@ export default function AdminDashboard() {
           </Card>
         </Link>
 
-        <Link href="/admin/health">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-green-500" />
-                <CardTitle className="text-base">System Health</CardTitle>
-              </div>
-              <CardDescription>Monitor services and resources</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-
-        <Link href="/admin/activity">
-          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-cyan-500" />
-                <CardTitle className="text-base">Activity Feed</CardTitle>
-              </div>
-              <CardDescription>View all system events and audit log</CardDescription>
-            </CardHeader>
-          </Card>
-        </Link>
-
         <Link href="/admin/plugins">
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
             <CardHeader>
@@ -365,6 +314,18 @@ export default function AdminDashboard() {
                 <CardTitle className="text-base">Plugins</CardTitle>
               </div>
               <CardDescription>Install and manage platform plugins</CardDescription>
+            </CardHeader>
+          </Card>
+        </Link>
+
+        <Link href="/admin/health">
+          <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Activity className="w-5 h-5 text-green-500" />
+                <CardTitle className="text-base">System Health</CardTitle>
+              </div>
+              <CardDescription>Monitor services and resources</CardDescription>
             </CardHeader>
           </Card>
         </Link>

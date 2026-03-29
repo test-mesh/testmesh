@@ -8,6 +8,8 @@
     "data-generation",
     "ai-integration",
     "mcp-integration",
+    "workspace-integrations",
+    "embeddings",
     "observability",
     "scheduling",
     "reporting",

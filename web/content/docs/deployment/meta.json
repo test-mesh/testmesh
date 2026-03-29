@@ -1,4 +1,4 @@
 {
   "title": "Deployment",
-  "pages": ["index", "docker", "kubernetes", "external-services"]
+  "pages": ["index", "docker", "kubernetes", "external-services", "site-agent", "cloud-vs-self-hosted"]
 }

@@ -1,0 +1,173 @@
+---
+title: Why TestMesh
+description: What makes TestMesh different — and why integration testing has been a gap that existing tools weren't built to fill.
+---
+
+# Why TestMesh
+
+Most testing tools solve one layer well. HTTP clients test APIs. Browser tools test UIs. Load generators stress endpoints. But modern systems don't fail at one layer — they fail at the **seams**. The API returns 200, the Kafka message is published, but the consumer silently drops it because the schema changed. The database write succeeds, but the cache wasn't invalidated. Everything passes in isolation. Everything breaks in production.
+
+TestMesh exists because integration testing across protocols, services, and data stores has been a gap — not because it's unimportant, but because it's been genuinely hard to do without stitching together bash scripts, custom harnesses, and hope.
+
+---
+
+## The Problem
+
+A typical backend system involves:
+
+- HTTP APIs talking to each other
+- Message brokers (Kafka, Redis pub/sub) carrying events between services
+- Databases holding state that multiple services read and write
+- Caches that must stay consistent with the database
+- gRPC calls between internal services
+
+Testing that all of this works **together** — not just that each piece works alone — is where most teams have a blind spot. The usual approaches:
+
+- **Manual SQL checks after deploys** — doesn't scale, doesn't catch regressions
+- **Bash scripts curling endpoints** — brittle, no assertions on database state, no Kafka support
+- **Unit tests with mocked dependencies** — fast but doesn't catch integration bugs (by definition)
+- **End-to-end browser tests** — catches UI issues but can't see what happened in the database or on the message bus
+
+None of these test the contract between services. None of them verify that when Service A publishes an event, Service B processes it correctly and writes the right data.
+
+---
+
+## What's Different
+
+### One flow, many protocols
+
+A single TestMesh flow can hit an HTTP API, assert on the database, consume a Kafka message, check Redis, and call a gRPC service — all in sequence, passing data between steps:
+
+```yaml
+flow:
+  name: "Order creates notification"
+  steps:
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE}/orders"
+        body: { product_id: "SKU-100", quantity: 2 }
+      output:
+        order_id: $.body.id
+
+    - id: verify_event
+      action: kafka_consumer
+      config:
+        topic: order.created
+        timeout: 10s
+      assert:
+        - value.order_id == "${place_order.order_id}"
+
+    - id: verify_notification
+      action: database_query
+      config:
+        query: "SELECT * FROM notifications WHERE order_id = $1"
+        params: ["${place_order.order_id}"]
+      assert:
+        - result.count == 1
+        - result.rows[0].type == "order_confirmation"
+```
+
+This isn't three separate tests glued together. It's one flow with one context, where each step can reference output from previous steps. If step 2 fails, you know the event wasn't published — not that your test harness broke.
+
+### YAML, not code
+
+Flows are defined in YAML, not a programming language. This is a deliberate trade-off:
+
+- **Readable by anyone** — QA engineers, product managers, and new team members can read and review test flows without knowing Go, JavaScript, or Python
+- **Diffable** — YAML diffs are clean. Code review on test changes is straightforward
+- **Declarative** — you describe *what* to assert, not *how* to make the HTTP call, parse the response, connect to the database, and compare values
+- **Portable** — flows run the same way on a developer's laptop, in CI, or on a site agent in a private network
+
+The CLI does the heavy lifting: templating, assertion evaluation, variable resolution, retries. You define the test; the engine handles the execution.
+
+### AI that works with the graph, not just text
+
+Most AI testing features stop at "generate a test from a description." TestMesh goes further because it maintains a **system graph** — a live model of your services, endpoints, data stores, and the connections between them.
+
+This means AI agents can:
+
+- **Analyze impact**: when a service changes, the graph shows which flows are affected — not by string matching, but by tracing actual dependencies
+- **Detect coverage gaps**: the graph knows which endpoints exist and which have flows covering them
+- **Self-heal broken tests**: when a flow fails after a code change, the diff analyzer correlates the failure with the change and suggests a fix — including the confidence score
+- **Search semantically**: vector embeddings let agents find "similar" tests and nodes even when names don't match
+
+The graph is built automatically from code scanners, OpenAPI specs, runtime observation, and manual annotations. It's not a static diagram — it's a queryable data structure that agents use to make decisions.
+
+### Runs anywhere your services run
+
+TestMesh doesn't need your services to be publicly accessible. The **site agent** runs inside your network — behind firewalls, in VPCs, in air-gapped environments — and connects outbound to the control plane. No inbound ports, no VPN tunnels, no exposed services.
+
+This matters because the systems that most need integration testing are exactly the ones that are hardest to reach: internal microservices, private databases, message brokers on private subnets.
+
+### Open source, no lock-in
+
+The entire platform — API, dashboard, CLI, site agent — is open source. Self-hosted deployments get every feature with no gates, no telemetry, no "upgrade to unlock." Cloud tiers exist for teams that want managed infrastructure, but the self-hosted option is always complete.
+
+Your flows are YAML files in your repo. Your integrations use standard protocols (HTTP, SQL, Kafka, gRPC). There's no proprietary format, no vendor-specific runtime, no cloud account required.
+
+---
+
+## What TestMesh Is Not
+
+Being clear about scope is as important as explaining what it does:
+
+- **Not a browser testing tool** — TestMesh tests backend services, not UIs. Use it alongside browser tools for full-stack coverage.
+- **Not a load testing tool** — it tests functional correctness (did the right thing happen?), not performance under load (can it handle 10,000 requests per second?).
+- **Not an API explorer** — it's for automated, repeatable tests, not for interactively poking at endpoints during development.
+- **Not a monitoring tool** — it runs tests on demand or on schedule, not continuously in production. Though scheduled flows can serve as synthetic monitors.
+
+---
+
+## The Workflow
+
+```
+Developer pushes code
+    ↓
+Webhook triggers TestMesh
+    ↓
+Diff analyzer identifies affected services
+    ↓
+Relevant flows run against staging (via site agent)
+    ↓
+Results posted to the PR (comments + status checks)
+    ↓
+If a test breaks, self-healing suggests a fix
+    ↓
+If confidence is high enough, a fix PR is created automatically
+```
+
+This is the end state: code change → automated analysis → results on the PR → optional auto-fix. No manual intervention for the common case. Human review for the edge cases.
+
+---
+
+## Design Decisions
+
+A few choices that shape how TestMesh works and why:
+
+**No chat UI in the dashboard.** AI surfaces as contextual actions (explain failure, suggest fix, generate test) embedded where you're already looking — not as a chatbot in a sidebar. The CLI provides `testmesh chat` for developers who want conversational test creation.
+
+**Agents are specialized, not general-purpose.** There's a coverage agent, an impact agent, a diagnosis agent, a repair agent. Each has a focused prompt and uses graph data specific to its task. This produces better results than a single "do everything" agent.
+
+**The graph is the source of truth for AI.** Agents don't guess which services exist or how they connect — they query the graph. This makes analysis deterministic and auditable. Embeddings add fuzzy matching on top, but the graph provides the structure.
+
+**Workspace-level isolation.** Each workspace has its own integrations, AI provider routing, and agent configuration. A team using Anthropic for analysis and OpenAI for embeddings doesn't affect another team using a local Ollama instance.
+
+---
+
+## Who It's For
+
+- **Backend teams** building microservices that need to verify cross-service behavior
+- **Platform teams** setting up test infrastructure for the organization
+- **QA engineers** who want to write integration tests without deep programming knowledge
+- **DevOps teams** adding integration test gates to CI/CD pipelines
+- **Teams with private infrastructure** that can't use cloud-only testing tools
+
+---
+
+<Cards>
+  <Card title="Get Started" href="/docs/getting-started" description="Install and run your first flow in under 5 minutes." />
+  <Card title="Your First Flow" href="/docs/getting-started/first-flow" description="Build a multi-protocol test step by step." />
+  <Card title="Cloud vs Self-Hosted" href="/docs/deployment/cloud-vs-self-hosted" description="Choose the right deployment model." />
+</Cards>

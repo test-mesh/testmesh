@@ -356,6 +356,8 @@ testmesh config ai --model claude-sonnet-4-5
 
 ## Configuration
 
+### CLI Configuration
+
 ```yaml title=".testmesh/config.yaml"
 ai:
   provider: "anthropic"
@@ -393,10 +395,51 @@ ai:
   Generated flows are always validated against the TestMesh YAML schema before being written to disk. If generation produces an invalid flow, TestMesh will report the issue rather than saving a broken file.
 </Callout>
 
+### Workspace-Level Provider Routing
+
+The API server supports workspace-scoped AI providers and per-agent overrides. This lets different workspaces use different LLM providers, and different agents within a workspace use different models.
+
+**Resolution order:**
+
+```
+Agent-specific override → Workspace default → Global default → Environment variable
+```
+
+For example, route the `generation` agent to Anthropic (better structured output) and the `coverage` agent to OpenAI (lower cost):
+
+```bash
+curl -X PUT http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/ai-config \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_provider": "anthropic-integration-uuid",
+    "agent_overrides": [
+      { "agent_name": "coverage", "integration_id": "openai-integration-uuid" }
+    ]
+  }'
+```
+
+See [Workspace Integrations](/docs/features/workspace-integrations) for full details on managing providers and routing.
+
+---
+
+## Semantic Search
+
+When an OpenAI integration is configured, TestMesh generates vector embeddings for graph nodes, flows, and code changes. AI agents automatically use these embeddings to:
+
+- **Coverage agent**: Detect near-duplicate flows before suggesting new tests
+- **Impact agent**: Find semantically related nodes beyond explicit graph edges
+- **Diagnosis agent**: Search for past fixes to similar failures
+- **Diff analyzer**: Discover affected flows via semantic similarity when tags are incomplete
+
+See [Semantic Search & Embeddings](/docs/features/embeddings) for setup and details.
+
+---
+
 ## What's Next
 
 <Cards>
+  <Card title="Workspace Integrations" href="/docs/features/workspace-integrations" description="Manage AI providers per workspace with encrypted key storage." />
+  <Card title="Embeddings" href="/docs/features/embeddings" description="Vector-powered semantic search across your test graph." />
   <Card title="testmesh generate" href="/docs/cli/generate" description="CLI reference for AI-powered flow generation." />
-  <Card title="testmesh chat" href="/docs/cli/chat" description="Conversational flow creation." />
   <Card title="MCP Integration" href="/docs/features/mcp-integration" description="Use AI tools within flows via Model Context Protocol." />
 </Cards>

@@ -1,14 +1,16 @@
 ---
 title: Git Integration
-description: Automatically run tests when code changes — connect GitHub, GitLab, or Gitea and trigger flows on push, pull request, or commit events.
+description: Automatically run tests when code changes — connect GitHub, GitLab, or Gitea and trigger flows on push, pull request, or commit events. Get AI analysis posted directly to your PRs.
 ---
 
-TestMesh integrates with Git providers to run tests automatically when code changes. Connect your repositories to trigger flows on push, pull request, or specific commit events. AI-powered diff analysis can identify which tests are most relevant to each change.
+TestMesh integrates with Git providers to run tests automatically when code changes. Connect your repositories to trigger flows on push, pull request, or specific commit events. AI-powered diff analysis identifies which tests are most relevant, and results are posted directly back to your pull requests as comments and commit status checks.
 
 <Cards>
   <Card title="Connecting a Provider" href="#connecting-a-provider" description="Set up GitHub, GitLab, or Gitea" />
   <Card title="Trigger Rules" href="#trigger-rules" description="Define when flows run" />
   <Card title="Diff Analysis" href="#diff-analysis" description="Smart test selection based on code changes" />
+  <Card title="PR Write-Back" href="#pr-write-back" description="Post analysis results to pull requests" />
+  <Card title="Auto-Fix PRs" href="#auto-fix-prs" description="Automatically create fix PRs from suggestions" />
   <Card title="Self-Healing" href="#self-healing" description="Automatically fix broken tests" />
 </Cards>
 
@@ -214,32 +216,128 @@ Configure self-healing per integration:
 
 ---
 
-## Status Checks
+## PR Write-Back
 
-When running flows triggered by a pull request, TestMesh reports the result back to the Git provider as a commit status check. This lets you enforce passing tests as a merge requirement.
+When a pull request is opened or updated, TestMesh can analyze the change and post results directly to the PR. This includes:
 
-The status check name is `testmesh/<flow-name>` and shows:
-- `pending` while the flow is running
-- `success` if the flow passes
-- `failure` if the flow fails
+1. **Commit status checks** — show `pending` / `success` / `failure` on the PR
+2. **Analysis comments** — post a detailed markdown comment with findings
+3. **Fix suggestions** — include actionable suggestions in the comment
 
-Configure status reporting in the integration settings:
+### How It Works
+
+```
+PR opened / synchronized
+    ↓
+Set commit status → "pending"
+    ↓
+Fetch diff from GitHub API
+    ↓
+Index code changes (embeddings, if configured)
+    ↓
+Run diff analysis (impact + coverage agents)
+    ↓
+Format findings as markdown comment
+    ↓
+Post comment to PR
+    ↓
+Set commit status → "success" / "failure"
+```
+
+### Configure PR Write-Back
+
+Enable PR write-back in the integration's `pr` config:
+
+```bash
+curl -X PATCH http://localhost:5016/api/v1/admin/integrations/$INTEGRATION_ID \
+  -H "Content-Type: application/json" \
+  -d '{
+    "config": {
+      "pr": {
+        "comment_on_pr": true,
+        "set_commit_status": true
+      }
+    }
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `comment_on_pr` | bool | Post analysis as a PR comment |
+| `set_commit_status` | bool | Set commit status checks (pending/success/failure) |
+| `auto_pr_enabled` | bool | Create fix PRs from high-confidence suggestions |
+| `auto_pr_threshold` | float | Minimum confidence for auto-PR creation (0.0–1.0) |
+
+### PR Comment Format
+
+The comment includes:
+- Summary of affected flows and coverage
+- Per-finding severity (critical / warning / info)
+- Suggested fixes with confidence scores
+- Links to affected flows in the TestMesh dashboard
+
+<Callout type="note">
+  PR write-back requires a GitHub Personal Access Token with `repo` scope. GitLab and Gitea write-back support is planned.
+</Callout>
+
+---
+
+## Auto-Fix PRs
+
+When self-healing generates a high-confidence suggestion, TestMesh can automatically create a fix PR that applies the suggested YAML changes.
+
+### How It Works
+
+1. Self-healing analyzes a test failure triggered by the PR
+2. If the suggestion confidence exceeds `auto_pr_threshold`, TestMesh:
+   - Creates a branch: `testmesh/fix/{suggestion-id}`
+   - Pushes the updated YAML flow file(s)
+   - Opens a PR targeting the original branch
+   - Posts a comment on the original PR linking to the fix PR
+
+### Enable Auto-Fix PRs
 
 ```json
 {
   "config": {
-    "report_status_checks": true,
-    "status_check_context": "testmesh"
+    "pr": {
+      "comment_on_pr": true,
+      "set_commit_status": true,
+      "auto_pr_enabled": true,
+      "auto_pr_threshold": 0.85
+    }
   }
 }
 ```
+
+With `auto_pr_threshold: 0.85`, only suggestions with 85%+ confidence will trigger an automatic fix PR. Lower-confidence suggestions are still included in the PR comment for manual review.
+
+<Callout type="warning">
+  Auto-fix PRs require a GitHub token with write access to create branches and pull requests. The token must have `repo` scope.
+</Callout>
+
+---
+
+## Status Checks
+
+When running flows triggered by a pull request, TestMesh reports the result back to the Git provider as a commit status check. This lets you enforce passing tests as a merge requirement.
+
+The status check shows:
+- `pending` — analysis is in progress
+- `success` — analysis completed, no critical findings
+- `failure` — critical findings or errors detected
+
+Status checks are enabled via the `pr.set_commit_status` config field (see [PR Write-Back](#pr-write-back) above).
+
+The status context is `testmesh/analysis` and includes a description summarizing the findings count.
 
 ---
 
 ## What's Next
 
 <Cards>
-  <Card title="Scheduling" href="/docs/features/scheduling" description="Run flows on a time-based schedule." />
+  <Card title="Workspace Integrations" href="/docs/features/workspace-integrations" description="Configure integrations and AI providers per workspace." />
+  <Card title="Embeddings" href="/docs/features/embeddings" description="Semantic search enhances diff analysis and impact detection." />
   <Card title="AI Integration" href="/docs/features/ai-integration" description="AI-powered test generation and analysis." />
-  <Card title="Environments" href="/docs/features/environments" description="Use environments to control which services tests hit." />
+  <Card title="Scheduling" href="/docs/features/scheduling" description="Run flows on a time-based schedule." />
 </Cards>

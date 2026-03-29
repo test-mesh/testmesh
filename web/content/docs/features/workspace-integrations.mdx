@@ -1,0 +1,210 @@
+---
+title: Workspace Integrations
+description: Configure AI providers, Git connections, and notification channels per workspace with encrypted secret storage and workspace-level overrides.
+---
+
+TestMesh supports workspace-scoped integrations, letting each workspace use its own AI provider, Git connection, or notification channel. Workspace integrations override global defaults, and secrets are encrypted at rest using AES-256-GCM.
+
+<Cards>
+  <Card title="Integration Types" href="#integration-types" description="AI, Git, and Notification providers" />
+  <Card title="Provider Resolution" href="#provider-resolution" description="How TestMesh picks which provider to use" />
+  <Card title="AI Provider Routing" href="#ai-provider-routing" description="Per-agent LLM provider overrides" />
+  <Card title="Dashboard Setup" href="#dashboard" description="Configure integrations in the UI" />
+</Cards>
+
+---
+
+## Integration Types
+
+| Type | Providers | Purpose |
+|------|-----------|---------|
+| **AI Provider** | OpenAI, Anthropic, Local (Ollama) | LLM-powered test generation, analysis, self-healing |
+| **Git** | GitHub, GitLab, Gitea | Webhooks, diff analysis, PR write-back |
+| **Notification** | Slack | Alerts on execution failures, schedule triggers |
+
+---
+
+## Provider Resolution
+
+When TestMesh needs a provider (e.g., an AI model to analyze a failure), it resolves in this order:
+
+```
+1. Workspace-specific integration  →  found? use it
+2. Global integration              →  found? use it
+3. Environment variable fallback   →  ANTHROPIC_API_KEY / OPENAI_API_KEY
+```
+
+This means you can set a global Anthropic integration for all workspaces, then override with OpenAI for a specific workspace that needs GPT-4 — without changing environment variables or restarting the server.
+
+---
+
+## Managing Integrations
+
+### Create a Workspace Integration
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/integrations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Team OpenAI",
+    "type": "ai_provider",
+    "provider": "openai",
+    "config": {
+      "model": "gpt-4o",
+      "temperature": 0.7,
+      "max_tokens": 8000
+    },
+    "secrets": {
+      "api_key": "sk-xxxxx"
+    }
+  }'
+```
+
+### Create a Global Integration
+
+Omit `workspace_id` or use the admin endpoint:
+
+```bash
+curl -X POST http://localhost:5016/api/v1/admin/integrations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Default Anthropic",
+    "type": "ai_provider",
+    "provider": "anthropic",
+    "config": {
+      "model": "claude-sonnet-4-5-20250514"
+    },
+    "secrets": {
+      "api_key": "sk-ant-xxxxx"
+    }
+  }'
+```
+
+### Test a Connection
+
+```bash
+curl -X POST http://localhost:5016/api/v1/admin/integrations/$INTEGRATION_ID/test
+```
+
+Returns the test result and updates `last_test_at` / `last_test_status` on the integration.
+
+### List Integrations
+
+```bash
+# Workspace integrations (includes global fallbacks)
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/integrations
+
+# Global integrations only
+curl http://localhost:5016/api/v1/admin/integrations
+```
+
+---
+
+## Secret Storage
+
+Integration secrets (API keys, tokens, webhook secrets) are encrypted using AES-256-GCM with per-secret nonces before storage. They are **never returned** in API responses — only a `"configured": true` flag is shown.
+
+```json
+{
+  "id": "integration-uuid",
+  "name": "Team OpenAI",
+  "type": "ai_provider",
+  "provider": "openai",
+  "config": { "model": "gpt-4o" },
+  "secrets": { "api_key": "configured" }
+}
+```
+
+To rotate a secret, update the integration with the new value:
+
+```bash
+curl -X PATCH http://localhost:5016/api/v1/admin/integrations/$INTEGRATION_ID \
+  -H "Content-Type: application/json" \
+  -d '{
+    "secrets": {
+      "api_key": "sk-new-key-xxxxx"
+    }
+  }'
+```
+
+---
+
+## AI Provider Routing
+
+Beyond workspace-level defaults, you can route specific AI agents to specific providers. For example, use Anthropic for test generation (better at structured output) and OpenAI for embeddings (lower cost).
+
+### Configure Per-Agent Overrides
+
+```bash
+curl -X PUT http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/ai-config \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_provider": "anthropic-integration-uuid",
+    "agent_overrides": [
+      {
+        "agent_name": "coverage",
+        "integration_id": "openai-integration-uuid"
+      },
+      {
+        "agent_name": "generation",
+        "integration_id": "anthropic-integration-uuid"
+      }
+    ]
+  }'
+```
+
+### Resolution Chain
+
+For each agent call, TestMesh resolves the provider:
+
+```
+1. Agent-specific override     →  coverage → OpenAI
+2. Workspace default provider  →  Anthropic
+3. Global default              →  whatever is configured globally
+4. Environment variable        →  ANTHROPIC_API_KEY / OPENAI_API_KEY
+```
+
+### Available Agents
+
+| Agent | Purpose |
+|-------|---------|
+| `coverage` | Analyze test coverage gaps |
+| `impact` | Determine blast radius of changes |
+| `diagnosis` | Root-cause analysis for failures |
+| `repair` | Generate fix suggestions |
+| `flakiness` | Detect flaky test patterns |
+| `generation` | Generate new test flows |
+| `watch` | Monitor and adapt tests |
+| `scheduler_optimizer` | Optimize test scheduling |
+| `orchestrator` | Coordinate multi-agent workflows |
+
+---
+
+## Dashboard
+
+### Integrations Settings
+
+Navigate to **Settings → Integrations** in the workspace dashboard. The page shows three tabs:
+
+- **AI Providers** — Add OpenAI, Anthropic, or Local providers
+- **Git** — Connect GitHub, GitLab, or Gitea
+- **Notifications** — Configure Slack channels
+
+Each integration shows its status (active/disabled/error), last test result, and a **Test Connection** button.
+
+### AI Providers Settings
+
+Navigate to **Settings → AI Providers** to configure:
+
+- **Default Provider** — Which integration to use by default for this workspace
+- **Agent Overrides** — Route specific agents to specific providers
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="AI Integration" href="/docs/features/ai-integration" description="AI-powered test generation and analysis." />
+  <Card title="Git Integration" href="/docs/features/git-integration" description="Webhooks, PR write-back, and auto-fix PRs." />
+  <Card title="Embeddings" href="/docs/features/embeddings" description="Semantic search across your test graph." />
+</Cards>

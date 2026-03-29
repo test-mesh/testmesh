@@ -14,6 +14,26 @@ description: Release history and notable changes for TestMesh.
 
 ## Unreleased
 
+**GitHub PR Write-Back**
+- Analysis results posted directly to pull requests as comments with severity-tagged findings
+- Commit status checks (`pending` → `success` / `failure`) set automatically on PR events
+- Auto-fix PRs: self-healing suggestions above a confidence threshold create fix PRs automatically
+- PR write-back configuration per integration (`comment_on_pr`, `set_commit_status`, `auto_pr_enabled`, `auto_pr_threshold`)
+
+**Workspace-Scoped Integrations**
+- Integrations (AI, Git, Notification) can now be configured per workspace, overriding global defaults
+- Per-agent LLM provider routing: assign different AI providers to different agents within a workspace
+- New `WorkspaceAIConfig` model with default provider and agent-level overrides
+- Provider resolution chain: agent override → workspace default → global default → env var
+
+**Semantic Search & Embeddings**
+- Vector embeddings for graph nodes, flows, and code changes using OpenAI `text-embedding-3-small`
+- pgvector-backed storage with HNSW indexing for fast similarity search
+- Async embedding pipeline with 10-worker pool and bounded queue
+- Coverage, impact, diagnosis agents and diff analyzer enhanced with semantic search
+- New search API endpoints for nodes, flows, and code
+
+**Also in this release**
 - `mcp_call` action — call external MCP servers as steps in a flow, enabling AI tool use within tests
 - `testmesh chat` — conversational flow creation; describe what you want to test in plain English
 - Plugin system for custom action handlers — bring your own protocol or internal tool
