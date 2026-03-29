@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/ai"
 	"github.com/test-mesh/testmesh/internal/api/handlers"
+	"github.com/test-mesh/testmesh/internal/filestorage"
 	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/api/websocket"
 	"github.com/test-mesh/testmesh/internal/auth"
@@ -22,7 +23,10 @@ import (
 	"github.com/test-mesh/testmesh/internal/graph/scanner/spec"
 	graphrepo "github.com/test-mesh/testmesh/internal/graph/repo"
 	graphscanner "github.com/test-mesh/testmesh/internal/graph/scanner"
+	tracescanner "github.com/test-mesh/testmesh/internal/graph/scanner/trace"
 	"github.com/test-mesh/testmesh/internal/plugins"
+	"github.com/test-mesh/testmesh/internal/telemetry"
+	"github.com/test-mesh/testmesh/internal/tracing"
 	"github.com/test-mesh/testmesh/internal/reporting"
 	"github.com/test-mesh/testmesh/internal/runner"
 	"github.com/test-mesh/testmesh/internal/runner/debugger"
@@ -212,6 +216,35 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	collectionRunner := runner.NewCollectionRunner(executor, logger)
 	runnerHandler := handlers.NewRunnerHandler(collectionRunner, flowRepo, envRepo, logger)
 
+	// Initialize execution tracer for OpenTelemetry instrumentation
+	executionTracer := tracing.NewExecutionTracer()
+	executor.SetExecutionTracer(executionTracer)
+
+	// Initialize telemetry pipeline
+	telemetryRepo := telemetry.NewTelemetryRepository(db, logger)
+	spanProcessor := telemetry.NewSpanProcessor(telemetryRepo, logger)
+	otlpReceiver := telemetry.NewOTLPReceiver(spanProcessor, logger)
+	cleanupJob := telemetry.NewCleanupJob(telemetryRepo, logger)
+	flowDiscovery := telemetry.NewFlowDiscovery(telemetryRepo, logger)
+	traceValidator := telemetry.NewTraceValidator(telemetryRepo, flowDiscovery, logger)
+	rootCauseAnalyzer := telemetry.NewRootCauseAnalyzer(telemetryRepo, logger)
+	telemetryHandler := telemetry.NewTelemetryHandler(telemetryRepo, flowDiscovery, traceValidator, rootCauseAnalyzer, logger)
+
+	// Start telemetry lifecycle
+	spanProcessor.Start(context.Background())
+	cleanupJob.Start(context.Background())
+
+	// Wire flow discovery: completed traces → discover flow patterns
+	go func() {
+		for tc := range spanProcessor.DiscoveryChan() {
+			if err := flowDiscovery.ProcessCompletedTrace(context.Background(), tc.WorkspaceID, tc.TraceID); err != nil {
+				logger.Warn("flow discovery failed",
+					zap.String("trace_id", tc.TraceID),
+					zap.Error(err))
+			}
+		}
+	}()
+
 	// Initialize debug handler
 	debugHandler := handlers.NewDebugHandler(debugController, logger)
 
@@ -227,6 +260,25 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 
 	// Initialize import/export handler
 	importExportHandler := handlers.NewImportExportHandler(flowRepo, logger)
+
+	// Initialize dataset handler (file storage for data-driven testing)
+	datasetRepo := repository.NewDatasetRepository(db)
+	var s3Client *filestorage.Client
+	s3Client, err = filestorage.New(filestorage.Config{
+		Endpoint:  getEnvOrDefault("MINIO_ENDPOINT", "localhost:9000"),
+		AccessKey: getEnvOrDefault("MINIO_ACCESS_KEY", "minioadmin"),
+		SecretKey: getEnvOrDefault("MINIO_SECRET_KEY", "minioadmin"),
+		UseSSL:    os.Getenv("MINIO_USE_SSL") == "true",
+		Bucket:    getEnvOrDefault("MINIO_BUCKET", "testmesh"),
+		Region:    os.Getenv("MINIO_REGION"),
+	}, logger)
+	if err != nil {
+		logger.Warn("MinIO not available — dataset uploads disabled (list/get still work)", zap.Error(err))
+		s3Client = nil
+	} else {
+		logger.Info("MinIO file storage initialized")
+	}
+	datasetHandler := handlers.NewDatasetHandler(datasetRepo, s3Client, logger)
 
 	// Initialize plugin registry
 	pluginDir := filepath.Join(os.TempDir(), "testmesh", "plugins")
@@ -270,6 +322,9 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 
 	// Health check
 	router.GET("/health", healthHandler.Check)
+
+	// OTLP receiver endpoint (root level — OTLP convention, not under /api/v1)
+	router.POST("/otlp/v1/traces", otlpReceiver.HandleTraces)
 
 	// Mock server wildcard route — serves all mock endpoints through the main API server
 	router.Any("/mocks/:server_id/*path", mockManager.GinHandler())
@@ -358,6 +413,17 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 				})
 			}
 
+			// Dataset routes (workspace-scoped)
+			datasets := ws.Group("/datasets")
+			{
+				datasets.POST("/upload", datasetHandler.Upload)
+				datasets.GET("", datasetHandler.List)
+				datasets.GET("/:id", datasetHandler.Get)
+				datasets.GET("/:id/download", datasetHandler.Download)
+				datasets.GET("/:id/content", datasetHandler.GetContent)
+				datasets.DELETE("/:id", datasetHandler.Delete)
+			}
+
 			// Collection routes (workspace-scoped)
 			collections := ws.Group("/collections")
 			{
@@ -431,9 +497,23 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 				wsReports.DELETE("/:id", reportingHandler.DeleteReport)
 			}
 
+			// Telemetry routes (workspace-scoped)
+			telemetryRoutes := ws.Group("/telemetry")
+			{
+				telemetryRoutes.GET("/flows", telemetryHandler.ListDiscoveredFlows)
+				telemetryRoutes.GET("/flows/:flow_id", telemetryHandler.GetDiscoveredFlow)
+				telemetryRoutes.POST("/flows/:flow_id/export", telemetryHandler.ExportFlowYAML)
+				telemetryRoutes.GET("/spans", telemetryHandler.QuerySpans)
+				telemetryRoutes.GET("/drift", telemetryHandler.ListDriftAlerts)
+			}
+			ws.GET("/settings/telemetry", telemetryHandler.GetTraceSettings)
+			ws.PUT("/settings/telemetry", telemetryHandler.UpdateTraceSettings)
+			ws.GET("/executions/:id/trace-validation", telemetryHandler.GetTraceValidation)
+
 			// Graph routes (workspace-scoped)
 			if len(graphEngine) > 0 && graphEngine[0] != nil && graphEngine[0].IsAvailable() || (len(graphEngine) > 0 && graphEngine[0] != nil) {
 				ge := graphEngine[0]
+				traceScanner := tracescanner.New(telemetryRepo, logger)
 				scanners := []graphscanner.Scanner{
 					infra.New(logger),
 					spec.New(logger),
@@ -443,6 +523,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 					codescanner.NewPythonScanner(logger),
 					codescanner.NewJavaScanner(logger),
 					codescanner.NewDotNetScanner(logger),
+					traceScanner,
 				}
 				mergeEngine := graph.NewMergeEngine(db, ge, logger)
 				orchestrator := graphscanner.NewOrchestrator(ge, mergeEngine, scanners, logger)
@@ -770,4 +851,11 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	})
 
 	return router
+}
+
+func getEnvOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }

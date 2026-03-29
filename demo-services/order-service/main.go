@@ -14,6 +14,7 @@ import (
 	"order-service/database"
 	"order-service/handlers"
 	"order-service/kafka"
+	serviceOtel "order-service/otel"
 	"order-service/redis"
 
 	"github.com/gin-gonic/gin"
@@ -54,6 +55,19 @@ func main() {
 
 	log.Println("Kafka producer initialized successfully")
 
+	// Initialize OpenTelemetry
+	shutdownTracer, err := serviceOtel.InitTracer("order-service")
+	if err != nil {
+		log.Printf("Warning: Failed to initialize OpenTelemetry tracer: %v", err)
+	} else {
+		defer func() {
+			if err := shutdownTracer(context.Background()); err != nil {
+				log.Printf("Error shutting down tracer: %v", err)
+			}
+		}()
+		log.Println("OpenTelemetry tracer initialized successfully")
+	}
+
 	// Initialize HTTP clients
 	userClient := clients.NewUserClient()
 	productClient := clients.NewProductClient()
@@ -64,7 +78,10 @@ func main() {
 	orderHandler := handlers.NewOrderHandler(db, redisClient, kafkaProducer, userClient, productClient)
 
 	// Setup router
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+	router.Use(serviceOtel.Middleware("order-service"))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {

@@ -53,7 +53,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 
 	// Verify user exists via User Service
-	user, err := h.userClient.GetUser(req.UserID)
+	user, err := h.userClient.GetUser(c.Request.Context(), req.UserID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("user verification failed: %v", err)})
 		return
@@ -71,7 +71,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	var kafkaItems []kafka.OrderItem
 	for _, item := range req.Items {
 		// Get product details from Product Service
-		product, err := h.productClient.GetProduct(item.ProductID)
+		product, err := h.productClient.GetProduct(c.Request.Context(), item.ProductID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("product %s verification failed: %v", item.ProductID, err)})
 			return
@@ -119,7 +119,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	_ = h.redisClient.SetOrder(c.Request.Context(), order.ID, order)
 
 	// Publish Kafka event
-	_ = h.kafkaProducer.PublishOrderPlaced(order.ID, order.UserID, kafkaItems, order.Total)
+	_ = h.kafkaProducer.PublishOrderPlaced(c.Request.Context(), order.ID, order.UserID, kafkaItems, order.Total)
 
 	c.JSON(http.StatusCreated, order)
 }

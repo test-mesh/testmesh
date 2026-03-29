@@ -61,7 +61,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Publish login event
-	_ = h.kafkaProducer.PublishUserLogin(user.ID, user.Email)
+	_ = h.kafkaProducer.PublishUserLogin(c.Request.Context(), user.ID, user.Email)
 
 	c.JSON(http.StatusOK, LoginResponse{
 		Token: token,

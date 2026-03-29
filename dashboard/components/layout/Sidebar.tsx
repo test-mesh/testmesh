@@ -15,10 +15,11 @@ import {
   Calendar,
   BarChart3,
   FileBarChart,
-  Terminal,
-  Settings,
   Send,
   ExternalLink,
+  Plug,
+  Puzzle,
+  HeartPulse,
 } from 'lucide-react';
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
@@ -41,7 +42,6 @@ const navigation: NavItem[] = [
 
   // Execution
   { title: 'Executions', href: '/executions', icon: Play },
-  { title: 'Data Runner', href: '/runner', icon: Terminal },
   { title: 'Schedules', href: '/schedules', icon: Calendar },
 
   // Test infrastructure
@@ -53,8 +53,11 @@ const navigation: NavItem[] = [
   // Insights
   { title: 'Analytics', href: '/analytics', icon: BarChart3 },
   { title: 'Reports', href: '/reports', icon: FileBarChart },
+
   // Administration
-  { title: 'Admin Dashboard', href: '/admin', icon: Settings },
+  { title: 'Integrations', href: '/admin/integrations', icon: Plug },
+  { title: 'Plugins', href: '/admin/plugins', icon: Puzzle },
+  { title: 'Health', href: '/admin/health', icon: HeartPulse },
 ];
 
 interface SidebarProps {

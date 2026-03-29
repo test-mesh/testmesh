@@ -1,12 +1,16 @@
 package clients
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type ProductClient struct {
@@ -36,10 +40,18 @@ func NewProductClient() *ProductClient {
 	}
 }
 
-func (c *ProductClient) GetProduct(productID string) (*Product, error) {
+func (c *ProductClient) GetProduct(ctx context.Context, productID string) (*Product, error) {
 	url := fmt.Sprintf("%s/api/v1/products/%s", c.baseURL, productID)
 
-	resp, err := c.client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Inject trace context into outgoing request headers
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call product service: %w", err)
 	}

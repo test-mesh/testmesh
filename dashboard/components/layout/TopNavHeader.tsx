@@ -7,6 +7,7 @@ import { WorkspaceSwitcher } from '@/components/workspaces/WorkspaceSwitcher';
 import { EnvironmentSelector } from '@/components/environments/EnvironmentSelector';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { UserProfileMenu } from '@/components/user/UserProfileMenu';
 
 interface TopNavHeaderProps {
@@ -49,6 +50,7 @@ export function TopNavHeader({ onMenuClick }: TopNavHeaderProps) {
             <GlobalSearch />
           </div>
           <NotificationCenter />
+          <ThemeToggle />
           <UserProfileMenu />
         </div>
       </div>

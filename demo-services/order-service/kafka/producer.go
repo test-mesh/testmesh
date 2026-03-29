@@ -1,12 +1,14 @@
 package kafka
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/IBM/sarama"
+	"go.opentelemetry.io/otel"
 )
 
 type Producer struct {
@@ -35,7 +37,7 @@ type OrderItem struct {
 	Price     float64 `json:"price"`
 }
 
-func (p *Producer) PublishOrderPlaced(orderID, userID string, items []OrderItem, total float64) error {
+func (p *Producer) PublishOrderPlaced(ctx context.Context, orderID, userID string, items []OrderItem, total float64) error {
 	event := map[string]interface{}{
 		"event_type": "order.placed",
 		"order_id":   orderID,
@@ -44,10 +46,10 @@ func (p *Producer) PublishOrderPlaced(orderID, userID string, items []OrderItem,
 		"total":      total,
 	}
 
-	return p.publish("order.placed", event)
+	return p.publish(ctx, "order.placed", event)
 }
 
-func (p *Producer) PublishOrderStatusChanged(orderID, oldStatus, newStatus string) error {
+func (p *Producer) PublishOrderStatusChanged(ctx context.Context, orderID, oldStatus, newStatus string) error {
 	event := map[string]interface{}{
 		"event_type": "order.status.changed",
 		"order_id":   orderID,
@@ -55,18 +57,52 @@ func (p *Producer) PublishOrderStatusChanged(orderID, oldStatus, newStatus strin
 		"new_status": newStatus,
 	}
 
-	return p.publish("order.status.changed", event)
+	return p.publish(ctx, "order.status.changed", event)
 }
 
-func (p *Producer) publish(topic string, event interface{}) error {
+// saramaHeaderCarrier adapts sarama message headers for OpenTelemetry propagation.
+type saramaHeaderCarrier struct {
+	headers *[]sarama.RecordHeader
+}
+
+func (c *saramaHeaderCarrier) Get(key string) string {
+	for _, h := range *c.headers {
+		if string(h.Key) == key {
+			return string(h.Value)
+		}
+	}
+	return ""
+}
+
+func (c *saramaHeaderCarrier) Set(key, value string) {
+	*c.headers = append(*c.headers, sarama.RecordHeader{
+		Key:   []byte(key),
+		Value: []byte(value),
+	})
+}
+
+func (c *saramaHeaderCarrier) Keys() []string {
+	keys := make([]string, len(*c.headers))
+	for i, h := range *c.headers {
+		keys[i] = string(h.Key)
+	}
+	return keys
+}
+
+func (p *Producer) publish(ctx context.Context, topic string, event interface{}) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
 
+	var headers []sarama.RecordHeader
+	// Inject trace context into Kafka message headers
+	otel.GetTextMapPropagator().Inject(ctx, &saramaHeaderCarrier{headers: &headers})
+
 	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Value: sarama.ByteEncoder(data),
+		Topic:   topic,
+		Value:   sarama.ByteEncoder(data),
+		Headers: headers,
 	}
 
 	_, _, err = p.producer.SendMessage(msg)

@@ -12,6 +12,7 @@ import (
 	"user-service/database"
 	"user-service/handlers"
 	"user-service/kafka"
+	serviceOtel "user-service/otel"
 	"user-service/redis"
 
 	"github.com/gin-gonic/gin"
@@ -33,6 +34,15 @@ func main() {
 	}
 
 	log.Println("Database migrations completed successfully")
+
+	// Initialize OpenTelemetry
+	shutdown, err := serviceOtel.InitTracer("user-service")
+	if err != nil {
+		log.Printf("Warning: Failed to initialize OpenTelemetry: %v", err)
+	} else {
+		defer shutdown(context.Background())
+		log.Println("OpenTelemetry tracing initialized")
+	}
 
 	// Initialize Redis client
 	redisClient, err := redis.NewClient()
@@ -57,7 +67,10 @@ func main() {
 	authHandler := handlers.NewAuthHandler(db, redisClient, kafkaProducer)
 
 	// Setup router
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+	router.Use(serviceOtel.Middleware("user-service"))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {

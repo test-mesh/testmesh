@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/test-mesh/testmesh/internal/storage/models"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -87,11 +89,16 @@ func (h *GRPCHandler) Execute(ctx context.Context, rawConfig map[string]interfac
 		return h.resultToOutputData(result), err
 	}
 
-	// Add metadata to context
-	if len(config.Metadata) > 0 {
-		md := metadata.New(config.Metadata)
-		ctx = metadata.NewOutgoingContext(ctx, md)
+	// Inject trace context into gRPC metadata for distributed tracing
+	traceHeaders := make(map[string]string)
+	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(traceHeaders))
+
+	// Add metadata to context (merge trace headers with user-provided metadata)
+	md := metadata.New(config.Metadata)
+	for k, v := range traceHeaders {
+		md.Set(k, v)
 	}
+	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	// Build full method path
 	fullMethod := fmt.Sprintf("/%s/%s", config.Service, config.Method)

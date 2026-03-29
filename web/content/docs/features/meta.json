@@ -11,6 +11,7 @@
     "workspace-integrations",
     "embeddings",
     "observability",
+    "telemetry",
     "scheduling",
     "reporting",
     "load-testing",

@@ -12,6 +12,7 @@ import (
 	"notification-service/database"
 	"notification-service/handlers"
 	"notification-service/kafka"
+	serviceOtel "notification-service/otel"
 	"notification-service/redis"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,15 @@ func main() {
 
 	log.Println("Connected to Redis successfully")
 
+	// Initialize OpenTelemetry
+	shutdownTracer, err := serviceOtel.InitTracer("notification-service")
+	if err != nil {
+		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
+	}
+	defer shutdownTracer(context.Background())
+
+	log.Println("OpenTelemetry initialized successfully")
+
 	// Initialize Kafka consumer
 	kafkaConsumer, err := kafka.NewConsumer(db)
 	if err != nil {
@@ -61,7 +71,10 @@ func main() {
 	notificationHandler := handlers.NewNotificationHandler(db, redisClient)
 
 	// Setup router
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+	router.Use(serviceOtel.Middleware("notification-service"))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {

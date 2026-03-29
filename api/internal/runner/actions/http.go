@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/test-mesh/testmesh/internal/storage/models"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 )
 
@@ -69,6 +71,9 @@ func (h *HTTPHandler) Execute(ctx context.Context, config map[string]interface{}
 	if bodyReader != nil && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
+	// Inject trace context (traceparent + tracestate headers) for distributed tracing
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 
 	// Execute request
 	h.logger.Info("Executing HTTP request",

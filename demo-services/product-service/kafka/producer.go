@@ -1,12 +1,15 @@
 package kafka
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/IBM/sarama"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type Producer struct {
@@ -29,7 +32,7 @@ func NewProducer() (*Producer, error) {
 	return &Producer{producer: producer}, nil
 }
 
-func (p *Producer) PublishProductCreated(productID, name string, price float64, inventory int) error {
+func (p *Producer) PublishProductCreated(ctx context.Context, productID, name string, price float64, inventory int) error {
 	event := map[string]interface{}{
 		"event_type": "product.created",
 		"product_id": productID,
@@ -38,10 +41,10 @@ func (p *Producer) PublishProductCreated(productID, name string, price float64, 
 		"inventory":  inventory,
 	}
 
-	return p.publish("product.created", event)
+	return p.publish(ctx, "product.created", event)
 }
 
-func (p *Producer) PublishInventoryChanged(productID string, oldInventory, newInventory int) error {
+func (p *Producer) PublishInventoryChanged(ctx context.Context, productID string, oldInventory, newInventory int) error {
 	event := map[string]interface{}{
 		"event_type":    "product.inventory.changed",
 		"product_id":    productID,
@@ -49,18 +52,31 @@ func (p *Producer) PublishInventoryChanged(productID string, oldInventory, newIn
 		"new_inventory": newInventory,
 	}
 
-	return p.publish("product.inventory.changed", event)
+	return p.publish(ctx, "product.inventory.changed", event)
 }
 
-func (p *Producer) publish(topic string, event interface{}) error {
+func (p *Producer) publish(ctx context.Context, topic string, event interface{}) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
 
+	// Inject trace context into Kafka message headers
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+
+	var headers []sarama.RecordHeader
+	for k, v := range carrier {
+		headers = append(headers, sarama.RecordHeader{
+			Key:   []byte(k),
+			Value: []byte(v),
+		})
+	}
+
 	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Value: sarama.ByteEncoder(data),
+		Topic:   topic,
+		Value:   sarama.ByteEncoder(data),
+		Headers: headers,
 	}
 
 	_, _, err = p.producer.SendMessage(msg)

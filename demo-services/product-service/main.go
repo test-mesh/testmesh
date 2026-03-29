@@ -12,6 +12,7 @@ import (
 	"product-service/database"
 	"product-service/handlers"
 	"product-service/kafka"
+	serviceOtel "product-service/otel"
 	"product-service/redis"
 
 	"github.com/gin-gonic/gin"
@@ -52,6 +53,15 @@ func main() {
 
 	log.Println("Kafka producer initialized successfully")
 
+	// Initialize OpenTelemetry
+	shutdownTracer, err := serviceOtel.InitTracer("product-service")
+	if err != nil {
+		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
+	}
+	defer shutdownTracer(context.Background())
+
+	log.Println("OpenTelemetry initialized successfully")
+
 	// Initialize Kafka consumer
 	kafkaConsumer, err := kafka.NewConsumer(db)
 	if err != nil {
@@ -70,7 +80,10 @@ func main() {
 	productHandler := handlers.NewProductHandler(db, redisClient, kafkaProducer)
 
 	// Setup router
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+	router.Use(serviceOtel.Middleware("product-service"))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {

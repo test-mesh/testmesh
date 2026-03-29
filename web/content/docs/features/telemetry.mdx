@@ -1,0 +1,418 @@
+---
+title: Telemetry & Trace Intelligence
+description: Ingest OpenTelemetry traces, auto-discover flows, detect drift, validate traces against expected paths, and get AI-powered root cause analysis.
+---
+
+TestMesh integrates with OpenTelemetry to transform runtime telemetry into actionable testing intelligence. Instead of guessing what your system does, TestMesh observes actual production and staging traffic, discovers flow patterns, and validates that your tests match reality.
+
+---
+
+<Cards>
+  <Card title="OTLP Ingestion" href="#otlp-ingestion" description="Send traces from any OTel-instrumented service" />
+  <Card title="Flow Discovery" href="#flow-discovery" description="Automatically discover and fingerprint recurring flows" />
+  <Card title="Drift Detection" href="#drift-detection" description="Detect when runtime behavior diverges from baselines" />
+  <Card title="Trace Validation" href="#trace-validation" description="Validate execution traces against expected paths" />
+  <Card title="Risk Scoring" href="#risk-scoring" description="Prioritize testing based on risk analysis" />
+  <Card title="YAML Export" href="#yaml-export" description="Generate test flows from discovered patterns" />
+</Cards>
+
+---
+
+## OTLP Ingestion
+
+TestMesh accepts OpenTelemetry traces via the standard OTLP/HTTP protocol. Point any OpenTelemetry Collector or SDK at TestMesh's OTLP endpoint.
+
+### Configuration
+
+Set the `OTEL_EXPORTER_OTLP_ENDPOINT` environment variable in your services to point at the TestMesh API:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://testmesh-api:5016
+```
+
+Traces are sent to `POST /otlp/v1/traces` using the standard OTLP protobuf format.
+
+### Workspace Header
+
+Include the `X-Workspace-ID` header to associate traces with a workspace. When using the OTel Collector, configure this in the headers section of your exporter:
+
+```yaml title="otel-collector-config.yaml"
+exporters:
+  otlphttp:
+    endpoint: http://testmesh-api:5016
+    headers:
+      X-Workspace-ID: "your-workspace-uuid"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp]
+```
+
+### Service Instrumentation
+
+Here is a minimal Go example using the OTel SDK with the OTLP HTTP exporter — the same pattern used in the TestMesh demo services:
+
+```go
+package otel
+
+import (
+    "context"
+    "os"
+
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+    "go.opentelemetry.io/otel/propagation"
+    "go.opentelemetry.io/otel/sdk/resource"
+    sdktrace "go.opentelemetry.io/otel/sdk/trace"
+    semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+)
+
+func InitTracer(serviceName string) (func(context.Context) error, error) {
+    endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if endpoint == "" {
+        endpoint = "testmesh-api:5016"
+    }
+
+    exporter, err := otlptracehttp.New(context.Background(),
+        otlptracehttp.WithEndpoint(endpoint),
+        otlptracehttp.WithURLPath("/otlp/v1/traces"),
+        otlptracehttp.WithInsecure(),
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    res, err := resource.New(context.Background(),
+        resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)),
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    tp := sdktrace.NewTracerProvider(
+        sdktrace.WithBatcher(exporter),
+        sdktrace.WithResource(res),
+    )
+
+    otel.SetTracerProvider(tp)
+    otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+        propagation.TraceContext{},
+        propagation.Baggage{},
+    ))
+
+    return tp.Shutdown, nil
+}
+```
+
+Call `InitTracer("my-service")` at startup. The shutdown function should be deferred to flush any remaining spans on exit.
+
+<Callout type="info">
+TestMesh automatically detects its own test-generated spans (prefixed with `testmesh.*` or `execution.*`) and tags them separately from application spans via the `is_test_generated` flag.
+</Callout>
+
+---
+
+## Flow Discovery
+
+TestMesh automatically discovers recurring flow patterns from ingested traces. When multiple traces follow the same service path (e.g., `API Gateway -> Order Service -> User Service -> Product Service -> Kafka`), TestMesh recognizes this as a "flow" and tracks it.
+
+### How It Works
+
+1. **Span Tree Construction** -- Traces are reassembled into trees using parent-child span relationships, with children sorted by start time for deterministic paths.
+2. **Graph Path Extraction** -- A depth-first walk extracts the ordered service path. Each span is mapped to a graph node type (`service`, `api_endpoint`, `database`, or `topic`) based on its attributes.
+3. **Fingerprinting** -- A SHA-256 hash of the concatenated `type:identifier` path creates a stable flow identifier. Identical paths always produce the same fingerprint.
+4. **Aggregation** -- Matching fingerprints increment occurrence counts and update statistics (average duration, error rate, risk score).
+
+### Viewing Discovered Flows
+
+List all discovered flows for a workspace, sorted by risk score:
+
+```bash
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/telemetry/flows?sort=risk_score
+```
+
+```json
+{
+  "flows": [
+    {
+      "id": "a1b2c3d4-...",
+      "name": "api-gateway -> POST /api/v1/orders",
+      "fingerprint": "e3b0c44298fc1c14...",
+      "entry_service": "api-gateway",
+      "entry_operation": "POST /api/v1/orders",
+      "graph_path": [
+        { "type": "service", "identifier": "api-gateway", "service": "api-gateway" },
+        { "type": "api_endpoint", "identifier": "POST /api/v1/orders", "service": "order-service" },
+        { "type": "api_endpoint", "identifier": "GET /api/v1/users/:id", "service": "user-service" },
+        { "type": "api_endpoint", "identifier": "GET /api/v1/products/:id", "service": "product-service" },
+        { "type": "topic", "identifier": "order.created", "service": "order-service" }
+      ],
+      "occurrence_count": 247,
+      "avg_duration_ms": 342.5,
+      "p95_duration_ms": 890.0,
+      "error_rate": 0.02,
+      "risk_score": 0.75,
+      "drifted": false,
+      "last_seen_at": "2026-03-29T14:23:00Z"
+    }
+  ],
+  "total": 12
+}
+```
+
+You can also filter for drifted flows only:
+
+```bash
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/telemetry/flows?drifted=true
+```
+
+---
+
+## Drift Detection
+
+When a flow's runtime path changes -- a new service is called, an expected service is missing, or the call order changes -- TestMesh flags it as **drifted**.
+
+Drift is detected by comparing the current trace's graph path against the stored path for that fingerprint. If the path strings diverge, the flow is marked as drifted with details about the previous and current paths:
+
+```json
+{
+  "drifted": true,
+  "drift_details": {
+    "previous_path": "service:api-gateway->api_endpoint:POST /api/v1/orders->service:order-service",
+    "current_path": "service:api-gateway->api_endpoint:POST /api/v1/orders->service:order-service->service:inventory-service",
+    "detected_at": "2026-03-29T10:15:00Z"
+  }
+}
+```
+
+Query all drift alerts for a workspace:
+
+```bash
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/telemetry/drift
+```
+
+<Callout type="warning">
+Drifted flows indicate that production behavior has changed since the baseline was established. This could mean a deployment changed routing, a service was decommissioned, or a new dependency was introduced. Review drifted flows promptly to update test coverage.
+</Callout>
+
+---
+
+## Trace Validation
+
+After a test execution, TestMesh validates the resulting trace against expected behavior using three layers.
+
+### Layer 1: Path Correctness
+
+Compares the actual trace path against the expected path (from flow YAML or discovered baseline). The validation result includes:
+
+- **`missing_nodes`** -- Services or endpoints expected in the path but not observed in the trace
+- **`unexpected_nodes`** -- Services or endpoints observed but not in the expected path
+- **`order_violations`** -- Cases where expected services were called in the wrong order
+
+### Layer 2: Performance
+
+Checks span durations against P95 baselines. Spans exceeding P95 x 1.5 are flagged as slow and included in the `slow_spans` array. Any spans with error status codes are captured in `error_spans`.
+
+### Layer 3: Behavioral Assertions
+
+Evaluates `trace_assert` expressions defined in flow YAML. These let you write assertions against the trace structure itself:
+
+```yaml
+flow:
+  name: "Order Flow"
+  steps:
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "{{order_service_url}}/api/v1/orders"
+        body:
+          user_id: "{{user_id}}"
+          items: [{ product_id: "{{product_id}}", quantity: 1 }]
+      trace_assert:
+        - "trace.span('user-service') != nil"
+        - "trace.span('product-service') != nil"
+        - "trace.duration_ms < 5000"
+        - "trace.spans | filter(.status == 'error') | len == 0"
+```
+
+### Viewing Validation Results
+
+Retrieve the validation result for a specific execution:
+
+```bash
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/executions/$EXEC_ID/trace-validation
+```
+
+```json
+{
+  "execution_id": "...",
+  "trace_id": "abc123...",
+  "status": "failed",
+  "path_match": false,
+  "missing_nodes": [{ "type": "service", "identifier": "notification-service" }],
+  "unexpected_nodes": [],
+  "order_violations": [],
+  "slow_spans": [{ "service": "order-service", "operation": "POST /api/v1/orders", "duration_ms": 1450, "p95_ms": 890 }],
+  "error_spans": [],
+  "failed_assertions": []
+}
+```
+
+---
+
+## Risk Scoring
+
+Each discovered flow gets a risk score (0-1) computed from three weighted factors:
+
+- **Frequency weight (30%)** -- How often the flow occurs, normalized against a baseline of 100 occurrences. Frequent flows are more important to test.
+- **Error rate weight (50%)** -- Percentage of traces with error-status spans. This carries the highest weight because error-prone flows need the most test coverage.
+- **Latency variability (20%)** -- Average duration normalized against a 10-second baseline. Slow flows indicate potential performance risks.
+
+The formula:
+
+```
+risk_score = 0.3 * min(occurrence_count / 100, 1.0)
+           + 0.5 * error_rate
+           + 0.2 * min(avg_duration_ms / 10000, 1.0)
+```
+
+Higher risk scores indicate flows that are frequent, error-prone, or slow -- ideal candidates for test coverage. Use the `sort=risk_score` parameter when listing flows to prioritize what to test first.
+
+---
+
+## YAML Export
+
+Any discovered flow can be exported as a TestMesh flow YAML, ready to run as a test:
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/telemetry/flows/$FLOW_ID/export
+```
+
+The response contains the generated YAML:
+
+```json
+{
+  "yaml": "flow:\n  name: api-gateway -> POST /api/v1/orders\n  ..."
+}
+```
+
+Example exported YAML:
+
+```yaml
+flow:
+  name: "api-gateway -> POST /api/v1/orders"
+  description: "Auto-discovered flow (seen 247 times, risk score 0.75)"
+  steps:
+    - id: step_1
+      name: "Call POST /api/v1/orders"
+      action: http_request
+      config:
+        method: POST
+        url: "{{base_url}}/api/v1/orders"
+
+    - id: step_2
+      name: "Call GET /api/v1/users/:id"
+      action: http_request
+      config:
+        method: GET
+        url: "{{base_url}}/api/v1/users/:id"
+
+    - id: step_3
+      name: "Call GET /api/v1/products/:id"
+      action: http_request
+      config:
+        method: GET
+        url: "{{base_url}}/api/v1/products/:id"
+
+    - id: step_4
+      name: "Call order.created"
+      action: kafka_producer
+      config:
+        topic: order.created
+        brokers: "{{kafka_brokers}}"
+        payload: {}
+```
+
+<Callout type="info">
+Exported flows include step types inferred from span attributes: HTTP spans become `http_request` actions, messaging spans become `kafka_producer` actions, and database spans become `database_query` actions. Edit the generated YAML to add assertions, request bodies, and variable extraction.
+</Callout>
+
+---
+
+## Graph Enrichment
+
+Ingested traces automatically enrich the System Graph with runtime-observed topology. The trace scanner maps span attributes to graph nodes:
+
+- **Service nodes** from `service.name` resource attribute
+- **API endpoints** from `http.route` span attribute (combined with `http.method`)
+- **Databases** from `db.system` and `db.name` attributes
+- **Message topics** from `messaging.destination.name` attribute
+- **Edges** between nodes with call counts, average duration, and error rates
+
+These runtime-sourced nodes and edges have the highest precedence in the graph merge engine, ensuring the graph reflects actual system behavior rather than just static configuration.
+
+---
+
+## Workspace Settings
+
+Telemetry behavior is configurable per workspace:
+
+```bash
+# Get current settings
+curl http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/settings/telemetry
+
+# Update settings
+curl -X PUT http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/settings/telemetry \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "retention_days": 30,
+    "default_timeout_ms": 30000,
+    "auto_discovery": true,
+    "auto_validation": true
+  }'
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Enable or disable trace ingestion for this workspace |
+| `retention_days` | `30` | How long to retain raw span data |
+| `default_timeout_ms` | `30000` | Default timeout for trace collection after execution |
+| `auto_discovery` | `true` | Automatically discover flow patterns from incoming traces |
+| `auto_validation` | `true` | Automatically validate traces after test executions |
+
+---
+
+## Demo Service Setup
+
+The TestMesh demo microservices come pre-instrumented with OpenTelemetry. To see the full trace pipeline in action:
+
+```bash
+# Start infrastructure + demo services
+docker-compose -f docker-compose.services.yml up
+
+# The services automatically send traces to TestMesh
+# View discovered flows in the dashboard under Analytics -> Traces
+```
+
+Each demo service (user-service, product-service, order-service, notification-service) exports traces with:
+- HTTP server spans for all endpoints
+- Trace context propagation across HTTP calls via W3C TraceContext and Baggage propagators
+- Trace context in Kafka message headers (producer to consumer linking)
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Observability" href="/docs/features/observability" description="Full execution visibility with per-step timing and request/response inspection." />
+  <Card title="AI Integration" href="/docs/features/ai-integration" description="Generate test flows from natural language and analyze coverage gaps." />
+  <Card title="Scheduling" href="/docs/features/scheduling" description="Run tests on a schedule and detect regressions automatically." />
+  <Card title="Reporting" href="/docs/features/reporting" description="Track pass rates, trends, and flaky test detection over time." />
+</Cards>

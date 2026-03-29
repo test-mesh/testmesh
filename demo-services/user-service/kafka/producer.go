@@ -1,12 +1,15 @@
 package kafka
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/IBM/sarama"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type Producer struct {
@@ -29,7 +32,7 @@ func NewProducer() (*Producer, error) {
 	return &Producer{producer: producer}, nil
 }
 
-func (p *Producer) PublishUserCreated(userID, email, name string) error {
+func (p *Producer) PublishUserCreated(ctx context.Context, userID, email, name string) error {
 	event := map[string]interface{}{
 		"event_type": "user.created",
 		"user_id":    userID,
@@ -37,28 +40,40 @@ func (p *Producer) PublishUserCreated(userID, email, name string) error {
 		"name":       name,
 	}
 
-	return p.publish("user.created", event)
+	return p.publish(ctx, "user.created", event)
 }
 
-func (p *Producer) PublishUserLogin(userID, email string) error {
+func (p *Producer) PublishUserLogin(ctx context.Context, userID, email string) error {
 	event := map[string]interface{}{
 		"event_type": "user.login",
 		"user_id":    userID,
 		"email":      email,
 	}
 
-	return p.publish("user.login", event)
+	return p.publish(ctx, "user.login", event)
 }
 
-func (p *Producer) publish(topic string, event interface{}) error {
+func (p *Producer) publish(ctx context.Context, topic string, event interface{}) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
 
+	// Inject trace context into message headers
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	var headers []sarama.RecordHeader
+	for k, v := range carrier {
+		headers = append(headers, sarama.RecordHeader{
+			Key:   []byte(k),
+			Value: []byte(v),
+		})
+	}
+
 	msg := &sarama.ProducerMessage{
-		Topic: topic,
-		Value: sarama.ByteEncoder(data),
+		Topic:   topic,
+		Value:   sarama.ByteEncoder(data),
+		Headers: headers,
 	}
 
 	_, _, err = p.producer.SendMessage(msg)

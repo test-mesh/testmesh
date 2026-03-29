@@ -58,7 +58,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	_ = h.redisClient.SetUser(c.Request.Context(), user.ID, user)
 
 	// Publish Kafka event
-	_ = h.kafkaProducer.PublishUserCreated(user.ID, user.Email, user.Name)
+	_ = h.kafkaProducer.PublishUserCreated(c.Request.Context(), user.ID, user.Email, user.Name)
 
 	c.JSON(http.StatusCreated, user)
 }

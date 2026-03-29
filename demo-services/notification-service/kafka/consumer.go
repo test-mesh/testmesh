@@ -10,6 +10,10 @@ import (
 	"strings"
 
 	"github.com/IBM/sarama"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -100,8 +104,27 @@ func (h *consumerGroupHandler) Cleanup(sarama.ConsumerGroupSession) error {
 }
 
 func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	tracer := otel.Tracer("notification-service")
+
 	for message := range claim.Messages() {
 		log.Printf("Received message from topic %s: %s", message.Topic, string(message.Value))
+
+		// Extract trace context from message headers
+		carrier := propagation.MapCarrier{}
+		for _, header := range message.Headers {
+			carrier[string(header.Key)] = string(header.Value)
+		}
+		ctx := otel.GetTextMapPropagator().Extract(context.Background(), carrier)
+
+		// Start a consumer span
+		_, span := tracer.Start(ctx, "kafka.consume "+message.Topic,
+			trace.WithSpanKind(trace.SpanKindConsumer),
+		)
+		span.SetAttributes(
+			attribute.String("messaging.system", "kafka"),
+			attribute.String("messaging.destination", message.Topic),
+			attribute.String("messaging.operation", "process"),
+		)
 
 		switch message.Topic {
 		case "user.created":
@@ -112,6 +135,7 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			h.handleOrderStatusChanged(message.Value)
 		}
 
+		span.End()
 		session.MarkMessage(message, "")
 	}
 

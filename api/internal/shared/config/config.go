@@ -16,7 +16,19 @@ type Config struct {
 	Kafka       KafkaConfig
 	Neo4j       Neo4jConfig
 	Graph       GraphConfig
+	MinIO       MinIOConfig
 	Logger      LoggerConfig
+}
+
+// MinIOConfig holds MinIO/S3-compatible object storage configuration
+type MinIOConfig struct {
+	Enabled   bool
+	Endpoint  string
+	AccessKey string
+	SecretKey string
+	UseSSL    bool
+	Bucket    string
+	Region    string
 }
 
 // Neo4jConfig holds Neo4j graph database configuration
@@ -136,6 +148,14 @@ func Load() (*Config, error) {
 	viper.SetDefault("graph.repo_clone_path", "/tmp/testmesh-repos")
 	viper.SetDefault("graph.max_concurrent_scans", 2)
 
+	viper.SetDefault("minio.enabled", false)
+	viper.SetDefault("minio.endpoint", "localhost:9000")
+	viper.SetDefault("minio.access_key", "minioadmin")
+	viper.SetDefault("minio.secret_key", "minioadmin")
+	viper.SetDefault("minio.use_ssl", false)
+	viper.SetDefault("minio.bucket", "testmesh")
+	viper.SetDefault("minio.region", "")
+
 	viper.SetDefault("logger.level", "info")
 	viper.SetDefault("logger.output_path", "stdout")
 
@@ -205,6 +225,15 @@ func Load() (*Config, error) {
 			MaxFileSizeMB:      viper.GetInt("graph.max_file_size_mb"),
 			RepoClonePath:      viper.GetString("graph.repo_clone_path"),
 			MaxConcurrentScans: viper.GetInt("graph.max_concurrent_scans"),
+		},
+		MinIO: MinIOConfig{
+			Enabled:   viper.GetBool("minio.enabled"),
+			Endpoint:  viper.GetString("minio.endpoint"),
+			AccessKey: viper.GetString("minio.access_key"),
+			SecretKey: viper.GetString("minio.secret_key"),
+			UseSSL:    viper.GetBool("minio.use_ssl"),
+			Bucket:    viper.GetString("minio.bucket"),
+			Region:    viper.GetString("minio.region"),
 		},
 		Logger: LoggerConfig{
 			Level:      viper.GetString("logger.level"),

@@ -8,6 +8,10 @@ import (
 	"strings"
 
 	"github.com/IBM/sarama"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 	"product-service/models"
 )
@@ -88,10 +92,30 @@ func (h *consumerGroupHandler) Cleanup(sarama.ConsumerGroupSession) error {
 }
 
 func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	tracer := otel.Tracer("product-service")
+
 	for message := range claim.Messages() {
+		// Extract trace context from message headers
+		carrier := propagation.MapCarrier{}
+		for _, header := range message.Headers {
+			carrier[string(header.Key)] = string(header.Value)
+		}
+		ctx := otel.GetTextMapPropagator().Extract(context.Background(), carrier)
+
+		// Start a consumer span
+		_, span := tracer.Start(ctx, "kafka.consume "+message.Topic,
+			trace.WithSpanKind(trace.SpanKindConsumer),
+		)
+		span.SetAttributes(
+			attribute.String("messaging.system", "kafka"),
+			attribute.String("messaging.destination", message.Topic),
+			attribute.String("messaging.operation", "process"),
+		)
+
 		var event OrderPlacedEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
 			log.Printf("Error unmarshaling message: %v", err)
+			span.End()
 			session.MarkMessage(message, "")
 			continue
 		}
@@ -117,6 +141,7 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			}
 		}
 
+		span.End()
 		session.MarkMessage(message, "")
 	}
 

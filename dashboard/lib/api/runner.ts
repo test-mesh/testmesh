@@ -63,7 +63,7 @@ export interface ParseDataResponse {
 
 // Run a collection with data
 export async function runCollection(config: CollectionRunConfig): Promise<CollectionRunResult> {
-  const response = await apiClient.post('/runner/run', config);
+  const response = await apiClient.post('/api/v1/runner/run', config);
   return response.data;
 }
 
@@ -72,6 +72,6 @@ export async function parseDataFile(
   type: 'csv' | 'json',
   content: string
 ): Promise<ParseDataResponse> {
-  const response = await apiClient.post('/runner/parse-data', { type, content });
+  const response = await apiClient.post('/api/v1/runner/parse-data', { type, content });
   return response.data;
 }

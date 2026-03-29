@@ -13,39 +13,32 @@ import {
 } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
 
-// Navigation items for search
+// Navigation items for search — matches sidebar navigation
 const searchableItems = [
   // Overview
   { title: 'Dashboard', href: '/', keywords: ['home', 'overview'] },
-  { title: 'Activity', href: '/activity', keywords: ['recent', 'history'] },
 
-  // Admin
-  { title: 'Admin Dashboard', href: '/admin', keywords: ['settings', 'configuration'] },
-  { title: 'Users', href: '/admin/users', keywords: ['team', 'members'] },
-  { title: 'Integrations', href: '/admin/integrations', keywords: ['connections', 'plugins'] },
-  { title: 'Health', href: '/admin/health', keywords: ['status', 'monitoring'] },
-
-  // Testing
+  // Flow authoring & organization
   { title: 'Flows', href: '/flows', keywords: ['tests', 'sequences'] },
-  { title: 'Executions', href: '/executions', keywords: ['runs', 'results'] },
   { title: 'Collections', href: '/collections', keywords: ['groups', 'folders'] },
+
+  // Execution
+  { title: 'Executions', href: '/executions', keywords: ['runs', 'results'] },
   { title: 'Schedules', href: '/schedules', keywords: ['cron', 'automation'] },
-  { title: 'Runner', href: '/runner', keywords: ['execute', 'terminal'] },
 
-  // Infrastructure
+  // Test infrastructure
   { title: 'Mock Servers', href: '/mocks', keywords: ['stubs', 'virtualization'] },
-  { title: 'Contracts', href: '/contracts', keywords: ['specifications', 'api'] },
-  { title: 'Load Testing', href: '/load-testing', keywords: ['performance', 'stress'] },
 
+  // Development tools
+  { title: 'Request Builder', href: '/request-builder', keywords: ['http', 'api', 'send'] },
   // Insights
   { title: 'Analytics', href: '/analytics', keywords: ['metrics', 'data'] },
   { title: 'Reports', href: '/reports', keywords: ['documentation', 'output'] },
-  { title: 'Request Builder', href: '/request-builder', keywords: ['logs', 'audit', 'history'] },
 
-  // AI & Integrations
-  { title: 'AI Features', href: '/ai', keywords: ['ml', 'intelligence'] },
-  { title: 'Plugins', href: '/plugins', keywords: ['extensions', 'addons'] },
-  { title: 'Import', href: '/import', keywords: ['upload', 'migrate'] },
+  // Administration
+  { title: 'Integrations', href: '/admin/integrations', keywords: ['connections', 'providers', 'configuration'] },
+  { title: 'Plugins', href: '/admin/plugins', keywords: ['extensions', 'addons'] },
+  { title: 'Health', href: '/admin/health', keywords: ['status', 'monitoring'] },
 ];
 
 export function GlobalSearch() {

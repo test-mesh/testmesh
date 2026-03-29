@@ -1854,7 +1854,8 @@ func seedMicroservicesFlows(db *gorm.DB) {
 	log.Println("🔄 Seeding microservices flows...")
 
 	// Read from examples/microservices/ relative to api/ working directory.
-	pattern := "../../examples/microservices/*.yaml"
+	// Try multiple paths: from api/ root and from api/cmd/seed/
+	pattern := "../examples/microservices/*.yaml"
 	matches, err := filepath.Glob(pattern)
 	if err != nil || len(matches) == 0 {
 		log.Printf("  No microservices flow files found at %s, skipping", pattern)

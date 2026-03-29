@@ -94,6 +94,31 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS ai").Error; err != nil {
 		return err
 	}
+	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS storage").Error; err != nil {
+		return err
+	}
+
+	// Create datasets table (file storage for data-driven testing)
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS storage.datasets (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			name VARCHAR(255) NOT NULL,
+			description TEXT,
+			file_name VARCHAR(500) NOT NULL,
+			file_type VARCHAR(20) NOT NULL,
+			mime_type VARCHAR(100),
+			size_bytes BIGINT DEFAULT 0,
+			row_count INTEGER DEFAULT 0,
+			columns TEXT[],
+			s3_key VARCHAR(1000) NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			deleted_at TIMESTAMP WITH TIME ZONE
+		);
+		CREATE INDEX IF NOT EXISTS idx_datasets_workspace_id ON storage.datasets(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_datasets_deleted_at ON storage.datasets(deleted_at);
+	`)
 
 	// Import and migrate models
 	// We'll do this manually here to avoid circular dependencies
@@ -143,6 +168,7 @@ func AutoMigrate(db *gorm.DB) error {
 			color VARCHAR(20),
 			is_default BOOLEAN DEFAULT false,
 			variables JSONB DEFAULT '[]',
+			routing JSONB DEFAULT '{}',
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			deleted_at TIMESTAMP WITH TIME ZONE
@@ -152,9 +178,10 @@ func AutoMigrate(db *gorm.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_environments_workspace_id ON flows.environments(workspace_id);
 	`)
 
-	// Add workspace_id column to existing environments table (idempotent migration)
+	// Add columns to existing environments table (idempotent migration)
 	db.Exec(`
 		ALTER TABLE flows.environments ADD COLUMN IF NOT EXISTS workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
+		ALTER TABLE flows.environments ADD COLUMN IF NOT EXISTS routing JSONB DEFAULT '{}';
 		CREATE INDEX IF NOT EXISTS idx_environments_workspace_id ON flows.environments(workspace_id);
 		CREATE UNIQUE INDEX IF NOT EXISTS idx_environments_workspace_name ON flows.environments(workspace_id, name) WHERE deleted_at IS NULL;
 	`)
@@ -983,6 +1010,14 @@ func AutoMigrate(db *gorm.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
 	`)
 
+	// Create telemetry schema and tables
+	if err := migrateTelemetrySchema(db); err != nil {
+		return err
+	}
+
+	// Add trace_id column to executions (idempotent)
+	db.Exec(`ALTER TABLE executions.executions ADD COLUMN IF NOT EXISTS trace_id VARCHAR(32)`)
+
 	// Create graph schema and tables
 	if err := migrateGraphSchema(db); err != nil {
 		return err
@@ -990,6 +1025,103 @@ func AutoMigrate(db *gorm.DB) error {
 
 	// Seed comprehensive sample data
 	seedSampleData(db)
+
+	return nil
+}
+
+// migrateTelemetrySchema creates the telemetry schema and all telemetry-related tables.
+func migrateTelemetrySchema(db *gorm.DB) error {
+	if err := db.Exec("CREATE SCHEMA IF NOT EXISTS telemetry").Error; err != nil {
+		return err
+	}
+
+	// Spans table — stores ingested OTLP spans
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS telemetry.spans (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		workspace_id UUID NOT NULL,
+		trace_id VARCHAR(32) NOT NULL,
+		span_id VARCHAR(16) NOT NULL,
+		parent_span_id VARCHAR(16),
+		service TEXT NOT NULL,
+		operation TEXT NOT NULL,
+		kind VARCHAR(20),
+		status_code VARCHAR(20) DEFAULT 'ok',
+		status_message TEXT,
+		start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+		end_time TIMESTAMP WITH TIME ZONE NOT NULL,
+		duration_ms BIGINT,
+		attributes JSONB DEFAULT '{}',
+		resource_attrs JSONB DEFAULT '{}',
+		events JSONB DEFAULT '[]',
+		is_test_generated BOOLEAN DEFAULT false,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	)`).Error; err != nil {
+		return err
+	}
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_telemetry_spans_ws_trace ON telemetry.spans(workspace_id, trace_id)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_telemetry_spans_ws_created ON telemetry.spans(workspace_id, created_at)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_telemetry_spans_ws_service_op ON telemetry.spans(workspace_id, service, operation)`)
+
+	// Discovered flows table — recurring trace patterns
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS telemetry.discovered_flows (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		workspace_id UUID NOT NULL,
+		fingerprint VARCHAR(64) NOT NULL,
+		name TEXT NOT NULL,
+		entry_service TEXT,
+		entry_operation TEXT,
+		graph_path JSONB NOT NULL,
+		occurrence_count INT DEFAULT 1,
+		last_seen_at TIMESTAMP WITH TIME ZONE,
+		avg_duration_ms FLOAT DEFAULT 0,
+		p95_duration_ms FLOAT DEFAULT 0,
+		error_rate FLOAT DEFAULT 0,
+		risk_score FLOAT DEFAULT 0,
+		drifted BOOLEAN DEFAULT false,
+		drift_details JSONB DEFAULT '{}',
+		sample_trace_id VARCHAR(32),
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	)`).Error; err != nil {
+		return err
+	}
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_telemetry_flows_ws_fingerprint ON telemetry.discovered_flows(workspace_id, fingerprint)`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_telemetry_flows_ws_risk ON telemetry.discovered_flows(workspace_id, risk_score DESC)`)
+
+	// Trace validation results table
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS telemetry.trace_validation_results (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		execution_id UUID NOT NULL,
+		workspace_id UUID NOT NULL,
+		trace_id VARCHAR(32) NOT NULL,
+		status VARCHAR(20) NOT NULL DEFAULT 'pending',
+		path_match BOOLEAN DEFAULT false,
+		missing_nodes JSONB DEFAULT '[]',
+		unexpected_nodes JSONB DEFAULT '[]',
+		order_violations JSONB DEFAULT '[]',
+		slow_spans JSONB DEFAULT '[]',
+		error_spans JSONB DEFAULT '[]',
+		failed_assertions JSONB DEFAULT '[]',
+		root_cause_diff JSONB DEFAULT '{}',
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	)`).Error; err != nil {
+		return err
+	}
+	db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_telemetry_validation_execution ON telemetry.trace_validation_results(execution_id)`)
+
+	// Trace settings table — per-workspace telemetry configuration
+	if err := db.Exec(`CREATE TABLE IF NOT EXISTS telemetry.trace_settings (
+		workspace_id UUID PRIMARY KEY,
+		enabled BOOLEAN DEFAULT true,
+		retention_days INT DEFAULT 30,
+		default_timeout_ms BIGINT DEFAULT 30000,
+		auto_discovery BOOLEAN DEFAULT true,
+		auto_validation BOOLEAN DEFAULT true,
+		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+	)`).Error; err != nil {
+		return err
+	}
 
 	return nil
 }

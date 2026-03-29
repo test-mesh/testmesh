@@ -1,12 +1,16 @@
 package clients
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type UserClient struct {
@@ -34,10 +38,18 @@ func NewUserClient() *UserClient {
 	}
 }
 
-func (c *UserClient) GetUser(userID string) (*User, error) {
+func (c *UserClient) GetUser(ctx context.Context, userID string) (*User, error) {
 	url := fmt.Sprintf("%s/api/v1/users/%s", c.baseURL, userID)
 
-	resp, err := c.client.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Inject trace context into outgoing request headers
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call user service: %w", err)
 	}

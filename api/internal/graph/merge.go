@@ -422,3 +422,53 @@ func mergeJSONMaps(dst, src JSONMap) {
 		dst[k] = v
 	}
 }
+
+// mergeEdgeMetrics incrementally updates runtime-sourced edge metrics instead of overwriting.
+// Used when runtime layer edges are merged with existing edges.
+func mergeEdgeMetrics(existing, incoming JSONMap) {
+	if existing == nil || incoming == nil {
+		return
+	}
+
+	// Increment call_count
+	if incomingCount, ok := toFloat64(incoming["call_count"]); ok {
+		existingCount, _ := toFloat64(existing["call_count"])
+		existing["call_count"] = existingCount + incomingCount
+	}
+
+	// Update avg_duration_ms incrementally
+	if incomingAvg, ok := toFloat64(incoming["avg_duration_ms"]); ok {
+		existingAvg, _ := toFloat64(existing["avg_duration_ms"])
+		existingCount, _ := toFloat64(existing["call_count"])
+		if existingCount > 0 {
+			// Weighted average
+			existing["avg_duration_ms"] = existingAvg + (incomingAvg-existingAvg)/existingCount
+		} else {
+			existing["avg_duration_ms"] = incomingAvg
+		}
+	}
+
+	// Increment error_count
+	if incomingErrors, ok := toFloat64(incoming["error_count"]); ok {
+		existingErrors, _ := toFloat64(existing["error_count"])
+		existing["error_count"] = existingErrors + incomingErrors
+	}
+
+	// Update last_observed_at (take the latest)
+	if v, ok := incoming["last_observed_at"]; ok {
+		existing["last_observed_at"] = v
+	}
+}
+
+func toFloat64(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	default:
+		return 0, false
+	}
+}

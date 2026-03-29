@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local shared infrastructure — PostgreSQL, Redis, Kafka
+# Local shared infrastructure — PostgreSQL, Redis, Kafka, Neo4j, MinIO
 # Safe to run multiple times; skips containers that are already running.
 # Usage: ./infra.sh [up|down|status]
 
@@ -106,6 +106,28 @@ start_neo4j() {
     neo4j:5-community
 }
 
+start_minio() {
+  if docker ps -q -f name=minio | grep -q .; then
+    echo "minio     already running"
+    return
+  fi
+  if docker ps -aq -f name=minio | grep -q .; then
+    echo "minio     starting (stopped container)"
+    docker start minio
+    return
+  fi
+  echo "minio     creating"
+  docker run -d \
+    --name minio \
+    --network "$NETWORK" \
+    -p 9000:9000 \
+    -p 9001:9001 \
+    -e MINIO_ROOT_USER=minioadmin \
+    -e MINIO_ROOT_PASSWORD=minioadmin \
+    -v minio-data:/data \
+    minio/minio:latest server /data --console-address ":9001"
+}
+
 case "$ACTION" in
   up)
     create_network
@@ -113,23 +135,25 @@ case "$ACTION" in
     start_redis
     start_kafka
     start_neo4j
+    start_minio
     echo ""
     echo "PostgreSQL  postgresql://root:admin@localhost:5432/postgres"
     echo "Redis       redis://localhost:6379"
     echo "Kafka       localhost:9092"
     echo "Neo4j       bolt://localhost:7687 (browser: http://localhost:7474)"
+    echo "MinIO       http://localhost:9000 (console: http://localhost:9001)"
     ;;
   down)
     echo "Stopping containers (data volumes preserved)"
-    docker stop postgres redis kafka neo4j 2>/dev/null || true
+    docker stop postgres redis kafka neo4j minio 2>/dev/null || true
     ;;
   destroy)
     echo "Removing containers and volumes"
-    docker rm -f postgres redis kafka neo4j 2>/dev/null || true
-    docker volume rm postgres-data redis-data neo4j-data 2>/dev/null || true
+    docker rm -f postgres redis kafka neo4j minio 2>/dev/null || true
+    docker volume rm postgres-data redis-data neo4j-data minio-data 2>/dev/null || true
     ;;
   status)
-    docker ps --filter name=postgres --filter name=redis --filter name=kafka --filter name=neo4j \
+    docker ps --filter name=postgres --filter name=redis --filter name=kafka --filter name=neo4j --filter name=minio \
       --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     ;;
   *)

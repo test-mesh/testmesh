@@ -33,6 +33,7 @@ type Execution struct {
 	PassedSteps int             `json:"passed_steps"`
 	FailedSteps int             `json:"failed_steps"`
 	Error       string          `json:"error,omitempty"`
+	TraceID     string          `gorm:"size:32" json:"trace_id,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 }

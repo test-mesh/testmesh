@@ -7,6 +7,8 @@ import (
 
 	"github.com/test-mesh/testmesh/internal/runner/actions/async"
 	"github.com/test-mesh/testmesh/internal/storage/models"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 )
 
@@ -36,6 +38,12 @@ func (h *KafkaProducerHandler) Execute(ctx context.Context, config map[string]in
 	if cfg.Payload == nil {
 		return nil, fmt.Errorf("payload is required")
 	}
+
+	// Inject trace context into Kafka message headers for distributed tracing
+	if cfg.Headers == nil {
+		cfg.Headers = make(map[string]string)
+	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(cfg.Headers))
 
 	h.logger.Info("Producing Kafka message",
 		zap.Strings("brokers", cfg.Brokers),

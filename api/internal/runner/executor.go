@@ -14,7 +14,9 @@ import (
 	"github.com/test-mesh/testmesh/internal/runner/mocks"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
+	"github.com/test-mesh/testmesh/internal/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -27,6 +29,7 @@ type Executor struct {
 	pluginRegistry  *plugins.Registry
 	debugController *debugger.Controller
 	graphResolver   *graph.GraphResolver
+	executionTracer *tracing.ExecutionTracer
 }
 
 // WSHub interface for WebSocket broadcasting
@@ -62,6 +65,11 @@ func (e *Executor) SetDebugController(controller *debugger.Controller) {
 // SetGraphResolver sets the graph resolver for graph-aware step resolution.
 func (e *Executor) SetGraphResolver(resolver *graph.GraphResolver) {
 	e.graphResolver = resolver
+}
+
+// SetExecutionTracer sets the execution tracer for OpenTelemetry instrumentation.
+func (e *Executor) SetExecutionTracer(tracer *tracing.ExecutionTracer) {
+	e.executionTracer = tracer
 }
 
 // GetDebugController returns the debug controller
@@ -135,6 +143,24 @@ func (e *Executor) executeStepsWithoutPersistence(ctx context.Context, steps []m
 // Execute runs a flow definition
 func (e *Executor) Execute(execution *models.Execution, definition *models.FlowDefinition, variables map[string]string) error {
 	ctx := context.Background()
+
+	// Start execution tracing span
+	var rootSpan trace.Span
+	if e.executionTracer != nil {
+		var tracedCtx context.Context
+		tracedCtx, rootSpan = e.executionTracer.StartExecution(ctx,
+			execution.ID.String(),
+			execution.FlowID.String(),
+			definition.Name,
+		)
+		ctx = tracedCtx
+		defer rootSpan.End()
+
+		// Set trace ID on execution for correlation
+		if rootSpan.SpanContext().IsValid() {
+			execution.TraceID = rootSpan.SpanContext().TraceID().String()
+		}
+	}
 
 	// Create execution context
 	execCtx := NewContext(variables, definition.Env)
@@ -214,6 +240,14 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 			zap.String("phase", phase),
 		)
 
+		// Start step tracing span
+		var stepSpan trace.Span
+		if e.executionTracer != nil {
+			var stepCtx context.Context
+			stepCtx, stepSpan = e.executionTracer.StartStep(ctx, stepID, step.Name, step.Action)
+			ctx = stepCtx
+		}
+
 		// Create step record
 		execStep := &models.ExecutionStep{
 			ExecutionID: execution.ID,
@@ -226,6 +260,9 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 		execStep.StartedAt = &now
 
 		if err := e.repo.CreateStep(execStep); err != nil {
+			if stepSpan != nil {
+				stepSpan.End()
+			}
 			return err
 		}
 
@@ -248,6 +285,12 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 		execStep.DurationMs = finishedAt.Sub(*execStep.StartedAt).Milliseconds()
 
 		if err != nil {
+			// Record step failure in tracing span
+			if e.executionTracer != nil && stepSpan != nil {
+				e.executionTracer.RecordStepResult(stepSpan, "failed", time.Since(*execStep.StartedAt), err)
+				stepSpan.End()
+			}
+
 			execStep.Status = models.StepStatusFailed
 			execStep.ErrorMessage = err.Error()
 			execStep.Output = result
@@ -275,6 +318,12 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 				err,
 			)
 			return execErr
+		}
+
+		// Record step success in tracing span
+		if e.executionTracer != nil && stepSpan != nil {
+			e.executionTracer.RecordStepResult(stepSpan, "completed", time.Since(*execStep.StartedAt), nil)
+			stepSpan.End()
 		}
 
 		execStep.Status = models.StepStatusCompleted

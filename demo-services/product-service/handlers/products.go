@@ -56,7 +56,7 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	_ = h.redisClient.SetProduct(c.Request.Context(), product.ID, product)
 
 	// Publish Kafka event
-	_ = h.kafkaProducer.PublishProductCreated(product.ID, product.Name, product.Price, product.Inventory)
+	_ = h.kafkaProducer.PublishProductCreated(c.Request.Context(), product.ID, product.Name, product.Price, product.Inventory)
 
 	c.JSON(http.StatusCreated, product)
 }
@@ -159,7 +159,7 @@ func (h *ProductHandler) UpdateInventory(c *gin.Context) {
 	_ = h.redisClient.DeleteProduct(ctx, productID)
 
 	// Publish inventory change event
-	_ = h.kafkaProducer.PublishInventoryChanged(productID, oldInventory, req.Inventory)
+	_ = h.kafkaProducer.PublishInventoryChanged(ctx, productID, oldInventory, req.Inventory)
 
 	c.JSON(http.StatusOK, product)
 }

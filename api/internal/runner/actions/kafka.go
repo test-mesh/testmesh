@@ -8,6 +8,8 @@ import (
 
 	"github.com/test-mesh/testmesh/internal/runner/actions/async"
 	"github.com/test-mesh/testmesh/internal/storage/models"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"go.uber.org/zap"
 )
 
@@ -53,6 +55,17 @@ func (h *KafkaConsumerHandler) Execute(ctx context.Context, config map[string]in
 		zap.Int("messages", result.Count),
 		zap.Int64("duration_ms", result.Duration),
 	)
+
+	// Extract trace context from first consumed message headers (if present)
+	// This links the consumer span to the producer's trace
+	if len(result.Messages) > 0 && len(result.Messages[0].Headers) > 0 {
+		carrier := make(propagation.MapCarrier)
+		for k, v := range result.Messages[0].Headers {
+			carrier[k] = v
+		}
+		// Extract trace context to link consumer to producer trace
+		_ = otel.GetTextMapPropagator().Extract(ctx, carrier)
+	}
 
 	// Convert messages to a plain interface slice for OutputData
 	msgs := make([]interface{}, len(result.Messages))
