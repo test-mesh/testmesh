@@ -5,6 +5,7 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NETWORK=local-infra
 ACTION=${1:-up}
 
@@ -145,7 +146,7 @@ start_otel_collector() {
     -p 4317:4317 \
     -p 4318:4318 \
     -p 8888:8888 \
-    -v "$(pwd)/infra/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro" \
+    -v "$SCRIPT_DIR/infra/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro" \
     otel/opentelemetry-collector-contrib:latest
 }
 
@@ -164,7 +165,7 @@ start_tempo() {
     --name tempo \
     --network "$NETWORK" \
     -p 3200:3200 \
-    -v "$(pwd)/infra/tempo.yaml:/etc/tempo.yaml:ro" \
+    -v "$SCRIPT_DIR/infra/tempo.yaml:/etc/tempo.yaml:ro" \
     -v tempo-data:/tmp/tempo \
     grafana/tempo:latest \
     -config.file=/etc/tempo.yaml
@@ -185,7 +186,7 @@ start_loki() {
     --name loki \
     --network "$NETWORK" \
     -p 3100:3100 \
-    -v "$(pwd)/infra/loki.yaml:/etc/loki/config.yaml:ro" \
+    -v "$SCRIPT_DIR/infra/loki.yaml:/etc/loki/config.yaml:ro" \
     -v loki-data:/loki \
     grafana/loki:latest \
     -config.file=/etc/loki/config.yaml
@@ -206,7 +207,7 @@ start_prometheus() {
     --name prometheus \
     --network "$NETWORK" \
     -p 9090:9090 \
-    -v "$(pwd)/infra/prometheus.yaml:/etc/prometheus/prometheus.yml:ro" \
+    -v "$SCRIPT_DIR/infra/prometheus.yaml:/etc/prometheus/prometheus.yml:ro" \
     -v prometheus-data:/prometheus \
     prom/prometheus:latest \
     --config.file=/etc/prometheus/prometheus.yml \
@@ -230,7 +231,7 @@ start_grafana() {
     -p 3002:3000 \
     -e GF_AUTH_ANONYMOUS_ENABLED=true \
     -e GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
-    -v "$(pwd)/infra/grafana:/etc/grafana/provisioning/datasources:ro" \
+    -v "$SCRIPT_DIR/infra/grafana:/etc/grafana/provisioning/datasources:ro" \
     -v grafana-data:/var/lib/grafana \
     grafana/grafana:latest
 }
