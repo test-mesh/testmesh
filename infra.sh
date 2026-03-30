@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local shared infrastructure — PostgreSQL, Redis, Kafka, Neo4j, MinIO
+# Local shared infrastructure — PostgreSQL, Redis, Kafka, Neo4j, MinIO, LGTM (OTel/Tempo/Loki/Prometheus/Grafana)
 # Safe to run multiple times; skips containers that are already running.
 # Usage: ./infra.sh [up|down|status]
 
@@ -128,6 +128,113 @@ start_minio() {
     minio/minio:latest server /data --console-address ":9001"
 }
 
+start_otel_collector() {
+  if docker ps -q -f name=otel-collector | grep -q .; then
+    echo "otel-collector already running"
+    return
+  fi
+  if docker ps -aq -f name=otel-collector | grep -q .; then
+    echo "otel-collector starting (stopped container)"
+    docker start otel-collector
+    return
+  fi
+  echo "otel-collector creating"
+  docker run -d \
+    --name otel-collector \
+    --network "$NETWORK" \
+    -p 4317:4317 \
+    -p 4318:4318 \
+    -p 8888:8888 \
+    -v "$(pwd)/infra/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro" \
+    otel/opentelemetry-collector-contrib:latest
+}
+
+start_tempo() {
+  if docker ps -q -f name=tempo | grep -q .; then
+    echo "tempo     already running"
+    return
+  fi
+  if docker ps -aq -f name=tempo | grep -q .; then
+    echo "tempo     starting (stopped container)"
+    docker start tempo
+    return
+  fi
+  echo "tempo     creating"
+  docker run -d \
+    --name tempo \
+    --network "$NETWORK" \
+    -p 3200:3200 \
+    -v "$(pwd)/infra/tempo.yaml:/etc/tempo.yaml:ro" \
+    -v tempo-data:/tmp/tempo \
+    grafana/tempo:latest \
+    -config.file=/etc/tempo.yaml
+}
+
+start_loki() {
+  if docker ps -q -f name=loki | grep -q .; then
+    echo "loki      already running"
+    return
+  fi
+  if docker ps -aq -f name=loki | grep -q .; then
+    echo "loki      starting (stopped container)"
+    docker start loki
+    return
+  fi
+  echo "loki      creating"
+  docker run -d \
+    --name loki \
+    --network "$NETWORK" \
+    -p 3100:3100 \
+    -v "$(pwd)/infra/loki.yaml:/etc/loki/config.yaml:ro" \
+    -v loki-data:/loki \
+    grafana/loki:latest \
+    -config.file=/etc/loki/config.yaml
+}
+
+start_prometheus() {
+  if docker ps -q -f name=prometheus | grep -q .; then
+    echo "prometheus already running"
+    return
+  fi
+  if docker ps -aq -f name=prometheus | grep -q .; then
+    echo "prometheus starting (stopped container)"
+    docker start prometheus
+    return
+  fi
+  echo "prometheus creating"
+  docker run -d \
+    --name prometheus \
+    --network "$NETWORK" \
+    -p 9090:9090 \
+    -v "$(pwd)/infra/prometheus.yaml:/etc/prometheus/prometheus.yml:ro" \
+    -v prometheus-data:/prometheus \
+    prom/prometheus:latest \
+    --config.file=/etc/prometheus/prometheus.yml \
+    --web.enable-remote-write-receiver
+}
+
+start_grafana() {
+  if docker ps -q -f name=grafana | grep -q .; then
+    echo "grafana   already running"
+    return
+  fi
+  if docker ps -aq -f name=grafana | grep -q .; then
+    echo "grafana   starting (stopped container)"
+    docker start grafana
+    return
+  fi
+  echo "grafana   creating"
+  docker run -d \
+    --name grafana \
+    --network "$NETWORK" \
+    -p 3002:3000 \
+    -e GF_AUTH_ANONYMOUS_ENABLED=true \
+    -e GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
+    -v "$(pwd)/infra/grafana:/etc/grafana/provisioning/datasources:ro" \
+    -v grafana-data:/var/lib/grafana \
+    grafana/grafana:latest
+}
+
 case "$ACTION" in
   up)
     create_network
@@ -136,24 +243,37 @@ case "$ACTION" in
     start_kafka
     start_neo4j
     start_minio
+    start_otel_collector
+    start_tempo
+    start_loki
+    start_prometheus
+    start_grafana
     echo ""
-    echo "PostgreSQL  postgresql://root:admin@localhost:5432/postgres"
-    echo "Redis       redis://localhost:6379"
-    echo "Kafka       localhost:9092"
-    echo "Neo4j       bolt://localhost:7687 (browser: http://localhost:7474)"
-    echo "MinIO       http://localhost:9000 (console: http://localhost:9001)"
+    echo "PostgreSQL   postgresql://root:admin@localhost:5432/postgres"
+    echo "Redis        redis://localhost:6379"
+    echo "Kafka        localhost:9092"
+    echo "Neo4j        bolt://localhost:7687 (browser: http://localhost:7474)"
+    echo "MinIO        http://localhost:9000 (console: http://localhost:9001)"
+    echo "OTel         grpc://localhost:4317  http://localhost:4318"
+    echo "Tempo        http://localhost:3200"
+    echo "Loki         http://localhost:3100"
+    echo "Prometheus   http://localhost:9090"
+    echo "Grafana      http://localhost:3002  (anonymous admin)"
     ;;
   down)
     echo "Stopping containers (data volumes preserved)"
-    docker stop postgres redis kafka neo4j minio 2>/dev/null || true
+    docker stop postgres redis kafka neo4j minio otel-collector tempo loki prometheus grafana 2>/dev/null || true
     ;;
   destroy)
     echo "Removing containers and volumes"
-    docker rm -f postgres redis kafka neo4j minio 2>/dev/null || true
-    docker volume rm postgres-data redis-data neo4j-data minio-data 2>/dev/null || true
+    docker rm -f postgres redis kafka neo4j minio otel-collector tempo loki prometheus grafana 2>/dev/null || true
+    docker volume rm postgres-data redis-data neo4j-data minio-data tempo-data loki-data prometheus-data grafana-data 2>/dev/null || true
     ;;
   status)
-    docker ps --filter name=postgres --filter name=redis --filter name=kafka --filter name=neo4j --filter name=minio \
+    docker ps \
+      --filter name=postgres --filter name=redis --filter name=kafka \
+      --filter name=neo4j --filter name=minio --filter name=otel-collector \
+      --filter name=tempo --filter name=loki --filter name=prometheus --filter name=grafana \
       --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
     ;;
   *)
