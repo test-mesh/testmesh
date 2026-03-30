@@ -36,7 +36,7 @@ const searchableItems = [
   { title: 'Reports', href: '/reports', keywords: ['documentation', 'output'] },
 
   // Administration
-  { title: 'Integrations', href: '/admin/integrations', keywords: ['connections', 'providers', 'configuration'] },
+  { title: 'Integrations', href: '/integrations', keywords: ['connections', 'providers', 'configuration'] },
   { title: 'Plugins', href: '/plugins', keywords: ['extensions', 'addons'] },
   { title: 'Health', href: '/health', keywords: ['status', 'monitoring'] },
 ];

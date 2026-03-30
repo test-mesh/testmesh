@@ -55,7 +55,7 @@ const navigation: NavItem[] = [
   { title: 'Reports', href: '/reports', icon: FileBarChart },
 
   // Administration
-  { title: 'Integrations', href: '/admin/integrations', icon: Plug },
+  { title: 'Integrations', href: '/integrations', icon: Plug },
   { title: 'Plugins', href: '/plugins', icon: Puzzle },
   { title: 'Health', href: '/health', icon: HeartPulse },
 ];

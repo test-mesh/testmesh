@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+> **Part of the TestMesh monorepo.** See `../CLAUDE.md` for the full component map (cloud, agent, web/docs).
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
@@ -28,7 +30,13 @@ testmesh/
 │   ├── main.go       # Entry point
 │   └── cmd/          # Commands: run, debug, generate, watch, etc.
 ├── dashboard/        # Next.js frontend (port 3000)
-├── web/              # Documentation site (port 3001)
+├── web/              # Documentation + marketing site (Fumadocs/Next.js, port 3001)
+├── agent/            # Self-hosted agent (outbound WebSocket to cloud, executes flows locally)
+│   ├── main.go
+│   ├── cmd/          # start command
+│   └── internal/
+│       ├── connection/ # WebSocket connection + reconnect logic
+│       └── worker/     # Flow execution workers
 ├── demo-services/    # Demo microservices for testing
 │   ├── user-service/
 │   ├── product-service/

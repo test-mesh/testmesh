@@ -172,46 +172,46 @@ export type WebhookDeliveryStatus = 'success' | 'failed' | 'rejected';
 export const integrationsApi = {
   // System integrations (admin only)
   list: async (params?: { type?: string; status?: string }) => {
-    const response = await apiClient.get<{ integrations: SystemIntegration[]; total: number }>('/api/v1/admin/integrations', { params });
+    const response = await apiClient.get<{ integrations: SystemIntegration[]; total: number }>('/api/v1/integrations', { params });
     return response.data;
   },
 
   create: async (data: CreateIntegrationRequest) => {
-    const response = await apiClient.post<SystemIntegration>('/api/v1/admin/integrations', data);
+    const response = await apiClient.post<SystemIntegration>('/api/v1/integrations', data);
     return response.data;
   },
 
   get: async (id: string) => {
-    const response = await apiClient.get<SystemIntegration>(`/api/v1/admin/integrations/${id}`);
+    const response = await apiClient.get<SystemIntegration>(`/api/v1/integrations/${id}`);
     return response.data;
   },
 
   update: async (id: string, data: UpdateIntegrationRequest) => {
-    const response = await apiClient.put<SystemIntegration>(`/api/v1/admin/integrations/${id}`, data);
+    const response = await apiClient.put<SystemIntegration>(`/api/v1/integrations/${id}`, data);
     return response.data;
   },
 
   delete: async (id: string) => {
-    await apiClient.delete(`/api/v1/admin/integrations/${id}`);
+    await apiClient.delete(`/api/v1/integrations/${id}`);
   },
 
   testConnection: async (id: string) => {
-    const response = await apiClient.post<TestConnectionResponse>(`/api/v1/admin/integrations/${id}/test`);
+    const response = await apiClient.post<TestConnectionResponse>(`/api/v1/integrations/${id}/test`);
     return response.data;
   },
 
   getSecrets: async (id: string) => {
-    const response = await apiClient.get<{ integration_id: string; secret_keys: string[]; secrets: Record<string, string> }>(`/api/v1/admin/integrations/${id}/secrets`);
+    const response = await apiClient.get<{ integration_id: string; secret_keys: string[]; secrets: Record<string, string> }>(`/api/v1/integrations/${id}/secrets`);
     return response.data;
   },
 
   updateSecrets: async (id: string, data: UpdateSecretsRequest) => {
-    await apiClient.put(`/api/v1/admin/integrations/${id}/secrets`, data);
+    await apiClient.put(`/api/v1/integrations/${id}/secrets`, data);
   },
 
   listRepos: async (id: string, search?: string) => {
     const response = await apiClient.get<{ repositories: GitRepository[]; total: number }>(
-      `/api/v1/admin/integrations/${id}/repos`,
+      `/api/v1/integrations/${id}/repos`,
       { params: search ? { search } : undefined }
     );
     return response.data;

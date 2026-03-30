@@ -819,23 +819,18 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 			collaboration.GET("/activity", collaborationHandler.ListActivity)
 		}
 
-		// Admin routes (require admin middleware)
-		admin := v1.Group("/admin")
-		admin.Use(middleware.RequireAdmin())
+		// Integration routes (AI providers, Git webhooks)
+		integrations := v1.Group("/integrations")
 		{
-			// System integrations (AI providers, Git webhooks)
-			integrations := admin.Group("/integrations")
-			{
-				integrations.GET("", integrationHandler.List)
-				integrations.POST("", integrationHandler.Create)
-				integrations.GET("/:id", integrationHandler.Get)
-				integrations.PUT("/:id", integrationHandler.Update)
-				integrations.DELETE("/:id", integrationHandler.Delete)
-				integrations.POST("/:id/test", integrationHandler.TestConnection)
-				integrations.GET("/:id/secrets", integrationHandler.GetSecrets)
-				integrations.PUT("/:id/secrets", integrationHandler.UpdateSecrets)
-				integrations.GET("/:id/repos", integrationHandler.ListRepositories)
-			}
+			integrations.GET("", integrationHandler.List)
+			integrations.POST("", integrationHandler.Create)
+			integrations.GET("/:id", integrationHandler.Get)
+			integrations.PUT("/:id", integrationHandler.Update)
+			integrations.DELETE("/:id", integrationHandler.Delete)
+			integrations.POST("/:id/test", integrationHandler.TestConnection)
+			integrations.GET("/:id/secrets", integrationHandler.GetSecrets)
+			integrations.PUT("/:id/secrets", integrationHandler.UpdateSecrets)
+			integrations.GET("/:id/repos", integrationHandler.ListRepositories)
 		}
 
 		// Request builder proxy

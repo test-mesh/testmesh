@@ -45,12 +45,6 @@ const createAxiosInstance = (): AxiosInstance => {
         config.headers.Authorization = `Bearer ${token}`;
       }
 
-      // Add admin header for development (for /admin routes)
-      // TODO: In production, this should check actual user permissions
-      if (config.url?.includes('/admin/')) {
-        config.headers['X-Admin'] = 'true';
-      }
-
       // Rewrite workspace-scoped paths to include workspace_id
       const workspaceId = getActiveWorkspaceId();
       if (workspaceId && config.url && isWorkspaceScopedPath(config.url)) {
