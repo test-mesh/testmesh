@@ -1,10 +1,6 @@
 global:
   scrape_interval: 15s
 
-storage:
-  tsdb:
-    allow_overlapping_blocks: true
-
 # Enable remote write receiver so OTel Collector can push metrics
 # (start prometheus with --web.enable-remote-write-receiver flag)
 
