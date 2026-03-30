@@ -3,105 +3,77 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-
 	"order-service/clients"
 	"order-service/database"
 	"order-service/handlers"
 	"order-service/kafka"
+	serviceMetrics "order-service/metrics"
 	serviceOtel "order-service/otel"
 	"order-service/redis"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 func main() {
-	// Initialize database
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
 	db, err := database.InitDB()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatal("failed to connect to database", zap.Error(err))
 	}
-
 	sqlDB, _ := db.DB()
 	defer sqlDB.Close()
 
-	// Run migrations
 	if err := database.RunMigrations(db); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		logger.Fatal("failed to run migrations", zap.Error(err))
 	}
+	logger.Info("database migrations completed")
 
-	log.Println("Database migrations completed successfully")
-
-	// Initialize Redis client
 	redisClient, err := redis.NewClient()
 	if err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		logger.Fatal("failed to connect to redis", zap.Error(err))
 	}
 	defer redisClient.Close()
 
-	log.Println("Connected to Redis successfully")
-
-	// Initialize Kafka producer
 	kafkaProducer, err := kafka.NewProducer()
 	if err != nil {
-		log.Fatalf("Failed to create Kafka producer: %v", err)
+		logger.Fatal("failed to create kafka producer", zap.Error(err))
 	}
 	defer kafkaProducer.Close()
 
-	log.Println("Kafka producer initialized successfully")
-
-	// Initialize OpenTelemetry
 	shutdownTracer, err := serviceOtel.InitTracer("order-service")
 	if err != nil {
-		log.Printf("Warning: Failed to initialize OpenTelemetry tracer: %v", err)
+		logger.Warn("failed to init tracer", zap.Error(err))
 	} else {
-		defer func() {
-			if err := shutdownTracer(context.Background()); err != nil {
-				log.Printf("Error shutting down tracer: %v", err)
-			}
-		}()
-		log.Println("OpenTelemetry tracer initialized successfully")
+		defer shutdownTracer(context.Background())
 	}
 
-	// Initialize HTTP clients
 	userClient := clients.NewUserClient()
 	productClient := clients.NewProductClient()
 
-	log.Println("HTTP clients initialized successfully")
-
-	// Initialize handlers
 	orderHandler := handlers.NewOrderHandler(db, redisClient, kafkaProducer, userClient, productClient)
 
-	// Setup router
 	router := gin.New()
-	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(serviceOtel.Middleware("order-service"))
+	router.Use(serviceMetrics.Middleware("order-service"))
 
-	// Health check
 	router.GET("/health", func(c *gin.Context) {
-		// Check database connection
 		if err := sqlDB.Ping(); err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"status":   "unhealthy",
-				"database": "down",
-			})
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unhealthy", "database": "down"})
 			return
 		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"status":   "healthy",
-			"service":  "order-service",
-			"database": "up",
-		})
+		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "order-service", "database": "up"})
 	})
+	router.GET("/metrics", serviceMetrics.Handler())
 
-	// Order routes
 	api := router.Group("/api/v1")
 	{
 		api.POST("/orders", orderHandler.CreateOrder)
@@ -109,38 +81,25 @@ func main() {
 		api.GET("/orders", orderHandler.ListOrders)
 	}
 
-	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "5003"
 	}
+	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: router}
 
-	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%s", port),
-		Handler: router,
-	}
-
-	// Graceful shutdown
 	go func() {
-		log.Printf("Order Service starting on port %s", port)
+		logger.Info("order-service starting", zap.String("port", port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			logger.Fatal("server error", zap.Error(err))
 		}
 	}()
 
-	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
-
+	logger.Info("shutting down")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
-	}
-
-	log.Println("Server exited")
+	srv.Shutdown(ctx)
 }
