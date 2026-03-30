@@ -1,0 +1,42 @@
+# examples/graph/neo4j-queries.yaml
+flow:
+  name: Neo4j Graph Queries
+  description: Verify service graph nodes exist and query relationships after creating test data.
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: http://user-service:5001/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: Graph Test User
+          email: graph@example.com
+      assert:
+        - status == 201
+      output:
+        user_id: $.body.id
+
+    - id: verify_service_nodes
+      action: neo4j.assert
+      config:
+        url: bolt://neo4j:7687
+        username: neo4j
+        password: testmesh
+        query: "MATCH (n:Node) WHERE n.type = 'Service' RETURN n.name AS name"
+        assert:
+          - "count > 0"
+
+    - id: query_relationships
+      action: neo4j.query
+      config:
+        url: bolt://neo4j:7687
+        username: neo4j
+        password: testmesh
+        query: |
+          MATCH (n:Node)
+          RETURN n.name AS name, n.type AS type, n.service AS service
+          LIMIT 10
+      assert:
+        - "count > 0"

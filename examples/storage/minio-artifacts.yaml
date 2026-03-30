@@ -1,0 +1,66 @@
+# examples/storage/minio-artifacts.yaml
+flow:
+  name: MinIO Artifact Storage
+  description: Store an API response as an artifact in MinIO, verify it, retrieve it, then clean up.
+  steps:
+    - id: fetch_report
+      action: http_request
+      config:
+        method: GET
+        url: http://testmesh-api:5016/health
+      assert:
+        - status == 200
+      output:
+        report_body: $.body
+
+    - id: store_artifact
+      action: minio.put
+      config:
+        endpoint: minio:9000
+        access_key: minioadmin
+        secret_key: minioadmin
+        use_ssl: false
+        bucket: testmesh
+        object: "artifacts/health-report.json"
+        data: "{{report_body}}"
+        content_type: application/json
+      output:
+        etag: $.etag
+
+    - id: assert_exists
+      action: minio.assert
+      config:
+        endpoint: minio:9000
+        access_key: minioadmin
+        secret_key: minioadmin
+        use_ssl: false
+        bucket: testmesh
+        object: "artifacts/health-report.json"
+        exists: true
+        content_type: application/json
+        size_gte: 1
+
+    - id: retrieve_artifact
+      action: minio.get
+      config:
+        endpoint: minio:9000
+        access_key: minioadmin
+        secret_key: minioadmin
+        use_ssl: false
+        bucket: testmesh
+        object: "artifacts/health-report.json"
+        as: json
+      assert:
+        - "body != null"
+
+    - id: cleanup
+      action: minio.delete
+      config:
+        endpoint: minio:9000
+        access_key: minioadmin
+        secret_key: minioadmin
+        use_ssl: false
+        bucket: testmesh
+        object: "artifacts/health-report.json"
+      assert:
+        - "deleted == true"
