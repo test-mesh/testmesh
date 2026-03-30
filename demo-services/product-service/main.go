@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,98 +11,75 @@ import (
 	"product-service/database"
 	"product-service/handlers"
 	"product-service/kafka"
+	serviceMetrics "product-service/metrics"
 	serviceOtel "product-service/otel"
 	"product-service/redis"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 func main() {
-	// Initialize database
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
 	db, err := database.InitDB()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Fatal("failed to connect to database", zap.Error(err))
 	}
-
 	sqlDB, _ := db.DB()
 	defer sqlDB.Close()
 
-	// Run migrations
 	if err := database.RunMigrations(db); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		logger.Fatal("failed to run migrations", zap.Error(err))
 	}
+	logger.Info("database migrations completed")
 
-	log.Println("Database migrations completed successfully")
-
-	// Initialize Redis client
 	redisClient, err := redis.NewClient()
 	if err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		logger.Fatal("failed to connect to redis", zap.Error(err))
 	}
 	defer redisClient.Close()
 
-	log.Println("Connected to Redis successfully")
-
-	// Initialize Kafka producer
 	kafkaProducer, err := kafka.NewProducer()
 	if err != nil {
-		log.Fatalf("Failed to create Kafka producer: %v", err)
+		logger.Fatal("failed to create kafka producer", zap.Error(err))
 	}
 	defer kafkaProducer.Close()
 
-	log.Println("Kafka producer initialized successfully")
-
-	// Initialize OpenTelemetry
 	shutdownTracer, err := serviceOtel.InitTracer("product-service")
 	if err != nil {
-		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
+		logger.Warn("failed to init tracer", zap.Error(err))
+	} else {
+		defer shutdownTracer(context.Background())
 	}
-	defer shutdownTracer(context.Background())
 
-	log.Println("OpenTelemetry initialized successfully")
-
-	// Initialize Kafka consumer
 	kafkaConsumer, err := kafka.NewConsumer(db)
 	if err != nil {
-		log.Fatalf("Failed to create Kafka consumer: %v", err)
+		logger.Fatal("failed to create kafka consumer", zap.Error(err))
 	}
 	defer kafkaConsumer.Close()
 
-	// Start consuming messages
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	kafkaConsumer.Start(ctx)
-	log.Println("Kafka consumer started successfully")
 
-	// Initialize handlers
 	productHandler := handlers.NewProductHandler(db, redisClient, kafkaProducer)
 
-	// Setup router
 	router := gin.New()
-	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(serviceOtel.Middleware("product-service"))
+	router.Use(serviceMetrics.Middleware("product-service"))
 
-	// Health check
 	router.GET("/health", func(c *gin.Context) {
-		// Check database connection
 		if err := sqlDB.Ping(); err != nil {
-			c.JSON(http.StatusServiceUnavailable, gin.H{
-				"status":   "unhealthy",
-				"database": "down",
-			})
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unhealthy", "database": "down"})
 			return
 		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"status":   "healthy",
-			"service":  "product-service",
-			"database": "up",
-		})
+		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "product-service", "database": "up"})
 	})
+	router.GET("/metrics", serviceMetrics.Handler())
 
-	// Product routes
 	api := router.Group("/api/v1")
 	{
 		api.POST("/products", productHandler.CreateProduct)
@@ -112,41 +88,26 @@ func main() {
 		api.PUT("/products/:id/inventory", productHandler.UpdateInventory)
 	}
 
-	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "5002"
 	}
+	srv := &http.Server{Addr: fmt.Sprintf(":%s", port), Handler: router}
 
-	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%s", port),
-		Handler: router,
-	}
-
-	// Graceful shutdown
 	go func() {
-		log.Printf("Product Service starting on port %s", port)
+		logger.Info("product-service starting", zap.String("port", port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			logger.Fatal("server error", zap.Error(err))
 		}
 	}()
 
-	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
-
-	// Cancel context for Kafka consumer
+	logger.Info("shutting down")
 	cancel()
-
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("Server forced to shutdown: %v", err)
-	}
-
-	log.Println("Server exited")
+	srv.Shutdown(shutdownCtx)
 }
