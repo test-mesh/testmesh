@@ -44,6 +44,18 @@ Every step has an `action` field that determines what work it performs. The `con
 | `websocket` | WebSocket connect/send/receive |
 | `redis_get` | Get a value from Redis |
 | `redis_set` | Set a value in Redis |
+| `neo4j.query` | Query Neo4j with Cypher | [neo4j](/docs/yaml-reference/actions/neo4j) |
+| `neo4j.assert` | Query + inline assert | [neo4j](/docs/yaml-reference/actions/neo4j) |
+| `minio.put` | Upload object to MinIO/S3 | [minio](/docs/yaml-reference/actions/minio) |
+| `minio.get` | Download object | [minio](/docs/yaml-reference/actions/minio) |
+| `minio.delete` | Delete object | [minio](/docs/yaml-reference/actions/minio) |
+| `minio.assert` | Assert object exists/metadata | [minio](/docs/yaml-reference/actions/minio) |
+| `otel.inject` | Create span, inject traceparent | [observability](/docs/yaml-reference/actions/otel-loki-prometheus) |
+| `otel.assert` | Query Tempo, assert on spans | [observability](/docs/yaml-reference/actions/otel-loki-prometheus) |
+| `loki.query` | Query Loki with LogQL | [observability](/docs/yaml-reference/actions/otel-loki-prometheus) |
+| `loki.assert` | Query Loki + assert | [observability](/docs/yaml-reference/actions/otel-loki-prometheus) |
+| `prometheus.query` | Run PromQL instant query | [observability](/docs/yaml-reference/actions/otel-loki-prometheus) |
+| `prometheus.assert` | Run PromQL + assert | [observability](/docs/yaml-reference/actions/otel-loki-prometheus) |
 | `mock_server_start` | Start an HTTP mock server |
 | `mock_server_stop` | Stop a mock server |
 | `mock_server_verify` | Assert on received mock requests |

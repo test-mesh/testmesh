@@ -17,6 +17,25 @@ The TestMesh CLI runs flows locally without needing the full API server. It conn
 | Docker | Any recent version | Required for local infrastructure |
 | Anthropic or OpenAI API key | — | Required only for AI features (`generate`, `chat`) |
 
+## Local Infrastructure
+
+The full local dev stack is started with `./infra.sh up` from the repository root. This starts PostgreSQL, Redis, Kafka, Neo4j, and MinIO — plus the complete LGTM observability stack:
+
+| Service | Port(s) | URL |
+|---|---|---|
+| PostgreSQL | 5432 | — |
+| Redis | 6379 | — |
+| Kafka | 9092 | — |
+| Neo4j | 7474 / 7687 | http://localhost:7474 |
+| MinIO | 9000 / 9001 | http://localhost:9001 |
+| OTel Collector | 4317 / 4318 | — |
+| Grafana Tempo | 3200 | — |
+| Grafana Loki | 3100 | — |
+| Prometheus | 9090 | http://localhost:9090 |
+| Grafana | 3002 | http://localhost:3002 |
+
+Grafana comes pre-configured with Tempo, Loki, and Prometheus as datasources.
+
 ## Install the CLI
 
 <Tabs items={["Homebrew", "curl", "npm", "Install via Go", "Build from Source"]}>

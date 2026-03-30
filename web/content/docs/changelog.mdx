@@ -12,6 +12,40 @@ description: Release history and notable changes for TestMesh.
 
 ---
 
+## v0.1.0 — 2026-03-30
+
+### New: Observability, Storage & Graph Native Plugins
+
+Five new built-in integrations shipping with the OSS engine:
+
+**Neo4j** — query and assert on graph data using Cypher
+- `neo4j.query`, `neo4j.assert`
+
+**MinIO / S3** — object storage operations in flows
+- `minio.put`, `minio.get`, `minio.delete`, `minio.assert`
+
+**OTel / Tempo** — trace context propagation and span assertion
+- `otel.inject`, `otel.assert`
+
+**Grafana Loki** — log query and assertion with LogQL
+- `loki.query`, `loki.assert`
+
+**Prometheus** — PromQL queries and metric counter assertions
+- `prometheus.query`, `prometheus.assert`
+
+### New: LGTM Local Stack
+
+`./infra.sh up` now starts the full LGTM observability stack alongside existing infrastructure: OTel Collector, Grafana Tempo, Grafana Loki, Prometheus, and Grafana (with all three datasources pre-configured).
+
+### Demo Services
+
+All four demo services (user, product, order, notification) now emit:
+- Structured JSON logs via zap, exported to Loki via OTLP
+- Prometheus metrics (`http_requests_total`, `http_request_duration_seconds`, `http_requests_in_flight`) on `GET /metrics`
+- Traces to OTel Collector (previously went directly to the TestMesh API)
+
+---
+
 ## Unreleased
 
 **GitHub PR Write-Back**
