@@ -298,3 +298,86 @@ Covered: 57% (4/7 endpoints)
 ```
 
 Use this to identify gaps in your test coverage alongside the [AI integration](/docs/features/ai-integration) feature to auto-generate tests for missing endpoints.
+
+---
+
+## Asserting on Service Observability
+
+Beyond TestMesh's own execution visibility, you can use the built-in LGTM plugins to assert on the traces, logs, and metrics that *your services* emit. This closes the loop: not just "did the API return 201?" but "did the service emit the right span, write the right log line, and increment the right counter?"
+
+### Trace propagation
+
+`otel.inject` creates a span and returns W3C `traceparent` / `tracestate` headers. Pass these to your service — any OTel-instrumented service will attach its own spans as children of the injected trace. Then `otel.assert` queries Tempo to verify the full trace.
+
+```yaml
+steps:
+  - id: inject
+    action: otel.inject
+    config:
+      span_name: place-order
+    output:
+      traceparent: $.traceparent
+      trace_id: $.trace_id
+
+  - id: place_order
+    action: http_request
+    config:
+      method: POST
+      url: http://order-service/orders
+      headers:
+        traceparent: "{{traceparent}}"
+      body: { user_id: 1, product_id: 2, quantity: 1 }
+
+  - id: verify_span
+    action: otel.assert
+    config:
+      backend_url: http://tempo:3200
+      trace_id: "{{trace_id}}"
+      within: 10s
+      assert:
+        - "len(spans) > 0"
+        - "spans[0].duration_ms < 500"
+```
+
+### Log assertion
+
+`loki.assert` queries Loki with [LogQL](https://grafana.com/docs/loki/latest/logql/) and asserts that specific log lines appeared — with optional polling until they arrive.
+
+```yaml
+- id: verify_log
+  action: loki.assert
+  config:
+    url: http://loki:3100
+    query: '{service="order-service"} |= "created order"'
+    start: "-30s"
+    within: 5s
+    assert:
+      - "count > 0"
+```
+
+### Metrics assertion
+
+`prometheus.assert` runs PromQL and asserts on the result. Capture a baseline before your action, then assert the delta after.
+
+```yaml
+- id: baseline
+  action: prometheus.query
+  config:
+    url: http://prometheus:9090
+    query: 'http_requests_total{service="order-service",status="201"}'
+  output:
+    baseline: $.value
+
+# ... run some orders ...
+
+- id: verify
+  action: prometheus.assert
+  config:
+    url: http://prometheus:9090
+    query: 'http_requests_total{service="order-service",status="201"}'
+    within: 15s
+    assert:
+      - "value >= baseline + 3"
+```
+
+See the [Observability Actions reference](/docs/yaml-reference/actions/otel-loki-prometheus) for full config options and the [observability examples](https://github.com/test-mesh/testmesh/tree/main/examples/observability) for complete flows.
