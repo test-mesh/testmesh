@@ -37,8 +37,8 @@ const searchableItems = [
 
   // Administration
   { title: 'Integrations', href: '/admin/integrations', keywords: ['connections', 'providers', 'configuration'] },
-  { title: 'Plugins', href: '/admin/plugins', keywords: ['extensions', 'addons'] },
-  { title: 'Health', href: '/admin/health', keywords: ['status', 'monitoring'] },
+  { title: 'Plugins', href: '/plugins', keywords: ['extensions', 'addons'] },
+  { title: 'Health', href: '/health', keywords: ['status', 'monitoring'] },
 ];
 
 export function GlobalSearch() {

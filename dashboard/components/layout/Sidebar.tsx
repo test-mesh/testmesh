@@ -56,8 +56,8 @@ const navigation: NavItem[] = [
 
   // Administration
   { title: 'Integrations', href: '/admin/integrations', icon: Plug },
-  { title: 'Plugins', href: '/admin/plugins', icon: Puzzle },
-  { title: 'Health', href: '/admin/health', icon: HeartPulse },
+  { title: 'Plugins', href: '/plugins', icon: Puzzle },
+  { title: 'Health', href: '/health', icon: HeartPulse },
 ];
 
 interface SidebarProps {

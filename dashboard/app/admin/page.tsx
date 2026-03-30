@@ -249,7 +249,7 @@ export default function AdminDashboard() {
             </div>
 
             <Button variant="outline" className="w-full" asChild>
-              <Link href="/admin/health">
+              <Link href="/health">
                 View Details
                 <ArrowUpRight className="w-4 h-4 ml-2" />
               </Link>
@@ -306,7 +306,7 @@ export default function AdminDashboard() {
           </Card>
         </Link>
 
-        <Link href="/admin/plugins">
+        <Link href="/plugins">
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -318,7 +318,7 @@ export default function AdminDashboard() {
           </Card>
         </Link>
 
-        <Link href="/admin/health">
+        <Link href="/health">
           <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
             <CardHeader>
               <div className="flex items-center gap-2">
