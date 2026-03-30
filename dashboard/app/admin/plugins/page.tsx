@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   usePlugins,
+  useNativePlugins,
   useEnablePlugin,
   useDisablePlugin,
   useLoadPlugin,
@@ -81,91 +82,65 @@ interface MarketplacePlugin {
   comingSoon?: boolean;
 }
 
-// Built-in native plugins (Go) - always available, no installation needed
-interface NativePlugin {
-  id: string;
+// Display metadata for known native plugins. The list of which plugins to show
+// comes from GET /api/v1/plugins/native — this map is only for icons/labels.
+interface NativePluginMeta {
   name: string;
   description: string;
-  version: string;
-  type: 'action';
   icon: React.ComponentType<{ className?: string }>;
   actions: string[];
 }
 
-const nativePlugins: NativePlugin[] = [
-  {
-    id: 'kafka',
+const nativePluginMeta: Record<string, NativePluginMeta> = {
+  kafka: {
     name: 'Apache Kafka',
     description: 'Produce and consume messages, manage topics, and test event-driven architectures',
-    version: '1.0.0',
-    type: 'action',
     icon: MessageSquare,
     actions: ['kafka.produce', 'kafka.consume', 'kafka.admin.topics', 'kafka.admin.createTopic', 'kafka.admin.deleteTopic'],
   },
-  {
-    id: 'postgresql',
+  postgresql: {
     name: 'PostgreSQL',
     description: 'Execute SQL queries, manage transactions, and validate database state',
-    version: '1.0.0',
-    type: 'action',
     icon: Database,
     actions: ['postgresql.query', 'postgresql.insert', 'postgresql.update', 'postgresql.delete', 'postgresql.assert', 'postgresql.transaction'],
   },
-  {
-    id: 'redis',
+  redis: {
     name: 'Redis',
     description: 'Get, set, delete and check keys in Redis — built-in cache validation for test flows',
-    version: '1.0.0',
-    type: 'action',
     icon: Database,
     actions: ['redis.get', 'redis.set', 'redis.del', 'redis.exists'],
   },
-  {
-    id: 'neo4j',
+  neo4j: {
     name: 'Neo4j',
     description: 'Run Cypher queries and assert on graph data — query nodes, relationships, and paths',
-    version: '1.0.0',
-    type: 'action',
     icon: Share2,
     actions: ['neo4j.query', 'neo4j.assert'],
   },
-  {
-    id: 'minio',
+  minio: {
     name: 'MinIO / S3',
     description: 'Upload, download, delete, and assert on objects in MinIO or any S3-compatible store',
-    version: '1.0.0',
-    type: 'action',
     icon: HardDrive,
     actions: ['minio.put', 'minio.get', 'minio.delete', 'minio.assert'],
   },
-  {
-    id: 'otel',
+  otel: {
     name: 'OTel / Tempo',
     description: 'Inject W3C trace context and assert on spans in Grafana Tempo',
-    version: '1.0.0',
-    type: 'action',
     icon: Activity,
     actions: ['otel.inject', 'otel.assert'],
   },
-  {
-    id: 'loki',
+  loki: {
     name: 'Grafana Loki',
     description: 'Query and assert on log lines using LogQL — verify your services log what they should',
-    version: '1.0.0',
-    type: 'action',
     icon: FileText,
     actions: ['loki.query', 'loki.assert'],
   },
-  {
-    id: 'prometheus',
+  prometheus: {
     name: 'Prometheus',
     description: 'Run PromQL queries and assert on metric values — capture baselines and verify deltas',
-    version: '1.0.0',
-    type: 'action',
     icon: BarChart2,
     actions: ['prometheus.query', 'prometheus.assert'],
   },
-];
+};
 
 // External plugins - available in marketplace
 const marketplacePlugins: MarketplacePlugin[] = [
@@ -233,6 +208,9 @@ export default function PluginsPage() {
   const { data, isLoading, error, refetch } = usePlugins({
     type: typeFilter || undefined,
   });
+
+  const { data: nativeData } = useNativePlugins();
+  const nativePluginIds = nativeData?.plugins ?? [];
 
   const enablePlugin = useEnablePlugin();
   const disablePlugin = useDisablePlugin();
@@ -631,10 +609,14 @@ export default function PluginsPage() {
               These integrations are built into the API - no installation needed, better performance.
             </p>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-              {nativePlugins.map((plugin) => {
-                const Icon = plugin.icon;
+              {nativePluginIds.map((id) => {
+                const meta = nativePluginMeta[id];
+                const Icon = meta?.icon ?? Package;
+                const name = meta?.name ?? id;
+                const description = meta?.description ?? `Native plugin: ${id}`;
+                const actions = meta?.actions ?? [`${id}.*`];
                 return (
-                  <Card key={plugin.id} className="border-green-500/20 bg-green-500/5">
+                  <Card key={id} className="border-green-500/20 bg-green-500/5">
                     <CardHeader>
                       <div className="flex items-start gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
@@ -642,14 +624,14 @@ export default function PluginsPage() {
                         </div>
                         <div className="flex-1">
                           <CardTitle className="text-lg flex items-center gap-2">
-                            {plugin.name}
+                            {name}
                             <Badge variant="outline" className="text-green-600 border-green-500">
                               <CheckCircle2 className="h-3 w-3 mr-1" />
                               Built-in
                             </Badge>
                           </CardTitle>
                           <CardDescription className="mt-1">
-                            {plugin.description}
+                            {description}
                           </CardDescription>
                         </div>
                       </div>
@@ -657,8 +639,8 @@ export default function PluginsPage() {
                     <CardContent>
                       <div className="text-sm text-muted-foreground">
                         <span className="font-medium">Actions:</span>{' '}
-                        {plugin.actions.slice(0, 3).join(', ')}
-                        {plugin.actions.length > 3 && ` +${plugin.actions.length - 3} more`}
+                        {actions.slice(0, 3).join(', ')}
+                        {actions.length > 3 && ` +${actions.length - 3} more`}
                       </div>
                     </CardContent>
                   </Card>

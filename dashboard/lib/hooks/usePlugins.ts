@@ -6,11 +6,22 @@ export const pluginKeys = {
   all: ['plugins'] as const,
   lists: () => [...pluginKeys.all, 'list'] as const,
   list: (filters: Record<string, unknown>) => [...pluginKeys.lists(), filters] as const,
+  native: () => [...pluginKeys.all, 'native'] as const,
   details: () => [...pluginKeys.all, 'detail'] as const,
   detail: (id: string) => [...pluginKeys.details(), id] as const,
   info: (id: string) => [...pluginKeys.all, 'info', id] as const,
   types: () => [...pluginKeys.all, 'types'] as const,
 };
+
+/**
+ * Hook to fetch native (built-in) plugins from the API
+ */
+export function useNativePlugins() {
+  return useQuery({
+    queryKey: pluginKeys.native(),
+    queryFn: () => pluginApi.listNative(),
+  });
+}
 
 /**
  * Hook to fetch all plugins

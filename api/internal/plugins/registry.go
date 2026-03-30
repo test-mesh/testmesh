@@ -319,6 +319,18 @@ func (r *Registry) GetAction(name string) (ActionPlugin, bool) {
 	return action, ok
 }
 
+// ListNative returns the names of all registered native action plugins.
+func (r *Registry) ListNative() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	names := make([]string, 0, len(r.actions))
+	for name := range r.actions {
+		names = append(names, name)
+	}
+	return names
+}
+
 // RegisterAction registers a custom action plugin
 func (r *Registry) RegisterAction(name string, plugin ActionPlugin) {
 	r.mu.Lock()

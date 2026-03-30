@@ -744,6 +744,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 		pluginsRoutes := v1.Group("/plugins")
 		{
 			pluginsRoutes.GET("", pluginHandler.List)
+			pluginsRoutes.GET("/native", pluginHandler.ListNative)
 			pluginsRoutes.GET("/types", pluginHandler.GetTypes)
 			pluginsRoutes.POST("/discover", pluginHandler.Discover)
 			pluginsRoutes.POST("/install", pluginHandler.Install)

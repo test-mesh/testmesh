@@ -27,6 +27,11 @@ export interface ListPluginsResponse {
   total: number;
 }
 
+export interface ListNativePluginsResponse {
+  plugins: string[]; // registered action prefix names, e.g. ["kafka", "redis", ...]
+  total: number;
+}
+
 export interface InstallPluginRequest {
   source: string; // Path or URL
 }
@@ -48,6 +53,14 @@ export interface PluginInfo {
 
 // Plugin API
 export const pluginApi = {
+  /**
+   * List native (built-in Go) plugins registered in the API
+   */
+  listNative: async (): Promise<ListNativePluginsResponse> => {
+    const response = await apiClient.get<ListNativePluginsResponse>('/api/v1/plugins/native');
+    return response.data;
+  },
+
   /**
    * List all plugins
    */

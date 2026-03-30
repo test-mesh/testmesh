@@ -134,6 +134,15 @@ func (h *PluginHandler) Discover(c *gin.Context) {
 	})
 }
 
+// ListNative handles GET /api/v1/plugins/native
+func (h *PluginHandler) ListNative(c *gin.Context) {
+	names := h.registry.ListNative()
+	c.JSON(http.StatusOK, gin.H{
+		"plugins": names,
+		"total":   len(names),
+	})
+}
+
 // GetTypes handles GET /api/v1/plugins/types
 func (h *PluginHandler) GetTypes(c *gin.Context) {
 	types := []map[string]string{
