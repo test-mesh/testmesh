@@ -285,9 +285,14 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	pluginRegistry := plugins.NewRegistry(pluginDir, logger)
 
 	// Register native Go plugins (no external process needed)
-	pluginRegistry.RegisterAction("kafka", plugins.NewKafkaNativePlugin(logger))
+	pluginRegistry.RegisterAction("kafka",      plugins.NewKafkaNativePlugin(logger))
 	pluginRegistry.RegisterAction("postgresql", plugins.NewPostgreSQLNativePlugin(logger))
-	pluginRegistry.RegisterAction("redis", plugins.NewRedisNativePlugin(logger))
+	pluginRegistry.RegisterAction("redis",      plugins.NewRedisNativePlugin(logger))
+	pluginRegistry.RegisterAction("neo4j",      plugins.NewNeo4jNativePlugin(logger))
+	pluginRegistry.RegisterAction("minio",      plugins.NewMinioNativePlugin(logger))
+	pluginRegistry.RegisterAction("otel",       plugins.NewOtelNativePlugin(logger))
+	pluginRegistry.RegisterAction("loki",       plugins.NewLokiNativePlugin(logger))
+	pluginRegistry.RegisterAction("prometheus", plugins.NewPrometheusNativePlugin(logger))
 
 	// Discover and load external plugins (JS, Python, etc. via HTTP protocol)
 	pluginRegistry.Discover()
