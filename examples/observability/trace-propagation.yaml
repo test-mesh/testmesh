@@ -1,0 +1,37 @@
+# examples/observability/trace-propagation.yaml
+flow:
+  name: Trace Propagation
+  description: Inject W3C trace context into an HTTP request and verify the span appears in Tempo.
+  steps:
+    - id: inject_trace
+      action: otel.inject
+      config:
+        service_name: testmesh-flow
+        span_name: create-user-traced
+      output:
+        traceparent: $.traceparent
+        trace_id: $.trace_id
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: http://user-service:5001/users
+        headers:
+          traceparent: "{{traceparent}}"
+          Content-Type: application/json
+        body:
+          name: Traced User
+          email: traced@example.com
+      assert:
+        - status == 201
+
+    - id: verify_span
+      action: otel.assert
+      config:
+        backend_url: http://tempo:3200
+        trace_id: "{{trace_id}}"
+        within: 15s
+        assert:
+          - "len(spans) > 0"
+          - "spans[0].duration_ms < 500"

@@ -1,0 +1,30 @@
+# examples/observability/log-assertion.yaml
+flow:
+  name: Log Assertion
+  description: Create a product and verify the structured log line appears in Loki within 5 seconds.
+  steps:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: http://product-service:5002/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: Log Test Product
+          price: 9.99
+          stock: 10
+      assert:
+        - status == 201
+      output:
+        product_id: $.body.id
+
+    - id: verify_log
+      action: loki.assert
+      config:
+        url: http://loki:3100
+        query: '{service="product-service"} |= "created product"'
+        start: "-30s"
+        within: 5s
+        assert:
+          - "count > 0"

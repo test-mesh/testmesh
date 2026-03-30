@@ -1,0 +1,63 @@
+# examples/observability/metrics-assertion.yaml
+flow:
+  name: Metrics Assertion
+  description: Capture a baseline request count, place three orders, then assert the counter increased by 3.
+  steps:
+    - id: baseline
+      action: prometheus.query
+      config:
+        url: http://prometheus:9090
+        query: 'http_requests_total{service="order-service",route="/orders",status="201"}'
+      output:
+        baseline_count: $.value
+
+    - id: order_1
+      action: http_request
+      config:
+        method: POST
+        url: http://order-service:5003/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: 1
+          product_id: 1
+          quantity: 1
+      assert:
+        - status == 201
+
+    - id: order_2
+      action: http_request
+      config:
+        method: POST
+        url: http://order-service:5003/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: 1
+          product_id: 2
+          quantity: 2
+      assert:
+        - status == 201
+
+    - id: order_3
+      action: http_request
+      config:
+        method: POST
+        url: http://order-service:5003/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: 2
+          product_id: 1
+          quantity: 1
+      assert:
+        - status == 201
+
+    - id: verify_metric
+      action: prometheus.assert
+      config:
+        url: http://prometheus:9090
+        query: 'http_requests_total{service="order-service",route="/orders",status="201"}'
+        within: 15s
+        assert:
+          - "value >= baseline_count + 3"
