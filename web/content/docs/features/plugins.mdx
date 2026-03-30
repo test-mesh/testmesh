@@ -12,6 +12,27 @@ TestMesh has a plugin system that lets you extend the test runner with custom ca
   <Card title="Installing Plugins" href="#installing-plugins" description="Add plugins to your TestMesh instance" />
 </Cards>
 
+## Built-in Integrations
+
+TestMesh ships several native integrations that work without any installation. They use the same action system as external plugins but run inside the API process — no HTTP overhead, no separate process to manage.
+
+<Callout type="info">
+  Built-in integrations appear in the dashboard under **Plugins → Built-in Integrations** and are always available in flows using dot-notation action names (e.g. `kafka.produce`, `neo4j.query`).
+</Callout>
+
+| Plugin | Actions | Docs |
+|---|---|---|
+| **Apache Kafka** | `kafka.produce`, `kafka.consume`, `kafka.admin.topics` +2 | [Reference](/docs/yaml-reference/actions/kafka) |
+| **PostgreSQL** | `postgresql.query`, `postgresql.insert`, `postgresql.update` +3 | [Reference](/docs/yaml-reference/actions/database-query) |
+| **Redis** | `redis.get`, `redis.set`, `redis.del`, `redis.exists` | [Reference](/docs/yaml-reference/actions/redis) |
+| **Neo4j** | `neo4j.query`, `neo4j.assert` | [Reference](/docs/yaml-reference/actions/neo4j) |
+| **MinIO / S3** | `minio.put`, `minio.get`, `minio.delete`, `minio.assert` | [Reference](/docs/yaml-reference/actions/minio) |
+| **OTel / Tempo** | `otel.inject`, `otel.assert` | [Reference](/docs/yaml-reference/actions/otel-loki-prometheus) |
+| **Grafana Loki** | `loki.query`, `loki.assert` | [Reference](/docs/yaml-reference/actions/otel-loki-prometheus) |
+| **Prometheus** | `prometheus.query`, `prometheus.assert` | [Reference](/docs/yaml-reference/actions/otel-loki-prometheus) |
+
+External plugins (the rest of this page) use an HTTP-based protocol and can be written in any language. Built-in integrations are Go implementations that ship with TestMesh — use them when you need reliability and performance without external dependencies.
+
 ## Plugin Types
 
 TestMesh supports five categories of plugins:
