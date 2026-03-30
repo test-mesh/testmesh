@@ -18,7 +18,7 @@ import (
 func InitTracer(serviceName string) (func(context.Context) error, error) {
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
-		endpoint = "testmesh-api:5016"
+		endpoint = "otel-collector:4318"
 	} else {
 		// Strip scheme if present — otlptracehttp.WithEndpoint expects host:port only
 		if u, err := url.Parse(endpoint); err == nil && u.Host != "" {
@@ -26,18 +26,9 @@ func InitTracer(serviceName string) (func(context.Context) error, error) {
 		}
 	}
 
-	workspaceID := os.Getenv("TESTMESH_WORKSPACE_ID")
-	if workspaceID == "" {
-		workspaceID = "00000000-0000-0000-0000-000000000001" // Default Workspace
-	}
-
 	exporter, err := otlptracehttp.New(context.Background(),
 		otlptracehttp.WithEndpoint(endpoint),
-		otlptracehttp.WithURLPath("/otlp/v1/traces"),
 		otlptracehttp.WithInsecure(),
-		otlptracehttp.WithHeaders(map[string]string{
-			"X-Workspace-ID": workspaceID,
-		}),
 	)
 	if err != nil {
 		return nil, err
