@@ -58,6 +58,11 @@ import {
   Mail,
   Cloud,
   CheckCircle2,
+  Share2,
+  HardDrive,
+  Activity,
+  FileText,
+  BarChart2,
 } from 'lucide-react';
 
 // Available plugins in the marketplace
@@ -114,6 +119,51 @@ const nativePlugins: NativePlugin[] = [
     type: 'action',
     icon: Database,
     actions: ['redis.get', 'redis.set', 'redis.del', 'redis.exists'],
+  },
+  {
+    id: 'neo4j',
+    name: 'Neo4j',
+    description: 'Run Cypher queries and assert on graph data — query nodes, relationships, and paths',
+    version: '1.0.0',
+    type: 'action',
+    icon: Share2,
+    actions: ['neo4j.query', 'neo4j.assert'],
+  },
+  {
+    id: 'minio',
+    name: 'MinIO / S3',
+    description: 'Upload, download, delete, and assert on objects in MinIO or any S3-compatible store',
+    version: '1.0.0',
+    type: 'action',
+    icon: HardDrive,
+    actions: ['minio.put', 'minio.get', 'minio.delete', 'minio.assert'],
+  },
+  {
+    id: 'otel',
+    name: 'OTel / Tempo',
+    description: 'Inject W3C trace context and assert on spans in Grafana Tempo',
+    version: '1.0.0',
+    type: 'action',
+    icon: Activity,
+    actions: ['otel.inject', 'otel.assert'],
+  },
+  {
+    id: 'loki',
+    name: 'Grafana Loki',
+    description: 'Query and assert on log lines using LogQL — verify your services log what they should',
+    version: '1.0.0',
+    type: 'action',
+    icon: FileText,
+    actions: ['loki.query', 'loki.assert'],
+  },
+  {
+    id: 'prometheus',
+    name: 'Prometheus',
+    description: 'Run PromQL queries and assert on metric values — capture baselines and verify deltas',
+    version: '1.0.0',
+    type: 'action',
+    icon: BarChart2,
+    actions: ['prometheus.query', 'prometheus.assert'],
   },
 ];
 
