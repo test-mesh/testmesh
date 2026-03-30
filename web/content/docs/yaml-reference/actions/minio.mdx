@@ -1,0 +1,99 @@
+---
+title: MinIO / S3
+description: Upload, download, delete, and assert on objects in MinIO or any S3-compatible store.
+---
+
+The `minio` native plugin provides object storage operations against MinIO or any S3-compatible API. No installation needed.
+
+## Connection fields
+
+All four actions share the same connection config:
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `endpoint` | no | `localhost:9000` | Host:port of MinIO/S3 |
+| `access_key` | no | `minioadmin` | Access key ID |
+| `secret_key` | no | `minioadmin` | Secret access key |
+| `use_ssl` | no | `false` | Enable TLS |
+
+## minio.put
+
+Uploads an object.
+
+```yaml
+- id: store_report
+  action: minio.put
+  config:
+    endpoint: minio:9000
+    access_key: minioadmin
+    secret_key: minioadmin
+    bucket: testmesh               # required
+    object: reports/run-001.json   # required
+    data: "{{response_body}}"      # required — string or base64 bytes
+    content_type: application/json # optional
+  output:
+    etag: $.etag
+```
+
+**Output:** `{ "etag": "abc123", "size": 1024, "bucket": "testmesh", "object": "reports/run-001.json" }`
+
+## minio.get
+
+Downloads an object.
+
+```yaml
+- id: fetch_artifact
+  action: minio.get
+  config:
+    endpoint: minio:9000
+    access_key: minioadmin
+    secret_key: minioadmin
+    bucket: testmesh
+    object: reports/run-001.json
+    as: json    # text | base64 | json
+  output:
+    artifact: $.body
+```
+
+**Output:** `{ "body": {...}, "content_type": "application/json", "size": 1024, "etag": "abc123" }`
+
+## minio.delete
+
+Deletes an object.
+
+```yaml
+- id: cleanup
+  action: minio.delete
+  config:
+    endpoint: minio:9000
+    access_key: minioadmin
+    secret_key: minioadmin
+    bucket: testmesh
+    object: reports/run-001.json
+  assert:
+    - "deleted == true"
+```
+
+## minio.assert
+
+Asserts an object exists (or doesn't), optionally checking content type and size.
+
+```yaml
+- id: verify_upload
+  action: minio.assert
+  config:
+    endpoint: minio:9000
+    access_key: minioadmin
+    secret_key: minioadmin
+    bucket: testmesh
+    object: reports/run-001.json
+    exists: true                    # required
+    content_type: application/json  # optional
+    size_gte: 100                   # optional: assert size >= N bytes
+```
+
+**Output:** `{ "exists": true, "content_type": "application/json", "size": 1024 }`
+
+<Callout type="info">
+  MinIO is included in the local dev stack. Start it with `./infra.sh up` — available at `localhost:9000` (console at `localhost:9001`, login: minioadmin/minioadmin).
+</Callout>

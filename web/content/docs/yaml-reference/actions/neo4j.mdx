@@ -1,0 +1,59 @@
+---
+title: Neo4j
+description: Run Cypher queries and assert on graph data using the built-in Neo4j native plugin.
+---
+
+The `neo4j` native plugin lets you query and assert on Neo4j graph databases directly in your flows. No installation needed — it ships built into the TestMesh API.
+
+## neo4j.query
+
+Runs any Cypher query and returns the results.
+
+```yaml
+- id: find_services
+  action: neo4j.query
+  config:
+    url: bolt://localhost:7687      # required
+    username: neo4j                  # required
+    password: testmesh               # required
+    database: neo4j                  # optional, default "neo4j"
+    query: "MATCH (n:Service) RETURN n.name AS name, n.type AS type"
+    params:                          # optional map of query parameters
+      workspace_id: "{{workspace_id}}"
+  output:
+    service_count: $.count
+```
+
+**Output**
+
+```json
+{ "rows": [{"name": "user-service", "type": "http"}], "count": 1 }
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `rows` | array | Each record as a key/value map |
+| `count` | number | Number of rows returned |
+
+## neo4j.assert
+
+Runs a Cypher query and asserts on the results inline using [expr-lang](https://expr-lang.org/) expressions — the same syntax used in `assert:` blocks everywhere else in TestMesh.
+
+```yaml
+- id: assert_graph
+  action: neo4j.assert
+  config:
+    url: bolt://localhost:7687
+    username: neo4j
+    password: testmesh
+    query: "MATCH (n:Service) RETURN count(n) AS total"
+    assert:
+      - "rows[0].total > 0"
+      - "count == 1"
+```
+
+The step fails if any assertion evaluates to false. The output shape is identical to `neo4j.query`.
+
+<Callout type="info">
+  Neo4j must be reachable from the TestMesh API. When running locally, start it with `./infra.sh up` — Neo4j will be available at `bolt://localhost:7687`.
+</Callout>

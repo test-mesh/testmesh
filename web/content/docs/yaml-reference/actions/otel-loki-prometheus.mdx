@@ -1,0 +1,146 @@
+---
+title: Observability (OTel, Loki, Prometheus)
+description: Inject trace context, assert on spans in Tempo, query logs in Loki, and validate metrics in Prometheus.
+---
+
+TestMesh ships three built-in observability plugins covering the full LGTM stack. Together they let you write flows that verify not just API responses, but the traces, logs, and metrics your services emit.
+
+## How it fits together
+
+```
+Flow step (otel.inject)
+  → sets traceparent header
+  → http_request carries header to your service
+  → service emits span to OTel Collector → Tempo
+  → otel.assert queries Tempo by trace ID
+
+Flow action triggers your service
+  → service logs via zap/OTLP → Loki
+  → loki.assert queries Loki with LogQL
+
+Metric counter increments in your service
+  → prometheus.query captures baseline
+  → ... actions run ...
+  → prometheus.assert verifies counter increased
+```
+
+---
+
+## otel.inject
+
+Creates an OTel span and injects W3C `traceparent` / `tracestate` into the flow context. Pass the output as a header in subsequent HTTP steps.
+
+```yaml
+- id: start_trace
+  action: otel.inject
+  config:
+    service_name: testmesh-flow  # optional
+    span_name: create-order      # optional, defaults to step id
+  output:
+    traceparent: $.traceparent
+    trace_id: $.trace_id
+
+- id: create_order
+  action: http_request
+  config:
+    method: POST
+    url: http://order-service:5003/orders
+    headers:
+      traceparent: "{{traceparent}}"
+    body: { user_id: 1, product_id: 2, quantity: 1 }
+```
+
+**Output:** `{ "traceparent": "00-...", "tracestate": "", "trace_id": "...", "span_id": "..." }`
+
+## otel.assert
+
+Queries Grafana Tempo for spans by trace ID (or service + operation) and asserts on them.
+
+```yaml
+- id: verify_trace
+  action: otel.assert
+  config:
+    backend_url: http://tempo:3200  # required
+    trace_id: "{{trace_id}}"        # required (or use service + operation)
+    within: 10s                     # poll until spans appear or timeout
+    assert:
+      - "len(spans) > 0"
+      - "spans[0].duration_ms < 500"
+      - "spans[0].status == 'ok'"
+```
+
+**Output:** `{ "spans": [{ "trace_id": "...", "service": "order-service", "operation": "POST /orders", "duration_ms": 42, "status": "ok", "attributes": {...} }] }`
+
+---
+
+## loki.query
+
+Queries Grafana Loki using [LogQL](https://grafana.com/docs/loki/latest/logql/).
+
+```yaml
+- id: fetch_logs
+  action: loki.query
+  config:
+    url: http://loki:3100              # required
+    query: '{service="order-service"} |= "created order"'  # required (LogQL)
+    start: "-5m"                       # optional, relative or RFC3339
+    end: "now"                         # optional
+    limit: 100                         # optional, default 100
+  output:
+    log_count: $.count
+```
+
+**Output:** `{ "lines": ["2026-03-30T10:00:00Z order-service created order id=abc"], "count": 1 }`
+
+## loki.assert
+
+Queries Loki and asserts on the results, with optional polling.
+
+```yaml
+- id: verify_log
+  action: loki.assert
+  config:
+    url: http://loki:3100
+    query: '{service="order-service"} |= "created order"'
+    start: "-30s"
+    within: 5s      # poll until assertion passes or timeout
+    assert:
+      - "count > 0"
+```
+
+---
+
+## prometheus.query
+
+Runs a PromQL instant query against Prometheus.
+
+```yaml
+- id: baseline
+  action: prometheus.query
+  config:
+    url: http://prometheus:9090  # required
+    query: 'http_requests_total{service="order-service",status="201"}'
+  output:
+    baseline: $.value
+```
+
+**Output:** `{ "value": 42.0, "metric": { "service": "order-service", "status": "201" } }`
+
+## prometheus.assert
+
+Runs PromQL and asserts on the result, with optional polling until the assertion passes.
+
+```yaml
+- id: verify_counter
+  action: prometheus.assert
+  config:
+    url: http://prometheus:9090
+    query: 'http_requests_total{service="order-service",status="201"}'
+    within: 15s
+    assert:
+      - "value >= baseline + 3"
+```
+
+<Callout type="info">
+  The full LGTM stack (OTel Collector, Tempo, Loki, Prometheus, Grafana) is included in the local dev setup. Start everything with `./infra.sh up`. Grafana is available at `http://localhost:3002` with Tempo, Loki, and Prometheus pre-configured as datasources.
+</Callout>
