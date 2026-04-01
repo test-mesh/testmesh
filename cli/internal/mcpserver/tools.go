@@ -819,6 +819,9 @@ func toolUploadFlow(args map[string]any, cfg Config) (*mcp.CallToolResult, error
 			return toolError("workspace_id required (or configure --workspace-id)"), nil
 		}
 		workspaceID, _ = workspaces[0]["id"].(string)
+		if workspaceID == "" {
+			return toolError("API returned workspace without id field"), nil
+		}
 	}
 
 	client := newAPIClient(cfg.APIURL)
@@ -850,6 +853,9 @@ func toolListFlowsAPI(args map[string]any, cfg Config) (*mcp.CallToolResult, err
 			return toolError("workspace_id required"), nil
 		}
 		workspaceID, _ = workspaces[0]["id"].(string)
+		if workspaceID == "" {
+			return toolError("API returned workspace without id field"), nil
+		}
 	}
 
 	client := newAPIClient(cfg.APIURL)
@@ -897,6 +903,9 @@ func toolTriggerExecution(args map[string]any, cfg Config) (*mcp.CallToolResult,
 			return toolError("workspace_id required"), nil
 		}
 		workspaceID, _ = workspaces[0]["id"].(string)
+		if workspaceID == "" {
+			return toolError("API returned workspace without id field"), nil
+		}
 	}
 
 	environment, _ := args["environment"].(string)
@@ -1006,6 +1015,9 @@ func toolGetCoverageGaps(args map[string]any, cfg Config) (*mcp.CallToolResult, 
 			return toolError("workspace_id required"), nil
 		}
 		workspaceID, _ = workspaces[0]["id"].(string)
+		if workspaceID == "" {
+			return toolError("API returned workspace without id field"), nil
+		}
 	}
 
 	client := newAPIClient(cfg.APIURL)

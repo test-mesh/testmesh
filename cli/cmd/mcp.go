@@ -45,7 +45,7 @@ Or with the full binary path:
 
 Available tools:
   analyze_service    Analyze a service directory — extracts endpoints, models, Kafka topics
-  generate_flow      Generate a full E2E flow YAML from a service directory
+  write_flow         Write a TestMesh flow YAML to disk
   run_flow           Execute a flow (YAML string or file path)
   validate_flow      Validate flow YAML without executing it
   list_flows         List flow files in a directory
