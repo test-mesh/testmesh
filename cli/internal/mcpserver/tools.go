@@ -765,3 +765,255 @@ func strArg(args map[string]any, key string) string {
 	v, _ := args[key].(string)
 	return v
 }
+
+// ---------------------------------------------------------------------------
+// list_workspaces
+// ---------------------------------------------------------------------------
+
+func toolListWorkspaces(args map[string]any, cfg Config) (*mcp.CallToolResult, error) {
+	if cfg.APIURL == "" {
+		return toolError("api-url not configured (pass --api-url or set TESTMESH_API_URL)"), nil
+	}
+	client := newAPIClient(cfg.APIURL)
+	workspaces, err := client.ListWorkspaces()
+	if err != nil {
+		return toolError(fmt.Sprintf("failed to list workspaces: %v", err)), nil
+	}
+
+	if len(workspaces) == 0 {
+		return toolContent("No workspaces found."), nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Found %d workspace(s):\n", len(workspaces)))
+	for _, ws := range workspaces {
+		id, _ := ws["id"].(string)
+		name, _ := ws["name"].(string)
+		sb.WriteString(fmt.Sprintf("  • %s  id=%s\n", name, id))
+	}
+	return toolContent(sb.String()), nil
+}
+
+// ---------------------------------------------------------------------------
+// upload_flow
+// ---------------------------------------------------------------------------
+
+func toolUploadFlow(args map[string]any, cfg Config) (*mcp.CallToolResult, error) {
+	if cfg.APIURL == "" {
+		return toolError("api-url not configured"), nil
+	}
+
+	yamlContent, _ := args["yaml"].(string)
+	if yamlContent == "" {
+		return toolError("yaml is required"), nil
+	}
+
+	workspaceID, _ := args["workspace_id"].(string)
+	if workspaceID == "" {
+		workspaceID = cfg.WorkspaceID
+	}
+	if workspaceID == "" {
+		client := newAPIClient(cfg.APIURL)
+		workspaces, err := client.ListWorkspaces()
+		if err != nil || len(workspaces) == 0 {
+			return toolError("workspace_id required (or configure --workspace-id)"), nil
+		}
+		workspaceID, _ = workspaces[0]["id"].(string)
+	}
+
+	client := newAPIClient(cfg.APIURL)
+	flowID, flowName, err := client.UploadFlow(workspaceID, yamlContent)
+	if err != nil {
+		return toolError(fmt.Sprintf("upload failed: %v", err)), nil
+	}
+
+	return toolContent(fmt.Sprintf("Flow uploaded successfully\n  Name: %s\n  ID:   %s\n  Workspace: %s", flowName, flowID, workspaceID)), nil
+}
+
+// ---------------------------------------------------------------------------
+// list_flows_api
+// ---------------------------------------------------------------------------
+
+func toolListFlowsAPI(args map[string]any, cfg Config) (*mcp.CallToolResult, error) {
+	if cfg.APIURL == "" {
+		return toolError("api-url not configured"), nil
+	}
+
+	workspaceID, _ := args["workspace_id"].(string)
+	if workspaceID == "" {
+		workspaceID = cfg.WorkspaceID
+	}
+	if workspaceID == "" {
+		client := newAPIClient(cfg.APIURL)
+		workspaces, err := client.ListWorkspaces()
+		if err != nil || len(workspaces) == 0 {
+			return toolError("workspace_id required"), nil
+		}
+		workspaceID, _ = workspaces[0]["id"].(string)
+	}
+
+	client := newAPIClient(cfg.APIURL)
+	flows, err := client.ListFlows(workspaceID)
+	if err != nil {
+		return toolError(fmt.Sprintf("failed to list flows: %v", err)), nil
+	}
+
+	if len(flows) == 0 {
+		return toolContent(fmt.Sprintf("No flows in workspace %s", workspaceID)), nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Found %d flow(s) in workspace %s:\n", len(flows), workspaceID))
+	for _, f := range flows {
+		id, _ := f["id"].(string)
+		name, _ := f["name"].(string)
+		sb.WriteString(fmt.Sprintf("  • %s  id=%s\n", name, id))
+	}
+	return toolContent(sb.String()), nil
+}
+
+// ---------------------------------------------------------------------------
+// trigger_execution
+// ---------------------------------------------------------------------------
+
+func toolTriggerExecution(args map[string]any, cfg Config) (*mcp.CallToolResult, error) {
+	if cfg.APIURL == "" {
+		return toolError("api-url not configured"), nil
+	}
+
+	flowID, _ := args["flow_id"].(string)
+	if flowID == "" {
+		return toolError("flow_id is required"), nil
+	}
+
+	workspaceID, _ := args["workspace_id"].(string)
+	if workspaceID == "" {
+		workspaceID = cfg.WorkspaceID
+	}
+	if workspaceID == "" {
+		client := newAPIClient(cfg.APIURL)
+		workspaces, err := client.ListWorkspaces()
+		if err != nil || len(workspaces) == 0 {
+			return toolError("workspace_id required"), nil
+		}
+		workspaceID, _ = workspaces[0]["id"].(string)
+	}
+
+	environment, _ := args["environment"].(string)
+	var variables map[string]string
+	if vars, ok := args["variables"].(map[string]any); ok {
+		variables = make(map[string]string, len(vars))
+		for k, v := range vars {
+			variables[k] = fmt.Sprintf("%v", v)
+		}
+	}
+
+	client := newAPIClient(cfg.APIURL)
+	executionID, err := client.TriggerExecution(workspaceID, flowID, environment, variables)
+	if err != nil {
+		return toolError(fmt.Sprintf("failed to trigger execution: %v", err)), nil
+	}
+
+	return toolContent(fmt.Sprintf("Execution started\n  Execution ID: %s\n  Flow ID:      %s\n\nUse get_execution with this ID to poll for results.", executionID, flowID)), nil
+}
+
+// ---------------------------------------------------------------------------
+// get_execution
+// ---------------------------------------------------------------------------
+
+func toolGetExecution(args map[string]any, cfg Config) (*mcp.CallToolResult, error) {
+	if cfg.APIURL == "" {
+		return toolError("api-url not configured"), nil
+	}
+
+	executionID, _ := args["execution_id"].(string)
+	if executionID == "" {
+		return toolError("execution_id is required"), nil
+	}
+
+	client := newAPIClient(cfg.APIURL)
+	execution, err := client.GetExecution(executionID)
+	if err != nil {
+		return toolError(fmt.Sprintf("failed to get execution: %v", err)), nil
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Execution: %s\n", executionID))
+
+	if status, ok := execution["status"].(string); ok {
+		icon := "..."
+		switch status {
+		case "passed", "completed", "success":
+			icon = "PASS"
+		case "failed", "error":
+			icon = "FAIL"
+		}
+		sb.WriteString(fmt.Sprintf("Status: [%s] %s\n", icon, status))
+	}
+	if dur, ok := execution["duration_ms"]; ok {
+		sb.WriteString(fmt.Sprintf("Duration: %vms\n", dur))
+	}
+	if total, ok := execution["total_steps"]; ok {
+		passed, _ := execution["passed"]
+		failed, _ := execution["failed"]
+		sb.WriteString(fmt.Sprintf("Steps: %v total, %v passed, %v failed\n", total, passed, failed))
+	}
+
+	// Render step detail if present
+	if steps, ok := execution["steps_detail"]; ok {
+		sb.WriteString("\nStep Results:\n")
+		stepList, _ := steps.([]any)
+		for _, s := range stepList {
+			step, _ := s.(map[string]any)
+			stepID, _ := step["step_id"].(string)
+			if stepID == "" {
+				stepID, _ = step["id"].(string)
+			}
+			action, _ := step["action"].(string)
+			stepStatus, _ := step["status"].(string)
+			dur, _ := step["duration_ms"]
+			icon := "PASS"
+			if stepStatus != "passed" && stepStatus != "completed" {
+				icon = "FAIL"
+			}
+			sb.WriteString(fmt.Sprintf("  [%s] %s (%s) — %vms\n", icon, stepID, action, dur))
+			if errMsg, _ := step["error"].(string); errMsg != "" {
+				sb.WriteString(fmt.Sprintf("     Error: %s\n", errMsg))
+			}
+		}
+	}
+
+	return toolContent(sb.String()), nil
+}
+
+// ---------------------------------------------------------------------------
+// get_coverage_gaps
+// ---------------------------------------------------------------------------
+
+func toolGetCoverageGaps(args map[string]any, cfg Config) (*mcp.CallToolResult, error) {
+	if cfg.APIURL == "" {
+		return toolError("api-url not configured"), nil
+	}
+
+	workspaceID, _ := args["workspace_id"].(string)
+	if workspaceID == "" {
+		workspaceID = cfg.WorkspaceID
+	}
+	if workspaceID == "" {
+		client := newAPIClient(cfg.APIURL)
+		workspaces, err := client.ListWorkspaces()
+		if err != nil || len(workspaces) == 0 {
+			return toolError("workspace_id required"), nil
+		}
+		workspaceID, _ = workspaces[0]["id"].(string)
+	}
+
+	client := newAPIClient(cfg.APIURL)
+	coverage, err := client.GetCoverageGaps(workspaceID)
+	if err != nil {
+		return toolError(fmt.Sprintf("failed to get coverage gaps: %v", err)), nil
+	}
+
+	out, _ := json.MarshalIndent(coverage, "", "  ")
+	return toolContent(fmt.Sprintf("Coverage gaps for workspace %s:\n%s", workspaceID, string(out))), nil
+}
