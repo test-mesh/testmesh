@@ -33,20 +33,6 @@ export default function ParallelForm({
         </p>
       </div>
 
-      {/* Wait for All */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-0.5">
-          <Label>Wait for All</Label>
-          <p className="text-xs text-muted-foreground">
-            Wait for all parallel steps to complete before continuing
-          </p>
-        </div>
-        <Switch
-          checked={(config.wait_for_all as boolean) ?? true}
-          onCheckedChange={(checked) => onChange('wait_for_all', checked)}
-        />
-      </div>
-
       {/* Fail Fast */}
       <div className="flex items-center justify-between">
         <div className="space-y-0.5">

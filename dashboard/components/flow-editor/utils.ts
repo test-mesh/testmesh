@@ -65,6 +65,7 @@ export const defaultConfigs: Record<ActionType, Record<string, any>> = {
     method: '',
     address: '',
     request: {},
+    streaming: true,
   },
   websocket: {
     url: '',
@@ -106,7 +107,6 @@ export const defaultConfigs: Record<ActionType, Record<string, any>> = {
     steps: [],
   },
   parallel: {
-    wait_for_all: true,
     fail_fast: false,
     max_concurrent: 0,
   },
