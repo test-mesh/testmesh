@@ -685,6 +685,10 @@ func (e *Executor) getActionHandler(actionType string) (actions.Handler, error) 
 		return actions.NewParallelHandler(e.logger, e), nil
 	case "wait_until":
 		return actions.NewWaitUntilHandler(e.logger), nil
+	case "contract_generate":
+		return actions.NewContractGenerateHandler(e.logger), nil
+	case "contract_verify":
+		return actions.NewContractVerifyHandler(e.logger), nil
 	case "run_flow":
 		return actions.NewRunFlowHandler(e.logger, e, e), nil
 	default:
