@@ -158,6 +158,10 @@ func (e *Executor) executeStepsWithoutPersistence(ctx context.Context, steps []m
 						zap.Error(err),
 					)
 					continue
+				case "fail":
+					// explicit fail — fall through to return error
+				default:
+					// unknown action — fail safe
 				}
 			}
 			return fmt.Errorf("step %s failed: %w", stepID, err)
@@ -375,6 +379,10 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 						zap.Error(err),
 					)
 					continue
+				case "fail":
+					// explicit fail — fall through to return error
+				default:
+					// unknown action — fail safe
 				}
 			}
 
@@ -850,6 +858,24 @@ func (e *Executor) ExecuteInline(definition *models.FlowDefinition, variables ma
 				stepID = fmt.Sprintf("step_%d", i+1)
 			}
 
+			// Evaluate when condition before executing the step
+			if step.When != "" {
+				shouldRun, evalErr := evalWhenCondition(step.When, execCtx)
+				if evalErr != nil {
+					e.logger.Warn("Failed to evaluate when condition, executing step anyway",
+						zap.String("step_id", stepID),
+						zap.String("when", step.When),
+						zap.Error(evalErr),
+					)
+				} else if !shouldRun {
+					e.logger.Debug("Skipping step: when condition evaluated to false",
+						zap.String("step_id", stepID),
+						zap.String("when", step.When),
+					)
+					continue
+				}
+			}
+
 			stepStart := time.Now()
 			output, err := e.executeStep(ctx, &step, execCtx)
 			sr := InlineStepResult{
@@ -868,6 +894,23 @@ func (e *Executor) ExecuteInline(definition *models.FlowDefinition, variables ma
 				result.Failed++
 				result.Steps = append(result.Steps, sr)
 				if ph.name != "teardown" {
+					// Handle on_error policy
+					if step.OnError != nil {
+						switch step.OnError.Action {
+						case "continue", "retry":
+							// Treat retry as continue for now (retry logic is handled by step.Retry)
+							e.logger.Warn("Step failed, continuing due to on_error policy",
+								zap.String("step_id", stepID),
+								zap.String("on_error_action", step.OnError.Action),
+								zap.Error(err),
+							)
+							continue
+						case "fail":
+							// explicit fail — fall through to return error
+						default:
+							// unknown action — fail safe
+						}
+					}
 					result.Status = "failed"
 					result.Error = fmt.Sprintf("[%s] step '%s' (%s): %s", ph.name, stepID, step.Action, err.Error())
 					result.TotalSteps = len(result.Steps)
