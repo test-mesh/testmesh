@@ -267,6 +267,139 @@ func WalkProtoFiles(dir string) []string {
 	return methods
 }
 
+// ProbePostgreSQL extracts PostgreSQL connection info from env vars.
+// Returns a slice with one element: the connection string + schema, for reporting.
+func ProbePostgreSQL(env map[string]string) []string {
+	host := firstNonEmpty(env["DB_HOST"], env["DATABASE_HOST"], "localhost")
+	port := firstNonEmpty(env["DB_PORT"], env["DATABASE_PORT"], "5432")
+	user := firstNonEmpty(env["DB_USER"], env["DATABASE_USER"], "postgres")
+	password := firstNonEmpty(env["DB_PASSWORD"], env["DATABASE_PASSWORD"], "")
+	dbname := firstNonEmpty(env["DB_NAME"], env["DATABASE_DBNAME"], "postgres")
+	schema := firstNonEmpty(env["DB_SCHEMA"], "public")
+	sslmode := firstNonEmpty(env["DB_SSLMODE"], "disable")
+
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslmode)
+
+	return []string{fmt.Sprintf("connection_string=%s schema=%s", connStr, schema)}
+}
+
+// ProbeKafka extracts Kafka broker addresses from env and returns them.
+func ProbeKafka(env map[string]string) []string {
+	brokers := firstNonEmpty(env["KAFKA_BROKERS"], env["KAFKA_BOOTSTRAP_SERVERS"], "")
+	if brokers == "" {
+		return nil
+	}
+	return strings.Split(brokers, ",")
+}
+
+// ProbeRedis extracts Redis address from env.
+func ProbeRedis(env map[string]string) string {
+	host := firstNonEmpty(env["REDIS_HOST"], "localhost")
+	port := firstNonEmpty(env["REDIS_PORT"], "6379")
+	return fmt.Sprintf("%s:%s", host, port)
+}
+
+// ProbeNeo4j extracts Neo4j connection details from env.
+func ProbeNeo4j(env map[string]string) (uri, user, password string) {
+	uri = firstNonEmpty(env["NEO4J_URI"], env["NEO4J_BOLT_URL"], "bolt://neo4j:7687")
+	user = firstNonEmpty(env["NEO4J_USER"], env["NEO4J_USERNAME"], "neo4j")
+	password = firstNonEmpty(env["NEO4J_PASSWORD"], "")
+	return
+}
+
+// ProbeMinio extracts MinIO connection details from env.
+func ProbeMinio(env map[string]string) (endpoint, accessKey, secretKey string) {
+	endpoint = firstNonEmpty(env["MINIO_ENDPOINT"], "minio:9000")
+	accessKey = firstNonEmpty(env["MINIO_ACCESS_KEY"], env["MINIO_ROOT_USER"], "minioadmin")
+	secretKey = firstNonEmpty(env["MINIO_SECRET_KEY"], env["MINIO_ROOT_PASSWORD"], "minioadmin")
+	return
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// DiscoverFromDockerCompose parses a docker-compose file and produces a discovery
+// report for all services including inferred infrastructure connections.
+func DiscoverFromDockerCompose(composePath string) (string, error) {
+	services, err := ParseDockerCompose(composePath)
+	if err != nil {
+		return "", err
+	}
+
+	composeDir := filepath.Dir(composePath)
+	var sb strings.Builder
+	sb.WriteString("# Auto-Discovery Report\n")
+	sb.WriteString(fmt.Sprintf("Source: %s\n", composePath))
+	sb.WriteString(fmt.Sprintf("Services found: %d\n\n", len(services)))
+
+	for _, svc := range services {
+		sb.WriteString(fmt.Sprintf("## Service: %s\n", svc.Name))
+
+		// Extract port bindings for HTTP probing
+		for _, portBinding := range svc.Ports {
+			parts := strings.Split(portBinding, ":")
+			if len(parts) >= 2 {
+				hostPort := strings.TrimPrefix(parts[0], "${")
+				// Clean up ${VAR:-port}:containerPort format
+				if idx := strings.Index(hostPort, ":-"); idx != -1 {
+					hostPort = hostPort[idx+2:]
+					hostPort = strings.TrimSuffix(hostPort, "}")
+				}
+				sb.WriteString(fmt.Sprintf("  Port: %s → container %s\n", hostPort, parts[len(parts)-1]))
+			}
+		}
+
+		// Walk .proto files if build context is known
+		if svc.BuildCtx != "" {
+			buildDir := svc.BuildCtx
+			if !filepath.IsAbs(buildDir) {
+				buildDir = filepath.Join(composeDir, buildDir)
+			}
+			methods := WalkProtoFiles(buildDir)
+			if len(methods) > 0 {
+				sb.WriteString(fmt.Sprintf("  gRPC methods: %s\n", strings.Join(methods, ", ")))
+			}
+		}
+
+		// Infer infrastructure from env vars
+		env := svc.Environment
+
+		if brokers := ProbeKafka(env); len(brokers) > 0 {
+			sb.WriteString(fmt.Sprintf("  Kafka brokers: %s\n", strings.Join(brokers, ", ")))
+		}
+
+		if _, ok := env["REDIS_HOST"]; ok {
+			sb.WriteString(fmt.Sprintf("  Redis: %s\n", ProbeRedis(env)))
+		}
+
+		if _, hasDBHost := env["DB_HOST"]; hasDBHost {
+			infos := ProbePostgreSQL(env)
+			sb.WriteString(fmt.Sprintf("  PostgreSQL: %s\n", strings.Join(infos, " ")))
+		}
+
+		if _, hasNeo4j := env["NEO4J_URI"]; hasNeo4j {
+			uri, user, _ := ProbeNeo4j(env)
+			sb.WriteString(fmt.Sprintf("  Neo4j: %s (user=%s)\n", uri, user))
+		}
+
+		if _, hasMinio := env["MINIO_ENDPOINT"]; hasMinio {
+			endpoint, accessKey, _ := ProbeMinio(env)
+			sb.WriteString(fmt.Sprintf("  MinIO: %s (access_key=%s)\n", endpoint, accessKey))
+		}
+
+		sb.WriteString("\n")
+	}
+
+	return sb.String(), nil
+}
+
 // DiscoveryReport produces a human-readable discovery report for a service.
 func DiscoveryReport(svc *DiscoveredService) string {
 	var sb strings.Builder
