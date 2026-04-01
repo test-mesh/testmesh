@@ -253,6 +253,100 @@ Returns the step status, error details with actual values if assertions fail, an
 				"required": []string{"directory"},
 			},
 		},
+
+		// ── API-connected tools ───────────────────────────────────────────────
+		{
+			"name":        "list_workspaces",
+			"description": "List all workspaces in the TestMesh API. Use this first to get a workspace_id for other API tools.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
+			},
+		},
+		{
+			"name":        "upload_flow",
+			"description": "Upload a TestMesh flow YAML to the TestMesh API. The flow appears in the dashboard and can be triggered via trigger_execution. Returns the flow ID.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"yaml": map[string]any{
+						"type":        "string",
+						"description": "Complete TestMesh flow YAML including the 'flow:' root key",
+					},
+					"workspace_id": map[string]any{
+						"type":        "string",
+						"description": "Workspace ID (uses --workspace-id default if omitted, or auto-discovers first workspace)",
+					},
+				},
+				"required": []string{"yaml"},
+			},
+		},
+		{
+			"name":        "list_flows_api",
+			"description": "List flows stored in the TestMesh API for a workspace. Use this to get flow IDs before calling trigger_execution.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"workspace_id": map[string]any{
+						"type":        "string",
+						"description": "Workspace ID (uses --workspace-id default if omitted)",
+					},
+				},
+			},
+		},
+		{
+			"name":        "trigger_execution",
+			"description": "Trigger execution of a flow stored in the TestMesh API. Returns an execution_id. Poll with get_execution to see results.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"flow_id": map[string]any{
+						"type":        "string",
+						"description": "Flow ID from upload_flow or list_flows_api",
+					},
+					"workspace_id": map[string]any{
+						"type":        "string",
+						"description": "Workspace ID (uses --workspace-id default if omitted)",
+					},
+					"environment": map[string]any{
+						"type":        "string",
+						"description": "Environment name to use for this execution (optional)",
+					},
+					"variables": map[string]any{
+						"type":        "object",
+						"description": "Override variables for this execution (optional)",
+					},
+				},
+				"required": []string{"flow_id"},
+			},
+		},
+		{
+			"name":        "get_execution",
+			"description": "Get the full result of a TestMesh execution including per-step pass/fail, duration, and error details.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"execution_id": map[string]any{
+						"type":        "string",
+						"description": "Execution ID from trigger_execution",
+					},
+				},
+				"required": []string{"execution_id"},
+			},
+		},
+		{
+			"name":        "get_coverage_gaps",
+			"description": "Get uncovered graph nodes for a workspace — shows what parts of the system have no test coverage. Returns coverage percentage and a list of uncovered endpoints/operations.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"workspace_id": map[string]any{
+						"type":        "string",
+						"description": "Workspace ID (uses --workspace-id default if omitted)",
+					},
+				},
+			},
+		},
 	}
 }
 
