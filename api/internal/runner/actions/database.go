@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
@@ -53,6 +54,33 @@ func (h *DatabaseHandler) Execute(ctx context.Context, config map[string]interfa
 		}
 	}
 
+	// Apply timeout if configured
+	if timeoutVal, ok := config["timeout"]; ok {
+		if timeoutStr, ok := timeoutVal.(string); ok && timeoutStr != "" {
+			duration, err := time.ParseDuration(timeoutStr)
+			if err != nil {
+				return nil, fmt.Errorf("invalid timeout value %q: %w", timeoutStr, err)
+			}
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, duration)
+			defer cancel()
+		}
+	}
+
+	// Apply max_rows: append LIMIT to SELECT queries
+	if maxRowsVal, ok := config["max_rows"]; ok {
+		var maxRows int
+		switch v := maxRowsVal.(type) {
+		case float64:
+			maxRows = int(v)
+		case int:
+			maxRows = v
+		}
+		if maxRows > 0 && strings.HasPrefix(strings.TrimSpace(strings.ToUpper(query)), "SELECT") {
+			query = fmt.Sprintf("%s LIMIT %d", strings.TrimRight(query, " \t\n\r"), maxRows)
+		}
+	}
+
 	// Connect to database
 	db, err := h.connect(dsn)
 	if err != nil {
@@ -65,6 +93,9 @@ func (h *DatabaseHandler) Execute(ctx context.Context, config map[string]interfa
 		return nil, fmt.Errorf("failed to get database instance: %w", err)
 	}
 	defer sqlDB.Close()
+
+	// Attach context to GORM session so the deadline is respected
+	db = db.WithContext(ctx)
 
 	// Determine query type
 	queryType := h.determineQueryType(query)

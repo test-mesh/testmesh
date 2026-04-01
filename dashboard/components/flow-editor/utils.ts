@@ -36,6 +36,8 @@ export const defaultConfigs: Record<ActionType, Record<string, any>> = {
     connection: '',
     query: '',
     params: [],
+    max_rows: 0,
+    timeout: '',
   },
   kafka_producer: {
     brokers: ['localhost:9092'],

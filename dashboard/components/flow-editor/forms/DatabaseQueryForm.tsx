@@ -1,33 +1,16 @@
 'use client';
 
-import { Database, Play, Clock, CheckCircle } from 'lucide-react';
+import { Database, CheckCircle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import KeyValueEditor from './KeyValueEditor';
 
 interface DatabaseQueryFormProps {
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
   className?: string;
 }
-
-const DATABASE_TYPES = [
-  { value: 'postgresql', label: 'PostgreSQL' },
-  { value: 'mysql', label: 'MySQL' },
-  { value: 'sqlite', label: 'SQLite' },
-  { value: 'mongodb', label: 'MongoDB' },
-  { value: 'redis', label: 'Redis' },
-];
 
 export default function DatabaseQueryForm({
   config,
@@ -54,28 +37,16 @@ export default function DatabaseQueryForm({
 
       <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
         <p className="text-sm text-blue-900 dark:text-blue-300">
-          Execute SQL queries or database operations with parameterized queries and polling support.
+          Execute SQL queries against a PostgreSQL database with parameterized query support.
         </p>
       </div>
 
-      {/* Database Type */}
+      {/* Database Type (static) */}
       <div className="space-y-2">
-        <Label htmlFor="db_type">Database Type</Label>
-        <Select
-          value={(config.db_type as string) || 'postgresql'}
-          onValueChange={(v) => onChange('db_type', v)}
-        >
-          <SelectTrigger id="db_type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DATABASE_TYPES.map((type) => (
-              <SelectItem key={type.value} value={type.value}>
-                {type.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label>Database Type</Label>
+        <div className="px-3 py-2 rounded-md border bg-muted/40 text-sm text-muted-foreground">
+          PostgreSQL
+        </div>
       </div>
 
       {/* Connection String */}
@@ -105,7 +76,7 @@ export default function DatabaseQueryForm({
           className="font-mono text-sm"
         />
         <p className="text-xs text-muted-foreground">
-          Use $1, $2, etc. for PostgreSQL or ? for MySQL placeholders
+          Use $1, $2, etc. for parameterized placeholders. Query type is auto-detected (SELECT / INSERT / UPDATE / DELETE).
         </p>
       </div>
 
@@ -125,107 +96,6 @@ export default function DatabaseQueryForm({
         </p>
       </div>
 
-      {/* Query Type */}
-      <div className="space-y-2">
-        <Label htmlFor="query_type">Query Type</Label>
-        <Select
-          value={(config.query_type as string) || 'query'}
-          onValueChange={(v) => onChange('query_type', v)}
-        >
-          <SelectTrigger id="query_type">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="query">
-              <div>
-                <div className="font-medium">Query (Read)</div>
-                <div className="text-xs text-muted-foreground">
-                  SELECT statements, returns rows
-                </div>
-              </div>
-            </SelectItem>
-            <SelectItem value="exec">
-              <div>
-                <div className="font-medium">Exec (Write)</div>
-                <div className="text-xs text-muted-foreground">
-                  INSERT, UPDATE, DELETE statements
-                </div>
-              </div>
-            </SelectItem>
-            <SelectItem value="transaction">
-              <div>
-                <div className="font-medium">Transaction</div>
-                <div className="text-xs text-muted-foreground">
-                  Execute multiple queries in a transaction
-                </div>
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Polling Configuration */}
-      <details className="space-y-3 p-3 border rounded-lg">
-        <summary className="text-sm font-medium cursor-pointer flex items-center gap-2">
-          <Clock className="h-4 w-4" />
-          Polling Configuration (Optional)
-        </summary>
-        <div className="pt-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Enable Polling</Label>
-              <p className="text-xs text-muted-foreground">
-                Re-run query until condition is met
-              </p>
-            </div>
-            <Switch
-              checked={(config.poll as boolean) || false}
-              onCheckedChange={(checked) => onChange('poll', checked)}
-            />
-          </div>
-
-          {(config.poll as boolean) && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="poll_until">Poll Until (Condition)</Label>
-                <Input
-                  id="poll_until"
-                  value={(config.poll_until as string) || ''}
-                  onChange={(e) => onChange('poll_until', e.target.value)}
-                  placeholder="$.rows.length > 0"
-                  className="font-mono text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  JSONPath condition to stop polling
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="poll_interval">Poll Interval</Label>
-                <Input
-                  id="poll_interval"
-                  value={(config.poll_interval as string) || '2s'}
-                  onChange={(e) => onChange('poll_interval', e.target.value)}
-                  placeholder="2s"
-                  className="font-mono text-sm"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="poll_timeout">Poll Timeout</Label>
-                <Input
-                  id="poll_timeout"
-                  value={(config.poll_timeout as string) || '30s'}
-                  onChange={(e) => onChange('poll_timeout', e.target.value)}
-                  placeholder="30s"
-                  className="font-mono text-sm"
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </details>
-
       {/* Advanced Options */}
       <details className="space-y-3 p-3 border rounded-lg">
         <summary className="text-sm font-medium cursor-pointer">
@@ -244,22 +114,7 @@ export default function DatabaseQueryForm({
               placeholder="0 (unlimited)"
             />
             <p className="text-xs text-muted-foreground">
-              Limit number of rows returned. 0 = unlimited.
-            </p>
-          </div>
-
-          {/* Row Mapping */}
-          <div className="space-y-2">
-            <Label htmlFor="row_mapper">Row Mapping (JSONPath)</Label>
-            <Input
-              id="row_mapper"
-              value={(config.row_mapper as string) || ''}
-              onChange={(e) => onChange('row_mapper', e.target.value)}
-              placeholder="$.rows[*].{id: id, name: name}"
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Transform query results using JSONPath
+              Limit rows returned for SELECT queries. 0 = unlimited. Appends LIMIT automatically.
             </p>
           </div>
 
@@ -268,28 +123,24 @@ export default function DatabaseQueryForm({
             <Label htmlFor="timeout">Query Timeout</Label>
             <Input
               id="timeout"
-              value={(config.timeout as string) || '30s'}
+              value={(config.timeout as string) || ''}
               onChange={(e) => onChange('timeout', e.target.value)}
               placeholder="30s"
               className="font-mono text-sm"
             />
-          </div>
-
-          {/* Read-only Mode */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Read-only Mode</Label>
-              <p className="text-xs text-muted-foreground">
-                Prevent any write operations
-              </p>
-            </div>
-            <Switch
-              checked={(config.read_only as boolean) || false}
-              onCheckedChange={(checked) => onChange('read_only', checked)}
-            />
+            <p className="text-xs text-muted-foreground">
+              Cancel the query after this duration (e.g. <span className="font-mono">10s</span>, <span className="font-mono">1m</span>). Leave blank for no timeout.
+            </p>
           </div>
         </div>
       </details>
+
+      {/* Polling hint */}
+      <div className="p-3 bg-muted/30 border rounded-lg">
+        <p className="text-xs text-muted-foreground">
+          For polling queries, use the <span className="font-mono">db_poll</span> action instead.
+        </p>
+      </div>
 
       {/* Examples */}
       <details className="space-y-2 p-3 border rounded-lg">
@@ -315,11 +166,10 @@ export default function DatabaseQueryForm({
           </div>
 
           <div>
-            <p className="font-medium mb-1">3. Poll Until Record Exists</p>
+            <p className="font-medium mb-1">3. Limited Select</p>
             <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
-              <div>Query: SELECT * FROM jobs WHERE id = $1</div>
-              <div>Poll Until: $.rows[0].status == "completed"</div>
-              <div>Interval: 2s, Timeout: 30s</div>
+              <div>Query: SELECT * FROM audit_log ORDER BY created_at DESC</div>
+              <div>Max Rows: 100</div>
             </div>
           </div>
         </div>
@@ -332,9 +182,10 @@ export default function DatabaseQueryForm({
           Output Format
         </div>
         <div className="text-xs text-muted-foreground space-y-1">
-          <div>• <span className="font-mono">rows</span> - Array of result rows</div>
-          <div>• <span className="font-mono">rowCount</span> - Number of rows affected</div>
-          <div>• <span className="font-mono">fields</span> - Column metadata</div>
+          <div>• <span className="font-mono">rows</span> - Array of result rows (SELECT)</div>
+          <div>• <span className="font-mono">row_count</span> - Number of rows returned</div>
+          <div>• <span className="font-mono">first_row</span> - First result row (convenience)</div>
+          <div>• <span className="font-mono">rows_affected</span> - Rows affected (INSERT/UPDATE/DELETE)</div>
         </div>
       </div>
     </div>
