@@ -10,6 +10,7 @@ import (
 	"time"
 	"order-service/clients"
 	"order-service/database"
+	"order-service/graph"
 	"order-service/handlers"
 	"order-service/kafka"
 	serviceMetrics "order-service/metrics"
@@ -55,10 +56,18 @@ func main() {
 		defer shutdownTracer(context.Background())
 	}
 
+	graphClient, err := graph.NewClient()
+	if err != nil {
+		logger.Warn("neo4j unavailable, graph features disabled", zap.Error(err))
+		graphClient = nil
+	} else {
+		defer graphClient.Close(context.Background())
+	}
+
 	userClient := clients.NewUserClient()
 	productClient := clients.NewProductClient()
 
-	orderHandler := handlers.NewOrderHandler(db, redisClient, kafkaProducer, userClient, productClient)
+	orderHandler := handlers.NewOrderHandler(db, redisClient, kafkaProducer, userClient, productClient, graphClient, logger)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -79,6 +88,7 @@ func main() {
 		api.POST("/orders", orderHandler.CreateOrder)
 		api.GET("/orders/:id", orderHandler.GetOrder)
 		api.GET("/orders", orderHandler.ListOrders)
+		api.GET("/orders/graph/user/:user_id", orderHandler.GetUserPurchaseGraph)
 	}
 
 	port := os.Getenv("PORT")

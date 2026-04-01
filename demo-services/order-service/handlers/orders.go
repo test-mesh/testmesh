@@ -1,15 +1,18 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"order-service/clients"
+	"order-service/graph"
 	"order-service/kafka"
 	"order-service/models"
 	redisclient "order-service/redis"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -19,6 +22,8 @@ type OrderHandler struct {
 	kafkaProducer *kafka.Producer
 	userClient    *clients.UserClient
 	productClient *clients.ProductClient
+	graphClient   *graph.Client
+	logger        *zap.Logger
 }
 
 func NewOrderHandler(
@@ -27,6 +32,8 @@ func NewOrderHandler(
 	kafkaProducer *kafka.Producer,
 	userClient *clients.UserClient,
 	productClient *clients.ProductClient,
+	graphClient *graph.Client,
+	logger *zap.Logger,
 ) *OrderHandler {
 	return &OrderHandler{
 		db:            db,
@@ -34,6 +41,8 @@ func NewOrderHandler(
 		kafkaProducer: kafkaProducer,
 		userClient:    userClient,
 		productClient: productClient,
+		graphClient:   graphClient,
+		logger:        logger,
 	}
 }
 
@@ -121,6 +130,19 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	// Publish Kafka event
 	_ = h.kafkaProducer.PublishOrderPlaced(c.Request.Context(), order.ID, order.UserID, kafkaItems, order.Total)
 
+	// Write PURCHASED graph edges to Neo4j (non-blocking, best-effort)
+	if h.graphClient != nil {
+		var productIDs []string
+		for _, item := range order.Items {
+			productIDs = append(productIDs, item.ProductID)
+		}
+		go func() {
+			if err := h.graphClient.CreatePurchasedEdges(context.Background(), order.ID, order.UserID, productIDs); err != nil {
+				h.logger.Warn("failed to write graph edges", zap.String("order_id", order.ID), zap.Error(err))
+			}
+		}()
+	}
+
 	c.JSON(http.StatusCreated, order)
 }
 
@@ -169,4 +191,18 @@ func (h *OrderHandler) ListOrders(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"orders": orders})
+}
+
+func (h *OrderHandler) GetUserPurchaseGraph(c *gin.Context) {
+	userID := c.Param("user_id")
+	if h.graphClient == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "graph client not available"})
+		return
+	}
+	nodes, edges, err := h.graphClient.GetUserPurchaseGraph(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("graph query failed: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"nodes": nodes, "edges": edges})
 }
