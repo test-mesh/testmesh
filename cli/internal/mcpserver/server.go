@@ -10,8 +10,14 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// Config holds runtime configuration for the MCP server.
+type Config struct {
+	APIURL      string // TestMesh API base URL, e.g. http://localhost:5016
+	WorkspaceID string // Default workspace ID (auto-discovered if empty)
+}
+
 // Run starts the TestMesh MCP server over stdio using the official Go MCP SDK.
-func Run() error {
+func Run(cfg Config) error {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    "testmesh",
 		Version: "1.0.0",
@@ -25,7 +31,7 @@ func Run() error {
 			Name:        name,
 			Description: desc,
 			InputSchema: schema,
-		}, makeHandler(name))
+		}, makeHandler(name, cfg))
 	}
 
 	return s.Run(context.Background(), &mcp.StdioTransport{})
@@ -33,7 +39,7 @@ func Run() error {
 
 // makeHandler returns a ToolHandler that parses raw JSON arguments and
 // delegates to the named tool implementation.
-func makeHandler(toolName string) mcp.ToolHandler {
+func makeHandler(toolName string, cfg Config) mcp.ToolHandler {
 	return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		var args map[string]any
 		if len(req.Params.Arguments) > 0 {
@@ -42,12 +48,12 @@ func makeHandler(toolName string) mcp.ToolHandler {
 		if args == nil {
 			args = map[string]any{}
 		}
-		return dispatchTool(toolName, args)
+		return dispatchTool(toolName, args, cfg)
 	}
 }
 
 // dispatchTool routes a tool call to its implementation.
-func dispatchTool(name string, args map[string]any) (*mcp.CallToolResult, error) {
+func dispatchTool(name string, args map[string]any, cfg Config) (*mcp.CallToolResult, error) {
 	switch name {
 	case "analyze_service":
 		return toolAnalyzeService(args)
@@ -69,6 +75,18 @@ func dispatchTool(name string, args map[string]any) (*mcp.CallToolResult, error)
 		return toolGetYAMLSchema()
 	case "get_action_types":
 		return toolGetActionTypes()
+	case "list_workspaces":
+		return toolListWorkspaces(args, cfg)
+	case "upload_flow":
+		return toolUploadFlow(args, cfg)
+	case "list_flows_api":
+		return toolListFlowsAPI(args, cfg)
+	case "trigger_execution":
+		return toolTriggerExecution(args, cfg)
+	case "get_execution":
+		return toolGetExecution(args, cfg)
+	case "get_coverage_gaps":
+		return toolGetCoverageGaps(args, cfg)
 	default:
 		return toolError("unknown tool: " + name), nil
 	}

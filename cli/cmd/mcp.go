@@ -7,6 +7,11 @@ import (
 	"github.com/test-mesh/testmesh/cli/internal/mcpserver"
 )
 
+var (
+	mcpAPIURL      string
+	mcpWorkspaceID string
+)
+
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
 	Short: "Start the TestMesh MCP server (stdio)",
@@ -44,13 +49,24 @@ Available tools:
   run_flow           Execute a flow (YAML string or file path)
   validate_flow      Validate flow YAML without executing it
   list_flows         List flow files in a directory
-  get_action_types   Return all supported action types with their config schemas`,
+  get_action_types   Return all supported action types with their config schemas
+  list_workspaces    List workspaces in the TestMesh API
+  upload_flow        Upload a flow YAML to the TestMesh API
+  list_flows_api     List flows stored in the TestMesh API
+  trigger_execution  Trigger execution of a flow via the TestMesh API
+  get_execution      Get execution results including per-step detail
+  get_coverage_gaps  Get uncovered graph nodes for a workspace`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(cmd.ErrOrStderr(), "TestMesh MCP server started (stdio)")
-		return mcpserver.Run()
+		return mcpserver.Run(mcpserver.Config{
+			APIURL:      mcpAPIURL,
+			WorkspaceID: mcpWorkspaceID,
+		})
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(mcpCmd)
+	mcpCmd.Flags().StringVar(&mcpAPIURL, "api-url", "http://localhost:5016", "TestMesh API base URL")
+	mcpCmd.Flags().StringVar(&mcpWorkspaceID, "workspace-id", "", "Default workspace ID (auto-discovered if empty)")
 }
