@@ -75,8 +75,14 @@ func (kp *KafkaProducer) Produce(_ context.Context) (*KafkaProducerResult, error
 			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
 		case "SCRAM-SHA-256":
 			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+			saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &XDGSCRAMClient{HashGeneratorFcn: SHA256}
+			}
 		case "SCRAM-SHA-512":
 			saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+			saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
+			}
 		}
 	}
 
