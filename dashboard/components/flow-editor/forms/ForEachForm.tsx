@@ -1,90 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { Repeat, Plus, Trash2 } from 'lucide-react';
+import { Repeat } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import StepList from './StepList';
 
 interface ForEachFormProps {
   config: Record<string, unknown>;
   onChange: (key: string, value: unknown) => void;
   className?: string;
-}
-
-function StepList({
-  steps,
-  onAdd,
-  onRemove,
-}: {
-  steps: string[];
-  onAdd: (id: string) => void;
-  onRemove: (index: number) => void;
-}) {
-  const [inputValue, setInputValue] = useState('');
-
-  const handleAdd = () => {
-    const trimmed = inputValue.trim();
-    if (!trimmed) return;
-    onAdd(trimmed);
-    setInputValue('');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAdd();
-    }
-  };
-
-  return (
-    <div className="space-y-2">
-      {steps.length > 0 ? (
-        <ol className="space-y-1 mb-2">
-          {steps.map((stepId, i) => (
-            <li key={i} className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-5 text-right shrink-0">
-                {i + 1}.
-              </span>
-              <span className="font-mono text-xs flex-1 bg-muted rounded px-2 py-1 truncate">
-                {stepId}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={() => onRemove(i)}
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="text-xs text-muted-foreground italic mb-2">No steps added yet.</p>
-      )}
-      <div className="flex gap-1">
-        <Input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="step_id"
-          className="h-7 text-xs font-mono flex-1"
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 px-2 text-xs shrink-0"
-          onClick={handleAdd}
-        >
-          <Plus className="w-3 h-3 mr-1" />
-          Add
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 export default function ForEachForm({
@@ -93,10 +19,6 @@ export default function ForEachForm({
   className,
 }: ForEachFormProps) {
   const steps = Array.isArray(config.steps) ? (config.steps as string[]) : [];
-
-  const addStep = (id: string) => onChange('steps', [...steps, id]);
-  const removeStep = (index: number) =>
-    onChange('steps', steps.filter((_, i) => i !== index));
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -149,14 +71,10 @@ export default function ForEachForm({
           id="foreach-max-iterations"
           type="number"
           min={0}
-          value={
-            config.max_iterations !== undefined && config.max_iterations !== null
-              ? String(config.max_iterations)
-              : ''
-          }
+          value={config.max_iterations ? String(config.max_iterations) : ''}
           onChange={(e) => {
             const val = e.target.value;
-            onChange('max_iterations', val === '' ? 0 : Number(val));
+            onChange('max_iterations', val === '' ? undefined : Number(val));
           }}
           placeholder="0 (unlimited)"
           className="font-mono text-sm"
@@ -203,7 +121,11 @@ export default function ForEachForm({
           Loop steps
         </summary>
         <div className="pt-3">
-          <StepList steps={steps} onAdd={addStep} onRemove={removeStep} />
+          <StepList
+            label="Loop steps"
+            steps={steps}
+            onChange={(updated) => onChange('steps', updated)}
+          />
           <p className="text-[10px] text-muted-foreground mt-2">
             Steps executed for each item in the collection. Use {'${item}'} to access the current value.
           </p>
