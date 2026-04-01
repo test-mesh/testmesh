@@ -2,8 +2,11 @@ package async
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -79,7 +82,29 @@ func (kp *KafkaProducer) Produce(_ context.Context) (*KafkaProducerResult, error
 
 	// TLS
 	if kp.config.TLS != nil && kp.config.TLS.Enabled {
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: kp.config.TLS.InsecureSkipVerify,
+		}
+		if kp.config.TLS.CertFile != "" && kp.config.TLS.KeyFile != "" {
+			cert, err := tls.LoadX509KeyPair(kp.config.TLS.CertFile, kp.config.TLS.KeyFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load TLS cert/key: %w", err)
+			}
+			tlsCfg.Certificates = []tls.Certificate{cert}
+		}
+		if kp.config.TLS.CAFile != "" {
+			caPEM, err := os.ReadFile(kp.config.TLS.CAFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read CA file: %w", err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caPEM) {
+				return nil, fmt.Errorf("failed to parse CA certificate")
+			}
+			tlsCfg.RootCAs = pool
+		}
 		saramaConfig.Net.TLS.Enable = true
+		saramaConfig.Net.TLS.Config = tlsCfg
 	}
 
 	producer, err := sarama.NewSyncProducer(kp.config.Brokers, saramaConfig)

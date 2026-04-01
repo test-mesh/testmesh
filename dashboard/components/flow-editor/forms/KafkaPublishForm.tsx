@@ -190,7 +190,7 @@ export default function KafkaPublishForm({
                   if (v === 'none') {
                     onChange('sasl', undefined);
                   } else {
-                    onChange('sasl', { mechanism: v });
+                    onChange('sasl', { ...(config.sasl as object || {}), mechanism: v });
                   }
                 }}
               >

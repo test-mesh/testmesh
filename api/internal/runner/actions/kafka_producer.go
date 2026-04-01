@@ -122,5 +122,26 @@ func parseKafkaProducerConfig(config map[string]interface{}) (*async.KafkaProduc
 		cfg.Compression = v
 	}
 
+	// TLS
+	if tlsRaw, ok := config["tls"].(map[string]interface{}); ok {
+		tlsCfg := &async.TLSConfig{}
+		if v, ok := tlsRaw["enabled"].(bool); ok {
+			tlsCfg.Enabled = v
+		}
+		if v, ok := tlsRaw["insecure_skip_verify"].(bool); ok {
+			tlsCfg.InsecureSkipVerify = v
+		}
+		if v, ok := tlsRaw["cert_file"].(string); ok {
+			tlsCfg.CertFile = v
+		}
+		if v, ok := tlsRaw["key_file"].(string); ok {
+			tlsCfg.KeyFile = v
+		}
+		if v, ok := tlsRaw["ca_file"].(string); ok {
+			tlsCfg.CAFile = v
+		}
+		cfg.TLS = tlsCfg
+	}
+
 	return cfg, nil
 }
