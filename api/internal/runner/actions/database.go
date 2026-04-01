@@ -77,7 +77,10 @@ func (h *DatabaseHandler) Execute(ctx context.Context, config map[string]interfa
 			maxRows = v
 		}
 		if maxRows > 0 && strings.HasPrefix(strings.TrimSpace(strings.ToUpper(query)), "SELECT") {
-			query = fmt.Sprintf("%s LIMIT %d", strings.TrimRight(query, " \t\n\r"), maxRows)
+			upperQuery := strings.ToUpper(query)
+			if !strings.Contains(upperQuery, " LIMIT ") {
+				query = strings.TrimRight(query, " \t\n\r;") + fmt.Sprintf(" LIMIT %d", maxRows)
+			}
 		}
 	}
 
@@ -112,7 +115,7 @@ func (h *DatabaseHandler) Execute(ctx context.Context, config map[string]interfa
 	case "INSERT", "UPDATE", "DELETE":
 		return h.executeModify(db, query, params)
 	default:
-		return h.executeRaw(ctx, db, query, params)
+		return h.executeRaw(ctx, sqlDB, query, params)
 	}
 }
 
@@ -183,20 +186,31 @@ func (h *DatabaseHandler) executeSelect(db *gorm.DB, query string, params []inte
 
 			// Normalize DB values: byte slices and strings that look numeric
 			// get converted to int64 or float64 for use in assertions.
-			var s string
 			switch v := val.(type) {
 			case []byte:
-				s = string(v)
-			case string:
-				s = v
-			}
-			if s != "" {
-				if i64, err := strconv.ParseInt(s, 10, 64); err == nil {
-					val = i64
-				} else if f64, err := strconv.ParseFloat(s, 64); err == nil {
-					val = f64
+				s := string(v)
+				if s != "" {
+					if i64, err := strconv.ParseInt(s, 10, 64); err == nil {
+						val = i64
+					} else if f64, err := strconv.ParseFloat(s, 64); err == nil {
+						val = f64
+					} else {
+						val = s
+					}
 				} else {
 					val = s
+				}
+			case string:
+				if v != "" {
+					if i64, err := strconv.ParseInt(v, 10, 64); err == nil {
+						val = i64
+					} else if f64, err := strconv.ParseFloat(v, 64); err == nil {
+						val = f64
+					} else {
+						val = v
+					}
+				} else {
+					val = v
 				}
 			}
 
@@ -251,11 +265,10 @@ func (h *DatabaseHandler) executeModify(db *gorm.DB, query string, params []inte
 }
 
 // executeRaw executes other types of queries
-func (h *DatabaseHandler) executeRaw(ctx context.Context, db *gorm.DB, query string, params []interface{}) (models.OutputData, error) {
+func (h *DatabaseHandler) executeRaw(ctx context.Context, sqlDB *sql.DB, query string, params []interface{}) (models.OutputData, error) {
 	var result sql.Result
 	var err error
 
-	sqlDB, _ := db.DB()
 	result, err = sqlDB.ExecContext(ctx, query, params...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
