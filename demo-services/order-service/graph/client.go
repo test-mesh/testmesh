@@ -35,6 +35,13 @@ func NewClient() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create neo4j driver: %w", err)
 	}
+
+	// Verify connectivity on startup (consistent with other clients in this service)
+	if err := driver.VerifyConnectivity(context.Background()); err != nil {
+		driver.Close(context.Background())
+		return nil, fmt.Errorf("failed to connect to neo4j: %w", err)
+	}
+
 	return &Client{driver: driver}, nil
 }
 
@@ -112,9 +119,12 @@ func (c *Client) GetUserPurchaseGraph(ctx context.Context, userID string) ([]Pur
 	nodeSet := map[string]PurchaseNode{}
 	var edges []PurchaseEdge
 	for _, rec := range records {
-		uid, _ := rec.Get("user_id")
-		pid, _ := rec.Get("product_id")
-		oid, _ := rec.Get("order_id")
+		uid, ok1 := rec.Get("user_id")
+		pid, ok2 := rec.Get("product_id")
+		oid, ok3 := rec.Get("order_id")
+		if !ok1 || !ok2 || !ok3 || uid == nil || pid == nil || oid == nil {
+			return nil, nil, fmt.Errorf("malformed neo4j record: missing required fields")
+		}
 		nodeSet[uid.(string)] = PurchaseNode{ID: uid.(string), Type: "User"}
 		nodeSet[pid.(string)] = PurchaseNode{ID: pid.(string), Type: "Product"}
 		edges = append(edges, PurchaseEdge{
