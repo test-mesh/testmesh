@@ -272,8 +272,8 @@ export default function PropertiesPanel({
               <Label htmlFor="step-when" className="text-xs">Run condition</Label>
               <Input
                 id="step-when"
-                value={(localData as any).when || ''}
-                onChange={(e) => updateData({ when: e.target.value } as any)}
+                value={localData.when || ''}
+                onChange={(e) => updateData({ when: e.target.value })}
                 placeholder='${env.STAGE} == "staging"'
                 className="h-8 text-sm font-mono"
               />
