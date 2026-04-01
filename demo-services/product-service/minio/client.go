@@ -98,6 +98,7 @@ func (c *Client) PresignedDownloadURL(ctx context.Context, productID string) (st
 // Returns (nil, "", false, nil) if the image does not exist.
 func (c *Client) GetImage(ctx context.Context, productID string) ([]byte, string, bool, error) {
 	key := objectKey(productID)
+	// minio-go is lazy: GetObject defers the HTTP request to first Stat/Read, so this rarely errors.
 	obj, err := c.mc.GetObject(ctx, bucket, key, minio.GetObjectOptions{})
 	if err != nil {
 		return nil, "", false, err
