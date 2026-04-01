@@ -178,8 +178,8 @@ export default function PostgreSQLNativeForm({
         </div>
       </details>
 
-      {/* Query — for query/assert/execute */}
-      {needsQuery && (
+      {/* Query — for query/assert */}
+      {(action === 'postgresql.query' || action === 'postgresql.assert') && (
         <div className="space-y-2">
           <Label htmlFor="pg-query">SQL Query</Label>
           <Textarea
@@ -187,6 +187,21 @@ export default function PostgreSQLNativeForm({
             value={(config.query as string) || ''}
             onChange={(e) => onChange('query', e.target.value)}
             placeholder="SELECT * FROM users WHERE id = $1"
+            rows={6}
+            className="font-mono text-sm"
+          />
+        </div>
+      )}
+
+      {/* Statement — for execute */}
+      {action === 'postgresql.execute' && (
+        <div className="space-y-2">
+          <Label htmlFor="pg-statement">SQL Statement</Label>
+          <Textarea
+            id="pg-statement"
+            value={(config.statement as string) || ''}
+            onChange={(e) => onChange('statement', e.target.value)}
+            placeholder="INSERT INTO users (name, email) VALUES ($1, $2)"
             rows={6}
             className="font-mono text-sm"
           />
@@ -283,8 +298,8 @@ export default function PostgreSQLNativeForm({
           <Label htmlFor="pg-statements">Statements (one per line)</Label>
           <Textarea
             id="pg-statements"
-            value={(config.statements as string) || ''}
-            onChange={(e) => onChange('statements', e.target.value)}
+            value={(config.statements as string[] || []).join('\n')}
+            onChange={(e) => onChange('statements', e.target.value.split('\n').filter(s => s.trim() !== ''))}
             placeholder={
               'INSERT INTO orders (user_id) VALUES ($1);\nUPDATE users SET order_count = order_count + 1 WHERE id = $1;'
             }

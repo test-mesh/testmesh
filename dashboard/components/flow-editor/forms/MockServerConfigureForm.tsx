@@ -13,12 +13,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import KeyValueEditor from './KeyValueEditor';
 
 interface RouteEndpoint {
   method: string;
   path: string;
   status: number;
   response: string;
+  headers: Record<string, string>;
 }
 
 interface MockServerConfigureFormProps {
@@ -34,6 +36,7 @@ const DEFAULT_ENDPOINT: RouteEndpoint = {
   path: '/',
   status: 200,
   response: '{}',
+  headers: {},
 };
 
 export default function MockServerConfigureForm({
@@ -43,7 +46,7 @@ export default function MockServerConfigureForm({
 }: MockServerConfigureFormProps) {
   const endpoints = (config.endpoints as RouteEndpoint[]) || [];
 
-  const updateEndpoint = (index: number, field: keyof RouteEndpoint, value: string | number) => {
+  const updateEndpoint = (index: number, field: keyof RouteEndpoint, value: string | number | Record<string, string>) => {
     const updated = [...endpoints];
     updated[index] = { ...updated[index], [field]: value };
     onChange('endpoints', updated);
@@ -165,6 +168,15 @@ export default function MockServerConfigureForm({
                 className="font-mono text-sm"
               />
             </div>
+
+            {/* Response Headers */}
+            <KeyValueEditor
+              label="Response Headers"
+              value={endpoint.headers || {}}
+              onChange={(v) => updateEndpoint(index, 'headers', v)}
+              keyPlaceholder="Content-Type"
+              valuePlaceholder="application/json"
+            />
           </div>
         ))}
       </div>
