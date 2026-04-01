@@ -126,6 +126,8 @@ type Step struct {
 	Output      map[string]string      `json:"output" yaml:"output"`
 	Retry       *RetryConfig           `json:"retry,omitempty" yaml:"retry,omitempty"`
 	Timeout     string                 `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	When        string                 `json:"when,omitempty" yaml:"when,omitempty"`
+	OnError     *OnErrorConfig         `json:"on_error,omitempty" yaml:"on_error,omitempty"`
 }
 
 // RetryConfig defines retry behavior for a step
@@ -133,6 +135,13 @@ type RetryConfig struct {
 	MaxAttempts int    `json:"max_attempts" yaml:"max_attempts"`
 	Delay       string `json:"delay" yaml:"delay"`
 	Backoff     string `json:"backoff,omitempty" yaml:"backoff,omitempty"`
+}
+
+// OnErrorConfig defines error handling behavior for a step
+type OnErrorConfig struct {
+	Action     string   `json:"action" yaml:"action"`                             // "fail" | "continue" | "retry"
+	ErrorSteps []string `json:"error_steps,omitempty" yaml:"error_steps,omitempty"` // step IDs to run on error
+	OnTimeout  string   `json:"on_timeout,omitempty" yaml:"on_timeout,omitempty"`   // "fail" | "continue"
 }
 
 // Scan implements sql.Scanner interface for JSONB

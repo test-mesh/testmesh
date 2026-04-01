@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/expr-lang/expr"
 	"github.com/test-mesh/testmesh/internal/graph"
 	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/runner/actions"
@@ -125,9 +126,40 @@ func (e *Executor) executeStepsWithoutPersistence(ctx context.Context, steps []m
 			stepID = fmt.Sprintf("step_%d", i)
 		}
 
+		// Evaluate when condition before executing the step
+		if step.When != "" {
+			shouldRun, evalErr := evalWhenCondition(step.When, execCtx)
+			if evalErr != nil {
+				e.logger.Warn("Failed to evaluate when condition, executing step anyway",
+					zap.String("step_id", stepID),
+					zap.String("when", step.When),
+					zap.Error(evalErr),
+				)
+			} else if !shouldRun {
+				e.logger.Debug("Skipping step: when condition evaluated to false",
+					zap.String("step_id", stepID),
+					zap.String("when", step.When),
+				)
+				continue
+			}
+		}
+
 		// Execute the step (skip retry for load testing performance)
 		result, err := e.executeStep(ctx, &step, execCtx)
 		if err != nil {
+			// Handle on_error policy
+			if step.OnError != nil {
+				switch step.OnError.Action {
+				case "continue", "retry":
+					// Treat retry as continue for now (retry logic is handled by step.Retry)
+					e.logger.Warn("Step failed, continuing due to on_error policy",
+						zap.String("step_id", stepID),
+						zap.String("on_error_action", step.OnError.Action),
+						zap.Error(err),
+					)
+					continue
+				}
+			}
 			return fmt.Errorf("step %s failed: %w", stepID, err)
 		}
 
@@ -240,6 +272,24 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 			stepID = fmt.Sprintf("%s_%d", phase, i)
 		}
 
+		// Evaluate when condition before executing the step
+		if step.When != "" {
+			shouldRun, evalErr := evalWhenCondition(step.When, execCtx)
+			if evalErr != nil {
+				e.logger.Warn("Failed to evaluate when condition, executing step anyway",
+					zap.String("step_id", stepID),
+					zap.String("when", step.When),
+					zap.Error(evalErr),
+				)
+			} else if !shouldRun {
+				e.logger.Debug("Skipping step: when condition evaluated to false",
+					zap.String("step_id", stepID),
+					zap.String("when", step.When),
+				)
+				continue
+			}
+		}
+
 		e.logger.Info("Executing step",
 			zap.String("step_id", stepID),
 			zap.String("action", step.Action),
@@ -312,6 +362,20 @@ func (e *Executor) executeSteps(ctx context.Context, execution *models.Execution
 					"error_message": err.Error(),
 					"duration_ms":   execStep.DurationMs,
 				})
+			}
+
+			// Check on_error policy before propagating the error
+			if step.OnError != nil {
+				switch step.OnError.Action {
+				case "continue", "retry":
+					// Treat retry as continue for now (retry logic is handled by step.Retry)
+					e.logger.Warn("Step failed, continuing due to on_error policy",
+						zap.String("step_id", stepID),
+						zap.String("on_error_action", step.OnError.Action),
+						zap.Error(err),
+					)
+					continue
+				}
 			}
 
 			// Wrap error with execution context
@@ -828,6 +892,46 @@ func (e *Executor) ExecuteInline(definition *models.FlowDefinition, variables ma
 	result.TotalSteps = len(result.Steps)
 	result.DurationMs = time.Since(start).Milliseconds()
 	return result, nil
+}
+
+// evalWhenCondition evaluates a boolean expression from step.When against the current
+// execution context. Returns (true, nil) when the condition is met (step should run),
+// (false, nil) when the condition is not met (step should be skipped), and
+// (true, err) when evaluation fails (step runs with a warning logged by the caller).
+func evalWhenCondition(condition string, execCtx *Context) (bool, error) {
+	if condition == "" {
+		return true, nil
+	}
+
+	// Build expression environment from current context variables and step outputs
+	env := make(map[string]interface{})
+	for k, v := range execCtx.variables {
+		env[k] = v
+	}
+	for stepID, outputs := range execCtx.stepOutputs {
+		env[stepID] = outputs
+	}
+
+	// Try to compile and run the expression
+	program, compileErr := expr.Compile(condition, expr.AsBool())
+	if compileErr != nil {
+		// Try without strict type enforcement (dynamic keys)
+		program, compileErr = expr.Compile(condition)
+		if compileErr != nil {
+			return true, fmt.Errorf("failed to compile when condition %q: %w", condition, compileErr)
+		}
+	}
+
+	result, runErr := expr.Run(program, env)
+	if runErr != nil {
+		return true, fmt.Errorf("failed to evaluate when condition %q: %w", condition, runErr)
+	}
+
+	b, ok := result.(bool)
+	if !ok {
+		return true, fmt.Errorf("when condition %q must evaluate to bool, got %T", condition, result)
+	}
+	return b, nil
 }
 
 // extractValue extracts a value from result using JSONPath
