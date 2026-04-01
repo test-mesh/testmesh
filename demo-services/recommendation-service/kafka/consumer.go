@@ -38,7 +38,7 @@ type Consumer struct {
 
 func NewConsumer(graphClient *graph.Client, logger *zap.Logger) (*Consumer, error) {
 	brokers := strings.Split(os.Getenv("KAFKA_BROKERS"), ",")
-	if len(brokers) == 0 || brokers[0] == "" {
+	if brokers[0] == "" {
 		brokers = []string{"kafka:9092"}
 	}
 

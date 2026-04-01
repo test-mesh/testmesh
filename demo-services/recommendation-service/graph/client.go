@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -30,7 +31,9 @@ func NewClient() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create neo4j driver: %w", err)
 	}
-	if err := driver.VerifyConnectivity(context.Background()); err != nil {
+	connCtx, connCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer connCancel()
+	if err := driver.VerifyConnectivity(connCtx); err != nil {
 		driver.Close(context.Background())
 		return nil, fmt.Errorf("neo4j connectivity check failed: %w", err)
 	}
