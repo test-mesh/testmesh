@@ -175,15 +175,15 @@ export const defaultConfigs: Record<ActionType, Record<string, any>> = {
     remove: true,
   },
 
-  'redis.get': { host: 'localhost', port: 6379, key: '' },
-  'redis.set': { host: 'localhost', port: 6379, key: '', value: '', ttl: '' },
-  'redis.del': { host: 'localhost', port: 6379, key: '' },
-  'redis.exists': { host: 'localhost', port: 6379, key: '' },
+  'redis.get': { host: 'localhost', port: '6379', key: '' },
+  'redis.set': { host: 'localhost', port: '6379', key: '', value: '', ttl: '' },
+  'redis.del': { host: 'localhost', port: '6379', key: '' },
+  'redis.exists': { host: 'localhost', port: '6379', key: '' },
 
   'minio.put': { endpoint: 'localhost:9000', access_key: 'minioadmin', secret_key: 'minioadmin', use_ssl: false, bucket: '', object: '', data: '', content_type: 'application/json' },
   'minio.get': { endpoint: 'localhost:9000', access_key: 'minioadmin', secret_key: 'minioadmin', use_ssl: false, bucket: '', object: '', as: 'text' },
   'minio.delete': { endpoint: 'localhost:9000', access_key: 'minioadmin', secret_key: 'minioadmin', use_ssl: false, bucket: '', object: '' },
-  'minio.assert': { endpoint: 'localhost:9000', access_key: 'minioadmin', secret_key: 'minioadmin', use_ssl: false, bucket: '', object: '' },
+  'minio.assert': { endpoint: 'localhost:9000', access_key: 'minioadmin', secret_key: 'minioadmin', use_ssl: false, bucket: '', object: '', exists: true },
 
   'neo4j.query': { url: 'bolt://localhost:7687', username: 'neo4j', password: '', database: 'neo4j', query: '', params: {} },
   'neo4j.assert': { url: 'bolt://localhost:7687', username: 'neo4j', password: '', database: 'neo4j', query: '', params: {} },
@@ -196,12 +196,12 @@ export const defaultConfigs: Record<ActionType, Record<string, any>> = {
   'postgresql.update': { host: 'localhost', port: 5432, user: 'postgres', password: '', database: 'postgres', sslmode: 'disable', table: '', data: {}, where: '', whereParams: [] },
   'postgresql.delete': { host: 'localhost', port: 5432, user: 'postgres', password: '', database: 'postgres', sslmode: 'disable', table: '', where: '', whereParams: [] },
   'postgresql.assert': { host: 'localhost', port: 5432, user: 'postgres', password: '', database: 'postgres', sslmode: 'disable', query: '' },
-  'postgresql.execute': { host: 'localhost', port: 5432, user: 'postgres', password: '', database: 'postgres', sslmode: 'disable', query: '' },
+  'postgresql.execute': { host: 'localhost', port: 5432, user: 'postgres', password: '', database: 'postgres', sslmode: 'disable', statement: '' },
   'postgresql.transaction': { host: 'localhost', port: 5432, user: 'postgres', password: '', database: 'postgres', sslmode: 'disable', statements: [] },
   'postgresql.tables': { host: 'localhost', port: 5432, user: 'postgres', password: '', database: 'postgres', sslmode: 'disable', schema: 'public' },
   'postgresql.columns': { host: 'localhost', port: 5432, user: 'postgres', password: '', database: 'postgres', sslmode: 'disable', table: '', schema: 'public' },
 
-  'mock_server_configure': { mock_server_id: '', routes: [] },
+  'mock_server_configure': { server_id: '', endpoints: [] },
 };
 
 // Node layout constants
