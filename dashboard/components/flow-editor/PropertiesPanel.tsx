@@ -59,6 +59,8 @@ import MockServerStartForm from './forms/MockServerStartForm';
 import JSONPathBuilder from './forms/JSONPathBuilder';
 import ErrorHandlingPanel, { type ErrorHandlingConfig } from './forms/ErrorHandlingPanel';
 import RetryConfigPanel, { type RetryConfig } from './forms/RetryConfigPanel';
+import ConditionForm from './forms/ConditionForm';
+import ForEachForm from './forms/ForEachForm';
 import RedisForm from './forms/RedisForm';
 import MinioForm from './forms/MinioForm';
 import Neo4jForm from './forms/Neo4jForm';
@@ -441,6 +443,10 @@ function ActionConfig({
       return <PostgreSQLNativeForm config={config} onChange={onConfigChange} action={action} />;
     case 'mock_server_configure':
       return <MockServerConfigureForm config={config} onChange={onConfigChange} />;
+    case 'condition':
+      return <ConditionForm config={config} onChange={onConfigChange} />;
+    case 'for_each':
+      return <ForEachForm config={config} onChange={onConfigChange} />;
     default:
       return (
         <div className="text-sm text-muted-foreground">

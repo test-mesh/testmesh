@@ -100,6 +100,9 @@ export const defaultConfigs: Record<ActionType, Record<string, any>> = {
   for_each: {
     items: '',
     item_var: 'item',
+    max_iterations: 0,
+    continue_on_error: false,
+    parallel: false,
     steps: [],
   },
   parallel: {
