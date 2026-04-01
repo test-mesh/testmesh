@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import KeyValueEditor from './KeyValueEditor';
 
@@ -241,6 +242,49 @@ export default function KafkaPublishForm({
               </>
             )}
           </div>
+        </div>
+      </details>
+
+      {/* TLS (collapsed by default) */}
+      <details className="space-y-3 p-3 border rounded-lg">
+        <summary className="text-sm font-medium cursor-pointer">TLS Configuration</summary>
+        <div className="space-y-3 pt-3">
+          <div className="flex items-center justify-between">
+            <Label>Enable TLS</Label>
+            <Switch
+              checked={((config.tls as Record<string, any>)?.enabled as boolean) || false}
+              onCheckedChange={(checked) =>
+                onChange('tls', { ...(config.tls as object || {}), enabled: checked })
+              }
+            />
+          </div>
+          {(config.tls as Record<string, any>)?.enabled && (
+            <>
+              <div className="flex items-center justify-between">
+                <Label>Skip Verify</Label>
+                <Switch
+                  checked={((config.tls as Record<string, any>)?.insecure_skip_verify as boolean) || false}
+                  onCheckedChange={(checked) =>
+                    onChange('tls', { ...(config.tls as object || {}), insecure_skip_verify: checked })
+                  }
+                />
+              </div>
+              {(['cert_file', 'key_file', 'ca_file'] as const).map((field) => (
+                <div key={field} className="space-y-2">
+                  <Label htmlFor={`prod_${field}`}>{field.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</Label>
+                  <Input
+                    id={`prod_${field}`}
+                    value={((config.tls as Record<string, any>)?.[field] as string) || ''}
+                    onChange={(e) =>
+                      onChange('tls', { ...(config.tls as object || {}), [field]: e.target.value })
+                    }
+                    placeholder={`/path/to/${field.replace('_file', '.pem')}`}
+                    className="font-mono text-sm"
+                  />
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </details>
     </div>

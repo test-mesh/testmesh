@@ -118,5 +118,9 @@ func parseKafkaProducerConfig(config map[string]interface{}) (*async.KafkaProduc
 		}
 	}
 
+	if v, ok := config["compression"].(string); ok {
+		cfg.Compression = v
+	}
+
 	return cfg, nil
 }

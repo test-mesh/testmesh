@@ -16,8 +16,9 @@ type KafkaProducerConfig struct {
 	Key       string      `yaml:"key,omitempty" json:"key,omitempty"`
 	Payload   interface{} `yaml:"payload" json:"payload"`
 	Headers   map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
-	SASL      *SASLConfig `yaml:"sasl,omitempty" json:"sasl,omitempty"`
-	TLS       *TLSConfig  `yaml:"tls,omitempty" json:"tls,omitempty"`
+	SASL        *SASLConfig `yaml:"sasl,omitempty" json:"sasl,omitempty"`
+	TLS         *TLSConfig  `yaml:"tls,omitempty" json:"tls,omitempty"`
+	Compression string      `yaml:"compression,omitempty" json:"compression,omitempty"` // none|gzip|snappy|lz4
 }
 
 // KafkaProducerResult holds the result of producing a message.
@@ -48,6 +49,18 @@ func (kp *KafkaProducer) Produce(_ context.Context) (*KafkaProducerResult, error
 	saramaConfig.Producer.Return.Successes = true
 	saramaConfig.Producer.Return.Errors = true
 	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
+
+	// Compression
+	switch kp.config.Compression {
+	case "gzip":
+		saramaConfig.Producer.Compression = sarama.CompressionGZIP
+	case "snappy":
+		saramaConfig.Producer.Compression = sarama.CompressionSnappy
+	case "lz4":
+		saramaConfig.Producer.Compression = sarama.CompressionLZ4
+	default:
+		saramaConfig.Producer.Compression = sarama.CompressionNone
+	}
 
 	// SASL
 	if kp.config.SASL != nil {
