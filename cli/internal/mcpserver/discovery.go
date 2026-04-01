@@ -57,6 +57,11 @@ var healthProbes = []string{
 
 var httpProbeClient = &http.Client{Timeout: 3 * time.Second}
 
+var validHTTPMethods = map[string]bool{
+	"GET": true, "POST": true, "PUT": true, "PATCH": true,
+	"DELETE": true, "HEAD": true, "OPTIONS": true, "TRACE": true,
+}
+
 // DiscoverService probes a service URL and returns what it finds.
 func DiscoverService(baseURL, name string) *DiscoveredService {
 	svc := &DiscoveredService{
@@ -70,9 +75,9 @@ func DiscoverService(baseURL, name string) *DiscoveredService {
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
-			data, err := io.ReadAll(resp.Body)
+			data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+			resp.Body.Close()
 			if err != nil {
 				continue
 			}
@@ -83,6 +88,8 @@ func DiscoverService(baseURL, name string) *DiscoveredService {
 			svc.OpenAPISpec = spec
 			svc.Endpoints = extractEndpointsFromOpenAPI(spec)
 			break
+		} else {
+			resp.Body.Close()
 		}
 	}
 
@@ -110,7 +117,7 @@ func extractEndpointsFromOpenAPI(spec map[string]any) []DiscoveredEndpoint {
 		methodMap, _ := methods.(map[string]any)
 		for method, opRaw := range methodMap {
 			method = strings.ToUpper(method)
-			if method == "PARAMETERS" {
+			if !validHTTPMethods[method] {
 				continue
 			}
 			op, _ := opRaw.(map[string]any)
@@ -179,6 +186,25 @@ func ParseDockerCompose(composePath string) ([]DockerComposeService, error) {
 	return services, nil
 }
 
+// resolveEnvSubst resolves ${VAR:-default} — returns os.Getenv(VAR) if set, else default.
+func resolveEnvSubst(val string) string {
+	if !strings.HasPrefix(val, "${") {
+		return val
+	}
+	// Match ${VAR:-default} or ${VAR}
+	re := regexp.MustCompile(`^\$\{([^:}]+)(?::-([^}]*))?\}$`)
+	m := re.FindStringSubmatch(val)
+	if m == nil {
+		return val
+	}
+	varName := m[1]
+	defaultVal := m[2]
+	if v := os.Getenv(varName); v != "" {
+		return v
+	}
+	return defaultVal
+}
+
 // parseEnvNode handles both list (`- KEY=VALUE`) and map (`KEY: VALUE`) formats.
 func parseEnvNode(node *yaml.Node) map[string]string {
 	env := map[string]string{}
@@ -190,27 +216,13 @@ func parseEnvNode(node *yaml.Node) map[string]string {
 		for _, item := range node.Content {
 			parts := strings.SplitN(item.Value, "=", 2)
 			if len(parts) == 2 {
-				// Strip ${VAR:-default} patterns — extract default
-				val := parts[1]
-				if strings.HasPrefix(val, "${") {
-					re := regexp.MustCompile(`\$\{[^:}]+:-([^}]+)\}`)
-					if m := re.FindStringSubmatch(val); len(m) > 1 {
-						val = m[1]
-					}
-				}
-				env[parts[0]] = val
+				env[parts[0]] = resolveEnvSubst(parts[1])
 			}
 		}
 	case yaml.MappingNode:
 		for i := 0; i < len(node.Content)-1; i += 2 {
 			key := node.Content[i].Value
-			val := node.Content[i+1].Value
-			if strings.HasPrefix(val, "${") {
-				re := regexp.MustCompile(`\$\{[^:}]+:-([^}]+)\}`)
-				if m := re.FindStringSubmatch(val); len(m) > 1 {
-					val = m[1]
-				}
-			}
+			val := resolveEnvSubst(node.Content[i+1].Value)
 			env[key] = val
 		}
 	}
