@@ -90,7 +90,7 @@ export default function KafkaConsumeForm({
           className="font-mono"
         />
         <p className="text-xs text-muted-foreground">
-          How long to wait for messages (e.g., 10s, 1m)
+          How long to wait for messages (e.g., 30s, 1m)
         </p>
       </div>
 
@@ -102,7 +102,7 @@ export default function KafkaConsumeForm({
           type="number"
           min="1"
           value={(config.count as number) || 1}
-          onChange={(e) => onChange('count', parseInt(e.target.value))}
+          onChange={(e) => onChange('count', parseInt(e.target.value, 10))}
           placeholder="1"
         />
       </div>
@@ -117,7 +117,12 @@ export default function KafkaConsumeForm({
         </div>
         <Switch
           checked={(config.from_beginning as boolean) || false}
-          onCheckedChange={(checked) => onChange('from_beginning', checked)}
+          onCheckedChange={(checked) => {
+            onChange('from_beginning', checked);
+            if (checked) {
+              onChange('auto_offset_reset', undefined);
+            }
+          }}
         />
       </div>
 
@@ -181,7 +186,7 @@ export default function KafkaConsumeForm({
             value={
               (() => {
                 const jp = (config.filter as Record<string, any>)?.json_path;
-                if (typeof jp === 'string') return jp.split(' && ').join('\n');
+                if (typeof jp === 'string') return jp;  // already newline-separated or raw string
                 if (Array.isArray(jp)) return jp.join('\n');
                 return '';
               })()
@@ -191,7 +196,7 @@ export default function KafkaConsumeForm({
               if (lines.length > 0) {
                 onChange('filter', {
                   ...(config.filter as object || {}),
-                  json_path: lines.join(' && '),
+                  json_path: lines.join('\n'),
                 });
               } else {
                 const filter = { ...(config.filter as Record<string, any> || {}) };
