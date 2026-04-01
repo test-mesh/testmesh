@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
 )
@@ -83,6 +84,16 @@ func (h *WaitUntilHandler) Execute(ctx context.Context, config map[string]interf
 		}
 	}
 
+	// Compile the expression once before the loop to avoid recompiling on every tick.
+	program, compileErr := expr.Compile(conditionStr, expr.Env(env), expr.AsBool())
+	if compileErr != nil {
+		// Fall back without strict env typing (allows dynamic keys)
+		program, compileErr = expr.Compile(conditionStr)
+		if compileErr != nil {
+			return nil, fmt.Errorf("failed to compile condition %q: %w", conditionStr, compileErr)
+		}
+	}
+
 	h.logger.Info("Starting wait_until",
 		zap.String("condition", conditionStr),
 		zap.Duration("max_duration", maxDuration),
@@ -97,8 +108,8 @@ func (h *WaitUntilHandler) Execute(ctx context.Context, config map[string]interf
 	for {
 		attempts++
 
-		// Evaluate condition
-		met, evalErr := evalCondition(conditionStr, env)
+		// Evaluate condition using the pre-compiled program
+		met, evalErr := runCondition(program, env)
 		if evalErr != nil {
 			// Non-fatal eval error: log and keep waiting
 			h.logger.Warn("Condition evaluation error", zap.Error(evalErr), zap.Int("attempt", attempts))
@@ -144,17 +155,8 @@ func (h *WaitUntilHandler) Execute(ctx context.Context, config map[string]interf
 	}
 }
 
-// evalCondition compiles and evaluates a boolean expression against env.
-func evalCondition(conditionStr string, env map[string]interface{}) (bool, error) {
-	program, err := expr.Compile(conditionStr, expr.Env(env), expr.AsBool())
-	if err != nil {
-		// Try without strict env typing (allows dynamic keys)
-		program, err = expr.Compile(conditionStr)
-		if err != nil {
-			return false, fmt.Errorf("failed to compile condition: %w", err)
-		}
-	}
-
+// runCondition evaluates a pre-compiled expression program against env.
+func runCondition(program *vm.Program, env map[string]interface{}) (bool, error) {
 	result, err := expr.Run(program, env)
 	if err != nil {
 		return false, fmt.Errorf("failed to evaluate condition: %w", err)

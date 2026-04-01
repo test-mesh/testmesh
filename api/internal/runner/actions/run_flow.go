@@ -95,8 +95,6 @@ func (h *RunFlowHandler) Execute(ctx context.Context, config map[string]interfac
 	if activeFlows[flowRef] {
 		return nil, fmt.Errorf("run_flow: circular reference detected — flow %q is already executing in the current call chain", flowRef)
 	}
-	activeFlows[flowRef] = true
-	ctx = context.WithValue(ctx, activeFlowsKey, activeFlows)
 
 	h.logger.Info("run_flow: loading child flow",
 		zap.String("flow", flowRef),
@@ -115,11 +113,13 @@ func (h *RunFlowHandler) Execute(ctx context.Context, config map[string]interfac
 		return nil, fmt.Errorf("run_flow: flow %q not found", flowRef)
 	}
 
-	// Also track by actual UUID to catch aliases
+	// Also track by actual UUID and name to catch aliases (e.g. A refs B by name, B refs A by UUID)
 	actualID := flow.ID.String()
-	if activeFlows[actualID] {
+	if activeFlows[actualID] || activeFlows[flow.Name] {
 		return nil, fmt.Errorf("run_flow: circular reference detected — flow %q (id=%s) is already executing", flowRef, actualID)
 	}
+	activeFlows[flowRef] = true
+	activeFlows[flow.Name] = true
 	activeFlows[actualID] = true
 	ctx = context.WithValue(ctx, activeFlowsKey, activeFlows)
 
