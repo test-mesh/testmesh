@@ -62,6 +62,8 @@ var validHTTPMethods = map[string]bool{
 	"DELETE": true, "HEAD": true, "OPTIONS": true, "TRACE": true,
 }
 
+var envSubstRe = regexp.MustCompile(`^\$\{([^:}]+)(?::-([^}]*))?\}$`)
+
 // DiscoverService probes a service URL and returns what it finds.
 func DiscoverService(baseURL, name string) *DiscoveredService {
 	svc := &DiscoveredService{
@@ -192,8 +194,7 @@ func resolveEnvSubst(val string) string {
 		return val
 	}
 	// Match ${VAR:-default} or ${VAR}
-	re := regexp.MustCompile(`^\$\{([^:}]+)(?::-([^}]*))?\}$`)
-	m := re.FindStringSubmatch(val)
+	m := envSubstRe.FindStringSubmatch(val)
 	if m == nil {
 		return val
 	}
