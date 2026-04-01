@@ -121,5 +121,7 @@ func main() {
 	grpcServer.GracefulStop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
-	srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Warn("HTTP server shutdown error", zap.Error(err))
+	}
 }
