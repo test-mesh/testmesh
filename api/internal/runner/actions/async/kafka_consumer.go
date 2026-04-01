@@ -2,9 +2,13 @@ package async
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/IBM/sarama"
@@ -130,7 +134,29 @@ func (kc *KafkaConsumer) Consume(ctx context.Context) (*KafkaConsumerResult, err
 
 	// Configure TLS if provided
 	if kc.config.TLS != nil && kc.config.TLS.Enabled {
+		tlsCfg := &tls.Config{
+			InsecureSkipVerify: kc.config.TLS.InsecureSkipVerify,
+		}
+		if kc.config.TLS.CertFile != "" && kc.config.TLS.KeyFile != "" {
+			cert, err := tls.LoadX509KeyPair(kc.config.TLS.CertFile, kc.config.TLS.KeyFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load TLS cert/key: %w", err)
+			}
+			tlsCfg.Certificates = []tls.Certificate{cert}
+		}
+		if kc.config.TLS.CAFile != "" {
+			caPEM, err := os.ReadFile(kc.config.TLS.CAFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read CA file: %w", err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caPEM) {
+				return nil, fmt.Errorf("failed to parse CA certificate")
+			}
+			tlsCfg.RootCAs = pool
+		}
 		saramaConfig.Net.TLS.Enable = true
+		saramaConfig.Net.TLS.Config = tlsCfg
 	}
 
 	// Create consumer group
@@ -180,6 +206,7 @@ type consumerHandler struct {
 	maxCount int
 	messages []KafkaMessage
 	done     chan struct{}
+	doneOnce sync.Once
 }
 
 func (h *consumerHandler) Setup(_ sarama.ConsumerGroupSession) error   { return nil }
@@ -219,7 +246,7 @@ func (h *consumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession, clai
 
 		// Check if we've reached the count
 		if h.maxCount > 0 && len(h.messages) >= h.maxCount {
-			close(h.done)
+			h.doneOnce.Do(func() { close(h.done) })
 			return nil
 		}
 	}

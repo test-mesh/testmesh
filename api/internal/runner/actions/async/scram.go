@@ -3,7 +3,6 @@ package async
 import (
 	"crypto/sha256"
 	"crypto/sha512"
-	"hash"
 
 	"github.com/IBM/sarama"
 	"github.com/xdg-go/scram"
@@ -40,6 +39,3 @@ func (x *XDGSCRAMClient) Done() bool {
 
 // Ensure XDGSCRAMClient implements sarama.SCRAMClient.
 var _ sarama.SCRAMClient = (*XDGSCRAMClient)(nil)
-
-// hashGeneratorFcn wraps scram.HashGeneratorFcn to satisfy the interface.
-type hashGeneratorFcn func() hash.Hash

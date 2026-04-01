@@ -271,7 +271,9 @@ export default function KafkaPublishForm({
               </div>
               {(['cert_file', 'key_file', 'ca_file'] as const).map((field) => (
                 <div key={field} className="space-y-2">
-                  <Label htmlFor={`prod_${field}`}>{field.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</Label>
+                  <Label htmlFor={`prod_${field}`}>
+                    {field === 'cert_file' ? 'Cert File' : field === 'key_file' ? 'Key File' : 'CA File'}
+                  </Label>
                   <Input
                     id={`prod_${field}`}
                     value={((config.tls as Record<string, any>)?.[field] as string) || ''}

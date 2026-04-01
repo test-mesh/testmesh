@@ -122,6 +122,21 @@ func parseKafkaProducerConfig(config map[string]interface{}) (*async.KafkaProduc
 		cfg.Compression = v
 	}
 
+	// SASL
+	if saslRaw, ok := config["sasl"].(map[string]interface{}); ok {
+		saslCfg := &async.SASLConfig{}
+		if v, ok := saslRaw["mechanism"].(string); ok {
+			saslCfg.Mechanism = v
+		}
+		if v, ok := saslRaw["username"].(string); ok {
+			saslCfg.Username = v
+		}
+		if v, ok := saslRaw["password"].(string); ok {
+			saslCfg.Password = v
+		}
+		cfg.SASL = saslCfg
+	}
+
 	// TLS
 	if tlsRaw, ok := config["tls"].(map[string]interface{}); ok {
 		tlsCfg := &async.TLSConfig{}
