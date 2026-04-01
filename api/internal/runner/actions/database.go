@@ -112,7 +112,7 @@ func (h *DatabaseHandler) Execute(ctx context.Context, config map[string]interfa
 	case "INSERT", "UPDATE", "DELETE":
 		return h.executeModify(db, query, params)
 	default:
-		return h.executeRaw(db, query, params)
+		return h.executeRaw(ctx, db, query, params)
 	}
 }
 
@@ -251,12 +251,12 @@ func (h *DatabaseHandler) executeModify(db *gorm.DB, query string, params []inte
 }
 
 // executeRaw executes other types of queries
-func (h *DatabaseHandler) executeRaw(db *gorm.DB, query string, params []interface{}) (models.OutputData, error) {
+func (h *DatabaseHandler) executeRaw(ctx context.Context, db *gorm.DB, query string, params []interface{}) (models.OutputData, error) {
 	var result sql.Result
 	var err error
 
 	sqlDB, _ := db.DB()
-	result, err = sqlDB.Exec(query, params...)
+	result, err = sqlDB.ExecContext(ctx, query, params...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
