@@ -3,12 +3,92 @@ package actions
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/chromedp/chromedp"
+	"github.com/test-mesh/testmesh/internal/storage/models"
+	"go.uber.org/zap"
 )
+
+// BrowserHandler wraps BrowserAction to implement the Handler interface
+type BrowserHandler struct {
+	logger *zap.Logger
+}
+
+// NewBrowserHandler creates a new browser handler
+func NewBrowserHandler(logger *zap.Logger) *BrowserHandler {
+	return &BrowserHandler{logger: logger}
+}
+
+// Execute implements the Handler interface for browser actions
+func (h *BrowserHandler) Execute(ctx context.Context, rawConfig map[string]interface{}) (models.OutputData, error) {
+	// Parse config from map
+	configBytes, err := json.Marshal(rawConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal browser config: %w", err)
+	}
+	var config BrowserConfig
+	if err := json.Unmarshal(configBytes, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse browser config: %w", err)
+	}
+
+	browser, err := NewBrowserAction()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create browser: %w", err)
+	}
+	defer browser.Close()
+
+	result, err := browser.Execute(&config)
+	if err != nil {
+		output := models.OutputData{
+			"success":     false,
+			"action":      result.Action,
+			"error":       result.Error,
+			"duration_ms": result.Duration,
+		}
+		return output, err
+	}
+
+	output := models.OutputData{
+		"success":     result.Success,
+		"action":      result.Action,
+		"duration_ms": result.Duration,
+	}
+	if result.URL != "" {
+		output["url"] = result.URL
+	}
+	if result.Title != "" {
+		output["title"] = result.Title
+	}
+	if result.Text != "" {
+		output["text"] = result.Text
+	}
+	if result.Value != "" {
+		output["value"] = result.Value
+	}
+	if result.Attribute != "" {
+		output["attribute"] = result.Attribute
+	}
+	if result.HTML != "" {
+		output["html"] = result.HTML
+	}
+	if result.Screenshot != "" {
+		output["screenshot"] = result.Screenshot
+	}
+	if result.EvalResult != nil {
+		output["eval_result"] = result.EvalResult
+	}
+	if len(result.Cookies) > 0 {
+		output["cookies"] = result.Cookies
+	}
+	if len(result.Metadata) > 0 {
+		output["metadata"] = result.Metadata
+	}
+	return output, nil
+}
 
 // BrowserAction handles browser automation actions
 type BrowserAction struct {

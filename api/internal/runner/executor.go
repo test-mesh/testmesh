@@ -671,6 +671,12 @@ func (e *Executor) getActionHandler(actionType string) (actions.Handler, error) 
 		return actions.NewWebSocketHandler(e.logger), nil
 	case "grpc":
 		return actions.NewGRPCHandler(e.logger), nil
+	case "grpc_call":
+		return actions.NewGRPCHandler(e.logger), nil
+	case "grpc_stream":
+		return actions.NewGRPCHandler(e.logger), nil
+	case "browser":
+		return actions.NewBrowserHandler(e.logger), nil
 	case "docker_run":
 		return actions.NewDockerRunHandler(e.logger), nil
 	case "docker_stop":

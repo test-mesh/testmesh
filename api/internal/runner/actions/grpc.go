@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/test-mesh/testmesh/internal/storage/models"
@@ -35,15 +36,16 @@ func NewGRPCHandler(logger *zap.Logger) *GRPCHandler {
 
 // GRPCConfig represents gRPC action configuration
 type GRPCConfig struct {
-	Address      string                 `json:"address" yaml:"address"`               // host:port
-	Service      string                 `json:"service" yaml:"service"`               // service name
-	Method       string                 `json:"method" yaml:"method"`                 // method name
-	Request      map[string]interface{} `json:"request,omitempty" yaml:"request,omitempty"`
-	Metadata     map[string]string      `json:"metadata,omitempty" yaml:"metadata,omitempty"` // gRPC metadata
-	ProtoFile    string                 `json:"proto_file,omitempty" yaml:"proto_file,omitempty"` // Path to .proto file
-	Timeout      string                 `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	UseTLS       bool                   `json:"use_tls,omitempty" yaml:"use_tls,omitempty"`
-	UseReflection bool                  `json:"use_reflection,omitempty" yaml:"use_reflection,omitempty"`
+	Address       string                 `json:"address" yaml:"address"`                             // host:port
+	Service       string                 `json:"service" yaml:"service"`                             // service name
+	Method        string                 `json:"method" yaml:"method"`                               // method name
+	Request       map[string]interface{} `json:"request,omitempty" yaml:"request,omitempty"`
+	Metadata      map[string]string      `json:"metadata,omitempty" yaml:"metadata,omitempty"`       // gRPC metadata
+	ProtoFile     string                 `json:"proto_file,omitempty" yaml:"proto_file,omitempty"`   // Path to .proto file
+	Timeout       string                 `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	UseTLS        bool                   `json:"use_tls,omitempty" yaml:"use_tls,omitempty"`
+	UseReflection bool                   `json:"use_reflection,omitempty" yaml:"use_reflection,omitempty"`
+	Streaming     bool                   `json:"streaming,omitempty" yaml:"streaming,omitempty"`     // true for grpc_stream
 }
 
 // GRPCResult represents the result of a gRPC call
@@ -111,23 +113,47 @@ func (h *GRPCHandler) Execute(ctx context.Context, rawConfig map[string]interfac
 		return h.resultToOutputData(result), err
 	}
 
-	// Use generic unary call with JSON
-	// In a full implementation, we'd use reflection or proto descriptors
-	var responseJSON []byte
-	err = h.invokeUnary(ctx, conn, fullMethod, requestJSON, &responseJSON)
-	if err != nil {
-		result.StatusCode = "INTERNAL"
-		result.ErrorMessage = err.Error()
-		return h.resultToOutputData(result), err
-	}
+	if config.Streaming {
+		// Streaming call: collect all server-sent messages into a slice
+		var messages []map[string]interface{}
+		collectMsg := func(msgJSON []byte) {
+			var msg map[string]interface{}
+			if err := json.Unmarshal(msgJSON, &msg); err == nil {
+				messages = append(messages, msg)
+			} else {
+				messages = append(messages, map[string]interface{}{"raw": string(msgJSON)})
+			}
+		}
 
-	// Parse response
-	if len(responseJSON) > 0 {
-		var response map[string]interface{}
-		if err := json.Unmarshal(responseJSON, &response); err != nil {
-			result.Response = map[string]interface{}{"raw": string(responseJSON)}
-		} else {
-			result.Response = response
+		err = h.invokeServerStream(ctx, conn, fullMethod, requestJSON, collectMsg)
+		if err != nil {
+			result.StatusCode = "INTERNAL"
+			result.ErrorMessage = err.Error()
+			return h.resultToOutputData(result), err
+		}
+
+		if len(messages) > 0 {
+			result.Response = map[string]interface{}{"messages": messages}
+		}
+	} else {
+		// Use generic unary call with JSON
+		// In a full implementation, we'd use reflection or proto descriptors
+		var responseJSON []byte
+		err = h.invokeUnary(ctx, conn, fullMethod, requestJSON, &responseJSON)
+		if err != nil {
+			result.StatusCode = "INTERNAL"
+			result.ErrorMessage = err.Error()
+			return h.resultToOutputData(result), err
+		}
+
+		// Parse response
+		if len(responseJSON) > 0 {
+			var response map[string]interface{}
+			if err := json.Unmarshal(responseJSON, &response); err != nil {
+				result.Response = map[string]interface{}{"raw": string(responseJSON)}
+			} else {
+				result.Response = response
+			}
 		}
 	}
 
@@ -214,6 +240,46 @@ func (h *GRPCHandler) invokeUnary(ctx context.Context, conn *grpc.ClientConn, me
 		return err
 	}
 
+	return nil
+}
+
+// invokeServerStream performs a server-streaming gRPC call and calls cb for each received message.
+func (h *GRPCHandler) invokeServerStream(ctx context.Context, conn *grpc.ClientConn, method string, request []byte, cb func([]byte)) error {
+	codec := &jsonCodec{}
+	desc := &grpc.StreamDesc{
+		StreamName:    method,
+		ServerStreams: true,
+	}
+	stream, err := conn.NewStream(ctx, desc, method, grpc.ForceCodec(codec))
+	if err != nil {
+		return fmt.Errorf("failed to open stream: %w", err)
+	}
+
+	// Send the single request message
+	if err := stream.SendMsg(request); err != nil {
+		return fmt.Errorf("failed to send stream request: %w", err)
+	}
+	if err := stream.CloseSend(); err != nil {
+		return fmt.Errorf("failed to close send: %w", err)
+	}
+
+	// Receive all messages
+	for {
+		var msgJSON []byte
+		err := stream.RecvMsg(&msgJSON)
+		if err != nil {
+			// io.EOF signals normal end of stream
+			if err.Error() == "EOF" {
+				break
+			}
+			// grpc status EOF equivalent
+			if strings.Contains(err.Error(), "EOF") {
+				break
+			}
+			return fmt.Errorf("stream receive error: %w", err)
+		}
+		cb(msgJSON)
+	}
 	return nil
 }
 
