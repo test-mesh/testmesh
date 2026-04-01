@@ -48,7 +48,7 @@ export const defaultConfigs: Record<ActionType, Record<string, any>> = {
     brokers: ['localhost:9092'],
     topic: '',
     group_id: '',
-    timeout: '10s',
+    timeout: '30s',
     count: 1,
     from_beginning: false,
   },

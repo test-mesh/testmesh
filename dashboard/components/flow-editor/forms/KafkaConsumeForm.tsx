@@ -26,7 +26,6 @@ export default function KafkaConsumeForm({
   className,
 }: KafkaConsumeFormProps) {
   const brokers = (config.brokers as string[]) || ['localhost:9092'];
-  const hasMatch = !!config.match;
 
   const handleBrokersChange = (value: string) => {
     const brokerList = value.split(/[,\n]/).map(b => b.trim()).filter(Boolean);
@@ -85,9 +84,9 @@ export default function KafkaConsumeForm({
         <Label htmlFor="timeout">Timeout</Label>
         <Input
           id="timeout"
-          value={(config.timeout as string) || '10s'}
+          value={(config.timeout as string) || '30s'}
           onChange={(e) => onChange('timeout', e.target.value)}
-          placeholder="10s"
+          placeholder="30s"
           className="font-mono"
         />
         <p className="text-xs text-muted-foreground">
@@ -122,7 +121,26 @@ export default function KafkaConsumeForm({
         />
       </div>
 
-      {/* Match/Filter */}
+      {/* Auto Offset Reset */}
+      {!(config.from_beginning as boolean) && (
+        <div className="space-y-2">
+          <Label htmlFor="auto_offset_reset">Offset Reset</Label>
+          <Select
+            value={(config.auto_offset_reset as string) || 'latest'}
+            onValueChange={(v) => onChange('auto_offset_reset', v)}
+          >
+            <SelectTrigger id="auto_offset_reset">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="latest">Latest (new messages only)</SelectItem>
+              <SelectItem value="earliest">Earliest (from beginning)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Filter */}
       <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4" />
@@ -132,22 +150,22 @@ export default function KafkaConsumeForm({
           Wait for messages matching specific criteria
         </p>
 
-        {/* Match Key */}
+        {/* Filter Key */}
         <div className="space-y-2">
-          <Label htmlFor="match_key">Match Key</Label>
+          <Label htmlFor="filter_key">Match Key</Label>
           <Input
-            id="match_key"
-            value={((config.match as Record<string, any>)?.key as string) || ''}
+            id="filter_key"
+            value={((config.filter as Record<string, any>)?.key as string) || ''}
             onChange={(e) => {
               if (e.target.value) {
-                onChange('match', {
-                  ...(config.match as object || {}),
+                onChange('filter', {
+                  ...(config.filter as object || {}),
                   key: e.target.value,
                 });
               } else {
-                const match = { ...(config.match as Record<string, any> || {}) };
-                delete match.key;
-                onChange('match', Object.keys(match).length > 0 ? match : undefined);
+                const filter = { ...(config.filter as Record<string, any> || {}) };
+                delete filter.key;
+                onChange('filter', Object.keys(filter).length > 0 ? filter : undefined);
               }
             }}
             placeholder="${user_id}"
@@ -161,19 +179,24 @@ export default function KafkaConsumeForm({
           <Textarea
             id="json_path"
             value={
-              ((config.match as Record<string, any>)?.json_path as string[])?.join('\n') || ''
+              (() => {
+                const jp = (config.filter as Record<string, any>)?.json_path;
+                if (typeof jp === 'string') return jp.split(' && ').join('\n');
+                if (Array.isArray(jp)) return jp.join('\n');
+                return '';
+              })()
             }
             onChange={(e) => {
               const lines = e.target.value.split('\n').filter(Boolean);
               if (lines.length > 0) {
-                onChange('match', {
-                  ...(config.match as object || {}),
-                  json_path: lines,
+                onChange('filter', {
+                  ...(config.filter as object || {}),
+                  json_path: lines.join(' && '),
                 });
               } else {
-                const match = { ...(config.match as Record<string, any> || {}) };
-                delete match.json_path;
-                onChange('match', Object.keys(match).length > 0 ? match : undefined);
+                const filter = { ...(config.filter as Record<string, any> || {}) };
+                delete filter.json_path;
+                onChange('filter', Object.keys(filter).length > 0 ? filter : undefined);
               }
             }}
             placeholder={'$.event_type == "user.created"\n$.user.id == "${user_id}"'}
@@ -183,6 +206,46 @@ export default function KafkaConsumeForm({
           <p className="text-xs text-muted-foreground">
             One condition per line. All must match.
           </p>
+        </div>
+
+        {/* Key Pattern (regex) */}
+        <div className="space-y-2">
+          <Label htmlFor="key_pattern">Key Pattern (regex)</Label>
+          <Input
+            id="key_pattern"
+            value={((config.filter as Record<string, any>)?.key_pattern as string) || ''}
+            onChange={(e) => {
+              if (e.target.value) {
+                onChange('filter', { ...(config.filter as object || {}), key_pattern: e.target.value });
+              } else {
+                const filter = { ...(config.filter as Record<string, any> || {}) };
+                delete filter.key_pattern;
+                onChange('filter', Object.keys(filter).length > 0 ? filter : undefined);
+              }
+            }}
+            placeholder="^user\.\d+$"
+            className="font-mono"
+          />
+        </div>
+
+        {/* JSON Value */}
+        <div className="space-y-2">
+          <Label htmlFor="json_value">JSONPath Expected Value</Label>
+          <Input
+            id="json_value"
+            value={((config.filter as Record<string, any>)?.json_value as string) || ''}
+            onChange={(e) => {
+              if (e.target.value) {
+                onChange('filter', { ...(config.filter as object || {}), json_value: e.target.value });
+              } else {
+                const filter = { ...(config.filter as Record<string, any> || {}) };
+                delete filter.json_value;
+                onChange('filter', Object.keys(filter).length > 0 ? filter : undefined);
+              }
+            }}
+            placeholder='"user.created"'
+            className="font-mono"
+          />
         </div>
       </div>
 
@@ -246,6 +309,49 @@ export default function KafkaConsumeForm({
                   placeholder="${KAFKA_PASSWORD}"
                 />
               </div>
+            </>
+          )}
+        </div>
+      </details>
+
+      {/* TLS Configuration */}
+      <details className="space-y-3 p-3 border rounded-lg">
+        <summary className="text-sm font-medium cursor-pointer">TLS Configuration</summary>
+        <div className="space-y-3 pt-3">
+          <div className="flex items-center justify-between">
+            <Label>Enable TLS</Label>
+            <Switch
+              checked={((config.tls as Record<string, any>)?.enabled as boolean) || false}
+              onCheckedChange={(checked) =>
+                onChange('tls', { ...(config.tls as object || {}), enabled: checked })
+              }
+            />
+          </div>
+          {(config.tls as Record<string, any>)?.enabled && (
+            <>
+              <div className="flex items-center justify-between">
+                <Label>Skip Verify</Label>
+                <Switch
+                  checked={((config.tls as Record<string, any>)?.insecure_skip_verify as boolean) || false}
+                  onCheckedChange={(checked) =>
+                    onChange('tls', { ...(config.tls as object || {}), insecure_skip_verify: checked })
+                  }
+                />
+              </div>
+              {(['cert_file', 'key_file', 'ca_file'] as const).map((field) => (
+                <div key={field} className="space-y-2">
+                  <Label htmlFor={field}>{field.replace('_', ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</Label>
+                  <Input
+                    id={field}
+                    value={((config.tls as Record<string, any>)?.[field] as string) || ''}
+                    onChange={(e) =>
+                      onChange('tls', { ...(config.tls as object || {}), [field]: e.target.value })
+                    }
+                    placeholder={`/path/to/${field.replace('_file', '.pem')}`}
+                    className="font-mono text-sm"
+                  />
+                </div>
+              ))}
             </>
           )}
         </div>
