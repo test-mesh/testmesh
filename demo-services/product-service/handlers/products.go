@@ -2,13 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"product-service/kafka"
+	minioclient "product-service/minio"
 	"product-service/models"
 	redisclient "product-service/redis"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -16,13 +19,23 @@ type ProductHandler struct {
 	db            *gorm.DB
 	redisClient   *redisclient.Client
 	kafkaProducer *kafka.Producer
+	minioClient   *minioclient.Client
+	logger        *zap.Logger
 }
 
-func NewProductHandler(db *gorm.DB, redisClient *redisclient.Client, kafkaProducer *kafka.Producer) *ProductHandler {
+func NewProductHandler(
+	db *gorm.DB,
+	redisClient *redisclient.Client,
+	kafkaProducer *kafka.Producer,
+	minioClient *minioclient.Client,
+	logger *zap.Logger,
+) *ProductHandler {
 	return &ProductHandler{
 		db:            db,
 		redisClient:   redisClient,
 		kafkaProducer: kafkaProducer,
+		minioClient:   minioClient,
+		logger:        logger,
 	}
 }
 
@@ -162,4 +175,73 @@ func (h *ProductHandler) UpdateInventory(c *gin.Context) {
 	_ = h.kafkaProducer.PublishInventoryChanged(ctx, productID, oldInventory, req.Inventory)
 
 	c.JSON(http.StatusOK, product)
+}
+
+func (h *ProductHandler) UploadImage(c *gin.Context) {
+	productID := c.Param("id")
+
+	// Verify product exists
+	var product models.Product
+	if err := h.db.First(&product, "id = ?", productID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		return
+	}
+
+	if h.minioClient == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "storage not available"})
+		return
+	}
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "image file required"})
+		return
+	}
+	defer file.Close()
+
+	const maxImageSize = 10 << 20 // 10 MB
+	data, err := io.ReadAll(io.LimitReader(file, maxImageSize))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
+		return
+	}
+
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	if err := h.minioClient.UploadImage(c.Request.Context(), productID, data, contentType); err != nil {
+		h.logger.Error("failed to upload image", zap.String("product_id", productID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload image"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "image uploaded", "product_id": productID})
+}
+
+func (h *ProductHandler) GetImage(c *gin.Context) {
+	productID := c.Param("id")
+
+	if h.minioClient == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "storage not available"})
+		return
+	}
+
+	url, exists, err := h.minioClient.PresignedDownloadURL(c.Request.Context(), productID)
+	if err != nil {
+		h.logger.Error("failed to get presigned url", zap.String("product_id", productID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate download URL"})
+		return
+	}
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no image for this product"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"url": url, "product_id": productID})
 }

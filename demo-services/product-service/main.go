@@ -12,6 +12,7 @@ import (
 	"product-service/handlers"
 	"product-service/kafka"
 	serviceMetrics "product-service/metrics"
+	"product-service/minio"
 	serviceOtel "product-service/otel"
 	"product-service/redis"
 
@@ -64,7 +65,13 @@ func main() {
 	defer cancel()
 	kafkaConsumer.Start(ctx)
 
-	productHandler := handlers.NewProductHandler(db, redisClient, kafkaProducer)
+	minioClient, err := minio.NewClient(context.Background())
+	if err != nil {
+		logger.Warn("minio unavailable, image features disabled", zap.Error(err))
+		minioClient = nil
+	}
+
+	productHandler := handlers.NewProductHandler(db, redisClient, kafkaProducer, minioClient, logger)
 
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -86,6 +93,8 @@ func main() {
 		api.GET("/products/:id", productHandler.GetProduct)
 		api.GET("/products", productHandler.ListProducts)
 		api.PUT("/products/:id/inventory", productHandler.UpdateInventory)
+		api.POST("/products/:id/image", productHandler.UploadImage)
+		api.GET("/products/:id/image", productHandler.GetImage)
 	}
 
 	port := os.Getenv("PORT")
