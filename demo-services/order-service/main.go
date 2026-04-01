@@ -86,9 +86,9 @@ func main() {
 	api := router.Group("/api/v1")
 	{
 		api.POST("/orders", orderHandler.CreateOrder)
+		api.GET("/orders/graph/user/:user_id", orderHandler.GetUserPurchaseGraph)
 		api.GET("/orders/:id", orderHandler.GetOrder)
 		api.GET("/orders", orderHandler.ListOrders)
-		api.GET("/orders/graph/user/:user_id", orderHandler.GetUserPurchaseGraph)
 	}
 
 	port := os.Getenv("PORT")

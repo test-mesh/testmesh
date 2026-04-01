@@ -1,0 +1,116 @@
+flow:
+  name: "Happy Path — Create User, Product, Order"
+  steps:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Test Widget {{RANDOM_ID}}"
+          description: "A test product"
+          price: 29.99
+          inventory: 100
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        product_id: "$.body.id"
+
+    - id: verify_product_in_db
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT * FROM product_service.products WHERE id = '{{product_id}}'"
+      assert:
+        - "row_count == 1"
+        - "first_row.name != nil"
+
+    - id: verify_product_in_redis
+      action: redis.get
+      config:
+        host: localhost
+        port: 6379
+        key: "product:{{product_id}}"
+      assert:
+        - "value != nil"
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Test User {{RANDOM_ID}}"
+          email: "testuser-{{RANDOM_ID}}@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    - id: verify_user_in_db
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT * FROM user_service.users WHERE id = '{{user_id}}'"
+      assert:
+        - "row_count == 1"
+
+    - id: verify_user_in_redis
+      action: redis.get
+      config:
+        host: localhost
+        port: 6379
+        key: "user:{{user_id}}"
+      assert:
+        - "value != nil"
+
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 2
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        order_id: "$.body.id"
+
+    - id: verify_order_in_db
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT * FROM order_service.orders WHERE id = '{{order_id}}'"
+      assert:
+        - "row_count == 1"
+        - "first_row.status != nil"
+
+    - id: verify_order_in_redis
+      action: redis.get
+      config:
+        host: localhost
+        port: 6379
+        key: "order:{{order_id}}"
+      assert:
+        - "value != nil"
+
+    - id: get_order
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5003/api/v1/orders/{{order_id}}
+      assert:
+        - "status == 200"
+        - "body.id != nil"

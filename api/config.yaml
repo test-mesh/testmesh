@@ -21,6 +21,15 @@ redis:
   password: ""
   db: 0
 
+neo4j:
+  uri: bolt://localhost:7687
+  user: neo4j
+  password: testmesh
+  database: neo4j
+
+graph:
+  enabled: true
+
 logger:
   level: info
   output_path: stdout

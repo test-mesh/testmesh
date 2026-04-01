@@ -1,0 +1,66 @@
+flow:
+  name: "Health Checks + List Endpoints"
+  steps:
+    - id: health_user_service
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5001/health
+      assert:
+        - "status == 200"
+
+    - id: health_product_service
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5002/health
+      assert:
+        - "status == 200"
+
+    - id: health_order_service
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5003/health
+      assert:
+        - "status == 200"
+
+    - id: health_notification_service
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5004/health
+      assert:
+        - "status == 200"
+
+    - id: health_recommendation_service
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5006/health
+      assert:
+        - "status == 200"
+
+    - id: list_users
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5001/api/v1/users
+      assert:
+        - "status == 200"
+
+    - id: list_products
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5002/api/v1/products
+      assert:
+        - "status == 200"
+
+    - id: list_orders
+      action: http_request
+      config:
+        method: GET
+        url: http://localhost:5003/api/v1/orders
+      assert:
+        - "status == 200"

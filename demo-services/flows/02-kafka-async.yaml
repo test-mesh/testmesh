@@ -1,0 +1,82 @@
+flow:
+  name: "Kafka Async Effects — Notifications + Inventory"
+  steps:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5002/api/v1/products
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Kafka Test Product {{RANDOM_ID}}"
+          price: 9.99
+          inventory: 50
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        product_id: "$.body.id"
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5001/api/v1/users
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Kafka Test User {{RANDOM_ID}}"
+          email: "kafkatest-{{RANDOM_ID}}@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    - id: wait_for_user_created_notification
+      action: db_poll
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = '{{user_id}}' AND type = 'user.created' LIMIT 1"
+        interval: "1s"
+        timeout: "15s"
+      assert:
+        - "row_count >= 1"
+
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: http://localhost:5003/api/v1/orders
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 3
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        order_id: "$.body.id"
+
+    - id: wait_for_order_notification
+      action: db_poll
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = '{{user_id}}' AND type = 'order.placed' LIMIT 1"
+        interval: "1s"
+        timeout: "15s"
+      assert:
+        - "row_count >= 1"
+
+    - id: verify_inventory_decreased
+      action: database_query
+      config:
+        connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+        query: "SELECT * FROM product_service.products WHERE id = '{{product_id}}'"
+      assert:
+        - "row_count == 1"
+        - "first_row.inventory != nil"

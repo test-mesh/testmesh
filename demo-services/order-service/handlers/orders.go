@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 	"order-service/clients"
 	"order-service/graph"
 	"order-service/kafka"
@@ -137,7 +138,9 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 			productIDs = append(productIDs, item.ProductID)
 		}
 		go func() {
-			if err := h.graphClient.CreatePurchasedEdges(context.Background(), order.ID, order.UserID, productIDs); err != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := h.graphClient.CreatePurchasedEdges(ctx, order.ID, order.UserID, productIDs); err != nil {
 				h.logger.Warn("failed to write graph edges", zap.String("order_id", order.ID), zap.Error(err))
 			}
 		}()
