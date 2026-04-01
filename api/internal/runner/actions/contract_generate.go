@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
@@ -103,6 +104,13 @@ func (h *ContractGenerateHandler) Execute(_ context.Context, config map[string]i
 			"pactSpecification": map[string]string{"version": "2.0.0"},
 		},
 	}
+
+	// sanitize: strip path separators so consumer/provider can't escape the output dir
+	sanitize := func(s string) string {
+		return strings.ReplaceAll(strings.ReplaceAll(s, "/", "_"), "..", "_")
+	}
+	consumer = sanitize(consumer)
+	provider = sanitize(provider)
 
 	// Determine final file path.
 	var filePath string

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -69,10 +70,23 @@ func (h *ContractVerifyHandler) Execute(ctx context.Context, config map[string]i
 		client = &http.Client{Timeout: d}
 	}
 
-	// Read and parse the contract file.
-	data, err := os.ReadFile(contractID)
+	// Resolve to absolute path and ensure it's within cwd
+	absPath, err := filepath.Abs(contractID)
 	if err != nil {
-		return nil, fmt.Errorf("contract_verify: failed to read contract file %q: %w", contractID, err)
+		return nil, fmt.Errorf("contract_verify: invalid contract path: %w", err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("contract_verify: cannot determine working directory: %w", err)
+	}
+	if !strings.HasPrefix(absPath, cwd+string(filepath.Separator)) && absPath != cwd {
+		return nil, fmt.Errorf("contract_verify: contract_id must be within the working directory")
+	}
+
+	// Read and parse the contract file.
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("contract_verify: failed to read contract file %q: %w", absPath, err)
 	}
 
 	var doc contractDoc
