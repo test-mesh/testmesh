@@ -40,7 +40,19 @@ export type ActionType =
   | 'contract_verify'
   // Infrastructure (setup/teardown)
   | 'docker_run'
-  | 'docker_stop';
+  | 'docker_stop'
+  // Redis
+  | 'redis.get' | 'redis.set' | 'redis.del' | 'redis.exists'
+  // MinIO
+  | 'minio.put' | 'minio.get' | 'minio.delete' | 'minio.assert'
+  // Neo4j
+  | 'neo4j.query' | 'neo4j.assert'
+  // OTel
+  | 'otel.inject' | 'otel.assert'
+  // PostgreSQL
+  | 'postgresql.query' | 'postgresql.insert' | 'postgresql.update' | 'postgresql.delete' | 'postgresql.assert' | 'postgresql.execute' | 'postgresql.transaction' | 'postgresql.tables' | 'postgresql.columns'
+  // Mock Server Configure
+  | 'mock_server_configure';
 
 // Comment structure for collaboration
 export interface Comment {
