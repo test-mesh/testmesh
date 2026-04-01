@@ -3,8 +3,9 @@ package actions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
+	"io"
 	"time"
 
 	"github.com/test-mesh/testmesh/internal/storage/models"
@@ -213,11 +214,9 @@ func (h *GRPCHandler) getConnection(address string, useTLS bool) (*grpc.ClientCo
 	}
 
 	if useTLS {
-		// In a real implementation, would configure TLS credentials
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	} else {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		return nil, fmt.Errorf("grpc: TLS not yet implemented; set use_tls to false or contribute a TLS implementation")
 	}
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	conn, err := grpc.Dial(address, opts...)
 	if err != nil {
@@ -268,12 +267,7 @@ func (h *GRPCHandler) invokeServerStream(ctx context.Context, conn *grpc.ClientC
 		var msgJSON []byte
 		err := stream.RecvMsg(&msgJSON)
 		if err != nil {
-			// io.EOF signals normal end of stream
-			if err.Error() == "EOF" {
-				break
-			}
-			// grpc status EOF equivalent
-			if strings.Contains(err.Error(), "EOF") {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return fmt.Errorf("stream receive error: %w", err)
