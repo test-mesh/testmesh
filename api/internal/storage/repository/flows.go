@@ -101,6 +101,26 @@ func (r *FlowRepository) ListByCollection(workspaceID uuid.UUID, collectionID uu
 	return flows, nil
 }
 
+// FindByNameOrID retrieves a flow by exact name or UUID string without requiring
+// a specific workspace. This is used by the run_flow action handler which may
+// reference flows by name across the workspace.
+func (r *FlowRepository) FindByNameOrID(nameOrID string) (*models.Flow, error) {
+	var flow models.Flow
+
+	// Try UUID parse first
+	if id, err := uuid.Parse(nameOrID); err == nil {
+		if err := r.db.First(&flow, "id = ?", id).Error; err == nil {
+			return &flow, nil
+		}
+	}
+
+	// Fall back to exact name match (first result)
+	if err := r.db.Where("name = ?", nameOrID).First(&flow).Error; err != nil {
+		return nil, err
+	}
+	return &flow, nil
+}
+
 // CountByWorkspace returns the total number of flows in a workspace
 func (r *FlowRepository) CountByWorkspace(workspaceID uuid.UUID) (int64, error) {
 	var count int64

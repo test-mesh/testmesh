@@ -23,6 +23,7 @@ import (
 // Executor orchestrates flow execution
 type Executor struct {
 	repo            *repository.ExecutionRepository
+	flowRepo        *repository.FlowRepository
 	logger          *zap.Logger
 	wsHub           WSHub // WebSocket hub interface
 	mockManager     *mocks.Manager
@@ -50,6 +51,11 @@ func NewExecutor(repo *repository.ExecutionRepository, logger *zap.Logger, wsHub
 		wsHub:       wsHub,
 		mockManager: mockManager,
 	}
+}
+
+// SetFlowRepository sets the flow repository for run_flow action support
+func (e *Executor) SetFlowRepository(repo *repository.FlowRepository) {
+	e.flowRepo = repo
 }
 
 // SetPluginRegistry sets the plugin registry for custom action support
@@ -554,6 +560,71 @@ func (e *Executor) notifyDebugAfterStep(executionID uuid.UUID, stepID string, ou
 	}
 }
 
+// ExecuteSteps implements actions.BranchExecutor.
+// It runs a slice of steps in a fresh execution context seeded with vars and returns
+// the merged step outputs as OutputData.
+func (e *Executor) ExecuteSteps(ctx context.Context, steps []models.Step, vars map[string]string) (models.OutputData, error) {
+	if vars == nil {
+		vars = make(map[string]string)
+	}
+	execCtx := NewContext(vars, nil)
+	if err := e.executeStepsWithoutPersistence(ctx, steps, execCtx); err != nil {
+		return nil, err
+	}
+	// Collect all step outputs into a flat result map
+	result := make(models.OutputData)
+	for stepID, outputs := range execCtx.stepOutputs {
+		result[stepID] = outputs
+	}
+	return result, nil
+}
+
+// LoadFlow implements actions.FlowLoader.
+func (e *Executor) LoadFlow(ctx context.Context, nameOrID string) (*models.Flow, error) {
+	if e.flowRepo == nil {
+		return nil, fmt.Errorf("flow repository not configured on executor")
+	}
+	return e.flowRepo.FindByNameOrID(nameOrID)
+}
+
+// RunFlowSteps implements actions.ChildFlowRunner.
+// It executes setup + main + teardown steps of a child flow definition.
+func (e *Executor) RunFlowSteps(ctx context.Context, definition *models.FlowDefinition, vars map[string]string) (models.OutputData, error) {
+	if vars == nil {
+		vars = make(map[string]string)
+	}
+	execCtx := NewContext(vars, definition.Env)
+
+	if len(definition.Setup) > 0 {
+		if err := e.executeStepsWithoutPersistence(ctx, definition.Setup, execCtx); err != nil {
+			return nil, fmt.Errorf("child flow setup failed: %w", err)
+		}
+	}
+	if err := e.executeStepsWithoutPersistence(ctx, definition.Steps, execCtx); err != nil {
+		if len(definition.Teardown) > 0 {
+			e.executeStepsWithoutPersistence(ctx, definition.Teardown, execCtx) //nolint:errcheck
+		}
+		return nil, err
+	}
+	if len(definition.Teardown) > 0 {
+		if err := e.executeStepsWithoutPersistence(ctx, definition.Teardown, execCtx); err != nil {
+			return nil, fmt.Errorf("child flow teardown failed: %w", err)
+		}
+	}
+
+	// Collect outputs
+	result := make(models.OutputData)
+	for stepID, outputs := range execCtx.stepOutputs {
+		result[stepID] = outputs
+	}
+	for k, v := range execCtx.variables {
+		if _, exists := result[k]; !exists {
+			result[k] = v
+		}
+	}
+	return result, nil
+}
+
 // getActionHandler returns the appropriate action handler
 func (e *Executor) getActionHandler(actionType string) (actions.Handler, error) {
 	switch actionType {
@@ -604,6 +675,12 @@ func (e *Executor) getActionHandler(actionType string) (actions.Handler, error) 
 		return actions.NewDockerRunHandler(e.logger), nil
 	case "docker_stop":
 		return actions.NewDockerStopHandler(e.logger), nil
+	case "parallel":
+		return actions.NewParallelHandler(e.logger, e), nil
+	case "wait_until":
+		return actions.NewWaitUntilHandler(e.logger), nil
+	case "run_flow":
+		return actions.NewRunFlowHandler(e.logger, e, e), nil
 	default:
 		// Check plugin registry for custom actions
 		if e.pluginRegistry != nil {
