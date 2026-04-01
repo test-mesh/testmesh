@@ -563,6 +563,51 @@ func toolGetActionTypes() (*mcp.CallToolResult, error) {
 			"required":    []string{"key"},
 			"optional":    []string{"host", "port"},
 		},
+		"grpc_call": map[string]any{
+			"description": "Make a unary gRPC call",
+			"required":    []string{"host", "method"},
+			"optional":    []string{"request", "metadata", "timeout", "proto_file"},
+		},
+		"grpc_stream": map[string]any{
+			"description": "Make a streaming gRPC call",
+			"required":    []string{"host", "method"},
+			"optional":    []string{"request", "metadata", "timeout"},
+		},
+		"neo4j.query": map[string]any{
+			"description": "Execute a Cypher query against Neo4j",
+			"required":    []string{"url", "query"},
+			"optional":    []string{"username", "password", "database", "params"},
+		},
+		"neo4j.assert": map[string]any{
+			"description": "Execute a Cypher query and assert on the result",
+			"required":    []string{"url", "query"},
+			"optional":    []string{"username", "password", "database", "params", "assert"},
+		},
+		"minio.put": map[string]any{
+			"description": "Upload an object to MinIO",
+			"required":    []string{"endpoint", "bucket", "object", "data"},
+			"optional":    []string{"access_key", "secret_key", "content_type"},
+		},
+		"minio.get": map[string]any{
+			"description": "Download an object from MinIO",
+			"required":    []string{"endpoint", "bucket", "object"},
+			"optional":    []string{"access_key", "secret_key", "as"},
+		},
+		"minio.assert": map[string]any{
+			"description": "Assert that a MinIO object exists with expected properties",
+			"required":    []string{"endpoint", "bucket", "object"},
+			"optional":    []string{"access_key", "secret_key"},
+		},
+		"wait_until": map[string]any{
+			"description": "Poll a condition expression until it becomes true",
+			"required":    []string{"condition"},
+			"optional":    []string{"max_duration", "interval", "on_timeout"},
+		},
+		"parallel": map[string]any{
+			"description": "Execute multiple step branches in parallel",
+			"required":    []string{"branches"},
+			"optional":    []string{"max_concurrent", "fail_fast", "wait_for_all"},
+		},
 	}
 
 	out, _ := json.MarshalIndent(actions, "", "  ")
@@ -574,7 +619,6 @@ func toolGetActionTypes() (*mcp.CallToolResult, error) {
 // ---------------------------------------------------------------------------
 
 func toolAnalyzeWorkspace(args map[string]any) (*mcp.CallToolResult, error) {
-	// Accept both "workspace_path" (new) and "directory" (legacy) parameter names.
 	directory, _ := args["workspace_path"].(string)
 	if directory == "" {
 		directory, _ = args["directory"].(string)
@@ -583,8 +627,42 @@ func toolAnalyzeWorkspace(args map[string]any) (*mcp.CallToolResult, error) {
 		return toolError("workspace_path is required"), nil
 	}
 
+	var sb strings.Builder
+
+	// If the path is a docker-compose file (or we can find one), run auto-discovery first
+	composePath := ""
+	if strings.HasSuffix(directory, ".yml") || strings.HasSuffix(directory, ".yaml") {
+		composePath = directory
+	} else {
+		// Look for docker-compose files in the directory
+		for _, candidate := range []string{
+			filepath.Join(directory, "docker-compose.yml"),
+			filepath.Join(directory, "docker-compose.yaml"),
+			filepath.Join(directory, "docker-compose.services.yml"),
+		} {
+			if _, err := os.Stat(candidate); err == nil {
+				composePath = candidate
+				break
+			}
+		}
+	}
+
+	if composePath != "" {
+		report, err := DiscoverFromDockerCompose(composePath)
+		if err == nil {
+			sb.WriteString("# Spec-First Auto-Discovery\n\n")
+			sb.WriteString(report)
+			sb.WriteString("\n---\n\n")
+		}
+	}
+
+	// Run existing source-based analysis as enhancement layer
 	workspace, err := AnalyzeWorkspace(directory)
 	if err != nil {
+		// If source analysis fails but we have discovery, return discovery alone
+		if sb.Len() > 0 {
+			return toolContent(sb.String()), nil
+		}
 		return toolError(err.Error()), nil
 	}
 
@@ -594,11 +672,11 @@ func toolAnalyzeWorkspace(args map[string]any) (*mcp.CallToolResult, error) {
 		RedisAddr:    strArg(args, "redis_addr"),
 	}
 
-	report := fmt.Sprintf("Analyzed workspace: %s\nFound %d services, %d dependencies.\n\n%s",
+	sb.WriteString(fmt.Sprintf("# Source Analysis\n\nAnalyzed workspace: %s\nFound %d services, %d dependencies.\n\n%s",
 		workspace.RootDir, len(workspace.Services), len(workspace.Dependencies),
-		GenerateE2EAnalysisReport(workspace, opts))
+		GenerateE2EAnalysisReport(workspace, opts)))
 
-	return toolContent(report), nil
+	return toolContent(sb.String()), nil
 }
 
 // ---------------------------------------------------------------------------
