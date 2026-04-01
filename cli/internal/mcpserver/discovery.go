@@ -380,8 +380,11 @@ func DiscoverFromDockerCompose(composePath string) (string, error) {
 		}
 
 		if _, hasDBHost := env["DB_HOST"]; hasDBHost {
-			infos := ProbePostgreSQL(env)
-			sb.WriteString(fmt.Sprintf("  PostgreSQL: %s\n", strings.Join(infos, " ")))
+			host := firstNonEmpty(env["DB_HOST"], env["DATABASE_HOST"], "localhost")
+			port := firstNonEmpty(env["DB_PORT"], env["DATABASE_PORT"], "5432")
+			dbname := firstNonEmpty(env["DB_NAME"], env["DATABASE_DBNAME"], "postgres")
+			schema := firstNonEmpty(env["DB_SCHEMA"], "public")
+			sb.WriteString(fmt.Sprintf("  PostgreSQL: %s:%s/%s schema=%s\n", host, port, dbname, schema))
 		}
 
 		if _, hasNeo4j := env["NEO4J_URI"]; hasNeo4j {
