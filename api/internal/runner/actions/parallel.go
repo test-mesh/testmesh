@@ -56,14 +56,6 @@ func (h *ParallelHandler) Execute(ctx context.Context, config map[string]interfa
 		}
 	}
 
-	// Parse wait_for_all (default: true)
-	waitForAll := true
-	if wfa, ok := config["wait_for_all"]; ok {
-		if wfaBool, ok := wfa.(bool); ok {
-			waitForAll = wfaBool
-		}
-	}
-
 	// Parse each branch's steps
 	type branch struct {
 		steps []models.Step
@@ -186,14 +178,6 @@ func (h *ParallelHandler) Execute(ctx context.Context, config map[string]interfa
 			if firstErr == nil {
 				firstErr = res.err
 			}
-			if !waitForAll && failFast {
-				// Drain remaining results but don't block forever
-				go func() {
-					for range results {
-					}
-				}()
-				break
-			}
 		} else {
 			branchOutputs[key] = map[string]interface{}{
 				"output": res.output,
@@ -207,11 +191,12 @@ func (h *ParallelHandler) Execute(ctx context.Context, config map[string]interfa
 		zap.Int("errors", errCount),
 	)
 
-	output := models.OutputData{
-		"branches_total":  len(branches),
-		"branches_failed": errCount,
-		"results":         branchOutputs,
+	output := models.OutputData{}
+	for k, v := range branchOutputs {
+		output[k] = v
 	}
+	output["branches_total"] = len(branches)
+	output["branches_failed"] = errCount
 
 	if firstErr != nil && failFast {
 		return output, fmt.Errorf("parallel execution failed: %w", firstErr)
