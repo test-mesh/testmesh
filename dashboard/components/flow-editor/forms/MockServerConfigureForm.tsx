@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { Server, Plus, Trash2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils';
 import KeyValueEditor from './KeyValueEditor';
 
 interface RouteEndpoint {
+  id: number;
   method: string;
   path: string;
   status: number;
@@ -31,7 +33,7 @@ interface MockServerConfigureFormProps {
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
 
-const DEFAULT_ENDPOINT: RouteEndpoint = {
+const DEFAULT_ENDPOINT: Omit<RouteEndpoint, 'id'> = {
   method: 'GET',
   path: '/',
   status: 200,
@@ -44,6 +46,7 @@ export default function MockServerConfigureForm({
   onChange,
   className,
 }: MockServerConfigureFormProps) {
+  const endpointIdCounter = useRef(Date.now());
   const endpoints = (config.endpoints as RouteEndpoint[]) || [];
 
   const updateEndpoint = (index: number, field: keyof RouteEndpoint, value: string | number | Record<string, string>) => {
@@ -53,7 +56,7 @@ export default function MockServerConfigureForm({
   };
 
   const addEndpoint = () => {
-    onChange('endpoints', [...endpoints, { ...DEFAULT_ENDPOINT }]);
+    onChange('endpoints', [...endpoints, { ...DEFAULT_ENDPOINT, id: endpointIdCounter.current++ }]);
   };
 
   const removeEndpoint = (index: number) => {
@@ -99,7 +102,7 @@ export default function MockServerConfigureForm({
         )}
 
         {endpoints.map((endpoint, index) => (
-          <div key={index} className="p-3 border rounded-lg space-y-3">
+          <div key={endpoint.id} className="p-3 border rounded-lg space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">
                 Endpoint {index + 1}
@@ -152,7 +155,7 @@ export default function MockServerConfigureForm({
                 min={100}
                 max={599}
                 value={endpoint.status ?? 200}
-                onChange={(e) => updateEndpoint(index, 'status', parseInt(e.target.value, 10) || 200)}
+                onChange={(e) => updateEndpoint(index, 'status', Number(e.target.value) || 200)}
                 className="font-mono text-sm w-28"
               />
             </div>

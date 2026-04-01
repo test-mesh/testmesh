@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Database, Plus, Trash2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -29,8 +29,12 @@ export default function PostgreSQLNativeForm({
   action,
   className,
 }: PostgreSQLNativeFormProps) {
-  const [useConnectionString, setUseConnectionString] = useState(
-    !!(config.connectionString as string)
+  const useConnectionString = !!(config.connectionString as string);
+
+  const assertionIdCounter = useRef(0);
+  const initialAssertions = (config.assertions as string[]) || [];
+  const [assertionIds, setAssertionIds] = useState<number[]>(() =>
+    initialAssertions.map(() => assertionIdCounter.current++)
   );
 
   const needsQuery = action === 'postgresql.query' || action === 'postgresql.assert' || action === 'postgresql.execute';
@@ -45,6 +49,7 @@ export default function PostgreSQLNativeForm({
   const assertions = (config.assertions as string[]) || [];
 
   const addAssertion = () => {
+    setAssertionIds((ids) => [...ids, assertionIdCounter.current++]);
     onChange('assertions', [...assertions, '']);
   };
 
@@ -55,6 +60,7 @@ export default function PostgreSQLNativeForm({
   };
 
   const removeAssertion = (index: number) => {
+    setAssertionIds((ids) => ids.filter((_, i) => i !== index));
     onChange('assertions', assertions.filter((_, i) => i !== index));
   };
 
@@ -77,7 +83,6 @@ export default function PostgreSQLNativeForm({
             <Switch
               checked={useConnectionString}
               onCheckedChange={(checked) => {
-                setUseConnectionString(checked);
                 if (checked) {
                   // Clear individual fields
                   onChange('host', undefined);
@@ -328,7 +333,7 @@ export default function PostgreSQLNativeForm({
             </p>
           )}
           {assertions.map((assertion, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={assertionIds[index]} className="flex items-center gap-2">
               <Input
                 value={assertion}
                 onChange={(e) => updateAssertion(index, e.target.value)}
