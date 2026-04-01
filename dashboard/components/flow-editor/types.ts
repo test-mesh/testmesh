@@ -82,6 +82,7 @@ export interface FlowNodeData {
     backoff?: string;
   };
   timeout?: string;
+  when?: string;
   comments?: Comment[];
   // UI state
   isSelected?: boolean;
@@ -139,7 +140,7 @@ export interface PaletteItem {
   label: string;
   description: string;
   icon: string;
-  category: 'http' | 'database' | 'messaging' | 'control' | 'browser' | 'mock' | 'contract' | 'utility';
+  category: 'http' | 'database' | 'messaging' | 'control' | 'browser' | 'mock' | 'contract' | 'utility' | 'infra' | 'cache' | 'storage' | 'observability';
   defaultConfig: Record<string, any>;
 }
 

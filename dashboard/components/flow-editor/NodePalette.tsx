@@ -24,6 +24,9 @@ import {
   Chrome,
   Box,
   XCircle,
+  Layers,
+  Activity,
+  HardDrive,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -249,6 +252,194 @@ const paletteItems: PaletteItem[] = [
     category: 'infra',
     defaultConfig: defaultConfigs.docker_stop,
   },
+
+  // Cache (Redis)
+  {
+    type: 'redis.get',
+    label: 'Redis Get',
+    description: 'Get a value from Redis by key',
+    icon: 'Layers',
+    category: 'cache',
+    defaultConfig: defaultConfigs['redis.get'],
+  },
+  {
+    type: 'redis.set',
+    label: 'Redis Set',
+    description: 'Set a key-value pair in Redis',
+    icon: 'Layers',
+    category: 'cache',
+    defaultConfig: defaultConfigs['redis.set'],
+  },
+  {
+    type: 'redis.del',
+    label: 'Redis Delete',
+    description: 'Delete a key from Redis',
+    icon: 'Layers',
+    category: 'cache',
+    defaultConfig: defaultConfigs['redis.del'],
+  },
+  {
+    type: 'redis.exists',
+    label: 'Redis Exists',
+    description: 'Check if a key exists in Redis',
+    icon: 'Layers',
+    category: 'cache',
+    defaultConfig: defaultConfigs['redis.exists'],
+  },
+
+  // Storage (MinIO)
+  {
+    type: 'minio.put',
+    label: 'MinIO Put',
+    description: 'Upload an object to MinIO/S3',
+    icon: 'HardDrive',
+    category: 'storage',
+    defaultConfig: defaultConfigs['minio.put'],
+  },
+  {
+    type: 'minio.get',
+    label: 'MinIO Get',
+    description: 'Download an object from MinIO/S3',
+    icon: 'HardDrive',
+    category: 'storage',
+    defaultConfig: defaultConfigs['minio.get'],
+  },
+  {
+    type: 'minio.delete',
+    label: 'MinIO Delete',
+    description: 'Delete an object from MinIO/S3',
+    icon: 'HardDrive',
+    category: 'storage',
+    defaultConfig: defaultConfigs['minio.delete'],
+  },
+  {
+    type: 'minio.assert',
+    label: 'MinIO Assert',
+    description: 'Assert object existence in MinIO/S3',
+    icon: 'HardDrive',
+    category: 'storage',
+    defaultConfig: defaultConfigs['minio.assert'],
+  },
+
+  // Database - Neo4j
+  {
+    type: 'neo4j.query',
+    label: 'Neo4j Query',
+    description: 'Execute a Cypher query against Neo4j',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['neo4j.query'],
+  },
+  {
+    type: 'neo4j.assert',
+    label: 'Neo4j Assert',
+    description: 'Assert results of a Neo4j Cypher query',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['neo4j.assert'],
+  },
+
+  // Database - PostgreSQL Native
+  {
+    type: 'postgresql.query',
+    label: 'PostgreSQL Query',
+    description: 'Run a SELECT query against PostgreSQL',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.query'],
+  },
+  {
+    type: 'postgresql.insert',
+    label: 'PostgreSQL Insert',
+    description: 'Insert rows into a PostgreSQL table',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.insert'],
+  },
+  {
+    type: 'postgresql.update',
+    label: 'PostgreSQL Update',
+    description: 'Update rows in a PostgreSQL table',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.update'],
+  },
+  {
+    type: 'postgresql.delete',
+    label: 'PostgreSQL Delete',
+    description: 'Delete rows from a PostgreSQL table',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.delete'],
+  },
+  {
+    type: 'postgresql.assert',
+    label: 'PostgreSQL Assert',
+    description: 'Assert query results from PostgreSQL',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.assert'],
+  },
+  {
+    type: 'postgresql.execute',
+    label: 'PostgreSQL Execute',
+    description: 'Execute a raw SQL statement',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.execute'],
+  },
+  {
+    type: 'postgresql.transaction',
+    label: 'PostgreSQL Transaction',
+    description: 'Run multiple statements in a transaction',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.transaction'],
+  },
+  {
+    type: 'postgresql.tables',
+    label: 'PostgreSQL Tables',
+    description: 'List tables in a PostgreSQL schema',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.tables'],
+  },
+  {
+    type: 'postgresql.columns',
+    label: 'PostgreSQL Columns',
+    description: 'List columns of a PostgreSQL table',
+    icon: 'Database',
+    category: 'database',
+    defaultConfig: defaultConfigs['postgresql.columns'],
+  },
+
+  // Observability (OTel)
+  {
+    type: 'otel.inject',
+    label: 'OTel Inject',
+    description: 'Inject an OpenTelemetry trace context',
+    icon: 'Activity',
+    category: 'observability',
+    defaultConfig: defaultConfigs['otel.inject'],
+  },
+  {
+    type: 'otel.assert',
+    label: 'OTel Assert',
+    description: 'Assert that a trace/span was emitted',
+    icon: 'Activity',
+    category: 'observability',
+    defaultConfig: defaultConfigs['otel.assert'],
+  },
+
+  // Mock Servers - Configure
+  {
+    type: 'mock_server_configure',
+    label: 'Configure Mock Server',
+    description: 'Update route configuration on a running mock server',
+    icon: 'Server',
+    category: 'mock',
+    defaultConfig: defaultConfigs['mock_server_configure'],
+  },
 ];
 
 // Icon mapping
@@ -272,6 +463,9 @@ const iconMap: Record<string, React.ElementType> = {
   Chrome,
   Box,
   XCircle,
+  Layers,
+  Activity,
+  HardDrive,
 };
 
 // Category configuration
@@ -285,6 +479,9 @@ const categories = [
   { id: 'mock', label: 'Mock Servers', color: 'text-pink-500' },
   { id: 'contract', label: 'Contract Testing', color: 'text-teal-500' },
   { id: 'infra', label: 'Infrastructure', color: 'text-orange-500' },
+  { id: 'cache', label: 'Cache', color: 'text-red-500' },
+  { id: 'storage', label: 'Storage', color: 'text-yellow-600' },
+  { id: 'observability', label: 'Observability', color: 'text-emerald-500' },
 ];
 
 interface NodePaletteProps {

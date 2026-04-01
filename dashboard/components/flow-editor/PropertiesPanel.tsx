@@ -59,6 +59,12 @@ import MockServerStartForm from './forms/MockServerStartForm';
 import JSONPathBuilder from './forms/JSONPathBuilder';
 import ErrorHandlingPanel, { type ErrorHandlingConfig } from './forms/ErrorHandlingPanel';
 import RetryConfigPanel, { type RetryConfig } from './forms/RetryConfigPanel';
+import RedisForm from './forms/RedisForm';
+import MinioForm from './forms/MinioForm';
+import Neo4jForm from './forms/Neo4jForm';
+import OtelForm from './forms/OtelForm';
+import PostgreSQLNativeForm from './forms/PostgreSQLNativeForm';
+import MockServerConfigureForm from './forms/MockServerConfigureForm';
 
 // Icon mapping
 const actionIcons: Record<ActionType, React.ElementType> = {
@@ -88,6 +94,30 @@ const actionIcons: Record<ActionType, React.ElementType> = {
   mock_server_reset_state: Server,
   contract_generate: FileCode,
   contract_verify: FileCheck,
+  docker_run: Server,
+  docker_stop: ServerOff,
+  'redis.get': Database,
+  'redis.set': Database,
+  'redis.del': Database,
+  'redis.exists': Database,
+  'minio.put': FileText,
+  'minio.get': FileText,
+  'minio.delete': FileText,
+  'minio.assert': CheckCircle,
+  'neo4j.query': Database,
+  'neo4j.assert': CheckCircle,
+  'otel.inject': AlertTriangle,
+  'otel.assert': CheckCircle,
+  'postgresql.query': Database,
+  'postgresql.insert': Database,
+  'postgresql.update': Database,
+  'postgresql.delete': Database,
+  'postgresql.assert': CheckCircle,
+  'postgresql.execute': Database,
+  'postgresql.transaction': Database,
+  'postgresql.tables': Database,
+  'postgresql.columns': Database,
+  'mock_server_configure': Server,
 };
 
 interface PropertiesPanelProps {
@@ -238,6 +268,20 @@ export default function PropertiesPanel({
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="step-when" className="text-xs">Run condition</Label>
+              <Input
+                id="step-when"
+                value={(localData as any).when || ''}
+                onChange={(e) => updateData({ when: e.target.value } as any)}
+                placeholder='${env.STAGE} == "staging"'
+                className="h-8 text-sm font-mono"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Step is skipped if this expression evaluates to false
+              </p>
+            </div>
+
             {/* Retry Configuration */}
             <details className="space-y-3 p-3 border rounded-lg">
               <summary className="text-sm font-medium cursor-pointer">
@@ -369,6 +413,34 @@ function ActionConfig({
       return <ContractGenerateConfig config={config} onChange={onConfigChange} />;
     case 'contract_verify':
       return <ContractVerifyConfig config={config} onChange={onConfigChange} />;
+    case 'redis.get':
+    case 'redis.set':
+    case 'redis.del':
+    case 'redis.exists':
+      return <RedisForm config={config} onChange={onConfigChange} action={action} />;
+    case 'minio.put':
+    case 'minio.get':
+    case 'minio.delete':
+    case 'minio.assert':
+      return <MinioForm config={config} onChange={onConfigChange} action={action} />;
+    case 'neo4j.query':
+    case 'neo4j.assert':
+      return <Neo4jForm config={config} onChange={onConfigChange} action={action} />;
+    case 'otel.inject':
+    case 'otel.assert':
+      return <OtelForm config={config} onChange={onConfigChange} action={action} />;
+    case 'postgresql.query':
+    case 'postgresql.insert':
+    case 'postgresql.update':
+    case 'postgresql.delete':
+    case 'postgresql.assert':
+    case 'postgresql.execute':
+    case 'postgresql.transaction':
+    case 'postgresql.tables':
+    case 'postgresql.columns':
+      return <PostgreSQLNativeForm config={config} onChange={onConfigChange} action={action} />;
+    case 'mock_server_configure':
+      return <MockServerConfigureForm config={config} onChange={onConfigChange} />;
     default:
       return (
         <div className="text-sm text-muted-foreground">
