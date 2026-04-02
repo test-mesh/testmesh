@@ -43,6 +43,135 @@ The **test plan** is the connective tissue across all layers — created in Laye
 
 ---
 
+## AI Invocation Model
+
+A key architectural decision: **where does the AI (LLM) run** across the three layers?
+
+### Layer 1: The AI Assistant IS the LLM
+
+In Layer 1, the MCP tools do NOT call an LLM internally. The AI assistant (Claude Code, Cursor, etc.) **is** the LLM. The MCP tools provide structured data (workspace analysis, schema, testing guide) and the AI assistant reasons over that data to produce plans and flows. This is why Layer 1 is "Free, Local" — no API keys needed beyond what the user's AI assistant already has.
+
+- `get_testing_guide` → returns static best-practices document (no LLM call)
+- `analyze_workspace` → runs discovery logic, returns structured data (no LLM call)
+- `generate_test_plan` → returns workspace analysis formatted for plan generation; the AI assistant creates the plan YAML (no LLM call)
+- `generate_flow` → returns context (schema, examples, sibling flows); the AI assistant writes the flow YAML and calls `write_flow` + `validate_flow` (no LLM call)
+- `validate_flow` → deterministic validation logic (no LLM call)
+- `run_suite` → deterministic execution via embedded `runner.Executor` (no LLM call)
+
+**Key insight:** `generate_test_plan` and `generate_flow` are **context-assembly tools**, not generators. They gather everything the AI assistant needs (discovery results, schema, examples, sibling flows, testing guide) and return it in a structured prompt-ready format. The AI assistant does the actual generation. This means the quality of generated flows depends on the AI assistant's capability, but the tools ensure it has maximum context.
+
+### Layer 2: LLM Required for Plan + Generate Stages (Optional for Execute-Only)
+
+The `testmesh pipeline` CLI has two modes:
+
+**Full pipeline** (`testmesh pipeline --prompt "..."`) — requires an LLM API key:
+- Plan + Generate stages call `GenerateFromPrompt()` which invokes the configured AI provider (OpenAI or Anthropic) via `api/internal/ai/generator.go`
+- Local mode: CLI embeds a lightweight AI client that calls the LLM API directly (same pattern as `cli/cmd/generate.go` which already calls `POST /api/v1/ai/generate`)
+- API mode: calls the TestMesh API which proxies to the LLM provider
+
+**Plan-only pipeline** (`testmesh pipeline --plan .testmesh/test-plan.yaml`) — no LLM needed:
+- Skips Plan + Generate stages entirely
+- Executes Validate → Execute → Report on already-generated flows
+- This is the CI-friendly path — flows were generated earlier (in Layer 1 or a previous `--prompt` run) and committed to git
+
+**Repair stage:** requires LLM in local mode (calls AI for diagnosis), or uses DiagnosisAgent + RepairAgent in API mode.
+
+Configuration:
+```bash
+# LLM provider for local pipeline
+export OPENAI_API_KEY=sk-...         # or
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Provider selection
+testmesh pipeline --prompt "..." --provider openai --model gpt-4o
+testmesh pipeline --prompt "..." --provider anthropic --model claude-sonnet-4-20250514
+```
+
+### Layer 3: LLM Runs Server-Side (Cloud)
+
+In Layer 3, all AI invocations happen in the cloud API:
+- `ChangeAnalysisAgent`, `PlanUpdateAgent`, `DiagnosisAgent`, etc. run server-side
+- The self-hosted agent receives pipeline jobs with pre-computed plans — it executes flows but doesn't call LLMs directly
+- LLM API keys are configured in the cloud workspace settings, not on the agent
+
+### Flow Execution Model (All Layers)
+
+All layers use the same execution engine: `runner.Executor` with `actions.RegisterDefaults()`. The CLI already embeds this executor (see `agent/internal/worker/pool.go` which creates an executor without DB persistence). The MCP tools and pipeline CLI use the same pattern:
+
+```go
+// Embedded executor in CLI (no API server needed)
+exec := runner.NewExecutor(runner.WithoutPersistence())
+actions.RegisterDefaults(exec)
+result := exec.ExecuteFlow(ctx, flowDefinition, variables)
+```
+
+This is why `run_suite` and the pipeline Execute stage work locally without the API backend.
+
+---
+
+## Test Plan Schema
+
+The test plan is the central artifact. Here is the formal schema:
+
+```yaml
+# Required fields
+version: "1"                          # Schema version for forward compatibility
+name: string                          # Suite name (e.g., "demo-services-suite")
+generated: string                     # ISO 8601 timestamp
+workspace_analysis: string            # Path to workspace analysis JSON
+
+# Service-grouped flows
+services:
+  - name: string                      # Service name or "e2e" for cross-service
+    endpoints_discovered: int         # Count of discovered endpoints (informational)
+    flows:
+      - id: string                    # Unique flow identifier (kebab-case)
+        category: enum                # happy-path | error-handling | cross-service | edge-case
+        priority: enum                # critical | high | medium
+        action: string                # Human-readable description of what the flow tests
+        status: enum                  # pending | generated | validated | invalid | passed | failed | repaired | needs-review | existing | removed
+        file: string                  # Relative path to generated flow YAML
+        depends_on: [string]          # Optional: IDs of flows that must exist first
+        repair_attempts: int          # Optional: number of auto-repair attempts made (default 0)
+        last_error: string            # Optional: last failure message
+
+# Computed summary (auto-generated from entries, not manually authored)
+summary:
+  total_flows: int                    # Count of all flow entries
+  by_category: map[string]int         # Count per category
+  by_priority: map[string]int         # Count per priority
+  by_status: map[string]int           # Count per status
+```
+
+**Status transitions:**
+```
+pending → generated → validated → passed
+                                 → failed → repaired → passed
+                                          → needs-review
+                   → invalid → (regenerated) → generated
+existing (discovered from disk, not generated)
+removed (endpoint deleted, flow orphaned)
+```
+
+---
+
+## Coverage Definition
+
+Coverage is calculated as: **the percentage of discovered testable endpoints that have at least one passing flow.**
+
+```
+coverage % = (endpoints with ≥1 passing flow) / (total discovered endpoints) × 100
+```
+
+For the detailed report, coverage is also broken down by:
+- **Per-service:** endpoints tested / endpoints discovered per service
+- **Per-category:** flows passing / flows planned per category
+- **Weighted:** critical flows count 3x, high 2x, medium 1x (for alert thresholds)
+
+The graph engine's `GetUncoveredNodes()` (nodes without `tested_by` edges) provides the API-connected coverage calculation, which is more comprehensive as it includes Kafka topics, DB tables, and gRPC methods — not just HTTP endpoints.
+
+---
+
 ## Layer 1: Intelligent MCP Foundation
 
 ### Purpose
@@ -348,6 +477,24 @@ suggested_next:
   - "Add concurrent order placement test when parallel step support is available"
 ```
 
+### Pipeline Error Handling
+
+**Stage-level failures:**
+
+| Failure | Behavior | Exit Code |
+|---|---|---|
+| Discover finds zero services | Abort with actionable error ("No services found. Ensure docker-compose.yml exists or services are running.") | 1 |
+| Plan generation fails (LLM error) | Retry once, then abort with error | 2 |
+| Generate fails for >50% of flows | Abort, report what succeeded, save partial plan | 3 |
+| Generate fails for ≤50% of flows | Continue, mark failed entries as `invalid` in plan | 0 (with warnings) |
+| Validate finds structural errors | Mark as `invalid`, continue to next flow | 0 (with warnings) |
+| Connectivity check fails for all services | Abort before full execution ("No services reachable. Are they running?") | 4 |
+| Full execution: all flows fail | Report results, suggest checking service health | 0 (report indicates failure) |
+
+**Retry policy:** Only the Plan stage retries on LLM errors (transient API failures). All other stages fail fast per-flow and continue the pipeline. No stage-level retries.
+
+**Partial results:** The pipeline always writes whatever it has completed to disk. A failed `generate` stage still produces the valid flows it generated before the failure. The plan YAML always reflects current status.
+
 ### Local vs API-Connected Behavior
 
 | Capability | Local (CLI only) | API-Connected |
@@ -511,7 +658,7 @@ Cloud:
 1. Marks affected flows for re-execution
 2. Marks flows with assertion mismatches for repair
 3. Creates new plan entries for uncovered endpoints/events
-4. Removes plan entries for deleted endpoints
+4. Marks plan entries for deleted endpoints as `removed` — corresponding YAML files are moved to `flows/.archived/` (not deleted) so they can be recovered if the endpoint is re-added
 
 **Output:** Plan delta (flows to re-run, repair, generate, remove).
 
@@ -556,8 +703,8 @@ Cloud:
 | `GitProvider` | `api/internal/git/` | L3 FetchDiff, PRComment, CommitStatus |
 | `agent/connection` | `agent/internal/connection/` | L3 WebSocket + new message types |
 | `agent/worker` | `agent/internal/worker/` | L3 Job execution pool |
-| `HistoryScanner` | `api/internal/ai/` | L3 Graph snapshot comparison |
-| `SemanticSearch` | `api/internal/ai/` | L2+L3 Similar flow detection |
+| `HistoryScanner` | `api/internal/graph/cloud/history_scanner.go` | L3 Graph snapshot comparison |
+| `SemanticSearch` | `api/internal/ai/search.go` | L2+L3 Similar flow detection |
 
 ---
 
@@ -622,9 +769,11 @@ flows/
 - Implement `testmesh pipeline` CLI command with stage subcommands
 - Implement Discover, Plan, Generate, Validate stages
 - Implement tiered execution (4 tiers)
-- Implement pipeline report generation
+- Implement pipeline report generation (report includes `repaired` field but shows 0 until Phase 3)
 - Cross-flow validation logic
+- Pipeline error handling (exit codes, partial results)
 - Local vs API-connected mode branching
+- Support parallel generation of independent flows (flows without `depends_on` relationships can be generated concurrently to reduce LLM round-trip time)
 
 ### Phase 3: Repair Loop (Layer 2)
 
