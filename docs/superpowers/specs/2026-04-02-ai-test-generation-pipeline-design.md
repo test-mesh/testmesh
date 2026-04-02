@@ -54,7 +54,7 @@ In Layer 1, the MCP tools do NOT call an LLM internally. The AI assistant (Claud
 - `get_testing_guide` → returns static best-practices document (no LLM call)
 - `analyze_workspace` → runs discovery logic, returns structured data (no LLM call)
 - `generate_test_plan` → returns workspace analysis formatted for plan generation; the AI assistant creates the plan YAML (no LLM call)
-- `generate_flow` → returns context (schema, examples, sibling flows); the AI assistant writes the flow YAML and calls `write_flow` + `validate_flow` (no LLM call)
+- `generate_flow` → returns context (schema, examples, sibling flows) for the AI assistant to write flow YAML; when the AI passes the YAML back, the tool calls `write_flow` + `validate_flow` internally before returning (no LLM call)
 - `validate_flow` → deterministic validation logic (no LLM call)
 - `run_suite` → deterministic execution via embedded `runner.Executor` (no LLM call)
 
@@ -199,6 +199,7 @@ This is the "teach the AI to think like a test engineer" tool. Serves the latest
 **Output:** A structured test plan manifest:
 
 ```yaml
+version: "1"
 name: "demo-services-suite"
 generated: "2026-04-02T10:00:00Z"
 workspace_analysis: ".testmesh/workspace-analysis.json"
