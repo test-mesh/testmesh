@@ -1,0 +1,225 @@
+flow:
+  name: "E2E Full Order Journey"
+  description: "Full cross-service journey: create user + product, place order, verify Kafka events, notifications, and inventory deduction"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+    USER_SERVICE_URL: "http://localhost:5001"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+    ORDER_SERVICE_URL: "http://localhost:5003"
+    NOTIFICATION_SERVICE_URL: "http://localhost:5004"
+
+  setup:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM notification_service.notifications
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-e2e@example.com')
+
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-e2e@example.com')
+          )
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-e2e@example.com')
+
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen E2E Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-e2e@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen E2E User"
+          email: "gen-e2e@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    - id: verify_user_event
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: user.created
+        group_id: "testmesh-gen-e2e-user-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen E2E Product"
+          description: "Product for e2e journey"
+          price: 30.00
+          inventory: 100
+      assert:
+        - "status == 201"
+      output:
+        product_id: "$.body.id"
+
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 2
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.total == 60.00"
+      output:
+        order_id: "$.body.id"
+
+    - id: verify_order_event
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: order.placed
+        group_id: "testmesh-gen-e2e-order-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+    - id: verify_order_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM order_service.orders WHERE id = $1"
+        params: ["{{order_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].status == 'pending'"
+        - "rows[0].total == 60.00"
+
+    - id: wait_for_notifications
+      action: db_poll
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT id FROM notification_service.notifications WHERE user_id = '{{user_id}}' AND type = 'order.placed' LIMIT 1"
+        interval: "1s"
+        timeout: "15s"
+
+    - id: verify_notifications
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.count >= 2"
+
+    - id: verify_notifications_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = $1 ORDER BY created_at"
+        params: ["{{user_id}}"]
+      assert:
+        - "row_count >= 2"
+
+    - id: wait_inventory_update
+      action: db_poll
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT inventory FROM product_service.products WHERE id = '{{product_id}}' AND inventory < 100"
+        interval: "1s"
+        timeout: "15s"
+
+    - id: verify_inventory_decreased
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT inventory FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].inventory == 98"
+
+  teardown:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM notification_service.notifications
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-e2e@example.com')
+
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-e2e@example.com')
+          )
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-e2e@example.com')
+
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen E2E Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-e2e@example.com'"

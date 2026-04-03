@@ -1,0 +1,39 @@
+flow:
+  name: "User Service - Missing Fields Validation"
+  description: "Verifies user-service rejects requests with missing required fields"
+
+  steps:
+    - id: missing_email
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "No Email User"
+      assert:
+        - "status == 400"
+
+    - id: missing_name
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "noname@example.com"
+      assert:
+        - "status == 400"
+
+    - id: empty_body
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5001/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body: {}
+      assert:
+        - "status == 400"

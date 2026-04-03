@@ -1,0 +1,17 @@
+flow:
+  name: "Order Service - Empty Items Array"
+  description: "Verifies order-service rejects order with empty items array"
+
+  steps:
+    - id: empty_items
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5003/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "00000000-0000-0000-0000-000000000001"
+          items: []
+      assert:
+        - "status == 400"

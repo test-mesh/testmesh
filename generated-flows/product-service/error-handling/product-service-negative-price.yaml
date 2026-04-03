@@ -1,0 +1,34 @@
+flow:
+  name: "Product Service - Negative Price Rejected"
+  description: "Verifies price must be > 0 (binding: gt=0)"
+
+  steps:
+    - id: zero_price
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5002/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Zero Price Product"
+          description: "Should fail"
+          price: 0
+          inventory: 10
+      assert:
+        - "status == 400"
+
+    - id: negative_price
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5002/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Negative Price Product"
+          description: "Should fail"
+          price: -5.00
+          inventory: 10
+      assert:
+        - "status == 400"

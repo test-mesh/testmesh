@@ -1,0 +1,38 @@
+flow:
+  name: "Product Service - Missing Fields Validation"
+  description: "Verifies product-service rejects requests missing required fields"
+
+  steps:
+    - id: missing_name
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5002/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          price: 9.99
+          inventory: 5
+      assert:
+        - "status == 400"
+
+    - id: missing_price
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5002/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "No Price Product"
+          inventory: 5
+      assert:
+        - "status == 400"
+
+    - id: not_found
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5002/api/v1/products/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404"

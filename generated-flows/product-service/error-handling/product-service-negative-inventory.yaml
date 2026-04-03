@@ -1,0 +1,61 @@
+flow:
+  name: "Product Service - Negative Inventory Update Rejected"
+  description: "Verifies PUT inventory rejects negative values (binding: gte=0)"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Neg Inv Product'"
+
+  steps:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Neg Inv Product"
+          description: "For negative inventory test"
+          price: 10.00
+          inventory: 50
+      assert:
+        - "status == 201"
+      output:
+        product_id: "$.body.id"
+
+    - id: negative_inventory
+      action: http_request
+      config:
+        method: PUT
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/inventory"
+        headers:
+          Content-Type: application/json
+        body:
+          inventory: -1
+      assert:
+        - "status == 400"
+
+    - id: verify_unchanged
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT inventory FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].inventory == 50"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Neg Inv Product'"

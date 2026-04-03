@@ -1,0 +1,152 @@
+flow:
+  name: "Order Service - Multi Product Order"
+  description: "Creates order with multiple different products, verifies total calculation"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    USER_SERVICE_URL: "http://localhost:5001"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+    ORDER_SERVICE_URL: "http://localhost:5003"
+
+  setup:
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-multi@example.com')
+          )
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-multi@example.com')
+
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name IN ('Gen Multi Product A', 'Gen Multi Product B')"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-multi@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Multi User"
+          email: "gen-multi@example.com"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+    - id: create_product_a
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Multi Product A"
+          description: "Product A"
+          price: 10.00
+          inventory: 50
+      assert:
+        - "status == 201"
+      output:
+        product_a_id: "$.body.id"
+
+    - id: create_product_b
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Multi Product B"
+          description: "Product B"
+          price: 25.00
+          inventory: 50
+      assert:
+        - "status == 201"
+      output:
+        product_b_id: "$.body.id"
+
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_a_id}}"
+              quantity: 2
+            - product_id: "{{product_b_id}}"
+              quantity: 1
+      assert:
+        - "status == 201"
+        - "body.total == 45.00"
+      output:
+        order_id: "$.body.id"
+
+    - id: verify_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM order_service.order_items WHERE order_id = $1 ORDER BY price"
+        params: ["{{order_id}}"]
+      assert:
+        - "row_count == 2"
+
+  teardown:
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-multi@example.com')
+          )
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-multi@example.com')
+
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name IN ('Gen Multi Product A', 'Gen Multi Product B')"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-multi@example.com'"

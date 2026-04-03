@@ -1,0 +1,168 @@
+flow:
+  name: "Order Service - Create Order Happy Path"
+  description: "Creates user + product, places order, verifies total, DB records, and Kafka event"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+    USER_SERVICE_URL: "http://localhost:5001"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+    ORDER_SERVICE_URL: "http://localhost:5003"
+
+  setup:
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order@example.com')
+          )
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order@example.com')
+
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Order Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-order@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Order User"
+          email: "gen-order@example.com"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Order Product"
+          description: "For order test"
+          price: 25.00
+          inventory: 100
+      assert:
+        - "status == 201"
+      output:
+        product_id: "$.body.id"
+
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 3
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.total == 75.00"
+      output:
+        order_id: "$.body.id"
+
+    - id: get_order
+      action: http_request
+      config:
+        method: GET
+        url: "${ORDER_SERVICE_URL}/api/v1/orders/{{order_id}}"
+      assert:
+        - "status == 200"
+        - "body.status == 'pending'"
+
+    - id: verify_order_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM order_service.orders WHERE id = $1"
+        params: ["{{order_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].total == 75.00"
+
+    - id: verify_items_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM order_service.order_items WHERE order_id = $1"
+        params: ["{{order_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].quantity == 3"
+
+    - id: verify_kafka
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: order.placed
+        group_id: "testmesh-gen-order-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+  teardown:
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order@example.com')
+          )
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order@example.com')
+
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Order Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-order@example.com'"

@@ -1,0 +1,12 @@
+flow:
+  name: "User Service - User Not Found"
+  description: "Verifies GET with non-existent UUID returns 404"
+
+  steps:
+    - id: get_nonexistent
+      action: http_request
+      config:
+        method: GET
+        url: "http://localhost:5001/api/v1/users/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404"

@@ -1,0 +1,48 @@
+flow:
+  name: "User Service - Duplicate Email Detection"
+  description: "Verifies creating two users with the same email returns 409"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    USER_SERVICE_URL: "http://localhost:5001"
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-dup@example.com'"
+
+  steps:
+    - id: create_first
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "First User"
+          email: "gen-dup@example.com"
+      assert:
+        - "status == 201"
+
+    - id: create_duplicate
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Duplicate User"
+          email: "gen-dup@example.com"
+      assert:
+        - "status == 409"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-dup@example.com'"

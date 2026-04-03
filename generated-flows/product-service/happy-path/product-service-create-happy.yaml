@@ -1,0 +1,77 @@
+flow:
+  name: "Product Service - Create Product Happy Path"
+  description: "Creates a product, verifies 201, DB persistence, Kafka event, Redis cache"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Test Widget'"
+
+  steps:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Test Widget"
+          description: "A generated test product"
+          price: 29.99
+          inventory: 50
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.name == 'Gen Test Widget'"
+        - "body.price == 29.99"
+        - "body.inventory == 50"
+      output:
+        product_id: "$.body.id"
+
+    - id: get_product
+      action: http_request
+      config:
+        method: GET
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}"
+      assert:
+        - "status == 200"
+        - "body.name == 'Gen Test Widget'"
+
+    - id: verify_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].name == 'Gen Test Widget'"
+        - "rows[0].price == 29.99"
+
+    - id: verify_kafka
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: product.created
+        group_id: "testmesh-gen-product-create-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Test Widget'"

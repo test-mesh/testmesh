@@ -87,6 +87,14 @@ func dispatchTool(name string, args map[string]any, cfg Config) (*mcp.CallToolRe
 		return toolGetExecution(args, cfg)
 	case "get_coverage_gaps":
 		return toolGetCoverageGaps(args, cfg)
+	case "get_testing_guide":
+		return toolGetTestingGuide()
+	case "generate_test_plan":
+		return toolGenerateTestPlan(args)
+	case "generate_flow":
+		return toolGenerateFlow(args)
+	case "run_suite":
+		return toolRunSuite(args)
 	default:
 		return toolError("unknown tool: " + name), nil
 	}
@@ -156,6 +164,97 @@ decide how many flows to create, then call write_flow once per flow.`,
 			"name":        "get_action_types",
 			"description": "Return all supported action types with their required and optional configuration fields. Use alongside get_yaml_schema when you need a quick reference of what a specific action accepts.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+
+		// ── AI Test Generation Pipeline ──────────────────────────────────────
+		{
+			"name":        "get_testing_guide",
+			"description": "Return a comprehensive best-practices guide for writing TestMesh E2E flows. Covers flow organization, assertion patterns per layer (HTTP/Kafka/DB/Redis), setup/teardown for idempotency, async verification strategies (delay vs db_poll vs kafka_consumer), variable chaining, edge case patterns, and the test plan YAML schema. Read this first before generating any flows.",
+			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name": "generate_test_plan",
+			"description": `Analyze a workspace and return structured context for creating a comprehensive test plan.
+Discovers services, endpoints, infrastructure, and existing flow coverage. Returns a service inventory
+with endpoint counts, a recommended coverage assessment (flows per service per category), existing flow
+coverage if flows_dir is provided, and the test plan YAML schema.
+Use this after analyze_workspace to plan a full test suite. You create the test plan YAML from this context.`,
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"workspace_dir": map[string]any{
+						"type":        "string",
+						"description": "Path to the workspace directory containing service subdirectories",
+					},
+					"prompt": map[string]any{
+						"type":        "string",
+						"description": "Optional user requirements or focus areas for the test plan",
+					},
+					"flows_dir": map[string]any{
+						"type":        "string",
+						"description": "Optional path to existing flows directory — used to assess current coverage",
+					},
+				},
+				"required": []string{"workspace_dir"},
+			},
+		},
+		{
+			"name": "generate_flow",
+			"description": `Return focused context for generating a single test flow. Includes the target service's
+endpoints, DB schemas, Kafka topics, request schemas, category-specific guidance (happy-path/error-handling/
+cross-service/edge-case), and sibling flow examples for convention consistency.
+After reading this context, write the flow YAML, then call write_flow to save and validate_flow to check.`,
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"workspace_dir": map[string]any{
+						"type":        "string",
+						"description": "Path to the workspace directory",
+					},
+					"service_name": map[string]any{
+						"type":        "string",
+						"description": "Target service name (must match a directory in the workspace, or 'e2e' for cross-service)",
+					},
+					"category": map[string]any{
+						"type":        "string",
+						"description": "Flow category: happy-path, error-handling, cross-service, or edge-case",
+						"enum":        []string{"happy-path", "error-handling", "cross-service", "edge-case"},
+					},
+					"action_description": map[string]any{
+						"type":        "string",
+						"description": "What this specific flow should test (e.g., 'Create user with valid data and verify DB persistence')",
+					},
+					"sibling_flows_dir": map[string]any{
+						"type":        "string",
+						"description": "Optional path to directory containing sibling flows — read for naming/convention consistency",
+					},
+				},
+				"required": []string{"workspace_dir", "service_name", "category", "action_description"},
+			},
+		},
+		{
+			"name": "run_suite",
+			"description": `Execute a suite of TestMesh flows with tiered validation. Accepts a directory of flow files or
+a test plan YAML (version: "1"). Tiers:
+  1 — Structural validation only (YAML syntax, action types, variable dependencies)
+  2 — Connectivity probes (HTTP health checks, PostgreSQL SELECT 1, Kafka/Redis connect)
+  3 — Setup-only execution (runs setup steps to verify infrastructure access)
+  4 — Full execution (runs all flows end-to-end)
+Returns a per-flow report with pass/fail status, failure categories, and repair hints.`,
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "Path to a directory of flow files or a test plan YAML",
+					},
+					"tier": map[string]any{
+						"type":        "number",
+						"description": "Validation tier (1-4, default 1). Higher tiers include all lower tiers.",
+					},
+				},
+				"required": []string{"path"},
+			},
 		},
 
 		// ── Flow lifecycle ────────────────────────────────────────────────────

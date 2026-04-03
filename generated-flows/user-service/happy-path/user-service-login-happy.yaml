@@ -1,0 +1,66 @@
+flow:
+  name: "User Service - Login Happy Path"
+  description: "Creates a user, logs in, verifies session token and Kafka login event"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+    USER_SERVICE_URL: "http://localhost:5001"
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-login@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Login User"
+          email: "gen-login@example.com"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+    - id: login
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/auth/login"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "gen-login@example.com"
+      assert:
+        - "status == 200"
+        - "body.token != nil"
+      output:
+        token: "$.body.token"
+
+    - id: verify_login_kafka
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: user.login
+        group_id: "testmesh-gen-login-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-login@example.com'"

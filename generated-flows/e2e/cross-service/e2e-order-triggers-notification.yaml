@@ -1,0 +1,164 @@
+flow:
+  name: "E2E Order Triggers Notification"
+  description: "Places an order and verifies notification-service receives the order.placed event"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    USER_SERVICE_URL: "http://localhost:5001"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+    ORDER_SERVICE_URL: "http://localhost:5003"
+    NOTIFICATION_SERVICE_URL: "http://localhost:5004"
+
+  setup:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM notification_service.notifications
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order-notify@example.com')
+
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order-notify@example.com')
+          )
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order-notify@example.com')
+
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Order Notify Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-order-notify@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Order Notify User"
+          email: "gen-order-notify@example.com"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Order Notify Product"
+          description: "For notification test"
+          price: 15.00
+          inventory: 100
+      assert:
+        - "status == 201"
+      output:
+        product_id: "$.body.id"
+
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 1
+      assert:
+        - "status == 201"
+
+    - id: wait_order_notification
+      action: db_poll
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT id FROM notification_service.notifications WHERE user_id = '{{user_id}}' AND type = 'order.placed' LIMIT 1"
+        interval: "1s"
+        timeout: "15s"
+
+    - id: verify_notification_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = $1 AND type = 'order.placed'"
+        params: ["{{user_id}}"]
+      assert:
+        - "row_count >= 1"
+
+    - id: verify_notification_api
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.count >= 1"
+
+  teardown:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM notification_service.notifications
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order-notify@example.com')
+
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.order_items
+          WHERE order_id IN (
+            SELECT id FROM order_service.orders
+            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order-notify@example.com')
+          )
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM order_service.orders
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order-notify@example.com')
+
+    - id: cleanup_products
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Order Notify Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-order-notify@example.com'"

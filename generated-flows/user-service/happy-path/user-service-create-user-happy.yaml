@@ -1,0 +1,75 @@
+flow:
+  name: "User Service - Create User Happy Path"
+  description: "Creates a user, verifies 201 response, DB persistence, Kafka event, and Redis cache"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+    USER_SERVICE_URL: "http://localhost:5001"
+
+  setup:
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-create-user@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Generated Create User"
+          email: "gen-create-user@example.com"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.name == 'Generated Create User'"
+        - "body.email == 'gen-create-user@example.com'"
+      output:
+        user_id: "$.body.id"
+
+    - id: get_user
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/users/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == user_id"
+        - "body.name == 'Generated Create User'"
+
+    - id: verify_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM user_service.users WHERE id = $1"
+        params: ["{{user_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].email == 'gen-create-user@example.com'"
+        - "rows[0].name == 'Generated Create User'"
+
+    - id: verify_kafka
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: user.created
+        group_id: "testmesh-gen-create-user-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-create-user@example.com'"

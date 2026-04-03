@@ -299,6 +299,14 @@ func toolValidateFlow(args map[string]any) (*mcp.CallToolResult, error) {
 	checkSteps(flow.Steps, "steps")
 	checkSteps(flow.Teardown, "teardown")
 
+	// Append repair hints to each error.
+	for i, e := range errs {
+		hint := repairHint(e, nil)
+		if hint != "" {
+			errs[i] = e + "\n  Hint: " + hint
+		}
+	}
+
 	if len(errs) > 0 {
 		return toolContent(fmt.Sprintf("❌ Validation failed (%d errors):\n• %s", len(errs), strings.Join(errs, "\n• "))), nil
 	}
@@ -675,6 +683,10 @@ func toolAnalyzeWorkspace(args map[string]any) (*mcp.CallToolResult, error) {
 	sb.WriteString(fmt.Sprintf("# Source Analysis\n\nAnalyzed workspace: %s\nFound %d services, %d dependencies.\n\n%s",
 		workspace.RootDir, len(workspace.Services), len(workspace.Dependencies),
 		GenerateE2EAnalysisReport(workspace, opts)))
+
+	// Append coverage assessment.
+	sb.WriteString("\n")
+	sb.WriteString(generateCoverageAssessment(workspace))
 
 	return toolContent(sb.String()), nil
 }

@@ -1,0 +1,76 @@
+flow:
+  name: "Product Service - Update Inventory"
+  description: "Creates a product, updates inventory via PUT, verifies DB change and Kafka event"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+    PRODUCT_SERVICE_URL: "http://localhost:5002"
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Inventory Product'"
+
+  steps:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Inventory Product"
+          description: "For inventory update test"
+          price: 15.00
+          inventory: 100
+      assert:
+        - "status == 201"
+      output:
+        product_id: "$.body.id"
+
+    - id: update_inventory
+      action: http_request
+      config:
+        method: PUT
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/inventory"
+        headers:
+          Content-Type: application/json
+        body:
+          inventory: 75
+      assert:
+        - "status == 200"
+        - "body.inventory == 75"
+
+    - id: verify_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT inventory FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].inventory == 75"
+
+    - id: verify_kafka
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: product.inventory.changed
+        group_id: "testmesh-gen-inv-update-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Gen Inventory Product'"

@@ -1,0 +1,81 @@
+flow:
+  name: "Notification Service - Verify Notifications"
+  description: "Creates a user (triggering user.created Kafka event), waits for notification, verifies via API and DB"
+
+  env:
+    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    USER_SERVICE_URL: "http://localhost:5001"
+    NOTIFICATION_SERVICE_URL: "http://localhost:5004"
+
+  setup:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM notification_service.notifications
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-notify@example.com')
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-notify@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Gen Notify User"
+          email: "gen-notify@example.com"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+    - id: wait_for_notification
+      action: db_poll
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT id FROM notification_service.notifications WHERE user_id = '{{user_id}}' LIMIT 1"
+        interval: "1s"
+        timeout: "15s"
+
+    - id: get_notifications
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.count >= 1"
+
+    - id: verify_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = $1 ORDER BY created_at"
+        params: ["{{user_id}}"]
+      assert:
+        - "row_count >= 1"
+        - "rows[0].type == 'user.created'"
+
+  teardown:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: >
+          DELETE FROM notification_service.notifications
+          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-notify@example.com')
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'gen-notify@example.com'"
