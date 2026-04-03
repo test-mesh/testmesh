@@ -19,6 +19,52 @@ import (
 )
 
 // ---------------------------------------------------------------------------
+// write_env_file
+// ---------------------------------------------------------------------------
+
+func toolWriteEnvFile(args map[string]any) (*mcp.CallToolResult, error) {
+	path, _ := args["path"].(string)
+	content, _ := args["content"].(string)
+	if path == "" {
+		return toolError("path is required"), nil
+	}
+	if content == "" {
+		return toolError("content is required"), nil
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return toolError("invalid path: " + err.Error()), nil
+	}
+
+	// Validate: must look like key=value lines.
+	lines := strings.Split(content, "\n")
+	kvCount := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if !strings.Contains(line, "=") {
+			return toolError(fmt.Sprintf("invalid line (no '=' found): %q", line)), nil
+		}
+		kvCount++
+	}
+	if kvCount == 0 {
+		return toolError("content has no key=value pairs"), nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+		return toolError("failed to create directory: " + err.Error()), nil
+	}
+	if err := os.WriteFile(abs, []byte(content), 0644); err != nil {
+		return toolError("failed to write file: " + err.Error()), nil
+	}
+
+	return toolContent(fmt.Sprintf("✅ Saved env file → %s (%d variables)", abs, kvCount)), nil
+}
+
+// ---------------------------------------------------------------------------
 // get_testing_guide
 // ---------------------------------------------------------------------------
 
@@ -185,7 +231,11 @@ summary:
   by_status: { pending: <n> }
 `)
 	sb.WriteString("```\n\n")
-	sb.WriteString("After creating the plan, generate each flow using `generate_flow` for context, then `write_flow` to save, and `validate_flow` to check.\n")
+	sb.WriteString("**Recommended workflow:**\n")
+	sb.WriteString("1. Create a shared `.env.test` file with infrastructure connection strings (DB_URL, service URLs, Kafka brokers, Redis address)\n")
+	sb.WriteString("2. Use `write_env_file` to save it alongside the flows directory\n")
+	sb.WriteString("3. Generate each flow using `generate_flow` for context, referencing `env_file: .env.test` instead of inline `env:` blocks\n")
+	sb.WriteString("4. Use `write_flow` to save and `validate_flow` to check each flow\n")
 
 	return toolContent(sb.String()), nil
 }
@@ -438,7 +488,8 @@ func toolGenerateFlow(args map[string]any) (*mcp.CallToolResult, error) {
 
 	// YAML schema excerpt
 	sb.WriteString("## YAML Schema Quick Reference\n\n")
-	sb.WriteString("```yaml\nflow:\n  name: \"Flow Name\"\n  setup: []     # optional cleanup steps\n  steps:\n    - id: step_id\n      action: http_request | database_query | kafka_consumer | db_poll | delay | log\n      config: { ... }\n      assert: [\"expr\"]\n      output: { var: \"$.body.field\" }\n  teardown: []  # optional restore steps\n```\n\n")
+	sb.WriteString("```yaml\nflow:\n  name: \"Flow Name\"\n  env_file: .env.test   # shared env file (relative to flow file location)\n  env:                  # optional inline overrides (take precedence over env_file)\n    CUSTOM_VAR: value\n  setup: []     # optional cleanup steps\n  steps:\n    - id: step_id\n      action: http_request | database_query | kafka_consumer | db_poll | delay | log\n      config: { ... }\n      assert: [\"expr\"]\n      output: { var: \"$.body.field\" }\n  teardown: []  # optional restore steps\n```\n\n")
+	sb.WriteString("**Best practice:** Use `env_file:` for shared infrastructure variables (DB_URL, service URLs, Kafka brokers) instead of duplicating `env:` blocks in every flow. Inline `env:` values override env_file values.\n\n")
 	sb.WriteString("After writing the flow YAML, call `write_flow` to save it, then `validate_flow` to check it.\n")
 
 	return toolContent(sb.String()), nil
@@ -606,6 +657,9 @@ func toolRunSuite(args map[string]any) (*mcp.CallToolResult, error) {
 			if err := yaml.Unmarshal(data, &fw); err != nil {
 				continue
 			}
+			if absPath, err := filepath.Abs(file); err == nil {
+				fw.Flow.FlowDir = filepath.Dir(absPath)
+			}
 			parsed[i] = &parsedFlow{def: fw.Flow, data: data}
 		}
 
@@ -701,11 +755,17 @@ func toolRunSuite(args map[string]any) (*mcp.CallToolResult, error) {
 				continue
 			}
 
+			if absPath, err := filepath.Abs(file); err == nil {
+				flowWrapper.Flow.FlowDir = filepath.Dir(absPath)
+			}
+
 			// Execute only setup steps.
 			setupFlow := &models.FlowDefinition{
-				Name:  flowWrapper.Flow.Name + " (setup only)",
-				Env:   flowWrapper.Flow.Env,
-				Steps: flowWrapper.Flow.Setup,
+				Name:    flowWrapper.Flow.Name + " (setup only)",
+				Env:     flowWrapper.Flow.Env,
+				EnvFile: flowWrapper.Flow.EnvFile,
+				FlowDir: flowWrapper.Flow.FlowDir,
+				Steps:   flowWrapper.Flow.Setup,
 			}
 
 			result, err := executeFlow(setupFlow)
@@ -742,6 +802,9 @@ func toolRunSuite(args map[string]any) (*mcp.CallToolResult, error) {
 			if err := yaml.Unmarshal(data, &flowWrapper); err != nil {
 				results[i].tier4Err = "parse error: " + err.Error()
 				continue
+			}
+			if absPath, err := filepath.Abs(file); err == nil {
+				flowWrapper.Flow.FlowDir = filepath.Dir(absPath)
 			}
 
 			result, err := executeFlow(&flowWrapper.Flow)

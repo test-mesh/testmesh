@@ -463,6 +463,78 @@ func findDemoServices(t *testing.T) string {
 	return ""
 }
 
+func TestWriteEnvFile(t *testing.T) {
+	dir := t.TempDir()
+
+	// Valid env file.
+	envPath := filepath.Join(dir, ".env.test")
+	content := "# Shared test infrastructure\nDB_URL=postgres://root:admin@localhost:5432/postgres?sslmode=disable\nUSER_SERVICE_URL=http://localhost:5001\nPRODUCT_SERVICE_URL=http://localhost:5002\n"
+
+	result, err := toolWriteEnvFile(map[string]any{
+		"path":    envPath,
+		"content": content,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := extractText(result)
+	if !strings.Contains(text, "✅") {
+		t.Errorf("expected success, got: %s", text)
+	}
+	if !strings.Contains(text, "3 variables") {
+		t.Errorf("expected 3 variables counted, got: %s", text)
+	}
+
+	// Verify file was written.
+	data, err := os.ReadFile(envPath)
+	if err != nil {
+		t.Fatalf("file not written: %v", err)
+	}
+	if string(data) != content {
+		t.Errorf("content mismatch")
+	}
+
+	// Invalid: no key=value.
+	result, err = toolWriteEnvFile(map[string]any{
+		"path":    filepath.Join(dir, "bad.env"),
+		"content": "this is not a valid env file",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text = extractText(result)
+	if !strings.Contains(text, "ERROR") {
+		t.Errorf("expected error for invalid content, got: %s", text)
+	}
+
+	// Invalid: empty content.
+	result, _ = toolWriteEnvFile(map[string]any{
+		"path":    filepath.Join(dir, "empty.env"),
+		"content": "",
+	})
+	text = extractText(result)
+	if !strings.Contains(text, "ERROR") {
+		t.Errorf("expected error for empty content, got: %s", text)
+	}
+}
+
+func TestTestingGuideContainsEnvFile(t *testing.T) {
+	result, err := toolGetTestingGuide()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := extractText(result)
+	if !strings.Contains(text, "env_file") {
+		t.Error("testing guide missing env_file section")
+	}
+	if !strings.Contains(text, ".env.test") {
+		t.Error("testing guide missing .env.test reference")
+	}
+	if !strings.Contains(text, "Merge priority") {
+		t.Error("testing guide missing merge priority explanation")
+	}
+}
+
 func findExamplesDir(t *testing.T) string {
 	t.Helper()
 	candidates := []string{

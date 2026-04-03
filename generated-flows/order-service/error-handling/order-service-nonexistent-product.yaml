@@ -2,10 +2,7 @@ flow:
   name: "Order Service - Nonexistent Product in Order"
   description: "Verifies creating order with a valid user but nonexistent product returns error"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    USER_SERVICE_URL: "http://localhost:5001"
-    ORDER_SERVICE_URL: "http://localhost:5003"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup_user

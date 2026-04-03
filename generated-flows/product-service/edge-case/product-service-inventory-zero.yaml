@@ -2,9 +2,7 @@ flow:
   name: "Product Service - Set Inventory to Minimum"
   description: "Creates a product, sets inventory to 1 (minimum allowed), verifies the boundary value"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup

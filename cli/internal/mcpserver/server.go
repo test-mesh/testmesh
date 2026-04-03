@@ -89,6 +89,8 @@ func dispatchTool(name string, args map[string]any, cfg Config) (*mcp.CallToolRe
 		return toolGetCoverageGaps(args, cfg)
 	case "get_testing_guide":
 		return toolGetTestingGuide()
+	case "write_env_file":
+		return toolWriteEnvFile(args)
 	case "generate_test_plan":
 		return toolGenerateTestPlan(args)
 	case "generate_flow":
@@ -171,6 +173,27 @@ decide how many flows to create, then call write_flow once per flow.`,
 			"name":        "get_testing_guide",
 			"description": "Return a comprehensive best-practices guide for writing TestMesh E2E flows. Covers flow organization, assertion patterns per layer (HTTP/Kafka/DB/Redis), setup/teardown for idempotency, async verification strategies (delay vs db_poll vs kafka_consumer), variable chaining, edge case patterns, and the test plan YAML schema. Read this first before generating any flows.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+		{
+			"name": "write_env_file",
+			"description": `Write a shared environment file (.env.test) for TestMesh flows. Contains infrastructure
+connection strings and service URLs as KEY=VALUE pairs. Flows reference this file via env_file: .env.test
+instead of duplicating env: blocks. Create this before generating flows so all flows share the same
+infrastructure configuration.`,
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "Destination file path (e.g. ./flows/.env.test). Parent directories are created automatically.",
+					},
+					"content": map[string]any{
+						"type":        "string",
+						"description": "Environment file content as KEY=VALUE lines (supports # comments and quoted values)",
+					},
+				},
+				"required": []string{"path", "content"},
+			},
 		},
 		{
 			"name": "generate_test_plan",

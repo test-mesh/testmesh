@@ -2,13 +2,7 @@ flow:
   name: "E2E Full Order Journey"
   description: "Full cross-service journey: create user + product, place order, verify Kafka events, notifications, and inventory deduction"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    KAFKA_BROKERS: "localhost:9092"
-    USER_SERVICE_URL: "http://localhost:5001"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
-    ORDER_SERVICE_URL: "http://localhost:5003"
-    NOTIFICATION_SERVICE_URL: "http://localhost:5004"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup_notifications

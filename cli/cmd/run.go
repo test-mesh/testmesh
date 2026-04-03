@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/test-mesh/testmesh/internal/plugins"
@@ -60,6 +61,9 @@ func runFlow(cmd *cobra.Command, args []string) error {
 	}
 
 	definition := &flowWrapper.Flow
+	if abs, err := filepath.Abs(filePath); err == nil {
+		definition.FlowDir = filepath.Dir(abs)
+	}
 
 	fmt.Println()
 	fmt.Printf("🚀 Running flow: %s\n", definition.Name)

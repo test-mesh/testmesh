@@ -2,9 +2,7 @@ flow:
   name: "User Service - Verify Auth Token"
   description: "Creates user, logs in, verifies token via GET /auth/verify"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    USER_SERVICE_URL: "http://localhost:5001"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup

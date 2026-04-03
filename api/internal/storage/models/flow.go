@@ -101,7 +101,9 @@ type FlowDefinition struct {
 	Description string                 `json:"description" yaml:"description"`
 	Suite       string                 `json:"suite" yaml:"suite"`
 	Tags        []string               `json:"tags" yaml:"tags"`
+	EnvFile     string                 `json:"env_file,omitempty" yaml:"env_file,omitempty"`
 	Env         map[string]interface{} `json:"env" yaml:"env"`
+	FlowDir     string                 `json:"-" yaml:"-"` // transient: directory of the flow YAML file, used to resolve relative env_file paths
 	Graph       *FlowGraphConfig       `json:"graph,omitempty" yaml:"graph,omitempty"`
 	Setup       []Step                 `json:"setup" yaml:"setup"`
 	Steps       []Step                 `json:"steps" yaml:"steps"`

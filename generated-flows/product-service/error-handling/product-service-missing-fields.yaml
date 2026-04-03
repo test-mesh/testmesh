@@ -2,12 +2,14 @@ flow:
   name: "Product Service - Missing Fields Validation"
   description: "Verifies product-service rejects requests missing required fields"
 
+  env_file: ../../.env.test
+
   steps:
     - id: missing_name
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5002/api/v1/products"
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
         headers:
           Content-Type: application/json
         body:
@@ -20,7 +22,7 @@ flow:
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5002/api/v1/products"
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
         headers:
           Content-Type: application/json
         body:
@@ -33,6 +35,6 @@ flow:
       action: http_request
       config:
         method: GET
-        url: "http://localhost:5002/api/v1/products/00000000-0000-0000-0000-000000000000"
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/00000000-0000-0000-0000-000000000000"
       assert:
         - "status == 404"

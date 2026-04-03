@@ -2,12 +2,14 @@ flow:
   name: "Notification Service - No Notifications for User"
   description: "Queries notifications for a user that doesn't exist or has none"
 
+  env_file: ../../.env.test
+
   steps:
     - id: get_empty
       action: http_request
       config:
         method: GET
-        url: "http://localhost:5004/api/v1/notifications/00000000-0000-0000-0000-000000000000"
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/00000000-0000-0000-0000-000000000000"
       assert:
         - "status == 200"
         - "body.count == 0"

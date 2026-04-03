@@ -2,12 +2,14 @@ flow:
   name: "Order Service - Empty Items Array"
   description: "Verifies order-service rejects order with empty items array"
 
+  env_file: ../../.env.test
+
   steps:
     - id: empty_items
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5003/api/v1/orders"
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
         headers:
           Content-Type: application/json
         body:

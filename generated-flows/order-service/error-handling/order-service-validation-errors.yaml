@@ -2,12 +2,14 @@ flow:
   name: "Order Service - Validation Errors"
   description: "Verifies order-service rejects invalid requests"
 
+  env_file: ../../.env.test
+
   steps:
     - id: missing_user_id
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5003/api/v1/orders"
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
         headers:
           Content-Type: application/json
         body:
@@ -21,7 +23,7 @@ flow:
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5003/api/v1/orders"
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
         headers:
           Content-Type: application/json
         body:
@@ -33,7 +35,7 @@ flow:
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5003/api/v1/orders"
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
         headers:
           Content-Type: application/json
         body:
@@ -48,6 +50,6 @@ flow:
       action: http_request
       config:
         method: GET
-        url: "http://localhost:5003/api/v1/orders/00000000-0000-0000-0000-000000000000"
+        url: "${ORDER_SERVICE_URL}/api/v1/orders/00000000-0000-0000-0000-000000000000"
       assert:
         - "status == 404"

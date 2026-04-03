@@ -2,10 +2,7 @@ flow:
   name: "Product Service - Create Product Happy Path"
   description: "Creates a product, verifies 201, DB persistence, Kafka event, Redis cache"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    KAFKA_BROKERS: "localhost:9092"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup

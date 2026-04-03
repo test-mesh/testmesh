@@ -2,12 +2,14 @@ flow:
   name: "User Service - Missing Fields Validation"
   description: "Verifies user-service rejects requests with missing required fields"
 
+  env_file: ../../.env.test
+
   steps:
     - id: missing_email
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5001/api/v1/users"
+        url: "${USER_SERVICE_URL}/api/v1/users"
         headers:
           Content-Type: application/json
         body:
@@ -19,7 +21,7 @@ flow:
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5001/api/v1/users"
+        url: "${USER_SERVICE_URL}/api/v1/users"
         headers:
           Content-Type: application/json
         body:
@@ -31,7 +33,7 @@ flow:
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5001/api/v1/users"
+        url: "${USER_SERVICE_URL}/api/v1/users"
         headers:
           Content-Type: application/json
         body: {}

@@ -2,10 +2,7 @@ flow:
   name: "Notification Service - Unread Notifications"
   description: "Creates a user (triggering notification), verifies unread endpoint returns count"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    USER_SERVICE_URL: "http://localhost:5001"
-    NOTIFICATION_SERVICE_URL: "http://localhost:5004"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup_notifications

@@ -2,9 +2,7 @@ flow:
   name: "User Service - Duplicate Email Detection"
   description: "Verifies creating two users with the same email returns 409"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    USER_SERVICE_URL: "http://localhost:5001"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup

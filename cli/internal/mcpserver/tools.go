@@ -147,6 +147,13 @@ func toolRunFlow(args map[string]any) (*mcp.CallToolResult, error) {
 		return toolError("invalid flow: missing 'flow:' root key or flow.name"), nil
 	}
 
+	// Set FlowDir so env_file paths resolve relative to the flow file.
+	if filePath != "" {
+		if absPath, err := filepath.Abs(filePath); err == nil {
+			flowWrapper.Flow.FlowDir = filepath.Dir(absPath)
+		}
+	}
+
 	logger := zap.NewNop()
 	pDir := defaultPluginDir()
 	registry := plugins.NewRegistry(pDir, logger)
@@ -703,6 +710,9 @@ func toolGetYAMLSchema() (*mcp.CallToolResult, error) {
 flow:
   name: "Flow Name"                    # required
   description: "optional description"
+  env_file: .env.test                  # optional — shared env file (relative to flow file)
+  env:                                 # optional — inline env vars (override env_file)
+    CUSTOM_VAR: "value"
   steps:                               # required, at least 1
     - id: step_id                      # required, unique snake_case
       action: action_type              # required

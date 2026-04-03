@@ -2,9 +2,7 @@ flow:
   name: "User Service - List Users"
   description: "Creates a user, lists all users, verifies the created user appears"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    USER_SERVICE_URL: "http://localhost:5001"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup

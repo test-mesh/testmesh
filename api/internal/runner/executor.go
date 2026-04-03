@@ -84,13 +84,32 @@ func (e *Executor) GetDebugController() *debugger.Controller {
 	return e.debugController
 }
 
+// resolveEnvFile merges env_file variables (if specified) with inline env vars.
+// env_file values serve as the base; inline env: values override them.
+func (e *Executor) resolveEnvFile(definition *models.FlowDefinition) map[string]interface{} {
+	if definition.EnvFile == "" {
+		return definition.Env
+	}
+	merged, err := MergeEnvFileIntoDefinition(definition.Env, definition.EnvFile, definition.FlowDir)
+	if err != nil {
+		if e.logger != nil {
+			e.logger.Warn("failed to load env_file",
+				zap.String("env_file", definition.EnvFile),
+				zap.Error(err))
+		}
+		return definition.Env
+	}
+	return merged
+}
+
 // ExecuteWithoutPersistence runs a flow without persisting results to the database.
 // This is optimized for load testing where we don't want DB overhead per request.
 func (e *Executor) ExecuteWithoutPersistence(ctx context.Context, flow *models.Flow, variables map[string]string) error {
 	definition := &flow.Definition
 
 	// Create execution context
-	execCtx := NewContext(variables, definition.Env)
+	env := e.resolveEnvFile(definition)
+	execCtx := NewContext(variables, env)
 
 	// Execute setup steps
 	if len(definition.Setup) > 0 {
@@ -205,7 +224,8 @@ func (e *Executor) Execute(execution *models.Execution, definition *models.FlowD
 	}
 
 	// Create execution context
-	execCtx := NewContext(variables, definition.Env)
+	env := e.resolveEnvFile(definition)
+	execCtx := NewContext(variables, env)
 
 	// Validate graph requirements if specified
 	if definition.Graph != nil && e.graphResolver != nil {
@@ -665,7 +685,8 @@ func (e *Executor) RunFlowSteps(ctx context.Context, definition *models.FlowDefi
 	if vars == nil {
 		vars = make(map[string]string)
 	}
-	execCtx := NewContext(vars, definition.Env)
+	env := e.resolveEnvFile(definition)
+	execCtx := NewContext(vars, env)
 
 	if len(definition.Setup) > 0 {
 		if err := e.executeStepsWithoutPersistence(ctx, definition.Setup, execCtx); err != nil {
@@ -838,7 +859,8 @@ type InlineResult struct {
 func (e *Executor) ExecuteInline(definition *models.FlowDefinition, variables map[string]string) (*InlineResult, error) {
 	ctx := context.Background()
 	start := time.Now()
-	execCtx := NewContext(variables, definition.Env)
+	env := e.resolveEnvFile(definition)
+	execCtx := NewContext(variables, env)
 	result := &InlineResult{Status: "passed"}
 
 	type phase struct {

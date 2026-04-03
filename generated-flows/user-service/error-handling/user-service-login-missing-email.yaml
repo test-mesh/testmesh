@@ -2,12 +2,14 @@ flow:
   name: "User Service - Login Missing Email"
   description: "Verifies POST /auth/login without email returns 400"
 
+  env_file: ../../.env.test
+
   steps:
     - id: login_empty_body
       action: http_request
       config:
         method: POST
-        url: "http://localhost:5001/api/v1/auth/login"
+        url: "${USER_SERVICE_URL}/api/v1/auth/login"
         headers:
           Content-Type: application/json
         body: {}

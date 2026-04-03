@@ -2,12 +2,7 @@ flow:
   name: "E2E Order Triggers Notification"
   description: "Places an order and verifies notification-service receives the order.placed event"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    USER_SERVICE_URL: "http://localhost:5001"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
-    ORDER_SERVICE_URL: "http://localhost:5003"
-    NOTIFICATION_SERVICE_URL: "http://localhost:5004"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup_notifications

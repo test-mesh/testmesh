@@ -2,9 +2,7 @@ flow:
   name: "Product Service - List Products"
   description: "Creates a product, lists all, verifies it appears"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup

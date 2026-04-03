@@ -326,7 +326,57 @@ doesn't go negative under concurrent orders):
     - "rows[0].inventory >= 0"
 ` + "```" + `
 
-## 7. Test Plan YAML Schema
+## 7. Environment Files (env_file)
+
+Instead of duplicating connection strings and service URLs in every flow's ` + "`env:`" + ` block,
+use a shared ` + "`.env.test`" + ` file:
+
+### Create a shared env file
+` + "```" + `
+# .env.test — shared infrastructure for all test flows
+DB_URL=postgres://root:admin@localhost:5432/postgres?sslmode=disable
+USER_SERVICE_URL=http://localhost:5001
+PRODUCT_SERVICE_URL=http://localhost:5002
+ORDER_SERVICE_URL=http://localhost:5003
+NOTIFICATION_SERVICE_URL=http://localhost:5004
+KAFKA_BROKERS=localhost:9092
+REDIS_HOST=localhost
+REDIS_PORT=6379
+` + "```" + `
+
+### Reference it in flows
+` + "```yaml" + `
+flow:
+  name: "My Test Flow"
+  env_file: .env.test            # relative to the flow file's directory
+  env:                            # optional: inline overrides (take precedence)
+    CUSTOM_TIMEOUT: "30s"
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        body: { name: "Test" }
+` + "```" + `
+
+### Merge priority
+1. **env_file** values load first (base layer)
+2. **inline env:** values override env_file (flow-specific overrides)
+3. **CLI/API variables** override everything (runtime overrides)
+
+### Benefits
+- **Single source of truth** — change a port number in one place, all flows pick it up
+- **Environment portability** — swap ` + "`.env.test`" + ` for ` + "`.env.staging`" + ` to run against staging
+- **Smaller YAML files** — flows focus on test logic, not infrastructure config
+- **Dashboard compatibility** — when importing flows, the dashboard can resolve env_file or merge variables from its environment system
+
+### When to use inline env: instead
+- Flow-specific variables not shared across flows (e.g., test-specific timeout)
+- Quick one-off flows during development
+- Overriding a single value from env_file for a specific scenario
+
+## 8. Test Plan YAML Schema
 
 When generating a comprehensive test suite, organize it with a test plan manifest:
 

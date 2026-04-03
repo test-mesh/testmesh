@@ -2,11 +2,7 @@ flow:
   name: "Order Service - Multi Product Order"
   description: "Creates order with multiple different products, verifies total calculation"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    USER_SERVICE_URL: "http://localhost:5001"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
-    ORDER_SERVICE_URL: "http://localhost:5003"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup_order_items

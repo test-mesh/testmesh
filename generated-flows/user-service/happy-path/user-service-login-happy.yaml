@@ -2,10 +2,7 @@ flow:
   name: "User Service - Login Happy Path"
   description: "Creates a user, logs in, verifies session token and Kafka login event"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    KAFKA_BROKERS: "localhost:9092"
-    USER_SERVICE_URL: "http://localhost:5001"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup

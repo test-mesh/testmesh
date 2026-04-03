@@ -2,12 +2,14 @@ flow:
   name: "Product Service - Update Inventory Not Found"
   description: "Verifies PUT inventory on non-existent product returns 404"
 
+  env_file: ../../.env.test
+
   steps:
     - id: update_nonexistent
       action: http_request
       config:
         method: PUT
-        url: "http://localhost:5002/api/v1/products/00000000-0000-0000-0000-000000000000/inventory"
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/00000000-0000-0000-0000-000000000000/inventory"
         headers:
           Content-Type: application/json
         body:

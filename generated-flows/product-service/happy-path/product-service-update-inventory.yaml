@@ -2,10 +2,7 @@ flow:
   name: "Product Service - Update Inventory"
   description: "Creates a product, updates inventory via PUT, verifies DB change and Kafka event"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    KAFKA_BROKERS: "localhost:9092"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup

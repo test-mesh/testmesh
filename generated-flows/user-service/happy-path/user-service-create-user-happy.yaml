@@ -2,10 +2,7 @@ flow:
   name: "User Service - Create User Happy Path"
   description: "Creates a user, verifies 201 response, DB persistence, Kafka event, and Redis cache"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    KAFKA_BROKERS: "localhost:9092"
-    USER_SERVICE_URL: "http://localhost:5001"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup_user

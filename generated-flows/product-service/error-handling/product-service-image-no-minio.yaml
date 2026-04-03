@@ -2,9 +2,7 @@ flow:
   name: "Product Service - Image Upload Without MinIO"
   description: "Verifies image endpoints return 503 when MinIO storage is unavailable"
 
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
+  env_file: ../../.env.test
 
   setup:
     - id: cleanup
