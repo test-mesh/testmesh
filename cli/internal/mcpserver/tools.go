@@ -124,6 +124,7 @@ func toolWriteFlow(args map[string]any) (*mcp.CallToolResult, error) {
 func toolRunFlow(args map[string]any) (*mcp.CallToolResult, error) {
 	yamlContent, _ := args["yaml_content"].(string)
 	filePath, _ := args["file_path"].(string)
+	var envFileWarn string
 
 	if yamlContent == "" && filePath == "" {
 		return toolError("provide yaml_content or file_path"), nil
@@ -154,6 +155,15 @@ func toolRunFlow(args map[string]any) (*mcp.CallToolResult, error) {
 		}
 	}
 
+	// If env_file is specified, validate it can be loaded and warn if not.
+	if flowWrapper.Flow.EnvFile != "" {
+		if _, err := runner.LoadEnvFile(flowWrapper.Flow.EnvFile, flowWrapper.Flow.FlowDir); err != nil {
+			// Prepend a visible warning to the result — don't abort, let execution proceed
+			// so the user sees the actual step failures too.
+			envFileWarn = fmt.Sprintf("⚠️  WARNING: env_file %q could not be loaded: %v\n   Environment variables like ${DB_URL} will not be substituted.\n\n", flowWrapper.Flow.EnvFile, err)
+		}
+	}
+
 	logger := zap.NewNop()
 	pDir := defaultPluginDir()
 	registry := plugins.NewRegistry(pDir, logger)
@@ -171,6 +181,7 @@ func toolRunFlow(args map[string]any) (*mcp.CallToolResult, error) {
 	}
 
 	var sb strings.Builder
+	sb.WriteString(envFileWarn)
 	sb.WriteString(fmt.Sprintf("Flow: %s\n", flowWrapper.Flow.Name))
 	sb.WriteString(fmt.Sprintf("Status: %s\n", result.Status))
 	sb.WriteString(fmt.Sprintf("Steps: %d total, %d passed, %d failed\n", result.TotalSteps, result.Passed, result.Failed))
