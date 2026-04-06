@@ -163,9 +163,28 @@ func (e *Executor) executeStepsWithoutPersistence(ctx context.Context, steps []m
 			}
 		}
 
+		startTime := time.Now()
+		if e.wsHub != nil {
+			e.wsHub.BroadcastStepStarted(uuid.Nil, map[string]interface{}{
+				"step_id":   stepID,
+				"step_name": step.Name,
+				"action":    step.Action,
+			})
+		}
+
 		// Execute the step (skip retry for load testing performance)
 		result, err := e.executeStep(ctx, &step, execCtx)
+		durationMs := time.Since(startTime).Milliseconds()
 		if err != nil {
+			if e.wsHub != nil {
+				e.wsHub.BroadcastStepFailed(uuid.Nil, map[string]interface{}{
+					"step_id":     stepID,
+					"step_name":   step.Name,
+					"action":      step.Action,
+					"error":       err.Error(),
+					"duration_ms": durationMs,
+				})
+			}
 			// Handle on_error policy
 			if step.OnError != nil {
 				switch step.OnError.Action {
@@ -184,6 +203,16 @@ func (e *Executor) executeStepsWithoutPersistence(ctx context.Context, steps []m
 				}
 			}
 			return fmt.Errorf("step %s failed: %w", stepID, err)
+		}
+
+		if e.wsHub != nil {
+			e.wsHub.BroadcastStepCompleted(uuid.Nil, map[string]interface{}{
+				"step_id":     stepID,
+				"step_name":   step.Name,
+				"action":      step.Action,
+				"output":      result,
+				"duration_ms": durationMs,
+			})
 		}
 
 		// Auto-store all direct result keys so ${stepId.key} works without an output: section

@@ -24,9 +24,9 @@ TestMesh Control Plane                Your Private Network
 
 <Cards>
   <Card title="Quick Start" href="#quick-start" description="Get an agent running in minutes" />
+  <Card title="What it can run" href="#supported-actions" description="HTTP, databases, Kafka, Redis, gRPC, and more" />
   <Card title="Security Model" href="#security-model" description="Outbound-only, token-scoped, secrets stay local" />
-  <Card title="Self-Hosted Mode" href="#self-hosted-mode" description="Point the agent at your own API server" />
-  <Card title="Scaling" href="#scaling" description="Multiple agents across environments" />
+  <Card title="Self-Hosted Mode" href="#self-hosted-mode" description="Point the agent at your own control plane" />
 </Cards>
 
 ---
@@ -35,7 +35,16 @@ TestMesh Control Plane                Your Private Network
 
 ### 1. Get an Agent Token
 
-In the TestMesh dashboard, go to **Settings → Agents → New Agent**. Copy the generated token.
+In the TestMesh dashboard, go to **Settings → Agents → New Agent**. Copy the generated token — it is shown only once.
+
+You can also create a token via the API:
+
+```bash
+curl -X POST https://app.testmesh.io/api/v1/agent-tokens \
+  -H "Authorization: Bearer <jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"workspace_id": "<workspace-id>", "name": "prod-agent"}'
+```
 
 ### 2. Start the Agent
 
@@ -82,9 +91,9 @@ The agent appears in **Settings → Agents** with a green status indicator once 
 
 1. Agent dials `wss://app.testmesh.io/api/v1/agent/connect` with its token
 2. Control plane authenticates the token and registers the agent
-3. When a flow run is triggered (schedule, webhook, manual), the control plane sends the job to the agent
+3. When a flow run is triggered (schedule, webhook, manual), the control plane sends the job to the agent over the WebSocket
 4. Agent executes the flow using the embedded runner — the same engine as the open-source API
-5. Step results stream back in real-time — you see live progress in the dashboard
+5. Step results stream back in real-time; each step is persisted and visible in the dashboard as it completes
 6. On disconnect, the agent retries with exponential backoff; unacknowledged jobs are requeued
 
 ### Message Protocol
@@ -93,9 +102,65 @@ The agent appears in **Settings → Agents** with a green status indicator once 
 agent → cloud:  { "type": "register", "payload": { "workers": 4, "version": "0.1.0" } }
 cloud → agent:  { "type": "job",      "payload": { "id": "...", "definition": {...} } }
 agent → cloud:  { "type": "result",   "payload": { "job_id": "...", "type": "step_completed", ... } }
+cloud → agent:  { "type": "ping" }
+agent → cloud:  { "type": "pong" }
 ```
 
 Result types per job: `step_started` → `step_completed` | `step_failed` (per step) → `flow_completed` | `flow_failed`.
+
+---
+
+## Supported Actions
+
+The agent embeds the full OSS runner. Any action that works in local or cloud execution also works via the agent.
+
+### Protocol Actions
+
+| Action | Description |
+|--------|-------------|
+| `http_request` | HTTP/HTTPS calls — any method, headers, body, auth |
+| `grpc` / `grpc_call` / `grpc_stream` | gRPC unary and streaming calls |
+| `websocket` | Connect, send, and assert on WebSocket messages |
+| `kafka_producer` | Publish messages to Kafka topics |
+| `kafka_consumer` | Consume messages and assert on their content |
+
+### Data Store Actions
+
+| Action | Description |
+|--------|-------------|
+| `database_query` | Raw SQL against any PostgreSQL-compatible database |
+| `db_poll` | Poll a query until a condition is true (async verification) |
+| `redis.*` | GET, SET, DEL, EXISTS operations on Redis keys |
+| `postgresql.*` | Extended PostgreSQL operations via the native plugin |
+| `kafka.*` | Extended Kafka operations via the native plugin |
+
+### Flow Control Actions
+
+| Action | Description |
+|--------|-------------|
+| `condition` | Branch steps based on runtime values |
+| `for_each` | Loop over a list and run sub-steps per item |
+| `parallel` | Run multiple sub-steps concurrently |
+| `run_flow` | Embed another flow as a sub-flow |
+| `wait_for` | Wait for an HTTP endpoint or condition to become true |
+| `wait_until` | Wait with a timeout and expression assertion |
+| `delay` | Fixed sleep between steps |
+
+### Utility Actions
+
+| Action | Description |
+|--------|-------------|
+| `assert` | Standalone assertion step using expr-lang expressions |
+| `transform` | Reshape or extract data from previous step output |
+| `log` | Emit structured log messages visible in execution output |
+| `contract_generate` | Generate API contracts from observed traffic |
+| `contract_verify` | Verify a service against a contract |
+| `docker_run` / `docker_stop` | Start/stop Docker containers as test fixtures |
+| `browser` | Playwright-based browser automation |
+
+<Callout type="info">
+  All step results — outputs, assertions, durations, errors — are streamed back to the control plane in real-time and stored in the execution history. You see the same level of detail in the dashboard as you would for a direct cloud execution.
+</Callout>
 
 ---
 
@@ -105,7 +170,11 @@ Result types per job: `step_started` → `step_completed` | `step_failed` (per s
 |------|---------------------|---------|-------------|
 | `--token` | `AGENT_TOKEN` | (required) | Agent token from dashboard |
 | `--cloud-url` | `CLOUD_URL` | `https://app.testmesh.io` | Control plane URL |
-| `--workers` | `AGENT_WORKERS` | `4` | Max concurrent flow executions |
+| `--workers` | — | `4` | Max concurrent flow executions |
+
+<Callout type="warn">
+  The `--workers` flag currently has no corresponding environment variable. Set it explicitly when starting the agent if you need a value other than the default of 4.
+</Callout>
 
 ---
 
@@ -117,29 +186,68 @@ The site agent is designed for zero-trust network environments.
 |----------|--------|
 | **Outbound-only** | Agent initiates all connections. Your firewall never needs an inbound rule. |
 | **Token-scoped** | Each token is tied to one workspace. Compromising a token does not affect other workspaces. |
-| **Secrets stay local** | Environment variables and connection strings are resolved inside the agent, never sent to the control plane. |
-| **No raw data leaves** | Only execution results and logs are sent — not your database records, API responses, or internal payloads (unless explicitly captured in assertions). |
+| **Secrets stay local** | Environment variables and connection strings are resolved inside the agent and never sent to the control plane. |
+| **No raw data leaves** | Only execution results and assertion outcomes are sent — not your database records or full API response bodies (unless explicitly captured in `output:` mappings). |
 | **TLS by default** | The WebSocket connection uses `wss://` (TLS) when connecting to the cloud control plane. |
 
 <Callout type="tip">
-  For maximum isolation, run the agent in a dedicated network segment with access only to the services it needs to test. The agent does not need access to the internet — only to the control plane URL and your internal services.
+  For maximum isolation, run the agent in a dedicated network segment with access only to the services it needs to test. The agent does not need internet access — only outbound TCP to the control plane URL and access to your internal services.
 </Callout>
 
 ---
 
 ## Self-Hosted Mode
 
-If you run the full TestMesh stack on your own infrastructure (no cloud), point the agent at your self-hosted API:
+If you run the full TestMesh stack on your own infrastructure, point the agent at your self-hosted **cloud API** (port `5017` by default):
 
 ```bash
 testmesh-agent start \
   --token <token> \
-  --cloud-url http://testmesh-api:5016
+  --cloud-url http://testmesh-cloud:5017
 ```
 
-This works because the agent relay endpoint (`/api/v1/agent/connect`) is part of the open-source API server. In self-hosted mode, all data stays entirely within your infrastructure.
+The agent relay WebSocket endpoint (`/api/v1/agent/connect`) lives in the cloud API, which handles token validation, job dispatch, and result persistence. The cloud API proxies everything else to the OSS API.
 
 See [Cloud vs Self-Hosted](/docs/deployment/cloud-vs-self-hosted) for a full comparison of deployment models.
+
+---
+
+## Programmatic Dispatch
+
+You can dispatch a flow directly to a connected agent via the control plane API — useful for CI pipelines or custom orchestration:
+
+```bash
+# 1. Get a JWT
+TOKEN=$(curl -s -X POST https://app.testmesh.io/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"..."}' | jq -r .access_token)
+
+# 2. Fetch the flow definition
+FLOW=$(curl -s "https://app.testmesh.io/api/v1/workspaces/<ws-id>/flows/<flow-id>")
+DEFINITION=$(echo $FLOW | jq .definition)
+
+# 3. Dispatch to the agent
+curl -X POST https://app.testmesh.io/api/v1/agent/dispatch \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"workspace_id\": \"<ws-id>\",
+    \"flow_id\":      \"<flow-id>\",
+    \"definition\":   $DEFINITION,
+    \"variables\":    { \"env\": \"staging\" }
+  }"
+```
+
+The response includes an `execution_id` you can poll for results:
+
+```json
+{
+  "job_id": "job-abc123",
+  "execution_id": "e1d2c3b4-...",
+  "status": "dispatched"
+}
+```
+
+Providing `flow_id` is optional but recommended — it links the execution to the flow in history, pass/fail tracking, and the dashboard.
 
 ---
 
@@ -163,9 +271,11 @@ docker run -d \
   testmesh/agent:latest
 ```
 
+When multiple agents are connected for the same workspace, the control plane dispatches to the first available one.
+
 ### Worker Concurrency
 
-Each agent runs a configurable number of workers (default 4). Increase for higher throughput:
+Each agent runs a fixed number of workers (default 4). Increase for higher throughput:
 
 ```bash
 testmesh-agent start --token <token> --workers 8
@@ -218,7 +328,7 @@ spec:
 cd agent
 go build -o testmesh-agent .
 
-# Or with Docker
+# Or with Docker (from repo root)
 docker build -f agent/Dockerfile -t testmesh/agent:local .
 ```
 
@@ -228,22 +338,23 @@ docker build -f agent/Dockerfile -t testmesh/agent:local .
 
 ### Agent not connecting
 
-- Verify the token is correct: `testmesh-agent start --token <token>` (check for typos)
+- Verify the token is correct and not revoked (**Settings → Agents**)
 - Check outbound connectivity: `curl -I https://app.testmesh.io/health`
 - If behind a corporate proxy, set `HTTPS_PROXY` before starting the agent
 - Check logs: `docker logs testmesh-agent`
 
 ### Flows failing on the agent
 
-- The agent executes flows using the same runner as the API — if a flow works locally via `testmesh run`, it should work on the agent
+- If a flow works locally via `testmesh run`, it should work on the agent — both use the same runner
 - Verify the agent can reach your internal services: `docker exec testmesh-agent curl http://internal-api:8080/health`
-- Environment variables must be set on the agent container, not on the control plane
+- Environment variables and connection strings must be set on the agent container, not on the control plane
+- Check that service URLs in your flow use the hostnames the agent can resolve, not `localhost`
 
 ### Agent disconnects frequently
 
 - The agent auto-reconnects with exponential backoff (starts at 5s)
 - Frequent disconnects may indicate network instability or a proxy terminating long-lived WebSocket connections
-- Configure your proxy/load balancer to allow long-lived WebSocket connections on the control plane URL
+- Configure your proxy or load balancer to allow long-lived WebSocket connections (no idle timeout) on the control plane URL
 
 ---
 

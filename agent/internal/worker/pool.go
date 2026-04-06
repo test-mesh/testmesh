@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/test-mesh/testmesh/internal/plugins"
 	"github.com/test-mesh/testmesh/internal/runner"
-	"github.com/test-mesh/testmesh/internal/runner/actions"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"go.uber.org/zap"
 )
@@ -120,8 +121,12 @@ func (p *Pool) execute(job Job) {
 		nil,   // no mock manager
 	)
 
-	// Register all built-in action handlers.
-	actions.RegisterDefaults(exec)
+	// Register native plugins so the agent can run redis, kafka, postgresql, etc. actions.
+	pluginRegistry := plugins.NewRegistry("", p.logger)
+	pluginRegistry.RegisterAction("redis",      plugins.NewRedisNativePlugin(p.logger))
+	pluginRegistry.RegisterAction("kafka",      plugins.NewKafkaNativePlugin(p.logger))
+	pluginRegistry.RegisterAction("postgresql", plugins.NewPostgreSQLNativePlugin(p.logger))
+	exec.SetPluginRegistry(pluginRegistry)
 
 	flow := &models.Flow{Definition: job.Definition}
 
@@ -160,11 +165,11 @@ type streamingHub struct {
 	logger *zap.Logger
 }
 
-func (h *streamingHub) BroadcastExecutionStarted(_ interface{}, _ map[string]interface{}) {}
-func (h *streamingHub) BroadcastExecutionCompleted(_ interface{}, _ map[string]interface{}) {}
-func (h *streamingHub) BroadcastExecutionFailed(_ interface{}, _ map[string]interface{}) {}
+func (h *streamingHub) BroadcastExecutionStarted(_ uuid.UUID, _ map[string]interface{}) {}
+func (h *streamingHub) BroadcastExecutionCompleted(_ uuid.UUID, _ map[string]interface{}) {}
+func (h *streamingHub) BroadcastExecutionFailed(_ uuid.UUID, _ map[string]interface{}) {}
 
-func (h *streamingHub) BroadcastStepStarted(_ interface{}, data map[string]interface{}) {
+func (h *streamingHub) BroadcastStepStarted(_ uuid.UUID, data map[string]interface{}) {
 	h.job.ResultFn(Result{
 		JobID:  h.job.ID,
 		Type:   ResultTypeStepStarted,
@@ -173,7 +178,7 @@ func (h *streamingHub) BroadcastStepStarted(_ interface{}, data map[string]inter
 	})
 }
 
-func (h *streamingHub) BroadcastStepCompleted(_ interface{}, data map[string]interface{}) {
+func (h *streamingHub) BroadcastStepCompleted(_ uuid.UUID, data map[string]interface{}) {
 	out, _ := json.Marshal(data["output"])
 	h.job.ResultFn(Result{
 		JobID:    h.job.ID,
@@ -185,7 +190,7 @@ func (h *streamingHub) BroadcastStepCompleted(_ interface{}, data map[string]int
 	})
 }
 
-func (h *streamingHub) BroadcastStepFailed(_ interface{}, data map[string]interface{}) {
+func (h *streamingHub) BroadcastStepFailed(_ uuid.UUID, data map[string]interface{}) {
 	h.job.ResultFn(Result{
 		JobID:    h.job.ID,
 		Type:     ResultTypeStepFailed,
