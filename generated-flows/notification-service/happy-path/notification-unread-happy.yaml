@@ -1,0 +1,118 @@
+flow:
+  name: "Notification Service — Get Unread Notifications"
+  description: "Creates a user, product, and order to trigger an order.placed Kafka event, then asserts GET /notifications/:user_id/unread returns count >= 1"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: |
+          DELETE FROM notification_service.notifications WHERE user_id = (SELECT id FROM user_service.users WHERE email='plan-notify@example.com' LIMIT 1);
+          DELETE FROM user_service.users WHERE email='plan-notify@example.com';
+          DELETE FROM product_service.products WHERE name='Plan Notify Product';
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-notify@example.com"
+          name: "Plan Notify"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Plan Notify Product"
+          price: 10.00
+          inventory: 10
+      assert:
+        - "status == 201"
+      output:
+        product_id: "$.body.id"
+
+    - id: create_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 1
+      assert:
+        - "status == 201"
+      output:
+        order_id: "$.body.id"
+
+    # db_poll waits for the order.placed Kafka event to be consumed and the notification to be written
+    - id: wait_for_notification
+      action: db_poll
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = $1 AND type = 'order.placed'"
+        params: ["{{user_id}}"]
+        poll_interval: "1s"
+        timeout: "15s"
+        expected_rows: 1
+      assert:
+        - "row_count >= 1"
+
+  steps:
+    - id: get_unread_notifications
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{user_id}}/unread"
+      assert:
+        - "status == 200"
+        - "body.count >= 1"
+        - "body.notifications != nil"
+
+  teardown:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM notification_service.notifications WHERE user_id = '{{user_id}}'"
+
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM order_service.order_items WHERE order_id = '{{order_id}}'"
+
+    - id: cleanup_order
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM order_service.orders WHERE id = '{{order_id}}'"
+
+    - id: cleanup_product
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Notify Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-notify@example.com'"

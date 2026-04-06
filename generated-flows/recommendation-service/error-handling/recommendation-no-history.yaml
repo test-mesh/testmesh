@@ -1,0 +1,38 @@
+flow:
+  name: "Recommendation Service — No Purchase History Returns Empty List"
+  description: "Fresh user with no orders gets empty product_ids array, not an error"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-rec-empty-{{RANDOM_ID}}@example.com"
+          name: "Plan Rec Empty"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+  steps:
+    - id: get_recommendations_http
+      action: http_request
+      config:
+        method: GET
+        url: "${RECOMMENDATION_SERVICE_URL}/api/v1/recommendations/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "len(body.product_ids) == 0"
+
+  teardown:
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE id = '{{user_id}}'"

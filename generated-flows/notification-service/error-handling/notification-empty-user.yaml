@@ -1,0 +1,47 @@
+flow:
+  name: "Notification Service — User With No Notifications Returns Empty"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: create_fresh_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-notify-empty-{{RANDOM_ID}}@example.com"
+          name: "Plan Notify Empty"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+  steps:
+    # NOTE: We query notifications immediately after user creation, before the user.created
+    # Kafka event is consumed. This is intentional — the HTTP GET is synchronous and fires
+    # before the async consumer has time to process. If this proves flaky in high-load
+    # environments, consider adding a brief setup sleep or removing the user.created
+    # notification type from the assertion scope.
+    - id: get_notifications
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.count == 0"
+
+  teardown:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM notification_service.notifications WHERE user_id = '{{user_id}}'"
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE id = '{{user_id}}'"

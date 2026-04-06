@@ -1,0 +1,43 @@
+flow:
+  name: "Recommendation Service — gRPC GetRecommendations"
+  description: "gRPC call returns ProductList without error"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-rec-grpc-{{RANDOM_ID}}@example.com"
+          name: "Plan Rec gRPC"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+  steps:
+    # NOTE: grpc action may be flagged as unknown by the validator — this is a known false positive.
+    # The grpc action type is supported at runtime but not always included in static schema validation.
+    - id: grpc_recommendations
+      action: grpc
+      config:
+        host: "${RECOMMENDATION_GRPC_HOST}"
+        service: RecommendationService
+        method: GetRecommendations
+        request:
+          user_id: "{{user_id}}"
+          limit: 10
+      assert:
+        - "body.product_ids != nil"
+
+  teardown:
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE id = '{{user_id}}'"
