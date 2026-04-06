@@ -1,0 +1,20 @@
+flow:
+  name: "User Service — Invalid Email Format Returns 400"
+  description: "POST /users with non-email string returns 400 validation error"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: invalid_email
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "not-an-email"
+          name: "Plan Invalid User"
+      assert:
+        - "status == 400"
+        - "body.error != nil"

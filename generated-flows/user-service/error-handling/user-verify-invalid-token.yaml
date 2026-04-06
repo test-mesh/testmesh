@@ -1,0 +1,25 @@
+flow:
+  name: "User Service — Verify Invalid Session Token"
+  description: "Invalid token returns valid=false (200), missing token returns 401"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: verify_invalid_token
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/auth/verify"
+        headers:
+          Authorization: "00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 200"
+        - "body.valid == false"
+
+    - id: verify_missing_token
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/auth/verify"
+      assert:
+        - "status == 401"

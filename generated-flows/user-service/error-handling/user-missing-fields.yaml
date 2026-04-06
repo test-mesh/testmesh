@@ -1,0 +1,41 @@
+flow:
+  name: "User Service — Missing Required Fields Returns 400"
+  description: "POST /users without email or name returns 400"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: missing_email
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Plan No Email"
+      assert:
+        - "status == 400"
+
+    - id: missing_name
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-noname@example.com"
+      assert:
+        - "status == 400"
+
+    - id: empty_body
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body: {}
+      assert:
+        - "status == 400"

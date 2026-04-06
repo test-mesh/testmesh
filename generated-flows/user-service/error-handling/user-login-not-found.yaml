@@ -1,0 +1,19 @@
+flow:
+  name: "User Service — Login With Unknown Email Returns 401"
+  description: "POST /auth/login with email that does not exist returns 401"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: login_unknown
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/auth/login"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "nobody-plan@example.com"
+      assert:
+        - "status == 401"
+        - "body.error != nil"

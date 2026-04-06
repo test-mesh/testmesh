@@ -1,0 +1,47 @@
+flow:
+  name: "User Service — Duplicate Email Returns 409"
+  description: "Second POST /users with same email returns 409 Conflict"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-dup@example.com'"
+
+  steps:
+    - id: create_first
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-dup@example.com"
+          name: "Plan Dup User"
+      assert:
+        - "status == 201"
+
+    - id: create_duplicate
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-dup@example.com"
+          name: "Plan Dup User 2"
+      assert:
+        - "status == 409"
+        - "body.error != nil"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-dup@example.com'"
