@@ -68,12 +68,19 @@ func (g *GitClient) Clone(ctx context.Context, url, branch string) error {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	if sshKeyPath != "" {
 		cmd.Env = append(os.Environ(),
-			fmt.Sprintf("GIT_SSH_COMMAND=ssh -i %s -o StrictHostKeyChecking=no", sshKeyPath),
+			fmt.Sprintf("GIT_SSH_COMMAND=ssh -i '%s' -o StrictHostKeyChecking=no", sshKeyPath),
 		)
 	}
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git clone failed: %w\noutput: %s", err, string(output))
+		return fmt.Errorf("git clone failed: %w\noutput: %s", err, redactOutput(string(output), g.creds))
+	}
+
+	// Scrub credentials from the stored origin remote URL
+	if g.creds != nil && g.creds.PAT != "" {
+		scrubCmd := exec.CommandContext(ctx, "git", "remote", "set-url", "origin", url)
+		scrubCmd.Dir = g.repoPath
+		scrubCmd.Run() // best-effort; log nothing on failure
 	}
 
 	return nil
@@ -100,7 +107,7 @@ func (g *GitClient) Pull(ctx context.Context, branch string) error {
 
 	sshEnv := ""
 	if sshKeyPath != "" {
-		sshEnv = fmt.Sprintf("GIT_SSH_COMMAND=ssh -i %s -o StrictHostKeyChecking=no", sshKeyPath)
+		sshEnv = fmt.Sprintf("GIT_SSH_COMMAND=ssh -i '%s' -o StrictHostKeyChecking=no", sshKeyPath)
 	}
 
 	runGit := func(args ...string) error {
@@ -115,8 +122,26 @@ func (g *GitClient) Pull(ctx context.Context, branch string) error {
 		return nil
 	}
 
-	if err := runGit("fetch", "origin", branch); err != nil {
-		return err
+	if g.creds != nil && g.creds.PAT != "" {
+		// Read origin URL from config to build credentialed URL
+		getURLCmd := exec.CommandContext(ctx, "git", "remote", "get-url", "origin")
+		getURLCmd.Dir = g.repoPath
+		originURLBytes, err := getURLCmd.Output()
+		if err != nil {
+			return fmt.Errorf("get origin URL: %w", err)
+		}
+		originURL := strings.TrimSpace(string(originURLBytes))
+		patURL, err := injectPATIntoURL(originURL, g.creds.PAT)
+		if err != nil {
+			return fmt.Errorf("inject PAT for fetch: %w", err)
+		}
+		if err := runGit("fetch", patURL, branch); err != nil {
+			return err
+		}
+	} else {
+		if err := runGit("fetch", "origin", branch); err != nil {
+			return err
+		}
 	}
 	return runGit("reset", "--hard", fmt.Sprintf("origin/%s", branch))
 }
@@ -161,6 +186,17 @@ func parseLines(s string) []string {
 		}
 	}
 	return lines
+}
+
+// redactOutput removes credential tokens from git command output to prevent leakage in error messages.
+func redactOutput(output string, creds *RepoCredentials) string {
+	if creds == nil {
+		return output
+	}
+	if creds.PAT != "" {
+		output = strings.ReplaceAll(output, creds.PAT, "[REDACTED]")
+	}
+	return output
 }
 
 // injectPATIntoURL rewrites an HTTPS URL to embed oauth2 credentials.

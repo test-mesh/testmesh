@@ -1,7 +1,6 @@
 package repo
 
 import (
-	"encoding/base64"
 	"testing"
 
 	"github.com/test-mesh/testmesh/internal/graph"
@@ -80,9 +79,3 @@ func TestDecryptRepoCredentials_NilCredentials(t *testing.T) {
 	}
 }
 
-// helper to create a valid key for env-var tests
-func base64Key(t *testing.T) string {
-	t.Helper()
-	key := make([]byte, 32)
-	return base64.StdEncoding.EncodeToString(key)
-}
