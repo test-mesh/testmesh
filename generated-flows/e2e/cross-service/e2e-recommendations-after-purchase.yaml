@@ -128,18 +128,23 @@ flow:
       output:
         order_b_id: "$.body.id"
 
-    # Workaround: TestMesh has no native sleep action.
-    # This db_poll with a trivial query and 3s timeout acts as a 3-second delay,
-    # giving the recommendation-service Kafka consumer time to write PURCHASED
-    # edges to Neo4j before the gRPC call.
-    - id: wait_for_neo4j_writes
-      action: db_poll
+    # Wait for both order.placed events to be available in Kafka.
+    # This confirms recommendation-service's Kafka consumer has had events to process.
+    # TestMesh has no native sleep/delay action; polling Kafka for the events is the
+    # most reliable proxy for Neo4j PURCHASED edges having been written.
+    # Gap: direct Neo4j cleanup in teardown is not possible without a neo4j.query action.
+    - id: wait_for_order_events
+      action: kafka_consumer
       config:
-        connection: "${DB_URL}"
-        query: "SELECT 1"
-        poll_interval: "3s"
-        timeout: "3s"
-        expected_rows: 1
+        brokers: "${KAFKA_BROKERS}"
+        topic: order.placed
+        group_id: "testmesh-plan-reco-purchase-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "15s"
+        count: 2
+      assert:
+        - "len(messages) >= 2"
 
     - id: get_grpc_recommendations
       action: grpc
