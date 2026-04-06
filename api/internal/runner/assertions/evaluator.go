@@ -35,6 +35,12 @@ func (e *Evaluator) Evaluate(assertions []string) error {
 	var failedAssertions []string
 
 	for _, assertion := range assertions {
+		// Check if assertion uses {{...}} template syntax, which is never substituted in assertions
+		if strings.Contains(assertion, "{{") {
+			failedAssertions = append(failedAssertions, fmt.Sprintf("%s: assertion uses '{{var}}' template syntax which is never substituted in assertions; use bare variable name instead: e.g. 'body.id == user_id' not 'body.id == {{user_id}}'", assertion))
+			continue
+		}
+
 		if err := e.evaluateOne(assertion); err != nil {
 			failedAssertions = append(failedAssertions, fmt.Sprintf("%s: %v", assertion, err))
 		}

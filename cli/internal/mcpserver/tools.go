@@ -290,6 +290,10 @@ func toolValidateFlow(args map[string]any) (*mcp.CallToolResult, error) {
 					if strings.TrimSpace(expr) == "" {
 						errs = append(errs, fmt.Sprintf("%s step %d (%s): assert[%d] is empty", phase, i+1, id, j))
 					}
+					// Check if assert expression uses {{...}} template syntax
+					if strings.Contains(expr, "{{") {
+						errs = append(errs, fmt.Sprintf("%s step %d (%s): assert[%d] uses '{{...}}' template syntax which is never substituted in assertions — use bare variable name (e.g. body.id == user_id, not body.id == '{{user_id}}')", phase, i+1, id, j))
+					}
 				}
 			}
 
