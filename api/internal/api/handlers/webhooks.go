@@ -13,12 +13,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/ai"
 	gitprovider "github.com/test-mesh/testmesh/internal/git"
+	"github.com/test-mesh/testmesh/internal/graph"
+	graphrepo "github.com/test-mesh/testmesh/internal/graph/repo"
+	graphscanner "github.com/test-mesh/testmesh/internal/graph/scanner"
 	"github.com/test-mesh/testmesh/internal/scheduler"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -33,6 +36,10 @@ type WebhookHandler struct {
 	scheduler         *scheduler.Scheduler
 	embeddingPipeline *ai.EmbeddingPipeline
 	logger            *zap.Logger
+	// Graph scan fields (optional — set via SetGraphScanDeps when graph is enabled)
+	graphEngine  graph.Engine
+	repoManager  *graphrepo.Manager
+	orchestrator *graphscanner.Orchestrator
 }
 
 // NewWebhookHandler creates a new webhook handler
@@ -57,6 +64,79 @@ func NewWebhookHandler(
 		scheduler:         scheduler,
 		embeddingPipeline: embeddingPipeline,
 		logger:            logger,
+	}
+}
+
+// SetGraphScanDeps wires in the graph scan dependencies.
+// Called from routes.go after graph initialization, only when graph is enabled.
+func (h *WebhookHandler) SetGraphScanDeps(engine graph.Engine, repoManager *graphrepo.Manager, orchestrator *graphscanner.Orchestrator) {
+	h.graphEngine = engine
+	h.repoManager = repoManager
+	h.orchestrator = orchestrator
+}
+
+// buildRepoURLVariants generates candidate URLs from a Git provider FullName (e.g. "org/repo").
+func buildRepoURLVariants(fullName string) []string {
+	return []string{
+		"https://github.com/" + fullName,
+		"https://github.com/" + fullName + ".git",
+		fullName,
+	}
+}
+
+// triggerGraphScan finds any GraphRepo records whose URL matches repoFullName
+// and launches an async graph rescan for each one on the matching branch.
+func (h *WebhookHandler) triggerGraphScan(repoFullName, branch string) {
+	if h.graphEngine == nil || h.repoManager == nil || h.orchestrator == nil {
+		return
+	}
+
+	ctx := context.Background()
+
+	repos, err := h.graphEngine.FindReposByURLFragment(ctx, repoFullName)
+	if err != nil {
+		h.logger.Warn("triggerGraphScan: failed to find repos by URL fragment",
+			zap.String("repo", repoFullName), zap.Error(err))
+		return
+	}
+	if len(repos) == 0 {
+		h.logger.Debug("triggerGraphScan: no registered graph repos for this push",
+			zap.String("repo", repoFullName))
+		return
+	}
+
+	for _, r := range repos {
+		repo := r // capture for goroutine
+		if repo.Branch != branch {
+			h.logger.Debug("triggerGraphScan: skipping non-tracked branch",
+				zap.String("repo", repo.Name),
+				zap.String("push_branch", branch),
+				zap.String("tracked_branch", repo.Branch),
+			)
+			continue
+		}
+		go func() {
+			info, err := h.repoManager.PrepareRepo(ctx, &repo)
+			if err != nil {
+				h.logger.Error("triggerGraphScan: PrepareRepo failed",
+					zap.String("repo", repo.Name), zap.Error(err))
+				return
+			}
+			defer h.repoManager.Cleanup(info)
+
+			input := graphscanner.ScanInput{
+				RepoPath:    info.LocalPath,
+				RepoID:      info.ID,
+				WorkspaceID: info.WorkspaceID,
+				Config:      graphscanner.ScannerConfig{},
+			}
+			if _, err := h.orchestrator.RunFullScan(ctx, input); err != nil {
+				h.logger.Error("triggerGraphScan: scan failed",
+					zap.String("repo", repo.Name), zap.Error(err))
+			} else {
+				h.logger.Info("triggerGraphScan: rescan complete", zap.String("repo", repo.Name))
+			}
+		}()
 	}
 }
 
@@ -240,6 +320,7 @@ func (h *WebhookHandler) HandleGitHub(c *gin.Context) {
 		if beforeSHA != "" && beforeSHA != "0000000000000000000000000000000000000000" {
 			go h.runDiffAnalysis(context.Background(), integration, repository, beforeSHA, commitSHA)
 		}
+		h.triggerGraphScan(repository, branch)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -393,6 +474,9 @@ func (h *WebhookHandler) HandleGitea(c *gin.Context) {
 	if eventType == "push" && beforeSHA != "" && beforeSHA != "0000000000000000000000000000000000000000" {
 		go h.runDiffAnalysis(context.Background(), integration, repo, beforeSHA, commitSHA)
 	}
+	if eventType == "push" {
+		h.triggerGraphScan(repo, branch)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":           "Gitea webhook processed successfully",
@@ -479,6 +563,7 @@ func (h *WebhookHandler) HandleGitLab(c *gin.Context) {
 	}
 
 	var repo, branch, commitSHA, beforeSHA string
+	isPush := eventType == "Push Hook"
 
 	switch eventType {
 	case "Push Hook":
@@ -536,6 +621,9 @@ func (h *WebhookHandler) HandleGitLab(c *gin.Context) {
 	// Async diff analysis for push events
 	if eventType == "push" && beforeSHA != "" && beforeSHA != "0000000000000000000000000000000000000000" {
 		go h.runDiffAnalysis(context.Background(), integration, repo, beforeSHA, commitSHA)
+	}
+	if isPush {
+		h.triggerGraphScan(repo, branch)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
