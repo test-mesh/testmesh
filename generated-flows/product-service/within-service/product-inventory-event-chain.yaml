@@ -25,6 +25,7 @@ flow:
           inventory: 100
       assert:
         - "status == 201"
+        - "body.id != nil"
       output:
         product_id: "$.body.id"
 
