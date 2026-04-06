@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/test-mesh/testmesh/internal/storage/models"
@@ -15,8 +16,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	grpc_reflection_v1alpha "google.golang.org/grpc/reflection/grpc_reflection_v1alpha"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
+	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
@@ -137,23 +143,32 @@ func (h *GRPCHandler) Execute(ctx context.Context, rawConfig map[string]interfac
 			result.Response = map[string]interface{}{"messages": messages}
 		}
 	} else {
-		// Use generic unary call with JSON
-		// In a full implementation, we'd use reflection or proto descriptors
-		var responseJSON []byte
-		err = h.invokeUnary(ctx, conn, fullMethod, requestJSON, &responseJSON)
-		if err != nil {
-			result.StatusCode = "INTERNAL"
-			result.ErrorMessage = err.Error()
-			return h.resultToOutputData(result), err
-		}
+		if config.UseReflection {
+			response, err := h.invokeUnaryWithReflection(ctx, conn, config)
+			if err != nil {
+				result.StatusCode = "INTERNAL"
+				result.ErrorMessage = err.Error()
+				return h.resultToOutputData(result), err
+			}
+			result.Response = response
+		} else {
+			// Use generic unary call with JSON
+			var responseJSON []byte
+			err = h.invokeUnary(ctx, conn, fullMethod, requestJSON, &responseJSON)
+			if err != nil {
+				result.StatusCode = "INTERNAL"
+				result.ErrorMessage = err.Error()
+				return h.resultToOutputData(result), err
+			}
 
-		// Parse response
-		if len(responseJSON) > 0 {
-			var response map[string]interface{}
-			if err := json.Unmarshal(responseJSON, &response); err != nil {
-				result.Response = map[string]interface{}{"raw": string(responseJSON)}
-			} else {
-				result.Response = response
+			// Parse response
+			if len(responseJSON) > 0 {
+				var response map[string]interface{}
+				if err := json.Unmarshal(responseJSON, &response); err != nil {
+					result.Response = map[string]interface{}{"raw": string(responseJSON)}
+				} else {
+					result.Response = response
+				}
 			}
 		}
 	}
@@ -192,6 +207,7 @@ func (h *GRPCHandler) resultToOutputData(result *GRPCResult) models.OutputData {
 
 	if result.Response != nil {
 		output["response"] = result.Response
+		output["body"] = result.Response
 	}
 	if result.ErrorMessage != "" {
 		output["error_message"] = result.ErrorMessage
@@ -240,6 +256,130 @@ func (h *GRPCHandler) invokeUnary(ctx context.Context, conn *grpc.ClientConn, me
 	}
 
 	return nil
+}
+
+// invokeUnaryWithReflection performs a unary gRPC call using server reflection to fetch the
+// protobuf descriptor and encode the request/response with proper protobuf encoding.
+func (h *GRPCHandler) invokeUnaryWithReflection(ctx context.Context, conn *grpc.ClientConn, config *GRPCConfig) (map[string]interface{}, error) {
+	// 1. Fetch method descriptor via server reflection
+	methodDesc, err := h.fetchMethodDescriptor(ctx, conn, config.Service, config.Method)
+	if err != nil {
+		return nil, fmt.Errorf("reflection: %w", err)
+	}
+
+	// 2. Build dynamic request message from JSON config
+	reqMsg := dynamicpb.NewMessage(methodDesc.Input())
+	reqJSON, err := json.Marshal(config.Request)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+	if err := protojson.Unmarshal(reqJSON, reqMsg); err != nil {
+		return nil, fmt.Errorf("unmarshal request into proto: %w", err)
+	}
+
+	// 3. Create dynamic response message
+	respMsg := dynamicpb.NewMessage(methodDesc.Output())
+
+	// 4. Make the actual gRPC call (no ForceCodec — standard protobuf)
+	fullMethod := fmt.Sprintf("/%s/%s", config.Service, config.Method)
+	if err := conn.Invoke(ctx, fullMethod, reqMsg, respMsg); err != nil {
+		return nil, err
+	}
+
+	// 5. Marshal response to JSON map
+	respJSON, err := protojson.Marshal(respMsg)
+	if err != nil {
+		return nil, fmt.Errorf("marshal response: %w", err)
+	}
+	var result map[string]interface{}
+	if err := json.Unmarshal(respJSON, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal response JSON: %w", err)
+	}
+	return result, nil
+}
+
+// fetchMethodDescriptor uses the gRPC Server Reflection protocol to retrieve the
+// MethodDescriptor for the given service and method names.
+func (h *GRPCHandler) fetchMethodDescriptor(ctx context.Context, conn *grpc.ClientConn, serviceName, methodName string) (protoreflect.MethodDescriptor, error) {
+	rc := grpc_reflection_v1alpha.NewServerReflectionClient(conn)
+	stream, err := rc.ServerReflectionInfo(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("open reflection stream: %w", err)
+	}
+	defer stream.CloseSend()
+
+	// Request the file descriptor containing this service
+	if err := stream.Send(&grpc_reflection_v1alpha.ServerReflectionRequest{
+		MessageRequest: &grpc_reflection_v1alpha.ServerReflectionRequest_FileContainingSymbol{
+			FileContainingSymbol: serviceName,
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("reflection send: %w", err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("reflection recv: %w", err)
+	}
+
+	fdResp, ok := resp.MessageResponse.(*grpc_reflection_v1alpha.ServerReflectionResponse_FileDescriptorResponse)
+	if !ok {
+		if errResp, ok2 := resp.MessageResponse.(*grpc_reflection_v1alpha.ServerReflectionResponse_ErrorResponse); ok2 {
+			return nil, fmt.Errorf("reflection error: %s", errResp.ErrorResponse.ErrorMessage)
+		}
+		return nil, fmt.Errorf("unexpected reflection response type: %T", resp.MessageResponse)
+	}
+
+	// Parse file descriptors and register them (multi-pass for dependency ordering)
+	var fdProtos []*descriptorpb.FileDescriptorProto
+	for _, fdBytes := range fdResp.FileDescriptorResponse.FileDescriptorProto {
+		fdp := &descriptorpb.FileDescriptorProto{}
+		if err := proto.Unmarshal(fdBytes, fdp); err != nil {
+			return nil, fmt.Errorf("unmarshal file descriptor: %w", err)
+		}
+		fdProtos = append(fdProtos, fdp)
+	}
+
+	files := &protoregistry.Files{}
+	// Multiple passes to handle dependency ordering
+	remaining := fdProtos
+	for pass := len(fdProtos) + 1; pass > 0 && len(remaining) > 0; pass-- {
+		var next []*descriptorpb.FileDescriptorProto
+		for _, fdp := range remaining {
+			fd, err := protodesc.NewFile(fdp, files)
+			if err != nil {
+				next = append(next, fdp)
+				continue
+			}
+			if regErr := files.RegisterFile(fd); regErr != nil {
+				// Ignore "already registered" — treat as success
+				if !strings.Contains(regErr.Error(), "already registered") {
+					next = append(next, fdp)
+				}
+			}
+		}
+		remaining = next
+	}
+	if len(remaining) > 0 {
+		return nil, fmt.Errorf("failed to register %d file descriptor(s)", len(remaining))
+	}
+
+	// Look up the service descriptor
+	desc, err := files.FindDescriptorByName(protoreflect.FullName(serviceName))
+	if err != nil {
+		return nil, fmt.Errorf("service %q not found: %w", serviceName, err)
+	}
+	svc, ok := desc.(protoreflect.ServiceDescriptor)
+	if !ok {
+		return nil, fmt.Errorf("%q is not a service descriptor", serviceName)
+	}
+
+	// Look up the method
+	md := svc.Methods().ByName(protoreflect.Name(methodName))
+	if md == nil {
+		return nil, fmt.Errorf("method %q not found in service %q", methodName, serviceName)
+	}
+	return md, nil
 }
 
 // invokeServerStream performs a server-streaming gRPC call and calls cb for each received message.
