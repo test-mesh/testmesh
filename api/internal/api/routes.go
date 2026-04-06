@@ -543,6 +543,9 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 				repoMgr := graphrepo.NewManager(ge, clonePath, logger)
 				graphHandler := handlers.NewGraphHandler(ge, orchestrator, repoMgr, logger)
 
+				// Wire graph scan deps into the webhook handler so pushes trigger rescans
+				webhookHandler.SetGraphScanDeps(ge, repoMgr, orchestrator)
+
 				graphRoutes := ws.Group("/graph")
 				{
 					// Graph management
