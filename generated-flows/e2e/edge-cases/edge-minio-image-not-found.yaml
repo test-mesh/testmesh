@@ -10,8 +10,6 @@ flow:
       config:
         connection: "${DB_URL}"
         query: "DELETE FROM product_service.products WHERE name = 'Plan No Image Product'"
-
-  steps:
     - id: create_product
       action: http_request
       config:
@@ -29,6 +27,7 @@ flow:
       output:
         product_id: "$.body.id"
 
+  steps:
     - id: get_image_not_found
       action: http_request
       config:
