@@ -21,6 +21,8 @@ var graphCmd = &cobra.Command{
 // --- graph scan ---
 
 var graphScanURL string
+var graphScanToken string
+var graphScanSSHKey string
 
 var graphScanCmd = &cobra.Command{
 	Use:   "scan [path]",
@@ -33,16 +35,35 @@ Without arguments, scans the current directory.`,
 	RunE: graphScan,
 }
 
+// buildGraphScanPayload constructs the JSON body for POST /graph/scan.
+// sshKeyPath is a file path; its contents are read and sent as ssh_key.
+func buildGraphScanPayload(path, url, token, sshKeyPath string) map[string]any {
+	payload := map[string]any{}
+
+	if url != "" {
+		payload["url"] = url
+		if token != "" {
+			payload["pat"] = token
+		}
+		if sshKeyPath != "" {
+			keyBytes, err := os.ReadFile(sshKeyPath)
+			if err == nil {
+				payload["ssh_key"] = string(keyBytes)
+			}
+		}
+	} else {
+		payload["repo_path"] = path
+	}
+	return payload
+}
+
 func graphScan(cmd *cobra.Command, args []string) error {
 	path := "."
 	if len(args) > 0 {
 		path = args[0]
 	}
 
-	body := map[string]string{"repo_path": path}
-	if graphScanURL != "" {
-		body = map[string]string{"url": graphScanURL}
-	}
+	body := buildGraphScanPayload(path, graphScanURL, graphScanToken, graphScanSSHKey)
 
 	resp, err := apiPost("/api/v1/workspaces/default/graph/scan", body)
 	if err != nil {
@@ -346,6 +367,8 @@ func init() {
 	rootCmd.AddCommand(graphCmd)
 
 	graphScanCmd.Flags().StringVar(&graphScanURL, "url", "", "Remote Git URL to clone and scan")
+	graphScanCmd.Flags().StringVar(&graphScanToken, "token", "", "Personal access token for private repos")
+	graphScanCmd.Flags().StringVar(&graphScanSSHKey, "ssh-key", "", "Path to SSH private key file for private repos")
 	graphExportCmd.Flags().StringVar(&graphExportFormat, "format", "json", "Export format: json, dot, mermaid")
 
 	graphCmd.AddCommand(graphScanCmd)
