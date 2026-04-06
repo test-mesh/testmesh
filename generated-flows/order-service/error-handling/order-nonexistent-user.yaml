@@ -1,0 +1,22 @@
+flow:
+  name: "Order Service — Nonexistent User Returns 400"
+  description: "POST /orders with user_id that doesn't exist — user-service returns 404, order-service returns 400"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: nonexistent_user
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "00000000-0000-0000-0000-000000000000"
+          items:
+            - product_id: "00000000-0000-0000-0000-000000000001"
+              quantity: 1
+      assert:
+        - "status == 400"
+        - "body.error != nil"

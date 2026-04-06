@@ -1,6 +1,6 @@
 flow:
-  name: "Order Service - Nonexistent Product in Order"
-  description: "Verifies creating order with a valid user but nonexistent product returns error"
+  name: "Order Service — Nonexistent Product Returns 400"
+  description: "POST /orders with product_id that doesn't exist — product-service returns 404, order-service returns 400"
 
   env_file: ../../.env.test
 
@@ -9,9 +9,7 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM user_service.users WHERE email = 'gen-bad-product@example.com'"
-
-  steps:
+        query: "DELETE FROM user_service.users WHERE email = 'plan-no-product@example.com'"
     - id: create_user
       action: http_request
       config:
@@ -20,14 +18,15 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          name: "Gen Bad Product User"
-          email: "gen-bad-product@example.com"
+          email: "plan-no-product@example.com"
+          name: "Plan No Product User"
       assert:
         - "status == 201"
       output:
         user_id: "$.body.id"
 
-    - id: order_with_bad_product
+  steps:
+    - id: nonexistent_product
       action: http_request
       config:
         method: POST
@@ -40,11 +39,12 @@ flow:
             - product_id: "00000000-0000-0000-0000-000000000000"
               quantity: 1
       assert:
-        - "status == 400 || status == 404"
+        - "status == 400"
+        - "body.error != nil"
 
   teardown:
     - id: cleanup_user
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM user_service.users WHERE email = 'gen-bad-product@example.com'"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-no-product@example.com'"

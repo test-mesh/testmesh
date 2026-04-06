@@ -1,0 +1,75 @@
+flow:
+  name: "Order Service — Insufficient Inventory Returns 400"
+  description: "POST /orders when requested quantity exceeds available inventory"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup_product
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Low Stock Product'"
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-low-stock@example.com'"
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-low-stock@example.com"
+          name: "Plan Low Stock User"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Plan Low Stock Product"
+          price: 10.00
+          inventory: 1
+      assert:
+        - "status == 201"
+      output:
+        product_id: "$.body.id"
+
+  steps:
+    - id: order_exceeds_inventory
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 5
+      assert:
+        - "status == 400"
+        - "body.error != nil"
+
+  teardown:
+    - id: cleanup_product
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Low Stock Product'"
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-low-stock@example.com'"

@@ -1,11 +1,11 @@
 flow:
-  name: "Order Service - Empty Items Array"
-  description: "Verifies order-service rejects order with empty items array"
+  name: "Order Service — Zero Quantity Returns 400"
+  description: "POST /orders with quantity=0 fails binding validation (gt=0)"
 
   env_file: ../../.env.test
 
   steps:
-    - id: empty_items
+    - id: zero_quantity
       action: http_request
       config:
         method: POST
@@ -14,6 +14,9 @@ flow:
           Content-Type: application/json
         body:
           user_id: "00000000-0000-0000-0000-000000000001"
-          items: []
+          items:
+            - product_id: "00000000-0000-0000-0000-000000000001"
+              quantity: 0
       assert:
         - "status == 400"
+        - "body.error != nil"

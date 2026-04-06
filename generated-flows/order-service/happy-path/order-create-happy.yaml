@@ -1,6 +1,6 @@
 flow:
-  name: "Order Service - Create Order Happy Path"
-  description: "Creates user + product, places order, verifies total, DB records, and Kafka event"
+  name: "Order Service — Create Order Happy Path"
+  description: "POST /orders creates order via cross-service validation, verifies DB, Redis, Kafka"
 
   env_file: ../../.env.test
 
@@ -9,34 +9,22 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: >
-          DELETE FROM order_service.order_items
-          WHERE order_id IN (
-            SELECT id FROM order_service.orders
-            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order@example.com')
-          )
-
+        query: "DELETE FROM order_service.order_items WHERE order_id IN (SELECT id FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'plan-order@example.com'))"
     - id: cleanup_orders
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: >
-          DELETE FROM order_service.orders
-          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order@example.com')
-
-    - id: cleanup_products
+        query: "DELETE FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'plan-order@example.com')"
+    - id: cleanup_product
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM product_service.products WHERE name = 'Gen Order Product'"
-
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Order Product'"
     - id: cleanup_user
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM user_service.users WHERE email = 'gen-order@example.com'"
-
-  steps:
+        query: "DELETE FROM user_service.users WHERE email = 'plan-order@example.com'"
     - id: create_user
       action: http_request
       config:
@@ -45,13 +33,12 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          name: "Gen Order User"
-          email: "gen-order@example.com"
+          email: "plan-order@example.com"
+          name: "Plan Order User"
       assert:
         - "status == 201"
       output:
         user_id: "$.body.id"
-
     - id: create_product
       action: http_request
       config:
@@ -60,15 +47,15 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          name: "Gen Order Product"
-          description: "For order test"
+          name: "Plan Order Product"
           price: 25.00
-          inventory: 100
+          inventory: 50
       assert:
         - "status == 201"
       output:
         product_id: "$.body.id"
 
+  steps:
     - id: create_order
       action: http_request
       config:
@@ -80,24 +67,19 @@ flow:
           user_id: "{{user_id}}"
           items:
             - product_id: "{{product_id}}"
-              quantity: 3
+              quantity: 2
       assert:
         - "status == 201"
         - "body.id != nil"
-        - "body.total == 75.00"
+        - "body.user_id == '{{user_id}}'"
+        - "body.status == 'pending'"
+        - "body.total == 50.00"
+        - "len(body.items) == 1"
+        - "body.items[0].quantity == 2"
       output:
         order_id: "$.body.id"
 
-    - id: get_order
-      action: http_request
-      config:
-        method: GET
-        url: "${ORDER_SERVICE_URL}/api/v1/orders/{{order_id}}"
-      assert:
-        - "status == 200"
-        - "body.status == 'pending'"
-
-    - id: verify_order_db
+    - id: verify_db
       action: database_query
       config:
         connection: "${DB_URL}"
@@ -105,24 +87,24 @@ flow:
         params: ["{{order_id}}"]
       assert:
         - "row_count == 1"
-        - "rows[0].total == 75.00"
+        - "rows[0].status == 'pending'"
+        - "rows[0].total == 50.00"
 
-    - id: verify_items_db
-      action: database_query
+    - id: verify_redis
+      action: redis.get
       config:
-        connection: "${DB_URL}"
-        query: "SELECT * FROM order_service.order_items WHERE order_id = $1"
-        params: ["{{order_id}}"]
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
+        key: "order:{{order_id}}"
       assert:
-        - "row_count == 1"
-        - "rows[0].quantity == 3"
+        - "value != nil"
 
     - id: verify_kafka
       action: kafka_consumer
       config:
         brokers: "${KAFKA_BROKERS}"
         topic: order.placed
-        group_id: "testmesh-gen-order-{{RANDOM_ID}}"
+        group_id: "testmesh-plan-order-create-{{RANDOM_ID}}"
         auto_offset_reset: "earliest"
         from_beginning: true
         timeout: "10s"
@@ -135,29 +117,19 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: >
-          DELETE FROM order_service.order_items
-          WHERE order_id IN (
-            SELECT id FROM order_service.orders
-            WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order@example.com')
-          )
-
+        query: "DELETE FROM order_service.order_items WHERE order_id = '{{order_id}}'"
     - id: cleanup_orders
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: >
-          DELETE FROM order_service.orders
-          WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'gen-order@example.com')
-
-    - id: cleanup_products
+        query: "DELETE FROM order_service.orders WHERE id = '{{order_id}}'"
+    - id: cleanup_product
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM product_service.products WHERE name = 'Gen Order Product'"
-
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Order Product'"
     - id: cleanup_user
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM user_service.users WHERE email = 'gen-order@example.com'"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-order@example.com'"

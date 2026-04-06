@@ -1,0 +1,20 @@
+flow:
+  name: "Order Service — Empty Items Returns 400"
+  description: "POST /orders with empty items array fails binding validation (min=1)"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: empty_items
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "00000000-0000-0000-0000-000000000001"
+          items: []
+      assert:
+        - "status == 400"
+        - "body.error != nil"
