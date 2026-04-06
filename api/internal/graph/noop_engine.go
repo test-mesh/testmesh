@@ -117,6 +117,14 @@ func (n *NoopEngine) DeleteRepo(_ context.Context, _ uuid.UUID, _ uuid.UUID) err
 	return ErrGraphDisabled
 }
 
+func (n *NoopEngine) GetRepoByURL(_ context.Context, _ string, _ uuid.UUID) (*GraphRepo, error) {
+	return nil, ErrGraphDisabled
+}
+
+func (n *NoopEngine) FindReposByURLFragment(_ context.Context, _ string) ([]GraphRepo, error) {
+	return nil, ErrGraphDisabled
+}
+
 func (n *NoopEngine) CreateScan(_ context.Context, _ *GraphScan) error {
 	return ErrGraphDisabled
 }

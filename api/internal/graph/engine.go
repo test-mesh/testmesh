@@ -57,6 +57,10 @@ type Engine interface {
 	ListRepos(ctx context.Context, workspaceID uuid.UUID) ([]GraphRepo, error)
 	UpdateRepo(ctx context.Context, repo *GraphRepo) error
 	DeleteRepo(ctx context.Context, id uuid.UUID, workspaceID uuid.UUID) error
+	// GetRepoByURL finds a repo by exact URL within a workspace.
+	GetRepoByURL(ctx context.Context, url string, workspaceID uuid.UUID) (*GraphRepo, error)
+	// FindReposByURLFragment finds repos whose URL contains the given fragment (cross-workspace).
+	FindReposByURLFragment(ctx context.Context, fragment string) ([]GraphRepo, error)
 
 	// Scan management
 	CreateScan(ctx context.Context, scan *GraphScan) error
@@ -313,6 +317,25 @@ func (e *DefaultEngine) DeleteRepo(ctx context.Context, id uuid.UUID, workspaceI
 		return gorm.ErrRecordNotFound
 	}
 	return result.Error
+}
+
+func (e *DefaultEngine) GetRepoByURL(ctx context.Context, url string, workspaceID uuid.UUID) (*GraphRepo, error) {
+	var repo GraphRepo
+	if err := e.db.WithContext(ctx).
+		First(&repo, "url = ? AND workspace_id = ?", url, workspaceID).Error; err != nil {
+		return nil, err
+	}
+	return &repo, nil
+}
+
+func (e *DefaultEngine) FindReposByURLFragment(ctx context.Context, fragment string) ([]GraphRepo, error) {
+	var repos []GraphRepo
+	if err := e.db.WithContext(ctx).
+		Where("url LIKE ?", "%"+fragment+"%").
+		Find(&repos).Error; err != nil {
+		return nil, err
+	}
+	return repos, nil
 }
 
 // --- Scan Operations ---

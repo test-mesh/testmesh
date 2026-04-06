@@ -238,6 +238,14 @@ func (c *CachedEngine) DeleteRepo(ctx context.Context, id uuid.UUID, workspaceID
 	return c.inner.DeleteRepo(ctx, id, workspaceID)
 }
 
+func (c *CachedEngine) GetRepoByURL(ctx context.Context, url string, workspaceID uuid.UUID) (*GraphRepo, error) {
+	return c.inner.GetRepoByURL(ctx, url, workspaceID)
+}
+
+func (c *CachedEngine) FindReposByURLFragment(ctx context.Context, fragment string) ([]GraphRepo, error) {
+	return c.inner.FindReposByURLFragment(ctx, fragment)
+}
+
 func (c *CachedEngine) CreateScan(ctx context.Context, scan *GraphScan) error {
 	return c.inner.CreateScan(ctx, scan)
 }
