@@ -1,0 +1,15 @@
+flow:
+  name: "Product Service — Product Not Found Returns 404"
+  description: "GET /products/:id with nonexistent ID returns 404"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: get_nonexistent
+      action: http_request
+      config:
+        method: GET
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/00000000-0000-0000-0000-000000000000"
+      assert:
+        - "status == 404"
+        - "body.error != nil"

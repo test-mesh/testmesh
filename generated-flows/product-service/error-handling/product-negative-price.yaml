@@ -1,6 +1,6 @@
 flow:
-  name: "Product Service - Negative Price Rejected"
-  description: "Verifies price must be > 0 (binding: gt=0)"
+  name: "Product Service — Zero or Negative Price Returns 400"
+  description: "POST /products with price <= 0 fails validation"
 
   env_file: ../../.env.test
 
@@ -14,11 +14,11 @@ flow:
           Content-Type: application/json
         body:
           name: "Zero Price Product"
-          description: "Should fail"
           price: 0
           inventory: 10
       assert:
         - "status == 400"
+        - "body.error != nil"
 
     - id: negative_price
       action: http_request
@@ -29,8 +29,8 @@ flow:
           Content-Type: application/json
         body:
           name: "Negative Price Product"
-          description: "Should fail"
           price: -5.00
           inventory: 10
       assert:
         - "status == 400"
+        - "body.error != nil"

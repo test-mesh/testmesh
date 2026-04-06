@@ -1,0 +1,15 @@
+flow:
+  name: "Product Service — List Products Happy Path"
+  description: "GET /products returns 200 with products array"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: list
+      action: http_request
+      config:
+        method: GET
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+      assert:
+        - "status == 200"
+        - "body.products != nil"

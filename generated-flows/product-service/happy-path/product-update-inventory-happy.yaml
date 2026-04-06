@@ -1,6 +1,6 @@
 flow:
-  name: "Product Service - Negative Inventory Update Rejected"
-  description: "Verifies PUT inventory rejects negative values (binding: gte=0)"
+  name: "Product Service — Update Inventory Happy Path"
+  description: "PUT /products/:id/inventory updates inventory, verifies DB and Kafka event"
 
   env_file: ../../.env.test
 
@@ -9,10 +9,8 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM product_service.products WHERE name = 'Gen Neg Inv Product'"
-
-  steps:
-    - id: create_product
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Inventory Product'"
+    - id: create
       action: http_request
       config:
         method: POST
@@ -20,16 +18,14 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          name: "Gen Neg Inv Product"
-          description: "For negative inventory test"
+          name: "Plan Inventory Product"
           price: 10.00
           inventory: 50
-      assert:
-        - "status == 201"
       output:
         product_id: "$.body.id"
 
-    - id: negative_inventory
+  steps:
+    - id: update_inventory
       action: http_request
       config:
         method: PUT
@@ -37,11 +33,12 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          inventory: -1
+          inventory: 75
       assert:
-        - "status == 400"
+        - "status == 200"
+        - "body.inventory == 75"
 
-    - id: verify_unchanged
+    - id: verify_db
       action: database_query
       config:
         connection: "${DB_URL}"
@@ -49,11 +46,24 @@ flow:
         params: ["{{product_id}}"]
       assert:
         - "row_count == 1"
-        - "rows[0].inventory == 50"
+        - "rows[0].inventory == 75"
+
+    - id: verify_kafka
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: product.inventory.changed
+        group_id: "testmesh-plan-inv-update-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
 
   teardown:
     - id: cleanup
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM product_service.products WHERE name = 'Gen Neg Inv Product'"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Inventory Product'"

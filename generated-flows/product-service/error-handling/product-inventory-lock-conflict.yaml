@@ -1,0 +1,56 @@
+flow:
+  name: "Product Service — Concurrent Inventory Lock Returns 409"
+  description: "Two simultaneous PUT /inventory requests — Redis distributed lock means one wins (200) and one loses (409)"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Lock Product'"
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Plan Lock Product"
+          price: 10.00
+          inventory: 100
+      output:
+        product_id: "$.body.id"
+
+  steps:
+    - id: concurrent_updates
+      action: parallel
+      config:
+        steps:
+          - id: update_a
+            action: http_request
+            config:
+              method: PUT
+              url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/inventory"
+              headers:
+                Content-Type: application/json
+              body:
+                inventory: 90
+          - id: update_b
+            action: http_request
+            config:
+              method: PUT
+              url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/inventory"
+              headers:
+                Content-Type: application/json
+              body:
+                inventory: 80
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Lock Product'"

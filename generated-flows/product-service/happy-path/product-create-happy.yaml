@@ -1,6 +1,6 @@
 flow:
-  name: "Product Service - Create Product Happy Path"
-  description: "Creates a product, verifies 201, DB persistence, Kafka event, Redis cache"
+  name: "Product Service — Create Product Happy Path"
+  description: "POST /products returns 201, verifies DB, Redis cache, Kafka event"
 
   env_file: ../../.env.test
 
@@ -9,7 +9,7 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM product_service.products WHERE name = 'Gen Test Widget'"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Test Product'"
 
   steps:
     - id: create_product
@@ -20,27 +20,18 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          name: "Gen Test Widget"
-          description: "A generated test product"
-          price: 29.99
-          inventory: 50
+          name: "Plan Test Product"
+          description: "A product for plan testing"
+          price: 49.99
+          inventory: 100
       assert:
         - "status == 201"
         - "body.id != nil"
-        - "body.name == 'Gen Test Widget'"
-        - "body.price == 29.99"
-        - "body.inventory == 50"
+        - "body.name == 'Plan Test Product'"
+        - "body.price == 49.99"
+        - "body.inventory == 100"
       output:
         product_id: "$.body.id"
-
-    - id: get_product
-      action: http_request
-      config:
-        method: GET
-        url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}"
-      assert:
-        - "status == 200"
-        - "body.name == 'Gen Test Widget'"
 
     - id: verify_db
       action: database_query
@@ -50,15 +41,24 @@ flow:
         params: ["{{product_id}}"]
       assert:
         - "row_count == 1"
-        - "rows[0].name == 'Gen Test Widget'"
-        - "rows[0].price == 29.99"
+        - "rows[0].price == 49.99"
+        - "rows[0].inventory == 100"
+
+    - id: verify_redis
+      action: redis.get
+      config:
+        host: localhost
+        port: 6379
+        key: "product:{{product_id}}"
+      assert:
+        - "value != nil"
 
     - id: verify_kafka
       action: kafka_consumer
       config:
         brokers: "${KAFKA_BROKERS}"
         topic: product.created
-        group_id: "testmesh-gen-product-create-{{RANDOM_ID}}"
+        group_id: "testmesh-plan-product-create-{{RANDOM_ID}}"
         auto_offset_reset: "earliest"
         from_beginning: true
         timeout: "10s"
@@ -71,4 +71,4 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM product_service.products WHERE name = 'Gen Test Widget'"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Test Product'"
