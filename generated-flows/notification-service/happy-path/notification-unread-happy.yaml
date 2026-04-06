@@ -11,8 +11,10 @@ flow:
         connection: "${DB_URL}"
         query: |
           DELETE FROM notification_service.notifications WHERE user_id = (SELECT id FROM user_service.users WHERE email='plan-notify@example.com' LIMIT 1);
-          DELETE FROM user_service.users WHERE email='plan-notify@example.com';
+          DELETE FROM order_service.order_items WHERE order_id IN (SELECT id FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email='plan-notify@example.com'));
+          DELETE FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email='plan-notify@example.com');
           DELETE FROM product_service.products WHERE name='Plan Notify Product';
+          DELETE FROM user_service.users WHERE email='plan-notify@example.com';
 
     - id: create_user
       action: http_request
