@@ -1,0 +1,136 @@
+flow:
+  name: "E2E — Auth-Gated Order (Login → Token → Order)"
+  description: "Register user, login to get session token, verify auth, then place order"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM order_service.order_items WHERE order_id IN (SELECT id FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'plan-auth-order@example.com'))"
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'plan-auth-order@example.com')"
+
+    - id: cleanup_product
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Auth Order Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-auth-order@example.com'"
+
+  steps:
+    - id: register
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-auth-order@example.com"
+          name: "Plan Auth Order User"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    - id: login
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/auth/login"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-auth-order@example.com"
+      assert:
+        - "status == 200"
+        - "body.token != nil"
+      output:
+        token: "$.body.token"
+
+    - id: verify_session
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/auth/verify"
+        headers:
+          Authorization: "{{token}}"
+      assert:
+        - "status == 200"
+        - "body.valid == true"
+        - "body.user_id == '{{user_id}}'"
+
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Plan Auth Order Product"
+          price: 30.00
+          inventory: 20
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        product_id: "$.body.id"
+
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "${ORDER_SERVICE_URL}/api/v1/orders"
+        headers:
+          Content-Type: application/json
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 1
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.user_id == '{{user_id}}'"
+        - "body.total == 30.00"
+      output:
+        order_id: "$.body.id"
+
+  teardown:
+    - id: cleanup_order_items
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM order_service.order_items WHERE order_id = '{{order_id}}'"
+
+    - id: cleanup_orders
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM order_service.orders WHERE id = '{{order_id}}'"
+
+    - id: cleanup_product
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Auth Order Product'"
+
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-auth-order@example.com'"
