@@ -16,6 +16,7 @@ flow:
           name: "Plan No Email"
       assert:
         - "status == 400"
+        - "body.error != nil"
 
     - id: missing_name
       action: http_request
@@ -28,6 +29,7 @@ flow:
           email: "plan-noname@example.com"
       assert:
         - "status == 400"
+        - "body.error != nil"
 
     - id: empty_body
       action: http_request
@@ -39,3 +41,4 @@ flow:
         body: {}
       assert:
         - "status == 400"
+        - "body.error != nil"
