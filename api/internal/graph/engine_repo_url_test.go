@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/graph"
-	"gorm.io/gorm"
 )
 
 // TestEngineInterfaceCompiles verifies that both DefaultEngine and NoopEngine
@@ -30,20 +29,16 @@ func TestGetRepoByURLNoopEngine(t *testing.T) {
 	}
 }
 
-// TestFindReposByURLFragmentNoopEngine verifies NoopEngine returns ErrGraphDisabled.
+// TestFindReposByURLFragmentNoopEngine verifies NoopEngine returns empty result.
 func TestFindReposByURLFragmentNoopEngine(t *testing.T) {
 	engine := graph.NewNoopEngine()
-	_, err := engine.FindReposByURLFragment(context.Background(), "org/repo")
-	if err != graph.ErrGraphDisabled {
-		t.Errorf("expected ErrGraphDisabled, got %v", err)
+	repos, err := engine.FindReposByURLFragment(context.Background(), "org/repo")
+	if err != nil {
+		t.Errorf("expected nil error, got %v", err)
 	}
-}
-
-// mockDB is a minimal GORM mock for basic engine tests.
-// This avoids external dependencies like SQLite/CGo.
-type mockDB struct {
-	*gorm.DB
-	queries []string
+	if len(repos) != 0 {
+		t.Errorf("expected empty slice, got %d repos", len(repos))
+	}
 }
 
 // TestDefaultEngineImplementsEngine verifies DefaultEngine implements Engine.

@@ -122,7 +122,7 @@ func (n *NoopEngine) GetRepoByURL(_ context.Context, _ string, _ uuid.UUID) (*Gr
 }
 
 func (n *NoopEngine) FindReposByURLFragment(_ context.Context, _ string) ([]GraphRepo, error) {
-	return nil, ErrGraphDisabled
+	return nil, nil
 }
 
 func (n *NoopEngine) CreateScan(_ context.Context, _ *GraphScan) error {
