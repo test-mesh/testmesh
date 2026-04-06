@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -8,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/graph"
-	"github.com/test-mesh/testmesh/internal/graph/repo"
+	graphrepo "github.com/test-mesh/testmesh/internal/graph/repo"
 	"github.com/test-mesh/testmesh/internal/graph/scanner"
 	"go.uber.org/zap"
 )
@@ -17,18 +18,48 @@ import (
 type GraphHandler struct {
 	engine       graph.Engine
 	orchestrator *scanner.Orchestrator
-	repoManager  *repo.Manager
+	repoManager  *graphrepo.Manager
 	logger       *zap.Logger
 }
 
 // NewGraphHandler creates a new graph handler.
-func NewGraphHandler(engine graph.Engine, orchestrator *scanner.Orchestrator, repoManager *repo.Manager, logger *zap.Logger) *GraphHandler {
+func NewGraphHandler(engine graph.Engine, orchestrator *scanner.Orchestrator, repoManager *graphrepo.Manager, logger *zap.Logger) *GraphHandler {
 	return &GraphHandler{
 		engine:       engine,
 		orchestrator: orchestrator,
 		repoManager:  repoManager,
 		logger:       logger,
 	}
+}
+
+// encryptCredentialsForStorage encrypts pat and/or sshKey into a JSONMap
+// suitable for storing in GraphRepo.Credentials.
+// Returns nil if both are empty (no credentials to store).
+// Returns an error if credentials are provided but the encryption key is unavailable.
+func encryptCredentialsForStorage(pat, sshKey string) (*graph.JSONMap, error) {
+	if pat == "" && sshKey == "" {
+		return nil, nil
+	}
+	key, err := graphrepo.CredentialsKeyFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("credentials encryption key not available: %w", err)
+	}
+	creds := graph.JSONMap{}
+	if pat != "" {
+		encrypted, err := graphrepo.Encrypt(pat, key)
+		if err != nil {
+			return nil, fmt.Errorf("encrypt PAT: %w", err)
+		}
+		creds["pat"] = encrypted
+	}
+	if sshKey != "" {
+		encrypted, err := graphrepo.Encrypt(sshKey, key)
+		if err != nil {
+			return nil, fmt.Errorf("encrypt SSH key: %w", err)
+		}
+		creds["ssh_key"] = encrypted
+	}
+	return &creds, nil
 }
 
 // --- Graph Management ---
@@ -119,19 +150,35 @@ func (h *GraphHandler) ClearGraph(c *gin.Context) {
 func (h *GraphHandler) CreateRepo(c *gin.Context) {
 	workspaceID := middleware.GetWorkspaceID(c)
 
-	var req graph.GraphRepo
+	var req struct {
+		graph.GraphRepo
+		PAT    string `json:"pat"`
+		SSHKey string `json:"ssh_key"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	req.WorkspaceID = workspaceID
-	if err := h.engine.CreateRepo(c.Request.Context(), &req); err != nil {
+	req.GraphRepo.WorkspaceID = workspaceID
+
+	if req.PAT != "" || req.SSHKey != "" {
+		creds, err := encryptCredentialsForStorage(req.PAT, req.SSHKey)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials: " + err.Error()})
+			return
+		}
+		if creds != nil {
+			req.GraphRepo.Credentials = *creds
+		}
+	}
+
+	if err := h.engine.CreateRepo(c.Request.Context(), &req.GraphRepo); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, req)
+	c.JSON(http.StatusCreated, req.GraphRepo)
 }
 
 // ListRepos handles GET /graph/repos
@@ -162,13 +209,33 @@ func (h *GraphHandler) UpdateRepo(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindJSON(existing); err != nil {
+	var req struct {
+		graph.GraphRepo
+		PAT    string `json:"pat"`
+		SSHKey string `json:"ssh_key"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	existing.Name = req.GraphRepo.Name
+	existing.URL = req.GraphRepo.URL
+	existing.Branch = req.GraphRepo.Branch
+	existing.ScanConfig = req.GraphRepo.ScanConfig
 	existing.WorkspaceID = workspaceID
 	existing.ID = repoID
+
+	if req.PAT != "" || req.SSHKey != "" {
+		creds, err := encryptCredentialsForStorage(req.PAT, req.SSHKey)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials: " + err.Error()})
+			return
+		}
+		if creds != nil {
+			existing.Credentials = *creds
+		}
+	}
 
 	if err := h.engine.UpdateRepo(c.Request.Context(), existing); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
