@@ -1,6 +1,6 @@
 flow:
   name: "Edge Case — gRPC With No Graph Data Returns Empty List"
-  description: "Fresh user with no Neo4j PURCHASED edges — GetRecommendations returns empty product_ids, not an error"
+  description: "Fresh user with no Neo4j PURCHASED edges — gRPC GetRecommendations returns empty product_ids, not an error"
 
   env_file: ../../.env.test
 
@@ -28,6 +28,7 @@ flow:
         address: "${RECOMMENDATION_GRPC_HOST}"
         service: recommendation.RecommendationService
         method: GetRecommendations
+        use_reflection: true
         request:
           user_id: "{{user_id}}"
           limit: 10

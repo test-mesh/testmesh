@@ -146,12 +146,30 @@ flow:
       assert:
         - "len(messages) >= 2"
 
-    - id: get_grpc_recommendations
+    # Poll notification DB as proxy for Kafka consumer processing lag.
+    # notification-service and recommendation-service both consume order.placed.
+    # Once 2 notifications appear, all consumers have had time to write their state.
+    - id: wait_for_notifications
+      action: db_poll
+      config:
+        connection: "${DB_URL}"
+        query: >
+          SELECT id FROM notification_service.notifications
+          WHERE user_id = $1
+        params: ["{{user_id}}"]
+        poll_interval: "1s"
+        timeout: "15s"
+        expected_rows: 2
+      assert:
+        - "row_count >= 2"
+
+    - id: get_recommendations
       action: grpc
       config:
         address: "${RECOMMENDATION_GRPC_HOST}"
         service: recommendation.RecommendationService
         method: GetRecommendations
+        use_reflection: true
         request:
           user_id: "{{user_id}}"
           limit: 10

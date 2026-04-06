@@ -1,10 +1,15 @@
 flow:
-  name: "Recommendation Service — gRPC GetRecommendations"
-  description: "gRPC call returns ProductList without error"
+  name: "Recommendation Service — gRPC GetRecommendations (reflection)"
+  description: "gRPC call via server reflection — returns product_ids list without error"
 
   env_file: ../../.env.test
 
   setup:
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-rec-grpc@example.com'"
     - id: create_user
       action: http_request
       config:
@@ -13,7 +18,7 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          email: "plan-rec-grpc-{{RANDOM_ID}}@example.com"
+          email: "plan-rec-grpc@example.com"
           name: "Plan Rec gRPC"
       assert:
         - "status == 201"
@@ -21,14 +26,13 @@ flow:
         user_id: "$.body.id"
 
   steps:
-    # NOTE: grpc action may be flagged as unknown by the validator — this is a known false positive.
-    # The grpc action type is supported at runtime but not always included in static schema validation.
     - id: grpc_recommendations
       action: grpc
       config:
         address: "${RECOMMENDATION_GRPC_HOST}"
         service: recommendation.RecommendationService
         method: GetRecommendations
+        use_reflection: true
         request:
           user_id: "{{user_id}}"
           limit: 10
@@ -40,4 +44,4 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM user_service.users WHERE id = '{{user_id}}'"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-rec-grpc@example.com'"

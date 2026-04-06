@@ -287,7 +287,9 @@ func (h *GRPCHandler) invokeUnaryWithReflection(ctx context.Context, conn *grpc.
 	}
 
 	// 5. Marshal response to JSON map
-	respJSON, err := protojson.Marshal(respMsg)
+	// UseProtoNames: keep snake_case field names matching the .proto definition
+	// EmitUnpopulated: include empty/zero fields (e.g. empty repeated) so assertions like body.field != nil work
+	respJSON, err := protojson.MarshalOptions{UseProtoNames: true, EmitUnpopulated: true}.Marshal(respMsg)
 	if err != nil {
 		return nil, fmt.Errorf("marshal response: %w", err)
 	}
