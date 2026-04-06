@@ -41,14 +41,15 @@ flow:
         params: ["{{product_id}}"]
       assert:
         - "row_count == 1"
+        - "rows[0].name == 'Plan Test Product'"
         - "rows[0].price == 49.99"
         - "rows[0].inventory == 100"
 
     - id: verify_redis
       action: redis.get
       config:
-        host: localhost
-        port: 6379
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
         key: "product:{{product_id}}"
       assert:
         - "value != nil"

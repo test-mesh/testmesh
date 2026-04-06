@@ -53,8 +53,8 @@ flow:
     - id: verify_redis
       action: redis.get
       config:
-        host: "localhost"
-        port: "6379"
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
         key: "user:{{user_id}}"
       assert:
         - "value != nil"

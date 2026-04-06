@@ -21,6 +21,8 @@ flow:
           name: "Plan Lock Product"
           price: 10.00
           inventory: 100
+      assert:
+        - "status == 201"
       output:
         product_id: "$.body.id"
 

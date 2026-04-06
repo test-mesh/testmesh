@@ -41,8 +41,8 @@ flow:
     - id: verify_session_redis
       action: redis.get
       config:
-        host: "localhost"
-        port: "6379"
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
         key: "session:{{token}}"
       assert:
         - "value != nil"
