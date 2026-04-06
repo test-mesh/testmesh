@@ -72,7 +72,7 @@ flow:
       assert:
         - "status == 200"
         - "body.valid == true"
-        - "body.user_id == '{{user_id}}'"
+        - "body.user_id == user_id"
 
   teardown:
     - id: cleanup

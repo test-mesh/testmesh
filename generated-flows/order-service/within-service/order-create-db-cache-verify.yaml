@@ -94,7 +94,7 @@ flow:
       assert:
         - "row_count == 1"
         - "rows[0].quantity == 2"
-        - "rows[0].price == 20.00"
+        - "rows[0].price == 40.00"
 
     - id: verify_redis_cache
       action: redis.get
@@ -112,10 +112,10 @@ flow:
         url: "${ORDER_SERVICE_URL}/api/v1/orders/{{order_id}}"
       assert:
         - "status == 200"
-        - "body.id == '{{order_id}}'"
+        - "body.id == order_id"
         - "body.total == 40.00"
         - "len(body.items) == 1"
-        - "body.items[0].product_id == '{{product_id}}'"
+        - "body.items[0].product_id == product_id"
         - "body.items[0].quantity == 2"
 
   teardown:

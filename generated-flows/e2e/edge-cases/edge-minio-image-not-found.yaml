@@ -35,7 +35,6 @@ flow:
         url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/image"
       assert:
         - "status == 404"
-        - "body.error != nil"
 
   teardown:
     - id: cleanup

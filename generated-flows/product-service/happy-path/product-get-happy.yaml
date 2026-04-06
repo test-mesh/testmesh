@@ -34,7 +34,7 @@ flow:
         url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}"
       assert:
         - "status == 200"
-        - "body.id == '{{product_id}}'"
+        - "body.id == product_id"
         - "body.name == 'Plan Get Product'"
         - "body.price == 15.00"
         - "body.inventory == 10"

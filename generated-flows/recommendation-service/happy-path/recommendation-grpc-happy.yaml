@@ -26,8 +26,8 @@ flow:
     - id: grpc_recommendations
       action: grpc
       config:
-        host: "${RECOMMENDATION_GRPC_HOST}"
-        service: RecommendationService
+        address: "${RECOMMENDATION_GRPC_HOST}"
+        service: recommendation.RecommendationService
         method: GetRecommendations
         request:
           user_id: "{{user_id}}"

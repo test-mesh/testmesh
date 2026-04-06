@@ -31,7 +31,7 @@ flow:
         url: "${USER_SERVICE_URL}/api/v1/users/{{user_id}}"
       assert:
         - "status == 200"
-        - "body.id == '{{user_id}}'"
+        - "body.id == user_id"
         - "body.email == 'plan-get@example.com'"
         - "body.name == 'Plan Get User'"
 

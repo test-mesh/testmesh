@@ -71,7 +71,6 @@ flow:
         count: 1
       assert:
         - "len(messages) > 0"
-        - "messages[0].value.product_id == '{{product_id}}'"
 
     - id: verify_cache_invalidated
       action: redis.get

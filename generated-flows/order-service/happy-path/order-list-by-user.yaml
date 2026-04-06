@@ -83,7 +83,7 @@ flow:
         - "status == 200"
         - "body.orders != nil"
         - "len(body.orders) == 1"
-        - "body.orders[0].user_id == '{{user_id}}'"
+        - "body.orders[0].user_id == user_id"
 
   teardown:
     - id: cleanup_order_items

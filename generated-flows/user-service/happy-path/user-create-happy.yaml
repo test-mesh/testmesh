@@ -37,7 +37,7 @@ flow:
         url: "${USER_SERVICE_URL}/api/v1/users/{{user_id}}"
       assert:
         - "status == 200"
-        - "body.id == '{{user_id}}'"
+        - "body.id == user_id"
 
     - id: verify_db
       action: database_query

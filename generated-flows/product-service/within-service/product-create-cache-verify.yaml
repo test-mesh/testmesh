@@ -36,7 +36,7 @@ flow:
         url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}"
       assert:
         - "status == 200"
-        - "body.id == '{{product_id}}'"
+        - "body.id == product_id"
         - "body.name == 'Plan Cache Product'"
 
     - id: verify_redis_cache
@@ -55,7 +55,7 @@ flow:
         url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}"
       assert:
         - "status == 200"
-        - "body.id == '{{product_id}}'"
+        - "body.id == product_id"
 
   teardown:
     - id: cleanup

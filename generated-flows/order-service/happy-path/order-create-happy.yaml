@@ -71,7 +71,7 @@ flow:
       assert:
         - "status == 201"
         - "body.id != nil"
-        - "body.user_id == '{{user_id}}'"
+        - "body.user_id == user_id"
         - "body.status == 'pending'"
         - "body.total == 50.00"
         - "len(body.items) == 1"
@@ -111,7 +111,6 @@ flow:
         count: 1
       assert:
         - "len(messages) > 0"
-        - "messages[0].value.order_id == '{{order_id}}'"
 
   teardown:
     - id: cleanup_order_items

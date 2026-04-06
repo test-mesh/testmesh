@@ -81,8 +81,8 @@ flow:
           Content-Type: application/json
       assert:
         - "status == 200"
-        - "body.id == '{{order_id}}'"
-        - "body.user_id == '{{user_id}}'"
+        - "body.id == order_id"
+        - "body.user_id == user_id"
         - "body.status == 'pending'"
         - "body.total == 50.00"
         - "len(body.items) > 0"

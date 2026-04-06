@@ -30,25 +30,27 @@ flow:
     - id: concurrent_updates
       action: parallel
       config:
-        steps:
-          - id: update_a
-            action: http_request
-            config:
-              method: PUT
-              url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/inventory"
-              headers:
-                Content-Type: application/json
-              body:
-                inventory: 90
-          - id: update_b
-            action: http_request
-            config:
-              method: PUT
-              url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/inventory"
-              headers:
-                Content-Type: application/json
-              body:
-                inventory: 80
+        branches:
+          - steps:
+              - id: update_a
+                action: http_request
+                config:
+                  method: PUT
+                  url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/inventory"
+                  headers:
+                    Content-Type: application/json
+                  body:
+                    inventory: 90
+          - steps:
+              - id: update_b
+                action: http_request
+                config:
+                  method: PUT
+                  url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/inventory"
+                  headers:
+                    Content-Type: application/json
+                  body:
+                    inventory: 80
 
   teardown:
     - id: cleanup
