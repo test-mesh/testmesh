@@ -111,6 +111,7 @@ flow:
         count: 1
       assert:
         - "len(messages) > 0"
+        - "messages[0].value.order_id == '{{order_id}}'"
 
   teardown:
     - id: cleanup_order_items
