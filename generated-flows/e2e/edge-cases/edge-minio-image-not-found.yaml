@@ -1,0 +1,46 @@
+flow:
+  name: "Edge Case — MinIO Image Not Found Returns 404"
+  description: "GET /products/:id/image on a product with no uploaded image returns 404"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan No Image Product'"
+
+  steps:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Plan No Image Product"
+          price: 5.00
+          inventory: 10
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        product_id: "$.body.id"
+
+    - id: get_image_not_found
+      action: http_request
+      config:
+        method: GET
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}/image"
+      assert:
+        - "status == 404"
+        - "body.error != nil"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan No Image Product'"

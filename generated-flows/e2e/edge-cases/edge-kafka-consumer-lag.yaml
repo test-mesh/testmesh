@@ -1,0 +1,71 @@
+flow:
+  name: "Edge Case — Kafka Consumer Lag (db_poll waits for async event)"
+  description: "Create user, immediately poll DB for notification — tests db_poll handles real Kafka consumer lag with configurable timeout"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM notification_service.notifications WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email = 'plan-kafka-lag@example.com')"
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-kafka-lag@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-kafka-lag@example.com"
+          name: "Plan Kafka Lag"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    # Immediately poll — notification may not exist yet due to Kafka consumer lag
+    # db_poll retries every 1s until the notification appears (up to 15s)
+    - id: poll_for_notification
+      action: db_poll
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT id FROM notification_service.notifications WHERE user_id = $1 AND type = 'user.created'"
+        params: ["{{user_id}}"]
+        poll_interval: "1s"
+        timeout: "15s"
+        expected_rows: 1
+      assert:
+        - "row_count >= 1"
+
+    - id: verify_notification
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT type, read FROM notification_service.notifications WHERE user_id = $1 AND type = 'user.created'"
+        params: ["{{user_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].type == 'user.created'"
+        - "rows[0].read == false"
+
+  teardown:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM notification_service.notifications WHERE user_id = '{{user_id}}'"
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-kafka-lag@example.com'"

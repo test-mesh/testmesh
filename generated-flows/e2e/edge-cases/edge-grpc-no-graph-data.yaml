@@ -1,0 +1,43 @@
+flow:
+  name: "Edge Case — gRPC With No Graph Data Returns Empty List"
+  description: "Fresh user with no Neo4j PURCHASED edges — GetRecommendations returns empty product_ids, not an error"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-grpc-empty-{{RANDOM_ID}}@example.com"
+          name: "Plan gRPC Empty"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+  steps:
+    - id: grpc_no_history
+      action: grpc
+      config:
+        host: "${RECOMMENDATION_GRPC_HOST}"
+        service: RecommendationService
+        method: GetRecommendations
+        request:
+          user_id: "{{user_id}}"
+          limit: 10
+      assert:
+        - "body.product_ids != nil"
+        - "len(body.product_ids) == 0"
+
+  teardown:
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE id = '{{user_id}}'"

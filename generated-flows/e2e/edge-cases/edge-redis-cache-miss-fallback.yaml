@@ -1,0 +1,84 @@
+flow:
+  name: "Edge Case — Redis Cache Miss Falls Back to DB"
+  description: "Delete Redis cache key manually, GET user — should return 200 from DB and repopulate Redis"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-cache-miss@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-cache-miss@example.com"
+          name: "Plan Cache Miss"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        user_id: "$.body.id"
+
+    # Seed the Redis cache by fetching the user
+    - id: get_user_to_seed_cache
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/users/{{user_id}}"
+      assert:
+        - "status == 200"
+
+    # Verify cache was populated
+    - id: verify_cache_populated
+      action: redis.get
+      config:
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
+        key: "user:{{user_id}}"
+      assert:
+        - "value != nil"
+
+    # Delete the Redis cache key to simulate a cache miss
+    - id: delete_cache_key
+      action: redis.del
+      config:
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
+        key: "user:{{user_id}}"
+
+    # GET user with cache miss — should fall back to DB and return 200
+    - id: get_user_cache_miss
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/users/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == '{{user_id}}'"
+        - "body.email == 'plan-cache-miss@example.com'"
+
+    # Verify Redis cache was repopulated after the DB fallback
+    - id: verify_cache_repopulated
+      action: redis.get
+      config:
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
+        key: "user:{{user_id}}"
+      assert:
+        - "value != nil"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-cache-miss@example.com'"
