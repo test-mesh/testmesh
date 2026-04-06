@@ -1,0 +1,43 @@
+flow:
+  name: "User Service — Get User Happy Path"
+  description: "GET /users/:id returns 200 with correct user fields"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-get@example.com'"
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-get@example.com"
+          name: "Plan Get User"
+      output:
+        user_id: "$.body.id"
+
+  steps:
+    - id: get_user
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/users/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == '{{user_id}}'"
+        - "body.email == 'plan-get@example.com'"
+        - "body.name == 'Plan Get User'"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-get@example.com'"

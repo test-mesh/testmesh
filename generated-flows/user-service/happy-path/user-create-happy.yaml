@@ -1,0 +1,80 @@
+flow:
+  name: "User Service — Create User Happy Path"
+  description: "POST /users returns 201, persists to DB, caches in Redis, emits Kafka event"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-create@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-create@example.com"
+          name: "Plan Test User"
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+        - "body.email == 'plan-create@example.com'"
+        - "body.name == 'Plan Test User'"
+      output:
+        user_id: "$.body.id"
+
+    - id: get_user
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/users/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == '{{user_id}}'"
+
+    - id: verify_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM user_service.users WHERE id = $1"
+        params: ["{{user_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].email == 'plan-create@example.com'"
+        - "rows[0].name == 'Plan Test User'"
+
+    - id: verify_redis
+      action: redis.get
+      config:
+        host: "localhost"
+        port: "6379"
+        key: "user:{{user_id}}"
+      assert:
+        - "value != nil"
+
+    - id: verify_kafka
+      action: kafka_consumer
+      config:
+        brokers: "${KAFKA_BROKERS}"
+        topic: user.created
+        group_id: "testmesh-plan-user-create-{{RANDOM_ID}}"
+        auto_offset_reset: "earliest"
+        from_beginning: true
+        timeout: "10s"
+        count: 1
+      assert:
+        - "len(messages) > 0"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-create@example.com'"

@@ -1,0 +1,55 @@
+flow:
+  name: "User Service — Login Happy Path"
+  description: "POST /auth/login returns 200 with token and user, stores session in Redis"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-login@example.com'"
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-login@example.com"
+          name: "Plan Login User"
+
+  steps:
+    - id: login
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/auth/login"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-login@example.com"
+      assert:
+        - "status == 200"
+        - "body.token != nil"
+        - "body.user.email == 'plan-login@example.com'"
+      output:
+        token: "$.body.token"
+
+    - id: verify_session_redis
+      action: redis.get
+      config:
+        host: "localhost"
+        port: "6379"
+        key: "session:{{token}}"
+      assert:
+        - "value != nil"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-login@example.com'"

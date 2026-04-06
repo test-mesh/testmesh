@@ -1,0 +1,15 @@
+flow:
+  name: "User Service — List Users Happy Path"
+  description: "GET /users returns 200 with users array"
+
+  env_file: ../../.env.test
+
+  steps:
+    - id: list_users
+      action: http_request
+      config:
+        method: GET
+        url: "${USER_SERVICE_URL}/api/v1/users"
+      assert:
+        - "status == 200"
+        - "body.users != nil"
