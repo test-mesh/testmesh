@@ -151,16 +151,25 @@ func (h *GraphHandler) CreateRepo(c *gin.Context) {
 	workspaceID := middleware.GetWorkspaceID(c)
 
 	var req struct {
-		graph.GraphRepo
-		PAT    string `json:"pat"`
-		SSHKey string `json:"ssh_key"`
+		Name       string        `json:"name"`
+		URL        string        `json:"url"`
+		Branch     string        `json:"branch"`
+		ScanConfig graph.JSONMap `json:"scan_config"`
+		PAT        string        `json:"pat"`
+		SSHKey     string        `json:"ssh_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	req.GraphRepo.WorkspaceID = workspaceID
+	newRepo := graph.GraphRepo{
+		WorkspaceID: workspaceID,
+		Name:        req.Name,
+		URL:         req.URL,
+		Branch:      req.Branch,
+		ScanConfig:  req.ScanConfig,
+	}
 
 	if req.PAT != "" || req.SSHKey != "" {
 		creds, err := encryptCredentialsForStorage(req.PAT, req.SSHKey)
@@ -169,16 +178,16 @@ func (h *GraphHandler) CreateRepo(c *gin.Context) {
 			return
 		}
 		if creds != nil {
-			req.GraphRepo.Credentials = *creds
+			newRepo.Credentials = *creds
 		}
 	}
 
-	if err := h.engine.CreateRepo(c.Request.Context(), &req.GraphRepo); err != nil {
+	if err := h.engine.CreateRepo(c.Request.Context(), &newRepo); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, req.GraphRepo)
+	c.JSON(http.StatusCreated, newRepo)
 }
 
 // ListRepos handles GET /graph/repos
@@ -210,19 +219,22 @@ func (h *GraphHandler) UpdateRepo(c *gin.Context) {
 	}
 
 	var req struct {
-		graph.GraphRepo
-		PAT    string `json:"pat"`
-		SSHKey string `json:"ssh_key"`
+		Name       string        `json:"name"`
+		URL        string        `json:"url"`
+		Branch     string        `json:"branch"`
+		ScanConfig graph.JSONMap `json:"scan_config"`
+		PAT        string        `json:"pat"`
+		SSHKey     string        `json:"ssh_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	existing.Name = req.GraphRepo.Name
-	existing.URL = req.GraphRepo.URL
-	existing.Branch = req.GraphRepo.Branch
-	existing.ScanConfig = req.GraphRepo.ScanConfig
+	existing.Name = req.Name
+	existing.URL = req.URL
+	existing.Branch = req.Branch
+	existing.ScanConfig = req.ScanConfig
 	existing.WorkspaceID = workspaceID
 	existing.ID = repoID
 
@@ -233,7 +245,12 @@ func (h *GraphHandler) UpdateRepo(c *gin.Context) {
 			return
 		}
 		if creds != nil {
-			existing.Credentials = *creds
+			if existing.Credentials == nil {
+				existing.Credentials = graph.JSONMap{}
+			}
+			for k, v := range *creds {
+				existing.Credentials[k] = v
+			}
 		}
 	}
 
