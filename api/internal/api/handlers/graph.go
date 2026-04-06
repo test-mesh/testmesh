@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	graphrepo "github.com/test-mesh/testmesh/internal/graph/repo"
 	"github.com/test-mesh/testmesh/internal/graph/scanner"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // GraphHandler handles all /graph/* API endpoints.
@@ -108,7 +110,12 @@ func (h *GraphHandler) TriggerScan(c *gin.Context) {
 			branch = "main"
 		}
 		existing, err := h.engine.GetRepoByURL(c.Request.Context(), req.URL, workspaceID)
-		if err != nil {
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			h.logger.Error("failed to look up repo by URL", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up repo"})
+			return
+		}
+		if existing == nil {
 			// Not found — create it
 			newRepo := &graph.GraphRepo{
 				WorkspaceID: workspaceID,
@@ -119,7 +126,8 @@ func (h *GraphHandler) TriggerScan(c *gin.Context) {
 			if req.PAT != "" {
 				creds, err := encryptCredentialsForStorage(req.PAT, "")
 				if err != nil {
-					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials: " + err.Error()})
+					h.logger.Error("failed to encrypt credentials", zap.Error(err))
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store credentials"})
 					return
 				}
 				if creds != nil {
@@ -142,18 +150,18 @@ func (h *GraphHandler) TriggerScan(c *gin.Context) {
 		repoPath = info.LocalPath
 
 	case req.RepoPath != "":
-		// CLI local scan mode
-		repoPath = req.RepoPath
-		if req.RepoID != "" {
-			id, err := uuid.Parse(req.RepoID)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repo_id"})
-				return
-			}
-			repoID = id
-		} else {
-			repoID = uuid.New()
+		// CLI local scan mode — repo_id is required to avoid orphaned scan records
+		if req.RepoID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "repo_id is required when using repo_path"})
+			return
 		}
+		id, err := uuid.Parse(req.RepoID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repo_id"})
+			return
+		}
+		repoPath = req.RepoPath
+		repoID = id
 
 	default:
 		// repo_id mode (existing behaviour)
@@ -248,7 +256,8 @@ func (h *GraphHandler) CreateRepo(c *gin.Context) {
 	if req.PAT != "" || req.SSHKey != "" {
 		creds, err := encryptCredentialsForStorage(req.PAT, req.SSHKey)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials: " + err.Error()})
+			h.logger.Error("failed to encrypt credentials", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store credentials"})
 			return
 		}
 		if creds != nil {
@@ -305,17 +314,26 @@ func (h *GraphHandler) UpdateRepo(c *gin.Context) {
 		return
 	}
 
-	existing.Name = req.Name
-	existing.URL = req.URL
-	existing.Branch = req.Branch
-	existing.ScanConfig = req.ScanConfig
+	if req.Name != "" {
+		existing.Name = req.Name
+	}
+	if req.URL != "" {
+		existing.URL = req.URL
+	}
+	if req.Branch != "" {
+		existing.Branch = req.Branch
+	}
+	if req.ScanConfig != nil {
+		existing.ScanConfig = req.ScanConfig
+	}
 	existing.WorkspaceID = workspaceID
 	existing.ID = repoID
 
 	if req.PAT != "" || req.SSHKey != "" {
 		creds, err := encryptCredentialsForStorage(req.PAT, req.SSHKey)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials: " + err.Error()})
+			h.logger.Error("failed to encrypt credentials", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store credentials"})
 			return
 		}
 		if creds != nil {
