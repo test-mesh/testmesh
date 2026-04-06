@@ -1,21 +1,10 @@
 flow:
   name: "Notification Service — Get Unread Notifications"
-  description: "Creates a user, product, and order to trigger an order.placed Kafka event, then asserts GET /notifications/:user_id/unread returns count >= 1"
+  description: "Creates a user, product, and order to trigger an order.placed Kafka event, then asserts GET /notifications/:user_id/unread returns unread notifications"
 
   env_file: ../../.env.test
 
   setup:
-    - id: cleanup
-      action: database_query
-      config:
-        connection: "${DB_URL}"
-        query: |
-          DELETE FROM notification_service.notifications WHERE user_id = (SELECT id FROM user_service.users WHERE email='plan-notify@example.com' LIMIT 1);
-          DELETE FROM order_service.order_items WHERE order_id IN (SELECT id FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email='plan-notify@example.com'));
-          DELETE FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email='plan-notify@example.com');
-          DELETE FROM product_service.products WHERE name='Plan Notify Product';
-          DELETE FROM user_service.users WHERE email='plan-notify@example.com';
-
     - id: create_user
       action: http_request
       config:
@@ -24,8 +13,8 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          email: "plan-notify@example.com"
-          name: "Plan Notify"
+          email: "plan-notify-unread-{{RANDOM_ID}}@example.com"
+          name: "Plan Notify Unread"
       assert:
         - "status == 201"
       output:
@@ -39,7 +28,7 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          name: "Plan Notify Product"
+          name: "Plan Notify Unread Product"
           price: 10.00
           inventory: 10
       assert:
@@ -87,6 +76,7 @@ flow:
         - "status == 200"
         - "body.count >= 1"
         - "body.notifications != nil"
+        - "body.notifications[0].read == false"
 
   teardown:
     - id: cleanup_notifications
@@ -111,10 +101,10 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM product_service.products WHERE name = 'Plan Notify Product'"
+        query: "DELETE FROM product_service.products WHERE id = '{{product_id}}'"
 
     - id: cleanup_user
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM user_service.users WHERE email = 'plan-notify@example.com'"
+        query: "DELETE FROM user_service.users WHERE id = '{{user_id}}'"

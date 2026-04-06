@@ -5,17 +5,6 @@ flow:
   env_file: ../../.env.test
 
   setup:
-    - id: cleanup
-      action: database_query
-      config:
-        connection: "${DB_URL}"
-        query: |
-          DELETE FROM notification_service.notifications WHERE user_id = (SELECT id FROM user_service.users WHERE email='plan-notify@example.com' LIMIT 1);
-          DELETE FROM order_service.order_items WHERE order_id IN (SELECT id FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email='plan-notify@example.com'));
-          DELETE FROM order_service.orders WHERE user_id IN (SELECT id::text FROM user_service.users WHERE email='plan-notify@example.com');
-          DELETE FROM product_service.products WHERE name='Plan Notify Product';
-          DELETE FROM user_service.users WHERE email='plan-notify@example.com';
-
     - id: create_user
       action: http_request
       config:
@@ -24,7 +13,7 @@ flow:
         headers:
           Content-Type: application/json
         body:
-          email: "plan-notify@example.com"
+          email: "plan-notify-{{RANDOM_ID}}@example.com"
           name: "Plan Notify"
       assert:
         - "status == 201"
@@ -111,10 +100,10 @@ flow:
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM product_service.products WHERE name = 'Plan Notify Product'"
+        query: "DELETE FROM product_service.products WHERE id = '{{product_id}}'"
 
     - id: cleanup_user
       action: database_query
       config:
         connection: "${DB_URL}"
-        query: "DELETE FROM user_service.users WHERE email = 'plan-notify@example.com'"
+        query: "DELETE FROM user_service.users WHERE id = '{{user_id}}'"
