@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -62,6 +63,18 @@ func encryptCredentialsForStorage(pat, sshKey string) (*graph.JSONMap, error) {
 	return &creds, nil
 }
 
+// deriveRepoNameFromURL returns the last path segment of a Git URL, stripping .git suffix.
+func deriveRepoNameFromURL(rawURL string) string {
+	u := strings.TrimSuffix(rawURL, ".git")
+	parts := strings.Split(u, "/")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] != "" {
+			return parts[i]
+		}
+	}
+	return rawURL
+}
+
 // --- Graph Management ---
 
 // TriggerScan handles POST /graph/scan
@@ -69,26 +82,87 @@ func (h *GraphHandler) TriggerScan(c *gin.Context) {
 	workspaceID := middleware.GetWorkspaceID(c)
 
 	var req struct {
-		RepoID   string `json:"repo_id" binding:"required"`
-		RepoPath string `json:"repo_path"` // For CLI-initiated local scans
+		RepoID   string `json:"repo_id"`
+		RepoPath string `json:"repo_path"` // CLI local scan
+		URL      string `json:"url"`       // Remote URL — auto-register if needed
+		PAT      string `json:"pat"`       // Optional PAT for first registration
+		Branch   string `json:"branch"`    // Optional, defaults to "main"
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	repoID, err := uuid.Parse(req.RepoID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repo_id"})
+	if req.RepoID == "" && req.URL == "" && req.RepoPath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "one of repo_id, url, or repo_path is required"})
 		return
 	}
 
+	var repoID uuid.UUID
 	var repoPath string
-	if req.RepoPath != "" {
-		// CLI scan mode — local path provided
+
+	switch {
+	case req.URL != "":
+		// URL mode: find existing repo or auto-register
+		branch := req.Branch
+		if branch == "" {
+			branch = "main"
+		}
+		existing, err := h.engine.GetRepoByURL(c.Request.Context(), req.URL, workspaceID)
+		if err != nil {
+			// Not found — create it
+			newRepo := &graph.GraphRepo{
+				WorkspaceID: workspaceID,
+				Name:        deriveRepoNameFromURL(req.URL),
+				URL:         req.URL,
+				Branch:      branch,
+			}
+			if req.PAT != "" {
+				creds, err := encryptCredentialsForStorage(req.PAT, "")
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials: " + err.Error()})
+					return
+				}
+				if creds != nil {
+					newRepo.Credentials = *creds
+				}
+			}
+			if err := h.engine.CreateRepo(c.Request.Context(), newRepo); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register repo: " + err.Error()})
+				return
+			}
+			existing = newRepo
+		}
+		repoID = existing.ID
+		info, err := h.repoManager.PrepareRepo(c.Request.Context(), existing)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to prepare repo: " + err.Error()})
+			return
+		}
+		defer h.repoManager.Cleanup(info)
+		repoPath = info.LocalPath
+
+	case req.RepoPath != "":
+		// CLI local scan mode
 		repoPath = req.RepoPath
-	} else {
-		// Clone mode — prepare from repo record
+		if req.RepoID != "" {
+			id, err := uuid.Parse(req.RepoID)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repo_id"})
+				return
+			}
+			repoID = id
+		} else {
+			repoID = uuid.New()
+		}
+
+	default:
+		// repo_id mode (existing behaviour)
+		id, err := uuid.Parse(req.RepoID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid repo_id"})
+			return
+		}
+		repoID = id
 		graphRepo, err := h.engine.GetRepo(c.Request.Context(), repoID, workspaceID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "repo not found"})
