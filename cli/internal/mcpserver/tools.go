@@ -517,12 +517,13 @@ func toolGetActionTypes() (*mcp.CallToolResult, error) {
 		"kafka_consumer": map[string]any{
 			"description": "Consume messages from a Kafka topic",
 			"required":    []string{"brokers", "topic"},
-			"optional":    []string{"group_id", "timeout", "expected_count", "auto_offset_reset", "from_beginning"},
+			"optional":    []string{"group_id", "timeout", "count", "auto_offset_reset", "from_beginning"},
 		},
 		"grpc": map[string]any{
-			"description": "Make a gRPC call",
-			"required":    []string{"host", "method"},
-			"optional":    []string{"request", "metadata", "timeout"},
+			"description": "Make a gRPC call using server reflection (use_reflection: true) or raw JSON codec",
+			"required":    []string{"address", "service", "method"},
+			"optional":    []string{"request", "metadata", "timeout", "use_tls", "use_reflection"},
+			"notes":       "address is host:port combined (e.g. localhost:5005). service must include package prefix (e.g. recommendation.RecommendationService). Set use_reflection: true for standard protobuf servers.",
 		},
 		"websocket": map[string]any{
 			"description": "Connect to a WebSocket and send/receive messages",
@@ -556,7 +557,7 @@ func toolGetActionTypes() (*mcp.CallToolResult, error) {
 		"db_poll": map[string]any{
 			"description": "Poll a database query until condition is met",
 			"required":    []string{"connection", "query"},
-			"optional":    []string{"interval", "timeout", "condition"},
+			"optional":    []string{"params", "poll_interval", "timeout", "expected_rows"},
 		},
 		"mock_server_start": map[string]any{
 			"description": "Start a mock HTTP server",
@@ -595,12 +596,12 @@ func toolGetActionTypes() (*mcp.CallToolResult, error) {
 		},
 		"grpc_call": map[string]any{
 			"description": "Make a unary gRPC call",
-			"required":    []string{"host", "method"},
+			"required":    []string{"address", "service", "method"},
 			"optional":    []string{"request", "metadata", "timeout", "proto_file"},
 		},
 		"grpc_stream": map[string]any{
 			"description": "Make a streaming gRPC call",
-			"required":    []string{"host", "method"},
+			"required":    []string{"address", "service", "method"},
 			"optional":    []string{"request", "metadata", "timeout"},
 		},
 		"neo4j.query": map[string]any{
@@ -637,10 +638,15 @@ func toolGetActionTypes() (*mcp.CallToolResult, error) {
 			"description": "Execute multiple step branches in parallel",
 			"required":    []string{"branches"},
 			"optional":    []string{"max_concurrent", "fail_fast", "wait_for_all"},
+			"notes":       "Each branch must have a 'steps' array: branches: [{steps: [{id, action, config}]}]",
 		},
 	}
 
-	out, _ := json.MarshalIndent(actions, "", "  ")
+	result := map[string]any{
+		"_assertion_syntax": "Captured output variables (from output: blocks) are available as BARE NAMES in assertions. Use: body.id == user_id  NOT: body.id == '{{user_id}}'. Template {{var}} syntax is only for config/url fields.",
+		"actions":           actions,
+	}
+	out, _ := json.MarshalIndent(result, "", "  ")
 	return toolContent(string(out)), nil
 }
 
