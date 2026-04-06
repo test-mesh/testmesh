@@ -46,25 +46,32 @@ func (m *Manager) PrepareRepo(ctx context.Context, repo *graph.GraphRepo) (*Repo
 
 	localPath := filepath.Join(m.clonePath, repo.WorkspaceID.String(), repo.ID.String())
 
-	git := NewGitClient(localPath, m.logger)
+	// Decrypt credentials — best-effort; nil creds means public repo
+	var creds *RepoCredentials
+	if key, err := CredentialsKeyFromEnv(); err == nil {
+		creds, err = decryptRepoCredentials(repo, key)
+		if err != nil {
+			m.logger.Warn("Failed to decrypt repo credentials, attempting clone without auth",
+				zap.String("repo", repo.Name), zap.Error(err))
+			creds = nil
+		}
+	}
+
+	git := NewGitClient(localPath, creds, m.logger)
 
 	if _, err := os.Stat(filepath.Join(localPath, ".git")); os.IsNotExist(err) {
-		// Clone
 		m.logger.Info("Cloning repository",
 			zap.String("url", repo.URL),
 			zap.String("branch", repo.Branch),
 		)
-
 		if err := git.Clone(ctx, repo.URL, repo.Branch); err != nil {
 			return nil, fmt.Errorf("clone failed: %w", err)
 		}
 	} else {
-		// Pull latest
 		m.logger.Info("Pulling latest changes",
 			zap.String("repo", repo.Name),
 			zap.String("branch", repo.Branch),
 		)
-
 		if err := git.Pull(ctx, repo.Branch); err != nil {
 			m.logger.Warn("Pull failed, will re-clone", zap.Error(err))
 			os.RemoveAll(localPath)
@@ -116,14 +123,41 @@ func (m *Manager) Cleanup(info *RepoInfo) {
 	}
 }
 
+// decryptRepoCredentials decrypts the repo's stored credentials JSONB.
+// Returns nil (no error) if the credentials map is empty or nil.
+func decryptRepoCredentials(repo *graph.GraphRepo, key []byte) (*RepoCredentials, error) {
+	if len(repo.Credentials) == 0 {
+		return nil, nil
+	}
+	creds := &RepoCredentials{}
+	if pat, ok := repo.Credentials["pat"].(string); ok && pat != "" {
+		decrypted, err := Decrypt(pat, key)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt PAT: %w", err)
+		}
+		creds.PAT = decrypted
+	}
+	if sshKey, ok := repo.Credentials["ssh_key"].(string); ok && sshKey != "" {
+		decrypted, err := Decrypt(sshKey, key)
+		if err != nil {
+			return nil, fmt.Errorf("decrypt SSH key: %w", err)
+		}
+		creds.SSHKey = decrypted
+	}
+	if creds.PAT == "" && creds.SSHKey == "" {
+		return nil, nil
+	}
+	return creds, nil
+}
+
 // GetChangedFiles returns files changed since the last scan commit.
 func (m *Manager) GetChangedFiles(ctx context.Context, info *RepoInfo, sinceCommit string) ([]string, error) {
-	git := NewGitClient(info.LocalPath, m.logger)
+	git := NewGitClient(info.LocalPath, nil, m.logger)
 	return git.ChangedFilesSince(ctx, sinceCommit)
 }
 
 // GetCurrentCommit returns the current HEAD commit SHA.
 func (m *Manager) GetCurrentCommit(ctx context.Context, info *RepoInfo) (string, error) {
-	git := NewGitClient(info.LocalPath, m.logger)
+	git := NewGitClient(info.LocalPath, nil, m.logger)
 	return git.CurrentCommit(ctx)
 }
