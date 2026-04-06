@@ -1,0 +1,65 @@
+flow:
+  name: "Product Service — Create → Redis Cache Verify"
+  description: "Create product, GET it to populate Redis cache, verify Redis key exists"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Cache Product'"
+
+  steps:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products"
+        headers:
+          Content-Type: application/json
+        body:
+          name: "Plan Cache Product"
+          price: 19.99
+          inventory: 50
+      assert:
+        - "status == 201"
+        - "body.id != nil"
+      output:
+        product_id: "$.body.id"
+
+    - id: get_product
+      action: http_request
+      config:
+        method: GET
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == '{{product_id}}'"
+        - "body.name == 'Plan Cache Product'"
+
+    - id: verify_redis_cache
+      action: redis.get
+      config:
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
+        key: "product:{{product_id}}"
+      assert:
+        - "value != nil"
+
+    - id: get_product_again
+      action: http_request
+      config:
+        method: GET
+        url: "${PRODUCT_SERVICE_URL}/api/v1/products/{{product_id}}"
+      assert:
+        - "status == 200"
+        - "body.id == '{{product_id}}'"
+
+  teardown:
+    - id: cleanup
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM product_service.products WHERE name = 'Plan Cache Product'"

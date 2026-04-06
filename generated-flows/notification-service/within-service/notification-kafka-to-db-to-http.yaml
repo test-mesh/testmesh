@@ -1,0 +1,73 @@
+flow:
+  name: "Notification Service — Kafka Event → DB → HTTP Chain"
+  description: "Create user → user.created Kafka event → notification-service consumes → DB row appears → HTTP returns it"
+
+  env_file: ../../.env.test
+
+  setup:
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-notif-chain@example.com'"
+
+  steps:
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "${USER_SERVICE_URL}/api/v1/users"
+        headers:
+          Content-Type: application/json
+        body:
+          email: "plan-notif-chain@example.com"
+          name: "Plan Notif Chain"
+      assert:
+        - "status == 201"
+      output:
+        user_id: "$.body.id"
+
+    - id: wait_for_welcome_notification
+      action: db_poll
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT id FROM notification_service.notifications WHERE user_id = $1 AND type = 'user.created' LIMIT 1"
+        params: ["{{user_id}}"]
+        poll_interval: "1s"
+        timeout: "15s"
+        expected_rows: 1
+      assert:
+        - "row_count >= 1"
+
+    - id: verify_notification_in_db
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "SELECT * FROM notification_service.notifications WHERE user_id = $1 AND type = 'user.created'"
+        params: ["{{user_id}}"]
+      assert:
+        - "row_count == 1"
+        - "rows[0].type == 'user.created'"
+        - "rows[0].read == false"
+
+    - id: verify_via_http
+      action: http_request
+      config:
+        method: GET
+        url: "${NOTIFICATION_SERVICE_URL}/api/v1/notifications/{{user_id}}"
+      assert:
+        - "status == 200"
+        - "body.count >= 1"
+        - "body.notifications[0].type == 'user.created'"
+
+  teardown:
+    - id: cleanup_notifications
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM notification_service.notifications WHERE user_id = '{{user_id}}'"
+    - id: cleanup_user
+      action: database_query
+      config:
+        connection: "${DB_URL}"
+        query: "DELETE FROM user_service.users WHERE email = 'plan-notif-chain@example.com'"
