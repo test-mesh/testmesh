@@ -305,6 +305,15 @@ func toolValidateFlow(args map[string]any) (*mcp.CallToolResult, error) {
 					if strings.Contains(expr, "{{") {
 						errs = append(errs, fmt.Sprintf("%s step %d (%s): assert[%d] uses '{{...}}' template syntax which is never substituted in assertions — use bare variable name (e.g. body.id == user_id, not body.id == '{{user_id}}')", phase, i+1, id, j))
 					}
+					// Warn if kafka_consumer step uses field-level message assertions (type mismatch risk).
+					if action == "kafka_consumer" {
+						if strings.Contains(expr, "messages[") && strings.Contains(expr, ".value.") {
+							errs = append(errs, fmt.Sprintf(
+								"%s step %d (%s): assert[%d] WARNING: field-level Kafka message assertions (messages[N].value.field) fail with type mismatch errors at runtime — use 'len(messages) > 0' to verify delivery and db_poll to verify downstream effects",
+								phase, i+1, id, j,
+							))
+						}
+					}
 				}
 			}
 
