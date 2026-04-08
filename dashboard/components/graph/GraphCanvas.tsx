@@ -75,10 +75,15 @@ export function GraphNodeComponent({ data, selected }: NodeProps<{ node: GraphNo
       )}
       style={{ width: NODE_W, minHeight: NODE_H }}
     >
-      <Handle type="target" position={Position.Top}    id="top"    style={{ visibility: 'hidden' }} />
-      <Handle type="target" position={Position.Left}   id="left"   style={{ visibility: 'hidden' }} />
-      <Handle type="source" position={Position.Right}  id="right"  style={{ visibility: 'hidden' }} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={{ visibility: 'hidden' }} />
+      {/* Each side has both a source and target handle so edges can enter/exit from any direction */}
+      <Handle type="source" position={Position.Top}    id="top-s"    style={{ visibility: 'hidden' }} />
+      <Handle type="target" position={Position.Top}    id="top-t"    style={{ visibility: 'hidden' }} />
+      <Handle type="source" position={Position.Left}   id="left-s"   style={{ visibility: 'hidden' }} />
+      <Handle type="target" position={Position.Left}   id="left-t"   style={{ visibility: 'hidden' }} />
+      <Handle type="source" position={Position.Right}  id="right-s"  style={{ visibility: 'hidden' }} />
+      <Handle type="target" position={Position.Right}  id="right-t"  style={{ visibility: 'hidden' }} />
+      <Handle type="source" position={Position.Bottom} id="bottom-s" style={{ visibility: 'hidden' }} />
+      <Handle type="target" position={Position.Bottom} id="bottom-t" style={{ visibility: 'hidden' }} />
       <div className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: nodeHex(node.type) }} />
         <span className="font-medium text-xs truncate">{node.name}</span>
@@ -192,31 +197,58 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
     serviceTrees.set(svc.id, tree);
   });
 
-  // Position each tree
+  // Position each tree using dagre to minimise edge crossings within each rank.
+  // Forward-only edges are fed to dagre with minlen = column difference so that
+  // dagre respects our column assignment while reordering nodes vertically.
   const positions = new Map<string, { x: number; y: number }>();
   const rfNodes: Node[] = [];
   let currentY = 0;
 
   sortedServices.forEach((svc) => {
     const tree = serviceTrees.get(svc.id)!;
-    // Tree height = tallest column
-    const maxNodes = Math.max(...[...tree.values()].map((ns) => ns.length));
-    const treeH    = Math.max(maxNodes, 1) * ROW_H;
 
-    tree.forEach((nodeIds, col) => {
-      const colH   = nodeIds.length * ROW_H;
-      const startY = currentY + (treeH - colH) / 2; // centre col within tree
+    // Build nodeId→col lookup for this tree
+    const nodeCol = new Map<string, number>();
+    tree.forEach((nodeIds, col) => nodeIds.forEach((nid) => nodeCol.set(nid, col)));
+    const treeNodeIds = new Set(nodeCol.keys());
 
-      nodeIds.forEach((nid, row) => {
-        const pos = { x: col * COL_W, y: startY + row * ROW_H };
-        positions.set(nid, pos);
-        rfNodes.push({
-          id: nid,
-          type: 'graphNode',
-          position: pos,
-          data: { node: nodeById.get(nid)! },
-        });
-      });
+    // Run dagre on this subtree
+    const g = new dagre.graphlib.Graph();
+    g.setDefaultEdgeLabel(() => ({}));
+    // ranksep = gap between columns, nodesep = gap between rows
+    g.setGraph({ rankdir: 'LR', ranksep: COL_W - NODE_W, nodesep: ROW_H - NODE_H });
+    treeNodeIds.forEach((nid) => g.setNode(nid, { width: NODE_W, height: NODE_H }));
+
+    // Add forward edges (from lower col to higher col) with minlen = col difference
+    // This keeps nodes in their BFS-assigned columns while dagre reorders within columns
+    edges.forEach((e) => {
+      if (!treeNodeIds.has(e.from_node_id) || !treeNodeIds.has(e.to_node_id)) return;
+      const fromCol = nodeCol.get(e.from_node_id) ?? 0;
+      const toCol   = nodeCol.get(e.to_node_id)   ?? 0;
+      if (fromCol >= toCol) return; // skip backward / same-rank edges
+      g.setEdge(e.from_node_id, e.to_node_id, { minlen: toCol - fromCol });
+    });
+
+    // Nodes with no incoming forward edge need a constraint edge from the service
+    // so dagre places them at the correct column instead of rank 0
+    treeNodeIds.forEach((nid) => {
+      if (nid === svc.id) return;
+      if (!g.inEdges(nid)?.length) {
+        g.setEdge(svc.id, nid, { minlen: nodeCol.get(nid) ?? 1 });
+      }
+    });
+
+    dagre.layout(g);
+
+    // Extract positions; offset Y so this tree starts at currentY
+    let treeH = 0;
+    treeNodeIds.forEach((nid) => {
+      const gn = g.node(nid);
+      if (!gn) return;
+      const pos = { x: gn.x - NODE_W / 2, y: gn.y - NODE_H / 2 + currentY };
+      positions.set(nid, pos);
+      rfNodes.push({ id: nid, type: 'graphNode', position: pos, data: { node: nodeById.get(nid)! } });
+      treeH = Math.max(treeH, gn.y + NODE_H / 2);
     });
 
     currentY += treeH + TREE_GAP;
@@ -252,14 +284,18 @@ function buildEdges(
     .map((e) => {
       const fp = positions.get(e.from_node_id) ?? { x: 0, y: 0 };
       const tp = positions.get(e.to_node_id)   ?? { x: 0, y: 0 };
-      const vertical = Math.abs(tp.y - fp.y) > Math.abs(tp.x - fp.x);
-      const goingDown = tp.y >= fp.y;
+      const dx = tp.x - fp.x;
+      const dy = tp.y - fp.y;
+      const horizontal = Math.abs(dx) >= Math.abs(dy);
+      // Pick the exit/entry side, then select the matching typed handle id (-s source, -t target)
+      const srcSide = horizontal ? (dx >= 0 ? 'right' : 'left') : (dy >= 0 ? 'bottom' : 'top');
+      const dstSide = horizontal ? (dx >= 0 ? 'left'  : 'right') : (dy >= 0 ? 'top'   : 'bottom');
       return {
         id: e.id,
         source: e.from_node_id,
         target: e.to_node_id,
-        sourceHandle: vertical ? (goingDown ? 'bottom' : 'top') : 'right',
-        targetHandle: vertical ? (goingDown ? 'top' : 'bottom') : 'left',
+        sourceHandle: `${srcSide}-s`,
+        targetHandle: `${dstSide}-t`,
         type: 'smoothstep',
         data: { edge: e },
         markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12, color: edgeHex(e.type) },
