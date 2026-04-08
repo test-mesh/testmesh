@@ -5,6 +5,8 @@ import { Network } from 'lucide-react';
 import { StatsBar } from '@/components/graph/StatsBar';
 import { RepoTable } from '@/components/graph/RepoTable';
 import { GraphCanvas } from '@/components/graph/GraphCanvas';
+import { CoveragePanel } from '@/components/graph/CoveragePanel';
+import { ConflictsPanel } from '@/components/graph/ConflictsPanel';
 
 export default function GraphPage() {
   return (
@@ -37,11 +39,11 @@ export default function GraphPage() {
         </TabsContent>
 
         <TabsContent value="coverage" className="mt-4">
-          <p className="text-muted-foreground text-sm">Coverage panel — coming soon.</p>
+          <CoveragePanel />
         </TabsContent>
 
         <TabsContent value="conflicts" className="mt-4">
-          <p className="text-muted-foreground text-sm">Conflicts panel — coming soon.</p>
+          <ConflictsPanel />
         </TabsContent>
       </Tabs>
     </div>
