@@ -20,6 +20,7 @@ import {
   Plug,
   Puzzle,
   HeartPulse,
+  Network,
 } from 'lucide-react';
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
@@ -46,6 +47,7 @@ const navigation: NavItem[] = [
 
   // Test infrastructure
   { title: 'Mock Servers', href: '/mocks', icon: Server },
+  { title: 'Graph', href: '/graph', icon: Network },
 
   // Development tools
   { title: 'Request Builder', href: '/request-builder', icon: Send },
