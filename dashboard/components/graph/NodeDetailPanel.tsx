@@ -62,31 +62,31 @@ export function NodeDetailPanel({ nodeId, onClose }: NodeDetailPanelProps) {
                   </span>
                 </div>
               </div>
+
+              <div>
+                <p className="text-sm font-medium mb-2 flex items-center gap-1">
+                  <GitBranch className="h-4 w-4" />
+                  Dependencies
+                </p>
+                {depsLoading ? (
+                  <Skeleton className="h-16 w-full" />
+                ) : deps.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No dependencies found.</p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {deps.map((dep) => (
+                      <li key={dep.id} className="text-xs flex items-center gap-2 py-1 border-b last:border-0">
+                        <Badge variant="outline" className="text-[10px]">{dep.type}</Badge>
+                        <span className="truncate">{dep.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">Node not found.</p>
           )}
-
-          <div>
-            <p className="text-sm font-medium mb-2 flex items-center gap-1">
-              <GitBranch className="h-4 w-4" />
-              Dependencies
-            </p>
-            {depsLoading ? (
-              <Skeleton className="h-16 w-full" />
-            ) : deps.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No dependencies found.</p>
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {deps.map((dep) => (
-                  <li key={dep.id} className="text-xs flex items-center gap-2 py-1 border-b last:border-0">
-                    <Badge variant="outline" className="text-[10px]">{dep.type}</Badge>
-                    <span className="truncate">{dep.name}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </div>
       </ScrollArea>
     </div>

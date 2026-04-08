@@ -38,6 +38,19 @@ function dotColor(type: string): string {
   return TYPE_COLORS[type] ?? 'bg-gray-400';
 }
 
+const TYPE_HEX: Record<string, string> = {
+  service: '#3b82f6',
+  endpoint: '#22c55e',
+  database: '#a855f7',
+  queue: '#f97316',
+  topic: '#eab308',
+  cache: '#ec4899',
+};
+
+function dotHex(type: string): string {
+  return TYPE_HEX[type] ?? '#9ca3af';
+}
+
 // ── Custom ReactFlow node ─────────────────────────────────────────────────────
 
 function GraphNodeComponent({ data, selected }: NodeProps<{ node: GraphNode }>) {
@@ -105,7 +118,7 @@ export function GraphCanvas() {
   });
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
-  const [rfEdges, , onEdgesChange] = useEdgesState<Edge[]>([]);
+  const [rfEdges, , onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
     if (data?.nodes) {
@@ -141,7 +154,7 @@ export function GraphCanvas() {
           </div>
         ) : rfNodes.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-            No nodes found. Run a scan to populate the graph.
+            {debouncedSearch ? 'No nodes match your filter.' : 'No nodes found. Run a scan to populate the graph.'}
           </div>
         ) : (
           <ReactFlow
@@ -156,7 +169,7 @@ export function GraphCanvas() {
           >
             <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
             <Controls />
-            <MiniMap nodeColor={(n) => dotColor((n.data as { node: GraphNode }).node.type)} />
+            <MiniMap nodeColor={(n) => dotHex((n.data as { node: GraphNode }).node.type)} />
           </ReactFlow>
         )}
       </div>
