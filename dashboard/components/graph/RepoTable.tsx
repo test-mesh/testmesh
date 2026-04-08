@@ -35,6 +35,8 @@ export function RepoTable() {
     setScanningId(id);
     try {
       await scanMutation.mutateAsync(id);
+    } catch {
+      // mutation error is captured in scanMutation.error
     } finally {
       setScanningId(null);
     }
@@ -52,8 +54,12 @@ export function RepoTable() {
 
   async function handleDelete() {
     if (deleteId) {
-      await deleteMutation.mutateAsync(deleteId);
-      setDeleteId(null);
+      try {
+        await deleteMutation.mutateAsync(deleteId);
+        setDeleteId(null);
+      } catch {
+        // mutation error is captured in deleteMutation.error
+      }
     }
   }
 
@@ -140,6 +146,7 @@ export function RepoTable() {
       )}
 
       <RepoDialog
+        key={editRepo?.id ?? 'create'}
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         repo={editRepo}

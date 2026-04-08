@@ -34,7 +34,7 @@ export function RepoDialog({ open, onClose, repo }: RepoDialogProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!name.trim()) { setError('Name is required'); return; }
+    if (!isEdit && !name.trim()) { setError('Name is required'); return; }
     if (!isEdit && !url.trim()) { setError('URL is required'); return; }
 
     try {
