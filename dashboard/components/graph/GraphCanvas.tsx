@@ -59,11 +59,9 @@ function edgeHex(t: string): string { return EDGE_HEX[t] ?? '#9ca3af'; }
 export const NODE_W = 160;
 export const NODE_H = 52;
 
-const DEP_COL_W   = 190;  // horizontal spacing between dep columns
-const DEP_ROW_H   = 68;   // vertical spacing between dep rows
-const DEPS_PER_ROW = 3;   // deps per row within a service band
-const SVC_TO_DEP  = 60;   // gap between service node and its first dep column
-const BAND_GAP    = 60;   // vertical gap between service bands
+const COL_W    = 220;  // horizontal gap between columns (depth levels)
+const ROW_H    = 76;   // vertical gap between nodes within a column
+const TREE_GAP = 80;   // vertical gap between service trees
 
 // ── Node component — 4 invisible handles for flexible edge routing ────────────
 
@@ -92,28 +90,32 @@ export function GraphNodeComponent({ data, selected }: NodeProps<{ node: GraphNo
 
 const NODE_TYPES = { graphNode: GraphNodeComponent };
 
-// ── Band layout ───────────────────────────────────────────────────────────────
-// Each service occupies its own horizontal band. Within a band, the service
-// node sits on the left and its dependencies are arranged in a grid to the right.
-// Bands are stacked vertically. Inter-service ordering uses dagre.
+// ── Tree layout ───────────────────────────────────────────────────────────────
+// Each service is a root. BFS outward assigns column depth (left = service,
+// right = what it calls). Service trees are stacked vertically with enough
+// vertical space for their tallest column. Inter-service ordering via dagre.
+//
+//  [service] ──► [endpoint]  ──► [topic]
+//                             ──► [database]
+//           ──► [endpoint2] ──► [cache]
 
 type LayoutResult = { rfNodes: Node[]; positions: Map<string, { x: number; y: number }> };
 
-function applyBandLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
-  const services  = nodes.filter((n) => n.type === 'service');
-  const resources = nodes.filter((n) => n.type !== 'service');
-  const serviceIds = new Set(services.map((s) => s.id));
+function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
+  const nodeById = new Map<string, GraphNode>();
+  nodes.forEach((n) => nodeById.set(n.id, n));
 
-  // Group resource nodes by their service field
-  const byService = new Map<string, GraphNode[]>();
-  resources.forEach((n) => {
-    const key = n.service ?? '';
-    if (!byService.has(key)) byService.set(key, []);
-    byService.get(key)!.push(n);
+  // Build outgoing adjacency map
+  const outAdj = new Map<string, string[]>();
+  edges.forEach((e) => {
+    if (!outAdj.has(e.from_node_id)) outAdj.set(e.from_node_id, []);
+    outAdj.get(e.from_node_id)!.push(e.to_node_id);
   });
 
-  // Use a minimal dagre pass to determine topological order of services
-  // (services that are depended upon come before those that depend on them)
+  const services   = nodes.filter((n) => n.type === 'service');
+  const serviceIds = new Set(services.map((s) => s.id));
+
+  // Topo-sort services so upstream services appear above downstream ones
   const sg = new dagre.graphlib.Graph();
   sg.setDefaultEdgeLabel(() => ({}));
   sg.setGraph({ rankdir: 'TB', nodesep: 1, ranksep: 1 });
@@ -126,54 +128,86 @@ function applyBandLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
   });
   dagre.layout(sg);
 
-  const sorted = [...services].sort((a, b) => {
+  const sortedServices = [...services].sort((a, b) => {
     const ay = sg.hasNode(a.id) ? (sg.node(a.id)?.y ?? 0) : 0;
     const by = sg.hasNode(b.id) ? (sg.node(b.id)?.y ?? 0) : 0;
     return ay - by;
   });
 
-  const rfNodes: Node[] = [];
-  const positions = new Map<string, { x: number; y: number }>();
-  let currentY = 0;
+  // BFS from each service to build its subtree (column = BFS depth)
+  const assigned = new Set<string>();
+  // serviceId → Map<col, nodeId[]>
+  const serviceTrees = new Map<string, Map<number, string[]>>();
 
-  sorted.forEach((service) => {
-    const deps = byService.get(service.name) ?? [];
-    const rows = Math.max(1, Math.ceil(deps.length / DEPS_PER_ROW));
-    const bandH = rows * DEP_ROW_H;
+  sortedServices.forEach((svc) => {
+    const tree = new Map<number, string[]>();
+    tree.set(0, [svc.id]);
+    assigned.add(svc.id);
 
-    // Service node — vertically centred within its band
-    const svcY = currentY + (bandH - NODE_H) / 2;
-    positions.set(service.id, { x: 0, y: svcY });
-    rfNodes.push({
-      id: service.id,
-      type: 'graphNode',
-      position: { x: 0, y: svcY },
-      data: { node: service },
-    });
+    const queue: Array<{ id: string; col: number }> = [{ id: svc.id, col: 0 }];
 
-    // Dependency grid — to the right of the service node
-    deps.forEach((dep, i) => {
-      const col = i % DEPS_PER_ROW;
-      const row = Math.floor(i / DEPS_PER_ROW);
-      const pos = {
-        x: NODE_W + SVC_TO_DEP + col * DEP_COL_W,
-        y: currentY + row * DEP_ROW_H + (DEP_ROW_H - NODE_H) / 2,
-      };
-      positions.set(dep.id, pos);
-      rfNodes.push({ id: dep.id, type: 'graphNode', position: pos, data: { node: dep } });
-    });
+    while (queue.length > 0) {
+      const { id, col } = queue.shift()!;
+      for (const nid of outAdj.get(id) ?? []) {
+        if (assigned.has(nid)) continue;
+        const neighbor = nodeById.get(nid);
+        if (!neighbor) continue;
+        // Other services are roots of their own trees — skip them here
+        if (neighbor.type === 'service') continue;
+        assigned.add(nid);
+        const nextCol = col + 1;
+        if (!tree.has(nextCol)) tree.set(nextCol, []);
+        tree.get(nextCol)!.push(nid);
+        queue.push({ id: nid, col: nextCol });
+      }
+    }
 
-    currentY += bandH + BAND_GAP;
+    serviceTrees.set(svc.id, tree);
   });
 
-  // Nodes with no matching service — placed in a column far right
-  const known = new Set([...positions.keys()]);
-  const orphans = resources.filter((n) => !known.has(n.id));
-  const orphanX = NODE_W + SVC_TO_DEP + DEPS_PER_ROW * DEP_COL_W + 40;
-  orphans.forEach((n, i) => {
-    const pos = { x: orphanX, y: i * DEP_ROW_H };
-    positions.set(n.id, pos);
-    rfNodes.push({ id: n.id, type: 'graphNode', position: pos, data: { node: n } });
+  // Position each tree
+  const positions = new Map<string, { x: number; y: number }>();
+  const rfNodes: Node[] = [];
+  let currentY = 0;
+
+  sortedServices.forEach((svc) => {
+    const tree = serviceTrees.get(svc.id)!;
+    // Tree height = tallest column
+    const maxNodes = Math.max(...[...tree.values()].map((ns) => ns.length));
+    const treeH    = Math.max(maxNodes, 1) * ROW_H;
+
+    tree.forEach((nodeIds, col) => {
+      const colH   = nodeIds.length * ROW_H;
+      const startY = currentY + (treeH - colH) / 2; // centre col within tree
+
+      nodeIds.forEach((nid, row) => {
+        const pos = { x: col * COL_W, y: startY + row * ROW_H };
+        positions.set(nid, pos);
+        rfNodes.push({
+          id: nid,
+          type: 'graphNode',
+          position: pos,
+          data: { node: nodeById.get(nid)! },
+        });
+      });
+    });
+
+    currentY += treeH + TREE_GAP;
+  });
+
+  // Orphaned nodes — not reached by any service BFS
+  const maxCol = serviceTrees.size > 0
+    ? Math.max(...[...serviceTrees.values()].flatMap((t) => [...t.keys()]))
+    : 0;
+  const orphanX = (maxCol + 1) * COL_W + 40;
+  let orphanY = 0;
+  nodes.forEach((n) => {
+    if (!positions.has(n.id)) {
+      const pos = { x: orphanX, y: orphanY };
+      positions.set(n.id, pos);
+      rfNodes.push({ id: n.id, type: 'graphNode', position: pos, data: { node: n } });
+      orphanY += ROW_H;
+    }
   });
 
   return { rfNodes, positions };
@@ -235,7 +269,7 @@ export function GraphCanvas() {
     const allEdges = edgesData?.edges ?? [];
     const nodeIds  = new Set(data.nodes.map((n) => n.id));
     const visible  = allEdges.filter((e) => nodeIds.has(e.from_node_id) && nodeIds.has(e.to_node_id));
-    const { rfNodes: laid, positions: pos } = applyBandLayout(data.nodes, visible);
+    const { rfNodes: laid, positions: pos } = applyTreeLayout(data.nodes, visible);
     setRfNodes(laid);
     setPositions(pos);
     setRfEdges(buildEdges(visible, nodeIds, pos));
