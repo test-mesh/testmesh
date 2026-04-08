@@ -150,7 +150,7 @@ type GraphEdge struct {
 	ID          uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	WorkspaceID uuid.UUID  `gorm:"type:uuid;index;not null" json:"workspace_id"`
 	Neo4jID     string     `gorm:"not null" json:"-"`
-	Type        EdgeType   `gorm:"not null" json:"type"`
+	Type        EdgeType   `gorm:"column:type;not null" json:"type"`
 	FromNodeID  uuid.UUID  `gorm:"column:from_node;type:uuid;index;not null" json:"from_node_id"`
 	ToNodeID    uuid.UUID  `gorm:"column:to_node;type:uuid;index;not null" json:"to_node_id"`
 	SourceLayer SourceLayer `gorm:"not null" json:"source_layer"`

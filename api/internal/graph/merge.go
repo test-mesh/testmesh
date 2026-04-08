@@ -122,6 +122,10 @@ func (m *MergeEngine) MergeNodes(ctx context.Context, workspaceID uuid.UUID, inc
 			}
 			result.NodesCreated++
 			mergedNodes = append(mergedNodes, *node)
+			// Add to in-memory index so duplicate nodes later in the same batch
+			// (e.g. shared Kafka topics seen by multiple services) resolve to this ID.
+			key := nodeIndexKey(node.Type, node.Name)
+			byTypeAndName[key] = append(byTypeAndName[key], node)
 		}
 	}
 

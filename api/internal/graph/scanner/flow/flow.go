@@ -110,6 +110,18 @@ func (s *Scanner) parseFlow(filePath, relPath string) *scanner.ScannerOutput {
 
 	output := &scanner.ScannerOutput{}
 
+	// Create a node representing the flow itself so tested_by edges have a source.
+	flowNodeID := uuid.New()
+	output.Nodes = append(output.Nodes, graph.GraphNode{
+		ID:         flowNodeID,
+		Type:       graph.NodeTypeJob,
+		Name:       flow.Flow.Name,
+		SourceFile: relPath,
+		Metadata:   graph.JSONMap{"source": "flow", "file": relPath},
+		Confidence: 0.9,
+		Version:    1,
+	})
+
 	// Collect all steps (setup + steps + teardown)
 	allSteps := make([]FlowStep, 0, len(flow.Flow.Setup)+len(flow.Flow.Steps)+len(flow.Flow.Teardown))
 	allSteps = append(allSteps, flow.Flow.Setup...)
@@ -123,6 +135,15 @@ func (s *Scanner) parseFlow(filePath, relPath string) *scanner.ScannerOutput {
 			ref.SourceFile = relPath
 			ref.FlowName = flow.Flow.Name
 			output.Nodes = append(output.Nodes, ref.Node)
+			// Link flow → endpoint via tested_by so coverage is tracked.
+			// MergeEdges will remap ref.Node.ID to the canonical code-layer node ID.
+			output.Edges = append(output.Edges, graph.GraphEdge{
+				ID:         uuid.New(),
+				Type:       graph.EdgeTypeTestedBy,
+				FromNodeID: flowNodeID,
+				ToNodeID:   ref.Node.ID,
+				Confidence: 0.9,
+			})
 		}
 	}
 
