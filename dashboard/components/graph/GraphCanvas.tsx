@@ -110,7 +110,41 @@ export function GraphNodeComponent({ data, selected }: NodeProps<{ node: GraphNo
   );
 }
 
-const NODE_TYPES = { graphNode: GraphNodeComponent };
+// ── Service group background node ─────────────────────────────────────────────
+// Rendered behind all other nodes to create a visible cluster per service.
+// Sized to the bounding box of the service's subtree + GROUP_PADDING.
+
+const GROUP_PADDING = 20;
+const GROUP_LABEL_H = 26; // height reserved for the service name label at the top
+
+// One accent colour per service (cycles if more than 8 services)
+const GROUP_PALETTE = [
+  '#3b82f6', '#22c55e', '#f97316', '#a855f7',
+  '#eab308', '#ec4899', '#06b6d4', '#14b8a6',
+];
+
+function ServiceGroupNode({ data }: NodeProps<{ label: string; color: string }>) {
+  return (
+    <div
+      className="rounded-xl pointer-events-none select-none"
+      style={{
+        width: '100%',
+        height: '100%',
+        border: `1.5px solid ${data.color}40`,
+        background: `${data.color}0a`,
+      }}
+    >
+      <span
+        className="absolute top-2 left-3 text-[10px] font-semibold tracking-wide uppercase"
+        style={{ color: `${data.color}99` }}
+      >
+        {data.label}
+      </span>
+    </div>
+  );
+}
+
+const NODE_TYPES = { graphNode: GraphNodeComponent, serviceGroup: ServiceGroupNode };
 
 // ── Tree layout ───────────────────────────────────────────────────────────────
 // Each service is a root. BFS outward assigns column depth (left = service,
@@ -241,8 +275,9 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
   // Position each tree: columns are spaced horizontally, nodes stacked vertically
   // within each column and centred within their tree's height.
   // Nodes of different types within the same column get an extra TYPE_GAP between them.
-  const positions = new Map<string, { x: number; y: number }>();
-  const rfNodes: Node[] = [];
+  const positions  = new Map<string, { x: number; y: number }>();
+  const rfNodes:    Node[] = [];
+  const groupNodes: Node[] = [];
   let currentY = 0;
 
   sortedServices.forEach((svc) => {
@@ -255,6 +290,9 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
       NODE_H + 24,
     );
 
+    // Track bounding box for the group background node
+    let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+
     sortedTree.forEach((sorted, col) => {
       const colH   = colPxHeight(sorted);
       let y        = currentY + (treeH - colH) / 2;
@@ -264,8 +302,28 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
         const pos = { x: col * COL_W, y };
         positions.set(nid, pos);
         rfNodes.push({ id: nid, type: 'graphNode', position: pos, data: { node: nodeById.get(nid)! } });
+        bMinX = Math.min(bMinX, pos.x);
+        bMinY = Math.min(bMinY, pos.y);
+        bMaxX = Math.max(bMaxX, pos.x + NODE_W);
+        bMaxY = Math.max(bMaxY, pos.y + NODE_H);
         y += ROW_H;
       });
+    });
+
+    // Add a background group node sized to the subtree bounding box
+    const color  = GROUP_PALETTE[sortedServices.indexOf(svc) % GROUP_PALETTE.length];
+    const gx     = bMinX - GROUP_PADDING;
+    const gy     = bMinY - GROUP_PADDING - GROUP_LABEL_H;
+    const gw     = bMaxX - bMinX + GROUP_PADDING * 2;
+    const gh     = bMaxY - bMinY + GROUP_PADDING * 2 + GROUP_LABEL_H;
+    groupNodes.push({
+      id: `grp-${svc.id}`,
+      type: 'serviceGroup',
+      position: { x: gx, y: gy },
+      style: { width: gw, height: gh, zIndex: -1 },
+      data: { label: svc.name, color },
+      selectable: false,
+      draggable:  false,
     });
 
     currentY += treeH + TREE_GAP;
@@ -316,7 +374,8 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
     rerouteSource.set(e.id, bestId);
   });
 
-  return { rfNodes, positions, rerouteSource };
+  // Group nodes must be first so ReactFlow renders them behind content nodes
+  return { rfNodes: [...groupNodes, ...rfNodes], positions, rerouteSource };
 }
 
 // ── Edge builder — picks handle based on relative node positions ───────────────
@@ -418,7 +477,12 @@ export function GraphCanvas() {
     if (!focusedIds) return rfNodes;
     return rfNodes.map((n) => ({
       ...n,
-      style: { opacity: focusedIds.has(n.id) ? 1 : 0.12, transition: 'opacity 0.15s' },
+      style: {
+        ...n.style,
+        // Group background nodes stay fully visible; dim unfocused content nodes
+        opacity: n.type === 'serviceGroup' ? 1 : (focusedIds.has(n.id) ? 1 : 0.12),
+        transition: 'opacity 0.15s',
+      },
     }));
   }, [rfNodes, focusedIds]);
 
@@ -542,7 +606,10 @@ export function GraphCanvas() {
           >
             <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
             <Controls />
-            <MiniMap nodeColor={(n) => nodeHex((n.data as { node: GraphNode }).node.type)} />
+            <MiniMap nodeColor={(n) => {
+              if (n.type === 'serviceGroup') return (n.data as { color: string }).color + '40';
+              return nodeHex((n.data as { node: GraphNode }).node.type);
+            }} />
           </ReactFlow>
         )}
       </div>
