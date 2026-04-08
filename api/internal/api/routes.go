@@ -573,6 +573,9 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 						nodes.GET("/:node_id/dependents", graphHandler.GetNodeDependents)
 					}
 
+					// Edges
+					graphRoutes.GET("/edges", graphHandler.ListEdges)
+
 					// Queries
 					graphRoutes.GET("/paths", graphHandler.FindPaths)
 					graphRoutes.POST("/search", graphHandler.SearchNodes)

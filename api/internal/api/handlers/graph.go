@@ -616,6 +616,19 @@ func (h *GraphHandler) ResolveConflict(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "resolved"})
 }
 
+// ListEdges handles GET /graph/edges
+func (h *GraphHandler) ListEdges(c *gin.Context) {
+	workspaceID := middleware.GetWorkspaceID(c)
+
+	edges, err := h.engine.ListEdges(c.Request.Context(), workspaceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"edges": edges, "total": len(edges)})
+}
+
 // GetStats handles GET /graph/stats
 func (h *GraphHandler) GetStats(c *gin.Context) {
 	workspaceID := middleware.GetWorkspaceID(c)

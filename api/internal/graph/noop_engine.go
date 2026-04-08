@@ -46,6 +46,10 @@ func (n *NoopEngine) GetEdgesForNode(_ context.Context, _ uuid.UUID, _ string) (
 	return nil, nil
 }
 
+func (n *NoopEngine) ListEdges(_ context.Context, _ uuid.UUID) ([]GraphEdge, error) {
+	return nil, nil
+}
+
 func (n *NoopEngine) UpsertEdge(_ context.Context, _ *GraphEdge) error {
 	return ErrGraphDisabled
 }

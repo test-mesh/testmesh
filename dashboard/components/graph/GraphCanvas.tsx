@@ -13,13 +13,13 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   BackgroundVariant,
+  MarkerType,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { useGraphNodes } from '@/lib/hooks/useGraph';
-import type { GraphNode } from '@/lib/api/graph';
+import { useGraphEdges, useGraphNodes } from '@/lib/hooks/useGraph';
+import type { GraphEdge, GraphNode } from '@/lib/api/graph';
 import { Search } from 'lucide-react';
 import { NodeDetailPanel } from './NodeDetailPanel';
 
@@ -75,6 +75,22 @@ function GraphNodeComponent({ data, selected }: NodeProps<{ node: GraphNode }>) 
 
 const NODE_TYPES = { graphNode: GraphNodeComponent };
 
+// ── Edge builder ──────────────────────────────────────────────────────────────
+
+function buildEdges(edges: GraphEdge[], nodeIds: Set<string>): Edge[] {
+  return edges
+    .filter((e) => nodeIds.has(e.from_node_id) && nodeIds.has(e.to_node_id))
+    .map((e) => ({
+      id: e.id,
+      source: e.from_node_id,
+      target: e.to_node_id,
+      label: e.type,
+      labelStyle: { fontSize: 10 },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
+      style: { strokeWidth: 1.5 },
+    }));
+}
+
 // ── Grid layout ───────────────────────────────────────────────────────────────
 
 function buildLayout(nodes: GraphNode[]): Node[] {
@@ -116,15 +132,23 @@ export function GraphCanvas() {
     search: debouncedSearch || undefined,
     limit: 200,
   });
+  const { data: edgesData } = useGraphEdges();
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
-  const [rfEdges, , onEdgesChange] = useEdgesState<Edge>([]);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
     if (data?.nodes) {
       setRfNodes(buildLayout(data.nodes));
     }
   }, [data, setRfNodes]);
+
+  useEffect(() => {
+    if (data?.nodes && edgesData?.edges) {
+      const nodeIds = new Set(data.nodes.map((n) => n.id));
+      setRfEdges(buildEdges(edgesData.edges, nodeIds));
+    }
+  }, [data, edgesData, setRfEdges]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedNodeId((prev) => (prev === node.id ? null : node.id));

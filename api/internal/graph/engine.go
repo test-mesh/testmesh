@@ -26,6 +26,7 @@ type Engine interface {
 	// Edge queries
 	GetEdge(ctx context.Context, id uuid.UUID) (*GraphEdge, error)
 	GetEdgesForNode(ctx context.Context, nodeID uuid.UUID, direction string) ([]GraphEdge, error)
+	ListEdges(ctx context.Context, workspaceID uuid.UUID) ([]GraphEdge, error)
 
 	// Edge mutations
 	UpsertEdge(ctx context.Context, edge *GraphEdge) error
@@ -237,6 +238,14 @@ func (e *DefaultEngine) GetEdgesForNode(ctx context.Context, nodeID uuid.UUID, d
 	}
 
 	if err := query.Find(&edges).Error; err != nil {
+		return nil, err
+	}
+	return edges, nil
+}
+
+func (e *DefaultEngine) ListEdges(ctx context.Context, workspaceID uuid.UUID) ([]GraphEdge, error) {
+	var edges []GraphEdge
+	if err := e.db.WithContext(ctx).Where("workspace_id = ?", workspaceID).Find(&edges).Error; err != nil {
 		return nil, err
 	}
 	return edges, nil

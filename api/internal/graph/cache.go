@@ -101,6 +101,10 @@ func (c *CachedEngine) GetEdgesForNode(ctx context.Context, nodeID uuid.UUID, di
 	return c.inner.GetEdgesForNode(ctx, nodeID, direction)
 }
 
+func (c *CachedEngine) ListEdges(ctx context.Context, workspaceID uuid.UUID) ([]GraphEdge, error) {
+	return c.inner.ListEdges(ctx, workspaceID)
+}
+
 func (c *CachedEngine) UpsertEdge(ctx context.Context, edge *GraphEdge) error {
 	err := c.inner.UpsertEdge(ctx, edge)
 	if err == nil {

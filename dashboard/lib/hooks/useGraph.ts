@@ -12,6 +12,7 @@ export const graphKeys = {
   all: ['graph'] as const,
   stats: () => [...graphKeys.all, 'stats'] as const,
   repos: () => [...graphKeys.all, 'repos'] as const,
+  edges: () => [...graphKeys.all, 'edges'] as const,
   nodes: (params: ListNodesParams) => [...graphKeys.all, 'nodes', params] as const,
   node: (id: string) => [...graphKeys.all, 'node', id] as const,
   nodeDeps: (id: string) => [...graphKeys.all, 'node', id, 'deps'] as const,
@@ -78,7 +79,17 @@ export function useTriggerRepoScan() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: graphKeys.stats() });
       qc.invalidateQueries({ queryKey: [...graphKeys.all, 'nodes'] });
+      qc.invalidateQueries({ queryKey: graphKeys.edges() });
     },
+  });
+}
+
+// ── Edges ─────────────────────────────────────────────────────────────────────
+
+export function useGraphEdges() {
+  return useQuery({
+    queryKey: graphKeys.edges(),
+    queryFn: () => graphApi.listEdges(),
   });
 }
 

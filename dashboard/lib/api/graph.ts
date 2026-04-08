@@ -47,10 +47,11 @@ export interface GraphNode {
 
 export interface GraphEdge {
   id: string;
-  from_id: string;
-  to_id: string;
-  relationship: string;
-  weight: number;
+  from_node_id: string;
+  to_node_id: string;
+  type: string;
+  source_layer: string;
+  confidence: number;
 }
 
 export interface GraphStats {
@@ -151,6 +152,12 @@ export const graphApi = {
 
   searchNodes: async (query: string, limit = 20): Promise<{ nodes: GraphNode[]; total: number }> => {
     const res = await apiClient.post(`${base}/search`, { query, limit });
+    return res.data;
+  },
+
+  // Edges
+  listEdges: async (): Promise<{ edges: GraphEdge[]; total: number }> => {
+    const res = await apiClient.get(`${base}/edges`);
     return res.data;
   },
 
