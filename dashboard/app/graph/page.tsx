@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Network } from 'lucide-react';
 import { StatsBar } from '@/components/graph/StatsBar';
 import { RepoTable } from '@/components/graph/RepoTable';
+import { GraphCanvas } from '@/components/graph/GraphCanvas';
 
 export default function GraphPage() {
   return (
@@ -32,7 +33,7 @@ export default function GraphPage() {
         </TabsContent>
 
         <TabsContent value="explorer" className="mt-4">
-          <p className="text-muted-foreground text-sm">Node graph — coming soon.</p>
+          <GraphCanvas />
         </TabsContent>
 
         <TabsContent value="coverage" className="mt-4">
