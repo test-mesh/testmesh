@@ -6,11 +6,12 @@ export interface GraphRepo {
   id: string;
   workspace_id: string;
   name: string;
-  url: string;
+  url?: string;
   branch: string;
   scan_config?: Record<string, unknown>;
+  last_scan_status?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface CreateRepoRequest {
@@ -37,9 +38,9 @@ export interface GraphNode {
   repo_id?: string;
   type: string;
   name: string;
-  service: string;
+  service?: string;
   source_layer: string;
-  source_file: string;
+  source_file?: string;
   confidence: number;
   metadata?: Record<string, unknown>;
 }

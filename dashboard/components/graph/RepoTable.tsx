@@ -91,7 +91,7 @@ export function RepoTable() {
                 <TableHead>Name</TableHead>
                 <TableHead>URL</TableHead>
                 <TableHead>Branch</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableHead>Created</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -106,7 +106,7 @@ export function RepoTable() {
                     <Badge variant="outline">{repo.branch}</Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">
-                    {formatDistanceToNow(new Date(repo.updated_at), { addSuffix: true })}
+                    {repo.created_at ? formatDistanceToNow(new Date(repo.created_at), { addSuffix: true }) : '—'}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
