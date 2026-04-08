@@ -59,7 +59,7 @@ var (
 	// http.NewRequest / http.NewRequestWithContext with a dynamic URL variable
 	// Catches: http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	// We detect the surrounding struct's baseURL field sourced from an env var
-	httpClientStructEnvRegex = regexp.MustCompile(`os\.Getenv\s*\(\s*"([A-Z_]+_(?:SERVICE|API|SVC)_URL)")`)
+	httpClientStructEnvRegex = regexp.MustCompile(`os\.Getenv\s*\(\s*"([A-Z_]+_(?:SERVICE|API|SVC)_URL)"\s*\)`)
 
 	// Service detection: func main()
 	goMainRegex    = regexp.MustCompile(`func\s+main\s*\(\s*\)`)
