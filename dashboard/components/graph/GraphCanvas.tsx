@@ -105,11 +105,15 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
   const nodeById = new Map<string, GraphNode>();
   nodes.forEach((n) => nodeById.set(n.id, n));
 
-  // Build outgoing adjacency map
-  const outAdj = new Map<string, string[]>();
+  // Build outgoing adjacency map and edge-type lookup
+  const outAdj    = new Map<string, string[]>();
+  const edgeType  = new Map<string, string>(); // `${from}:${to}` → type
   edges.forEach((e) => {
     if (!outAdj.has(e.from_node_id)) outAdj.set(e.from_node_id, []);
     outAdj.get(e.from_node_id)!.push(e.to_node_id);
+    // Keep highest-priority type if multiple edges between same pair
+    const key = `${e.from_node_id}:${e.to_node_id}`;
+    if (!edgeType.has(key)) edgeType.set(key, e.type);
   });
 
   const services   = nodes.filter((n) => n.type === 'service');
@@ -134,7 +138,18 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
     return ay - by;
   });
 
-  // BFS from each service to build its subtree (column = BFS depth)
+  // BFS from each service to build its subtree.
+  //
+  // Column assignment:
+  //   col 0 — service itself
+  //   col 1 — nodes reached via "exposes" from the service (endpoints/handlers)
+  //   col 2 — nodes reached via any other edge from the service (tables, topics, caches…)
+  //            AND nodes reached from col-1 nodes (normal BFS step)
+  //   col 3+ — normal BFS step from col 2
+  //
+  // This produces the visual hierarchy:  service → handler → resource
+  // even though the scanner emits service→resource edges directly.
+
   const assigned = new Set<string>();
   // serviceId → Map<col, nodeId[]>
   const serviceTrees = new Map<string, Map<number, string[]>>();
@@ -144,16 +159,28 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
     tree.set(0, [svc.id]);
     assigned.add(svc.id);
 
-    const queue: Array<{ id: string; col: number }> = [{ id: svc.id, col: 0 }];
+    // Seed queue: assign col based on edge type leaving the service
+    const queue: Array<{ id: string; col: number }> = [];
 
+    for (const nid of outAdj.get(svc.id) ?? []) {
+      if (assigned.has(nid)) continue;
+      const neighbor = nodeById.get(nid);
+      if (!neighbor || neighbor.type === 'service') continue;
+      assigned.add(nid);
+      // "exposes" → col 1 (endpoint layer); everything else → col 2 (resource layer)
+      const col = edgeType.get(`${svc.id}:${nid}`) === 'exposes' ? 1 : 2;
+      if (!tree.has(col)) tree.set(col, []);
+      tree.get(col)!.push(nid);
+      queue.push({ id: nid, col });
+    }
+
+    // Continue BFS from endpoint/resource nodes outward
     while (queue.length > 0) {
       const { id, col } = queue.shift()!;
       for (const nid of outAdj.get(id) ?? []) {
         if (assigned.has(nid)) continue;
         const neighbor = nodeById.get(nid);
-        if (!neighbor) continue;
-        // Other services are roots of their own trees — skip them here
-        if (neighbor.type === 'service') continue;
+        if (!neighbor || neighbor.type === 'service') continue;
         assigned.add(nid);
         const nextCol = col + 1;
         if (!tree.has(nextCol)) tree.set(nextCol, []);
