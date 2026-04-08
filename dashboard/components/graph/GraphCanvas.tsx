@@ -104,7 +104,15 @@ const NODE_TYPES = { graphNode: GraphNodeComponent };
 //                             ──► [database]
 //           ──► [endpoint2] ──► [cache]
 
-type LayoutResult = { rfNodes: Node[]; positions: Map<string, { x: number; y: number }> };
+// rerouteSource maps edgeId → alternative source nodeId.
+// Service→resource edges are visually rerouted through the nearest col-1 endpoint
+// so the graph reads  service → endpoint → resource  even though the scanner
+// emits service-level writes/publishes/consumes edges directly.
+type LayoutResult = {
+  rfNodes: Node[];
+  positions: Map<string, { x: number; y: number }>;
+  rerouteSource: Map<string, string>;
+};
 
 function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
   const nodeById = new Map<string, GraphNode>();
@@ -237,21 +245,56 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
     }
   });
 
-  return { rfNodes, positions };
+  // Build rerouteSource: for service→resource edges (non-exposes, non-calls),
+  // find the col-1 endpoint whose Y is closest to the resource and route through it.
+  const rerouteSource = new Map<string, string>(); // edgeId → col-1 nodeId
+  const REROUTE_TYPES = new Set(['writes', 'reads', 'publishes', 'consumes']);
+
+  edges.forEach((e) => {
+    if (!REROUTE_TYPES.has(e.type)) return;
+    const fromNode = nodeById.get(e.from_node_id);
+    if (!fromNode || fromNode.type !== 'service') return;
+
+    const tree = serviceTrees.get(e.from_node_id);
+    if (!tree) return;
+    const col1Ids = tree.get(1) ?? [];
+    if (col1Ids.length === 0) return; // no endpoints — keep service as origin
+
+    const targetPos = positions.get(e.to_node_id);
+    if (!targetPos) return;
+
+    // Pick the col-1 endpoint vertically nearest to the resource
+    let bestId = col1Ids[0];
+    let bestDist = Infinity;
+    for (const nid of col1Ids) {
+      const p = positions.get(nid);
+      if (!p) continue;
+      const dist = Math.abs(p.y - targetPos.y);
+      if (dist < bestDist) { bestDist = dist; bestId = nid; }
+    }
+    rerouteSource.set(e.id, bestId);
+  });
+
+  return { rfNodes, positions, rerouteSource };
 }
 
 // ── Edge builder — picks handle based on relative node positions ───────────────
+
+const RESOURCE_EDGE_TYPES = new Set(['writes', 'reads', 'publishes', 'consumes']);
 
 function buildEdges(
   edges: GraphEdge[],
   nodeIds: Set<string>,
   positions: Map<string, { x: number; y: number }>,
+  rerouteSource: Map<string, string>,
 ): Edge[] {
   return edges
     .filter((e) => nodeIds.has(e.from_node_id) && nodeIds.has(e.to_node_id))
     .map((e) => {
-      const fp = positions.get(e.from_node_id) ?? { x: 0, y: 0 };
-      const tp = positions.get(e.to_node_id)   ?? { x: 0, y: 0 };
+      // Use rerouted source (nearest col-1 endpoint) for resource edges from services
+      const sourceId = rerouteSource.get(e.id) ?? e.from_node_id;
+      const fp = positions.get(sourceId) ?? { x: 0, y: 0 };
+      const tp = positions.get(e.to_node_id) ?? { x: 0, y: 0 };
       const dx = tp.x - fp.x;
       const dy = tp.y - fp.y;
       const horizontal = Math.abs(dx) >= Math.abs(dy);
@@ -260,7 +303,7 @@ function buildEdges(
       const dstSide = horizontal ? (dx >= 0 ? 'left'  : 'right') : (dy >= 0 ? 'top'   : 'bottom');
       return {
         id: e.id,
-        source: e.from_node_id,
+        source: sourceId,          // visual origin (may be rerouted endpoint)
         target: e.to_node_id,
         sourceHandle: `${srcSide}-s`,
         targetHandle: `${dstSide}-t`,
@@ -300,10 +343,10 @@ export function GraphCanvas() {
     const allEdges = edgesData?.edges ?? [];
     const nodeIds  = new Set(data.nodes.map((n) => n.id));
     const visible  = allEdges.filter((e) => nodeIds.has(e.from_node_id) && nodeIds.has(e.to_node_id));
-    const { rfNodes: laid, positions: pos } = applyTreeLayout(data.nodes, visible);
+    const { rfNodes: laid, positions: pos, rerouteSource } = applyTreeLayout(data.nodes, visible);
     setRfNodes(laid);
     setPositions(pos);
-    setRfEdges(buildEdges(visible, nodeIds, pos));
+    setRfEdges(buildEdges(visible, nodeIds, pos, rerouteSource));
   }, [data, edgesData, setRfNodes, setRfEdges]);
 
   // Node lookup for EdgeDetailPanel
