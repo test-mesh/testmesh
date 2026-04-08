@@ -197,58 +197,26 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
     serviceTrees.set(svc.id, tree);
   });
 
-  // Position each tree using dagre to minimise edge crossings within each rank.
-  // Forward-only edges are fed to dagre with minlen = column difference so that
-  // dagre respects our column assignment while reordering nodes vertically.
+  // Position each tree: columns are spaced horizontally, nodes stacked vertically
+  // within each column and centred within their tree's height.
   const positions = new Map<string, { x: number; y: number }>();
   const rfNodes: Node[] = [];
   let currentY = 0;
 
   sortedServices.forEach((svc) => {
     const tree = serviceTrees.get(svc.id)!;
+    const maxNodes = Math.max(...[...tree.values()].map((ns) => ns.length));
+    const treeH    = Math.max(maxNodes, 1) * ROW_H;
 
-    // Build nodeId→col lookup for this tree
-    const nodeCol = new Map<string, number>();
-    tree.forEach((nodeIds, col) => nodeIds.forEach((nid) => nodeCol.set(nid, col)));
-    const treeNodeIds = new Set(nodeCol.keys());
+    tree.forEach((nodeIds, col) => {
+      const colH   = nodeIds.length * ROW_H;
+      const startY = currentY + (treeH - colH) / 2;
 
-    // Run dagre on this subtree
-    const g = new dagre.graphlib.Graph();
-    g.setDefaultEdgeLabel(() => ({}));
-    // ranksep = gap between columns, nodesep = gap between rows
-    g.setGraph({ rankdir: 'LR', ranksep: COL_W - NODE_W, nodesep: ROW_H - NODE_H });
-    treeNodeIds.forEach((nid) => g.setNode(nid, { width: NODE_W, height: NODE_H }));
-
-    // Add forward edges (from lower col to higher col) with minlen = col difference
-    // This keeps nodes in their BFS-assigned columns while dagre reorders within columns
-    edges.forEach((e) => {
-      if (!treeNodeIds.has(e.from_node_id) || !treeNodeIds.has(e.to_node_id)) return;
-      const fromCol = nodeCol.get(e.from_node_id) ?? 0;
-      const toCol   = nodeCol.get(e.to_node_id)   ?? 0;
-      if (fromCol >= toCol) return; // skip backward / same-rank edges
-      g.setEdge(e.from_node_id, e.to_node_id, { minlen: toCol - fromCol });
-    });
-
-    // Nodes with no incoming forward edge need a constraint edge from the service
-    // so dagre places them at the correct column instead of rank 0
-    treeNodeIds.forEach((nid) => {
-      if (nid === svc.id) return;
-      if (!g.inEdges(nid)?.length) {
-        g.setEdge(svc.id, nid, { minlen: nodeCol.get(nid) ?? 1 });
-      }
-    });
-
-    dagre.layout(g);
-
-    // Extract positions; offset Y so this tree starts at currentY
-    let treeH = 0;
-    treeNodeIds.forEach((nid) => {
-      const gn = g.node(nid);
-      if (!gn) return;
-      const pos = { x: gn.x - NODE_W / 2, y: gn.y - NODE_H / 2 + currentY };
-      positions.set(nid, pos);
-      rfNodes.push({ id: nid, type: 'graphNode', position: pos, data: { node: nodeById.get(nid)! } });
-      treeH = Math.max(treeH, gn.y + NODE_H / 2);
+      nodeIds.forEach((nid, row) => {
+        const pos = { x: col * COL_W, y: startY + row * ROW_H };
+        positions.set(nid, pos);
+        rfNodes.push({ id: nid, type: 'graphNode', position: pos, data: { node: nodeById.get(nid)! } });
+      });
     });
 
     currentY += treeH + TREE_GAP;
