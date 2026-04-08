@@ -72,13 +72,13 @@ function GraphNodeComponent({ data, selected }: NodeProps<{ node: GraphNode }>) 
       )}
       style={{ width: NODE_W, minHeight: NODE_H }}
     >
-      <Handle type="target" position={Position.Left} className="!bg-muted-foreground" />
+      <Handle type="target" position={Position.Top} className="!bg-muted-foreground" />
       <div className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: hex }} />
         <span className="font-medium text-xs truncate">{node.name}</span>
       </div>
       <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">{node.type}</p>
-      <Handle type="source" position={Position.Right} className="!bg-muted-foreground" />
+      <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground" />
     </div>
   );
 }
@@ -90,7 +90,7 @@ const NODE_TYPES = { graphNode: GraphNodeComponent };
 function applyDagreLayout(nodes: GraphNode[], edges: GraphEdge[]): Node[] {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 80 });
+  g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 100, align: 'UL' });
 
   nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
   edges.forEach((e) => {
@@ -166,7 +166,7 @@ export function GraphCanvas() {
   }, []);
 
   return (
-    <div className="flex h-[600px] rounded-lg border overflow-hidden">
+    <div className="flex h-[700px] rounded-lg border overflow-hidden">
       <div className="flex-1 flex flex-col">
         <div className="px-3 py-2 border-b flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
