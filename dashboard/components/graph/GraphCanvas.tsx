@@ -59,9 +59,26 @@ function edgeHex(t: string): string { return EDGE_HEX[t] ?? '#9ca3af'; }
 export const NODE_W = 160;
 export const NODE_H = 52;
 
-const COL_W    = 220;  // horizontal gap between columns (depth levels)
-const ROW_H    = 76;   // vertical gap between nodes within a column
-const TREE_GAP = 80;   // vertical gap between service trees
+const COL_W     = 220;  // horizontal gap between columns (depth levels)
+const ROW_H     = 76;   // vertical gap between nodes within a column
+const TREE_GAP  = 80;   // vertical gap between service trees
+const TYPE_GAP  = 28;   // extra vertical gap inserted between nodes of different types in the same column
+
+// Canonical sort order for node types within a column — keeps same-type nodes together
+// so edges entering/leaving a type cluster have natural breathing room between clusters.
+const TYPE_ORDER: Record<string, number> = {
+  service:      0,
+  api_endpoint: 1,
+  endpoint:     1,
+  grpc_method:  2,
+  websocket:    2,
+  topic:        3,
+  queue:        3,
+  table:        4,
+  database:     4,
+  cache:        5,
+  job:          6,
+};
 
 // ── Node component — 4 invisible handles for flexible edge routing ────────────
 
@@ -205,25 +222,49 @@ function applyTreeLayout(nodes: GraphNode[], edges: GraphEdge[]): LayoutResult {
     serviceTrees.set(svc.id, tree);
   });
 
+  // Helpers for type-aware column layout
+  const typeRank = (nid: string) => TYPE_ORDER[nodeById.get(nid)?.type ?? ''] ?? 99;
+
+  // Sort a column's nodes by type so same-type nodes are adjacent
+  const sortCol = (nodeIds: string[]) =>
+    [...nodeIds].sort((a, b) => typeRank(a) - typeRank(b));
+
+  // Actual pixel height of a column after inserting TYPE_GAP between type groups
+  const colPxHeight = (sorted: string[]) => {
+    let h = sorted.length * ROW_H;
+    for (let i = 1; i < sorted.length; i++) {
+      if (typeRank(sorted[i]) !== typeRank(sorted[i - 1])) h += TYPE_GAP;
+    }
+    return h;
+  };
+
   // Position each tree: columns are spaced horizontally, nodes stacked vertically
   // within each column and centred within their tree's height.
+  // Nodes of different types within the same column get an extra TYPE_GAP between them.
   const positions = new Map<string, { x: number; y: number }>();
   const rfNodes: Node[] = [];
   let currentY = 0;
 
   sortedServices.forEach((svc) => {
     const tree = serviceTrees.get(svc.id)!;
-    const maxNodes = Math.max(...[...tree.values()].map((ns) => ns.length));
-    const treeH    = Math.max(maxNodes, 1) * ROW_H;
 
-    tree.forEach((nodeIds, col) => {
-      const colH   = nodeIds.length * ROW_H;
-      const startY = currentY + (treeH - colH) / 2;
+    // Sort each column and compute actual heights
+    const sortedTree = new Map([...tree.entries()].map(([col, ids]) => [col, sortCol(ids)]));
+    const treeH = Math.max(
+      ...[...sortedTree.values()].map((sorted) => colPxHeight(sorted)),
+      NODE_H + 24,
+    );
 
-      nodeIds.forEach((nid, row) => {
-        const pos = { x: col * COL_W, y: startY + row * ROW_H };
+    sortedTree.forEach((sorted, col) => {
+      const colH   = colPxHeight(sorted);
+      let y        = currentY + (treeH - colH) / 2;
+
+      sorted.forEach((nid, i) => {
+        if (i > 0 && typeRank(sorted[i]) !== typeRank(sorted[i - 1])) y += TYPE_GAP;
+        const pos = { x: col * COL_W, y };
         positions.set(nid, pos);
         rfNodes.push({ id: nid, type: 'graphNode', position: pos, data: { node: nodeById.get(nid)! } });
+        y += ROW_H;
       });
     });
 
