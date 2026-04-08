@@ -3,6 +3,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Network } from 'lucide-react';
 import { StatsBar } from '@/components/graph/StatsBar';
+import { RepoTable } from '@/components/graph/RepoTable';
 
 export default function GraphPage() {
   return (
@@ -27,7 +28,7 @@ export default function GraphPage() {
 
         <TabsContent value="overview" className="mt-4 flex flex-col gap-6">
           <StatsBar />
-          <p className="text-muted-foreground text-sm">Repo management — coming soon.</p>
+          <RepoTable />
         </TabsContent>
 
         <TabsContent value="explorer" className="mt-4">
