@@ -77,7 +77,7 @@ export function useTriggerRepoScan() {
     mutationFn: (id: string) => graphApi.triggerRepoScan(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: graphKeys.stats() });
-      qc.invalidateQueries({ queryKey: graphKeys.nodes({}) });
+      qc.invalidateQueries({ queryKey: [...graphKeys.all, 'nodes'] });
     },
   });
 }
