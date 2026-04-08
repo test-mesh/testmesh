@@ -23,7 +23,9 @@ export function CoveragePanel() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
-            {pct >= 80 ? (
+            {isLoading ? (
+              <ShieldCheck className="h-5 w-5 text-muted-foreground" />
+            ) : pct >= 80 ? (
               <ShieldCheck className="h-5 w-5 text-green-500" />
             ) : (
               <ShieldAlert className="h-5 w-5 text-yellow-500" />

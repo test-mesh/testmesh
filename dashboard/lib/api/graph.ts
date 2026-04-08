@@ -65,7 +65,7 @@ export interface GraphConflict {
   id: string;
   type: string;
   node_ids: string[];
-  resolution: string;
+  resolution: string | null;
   details: Record<string, unknown>;
 }
 
