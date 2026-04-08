@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import dagre from '@dagrejs/dagre';
 import ReactFlow, {
   Background,
   Controls,
@@ -23,49 +24,58 @@ import type { GraphEdge, GraphNode } from '@/lib/api/graph';
 import { Search } from 'lucide-react';
 import { NodeDetailPanel } from './NodeDetailPanel';
 
-// ── Type colour map ───────────────────────────────────────────────────────────
-
-const TYPE_COLORS: Record<string, string> = {
-  service: 'bg-blue-500',
-  endpoint: 'bg-green-500',
-  database: 'bg-purple-500',
-  queue: 'bg-orange-500',
-  topic: 'bg-yellow-500',
-  cache: 'bg-pink-500',
-};
-
-function dotColor(type: string): string {
-  return TYPE_COLORS[type] ?? 'bg-gray-400';
-}
+// ── Type colours ──────────────────────────────────────────────────────────────
 
 const TYPE_HEX: Record<string, string> = {
-  service: '#3b82f6',
-  endpoint: '#22c55e',
-  database: '#a855f7',
-  queue: '#f97316',
-  topic: '#eab308',
-  cache: '#ec4899',
+  service:     '#3b82f6',
+  api_endpoint:'#22c55e',
+  endpoint:    '#22c55e',
+  database:    '#a855f7',
+  queue:       '#f97316',
+  topic:       '#eab308',
+  cache:       '#ec4899',
 };
 
-function dotHex(type: string): string {
+function nodeHex(type: string): string {
   return TYPE_HEX[type] ?? '#9ca3af';
 }
 
-// ── Custom ReactFlow node ─────────────────────────────────────────────────────
+const EDGE_HEX: Record<string, string> = {
+  calls:      '#3b82f6',
+  publishes:  '#f97316',
+  consumes:   '#22c55e',
+  reads:      '#a855f7',
+  writes:     '#ef4444',
+  depends_on: '#9ca3af',
+  exposes:    '#06b6d4',
+  triggers:   '#eab308',
+  tested_by:  '#14b8a6',
+};
+
+function edgeHex(type: string): string {
+  return EDGE_HEX[type] ?? '#9ca3af';
+}
+
+// ── Custom node component ─────────────────────────────────────────────────────
+
+const NODE_W = 160;
+const NODE_H = 52;
 
 function GraphNodeComponent({ data, selected }: NodeProps<{ node: GraphNode }>) {
   const { node } = data;
+  const hex = nodeHex(node.type);
   return (
     <div
       className={cn(
-        'px-3 py-2 rounded-lg border-2 bg-background shadow-sm min-w-[150px] cursor-pointer select-none',
+        'px-3 py-2 rounded-lg border-2 bg-background shadow-sm cursor-pointer select-none',
         selected ? 'border-primary' : 'border-border',
       )}
+      style={{ width: NODE_W, minHeight: NODE_H }}
     >
       <Handle type="target" position={Position.Left} className="!bg-muted-foreground" />
       <div className="flex items-center gap-2">
-        <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', dotColor(node.type))} />
-        <span className="font-medium text-xs truncate max-w-[110px]">{node.name}</span>
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: hex }} />
+        <span className="font-medium text-xs truncate">{node.name}</span>
       </div>
       <p className="text-[10px] text-muted-foreground mt-0.5 pl-4">{node.type}</p>
       <Handle type="source" position={Position.Right} className="!bg-muted-foreground" />
@@ -74,6 +84,33 @@ function GraphNodeComponent({ data, selected }: NodeProps<{ node: GraphNode }>) 
 }
 
 const NODE_TYPES = { graphNode: GraphNodeComponent };
+
+// ── Dagre layout ──────────────────────────────────────────────────────────────
+
+function applyDagreLayout(nodes: GraphNode[], edges: GraphEdge[]): Node[] {
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 80 });
+
+  nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+  edges.forEach((e) => {
+    if (g.hasNode(e.from_node_id) && g.hasNode(e.to_node_id)) {
+      g.setEdge(e.from_node_id, e.to_node_id);
+    }
+  });
+
+  dagre.layout(g);
+
+  return nodes.map((n) => {
+    const pos = g.node(n.id);
+    return {
+      id: n.id,
+      type: 'graphNode',
+      position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 },
+      data: { node: n },
+    };
+  });
+}
 
 // ── Edge builder ──────────────────────────────────────────────────────────────
 
@@ -84,36 +121,15 @@ function buildEdges(edges: GraphEdge[], nodeIds: Set<string>): Edge[] {
       id: e.id,
       source: e.from_node_id,
       target: e.to_node_id,
-      label: e.type,
-      labelStyle: { fontSize: 10 },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14 },
-      style: { strokeWidth: 1.5 },
+      type: 'smoothstep',
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 12,
+        height: 12,
+        color: edgeHex(e.type),
+      },
+      style: { stroke: edgeHex(e.type), strokeWidth: 1.5, opacity: 0.7 },
     }));
-}
-
-// ── Grid layout ───────────────────────────────────────────────────────────────
-
-function buildLayout(nodes: GraphNode[]): Node[] {
-  const typeGroups = new Map<string, GraphNode[]>();
-  nodes.forEach((n) => {
-    if (!typeGroups.has(n.type)) typeGroups.set(n.type, []);
-    typeGroups.get(n.type)!.push(n);
-  });
-
-  const rfNodes: Node[] = [];
-  let colX = 0;
-  for (const [, group] of typeGroups) {
-    group.forEach((n, rowIndex) => {
-      rfNodes.push({
-        id: n.id,
-        type: 'graphNode',
-        position: { x: colX, y: rowIndex * 90 },
-        data: { node: n },
-      });
-    });
-    colX += 260;
-  }
-  return rfNodes;
 }
 
 // ── GraphCanvas ───────────────────────────────────────────────────────────────
@@ -128,27 +144,22 @@ export function GraphCanvas() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data, isLoading } = useGraphNodes({
-    search: debouncedSearch || undefined,
-    limit: 200,
-  });
+  const { data, isLoading } = useGraphNodes({ search: debouncedSearch || undefined, limit: 200 });
   const { data: edgesData } = useGraphEdges();
 
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
-    if (data?.nodes) {
-      setRfNodes(buildLayout(data.nodes));
-    }
-  }, [data, setRfNodes]);
-
-  useEffect(() => {
-    if (data?.nodes && edgesData?.edges) {
-      const nodeIds = new Set(data.nodes.map((n) => n.id));
-      setRfEdges(buildEdges(edgesData.edges, nodeIds));
-    }
-  }, [data, edgesData, setRfEdges]);
+    if (!data?.nodes) return;
+    const allEdges = edgesData?.edges ?? [];
+    const nodeIds = new Set(data.nodes.map((n) => n.id));
+    const visibleEdges = allEdges.filter(
+      (e) => nodeIds.has(e.from_node_id) && nodeIds.has(e.to_node_id),
+    );
+    setRfNodes(applyDagreLayout(data.nodes, visibleEdges));
+    setRfEdges(buildEdges(visibleEdges, nodeIds));
+  }, [data, edgesData, setRfNodes, setRfEdges]);
 
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     setSelectedNodeId((prev) => (prev === node.id ? null : node.id));
@@ -189,20 +200,18 @@ export function GraphCanvas() {
             onNodeClick={onNodeClick}
             nodeTypes={NODE_TYPES}
             fitView
+            fitViewOptions={{ padding: 0.15 }}
             attributionPosition="bottom-left"
           >
             <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
             <Controls />
-            <MiniMap nodeColor={(n) => dotHex((n.data as { node: GraphNode }).node.type)} />
+            <MiniMap nodeColor={(n) => nodeHex((n.data as { node: GraphNode }).node.type)} />
           </ReactFlow>
         )}
       </div>
 
       {selectedNodeId && (
-        <NodeDetailPanel
-          nodeId={selectedNodeId}
-          onClose={() => setSelectedNodeId(null)}
-        />
+        <NodeDetailPanel nodeId={selectedNodeId} onClose={() => setSelectedNodeId(null)} />
       )}
     </div>
   );
