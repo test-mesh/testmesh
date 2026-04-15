@@ -38,7 +38,7 @@ Grafana comes pre-configured with Tempo, Loki, and Prometheus as datasources.
 
 ## Install the CLI
 
-<Tabs items={["Homebrew", "curl", "npm", "Install via Go", "Build from Source"]}>
+<Tabs items={["Homebrew", "Windows", "curl", "npm", "Install via Go", "Build from Source"]}>
   <Tab value="Homebrew">
     ```bash
     brew install test-mesh/brew/testmesh
@@ -47,6 +47,31 @@ Grafana comes pre-configured with Tempo, Loki, and Prometheus as datasources.
     Verify the installation:
 
     ```bash
+    testmesh --version
+    ```
+  </Tab>
+  <Tab value="Windows">
+    Run this in PowerShell (no admin required):
+
+    ```powershell
+    irm https://testmesh.io/install.ps1 | iex
+    ```
+
+    Installs to `%LOCALAPPDATA%\Programs\testmesh` and adds it to your user `PATH`. To install to a custom location:
+
+    ```powershell
+    $env:TESTMESH_INSTALL_DIR = "C:\tools\testmesh"; irm https://testmesh.io/install.ps1 | iex
+    ```
+
+    To install a specific version:
+
+    ```powershell
+    irm https://testmesh.io/install.ps1 | iex -Args "--version=v0.1.10"
+    ```
+
+    Verify the installation (open a new terminal):
+
+    ```powershell
     testmesh --version
     ```
   </Tab>
@@ -65,13 +90,13 @@ Grafana comes pre-configured with Tempo, Loki, and Prometheus as datasources.
   </Tab>
   <Tab value="npm">
     ```bash
-    npm install -g testmesh
+    npm install -g @testmesh/cli
     ```
 
     This downloads the platform-specific binary via the npm postinstall hook. Works with `npx` too:
 
     ```bash
-    npx testmesh run ./flow.yaml
+    npx @testmesh/cli run ./flow.yaml
     ```
   </Tab>
   <Tab value="Install via Go">

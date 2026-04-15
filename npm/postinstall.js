@@ -17,8 +17,9 @@ function getPlatform() {
 
   let os_name;
   switch (platform) {
-    case "linux": os_name = "linux"; break;
+    case "linux":  os_name = "linux"; break;
     case "darwin": os_name = "macOS"; break;
+    case "win32":  os_name = "windows"; break;
     default:
       console.error(`Unsupported platform: ${platform}`);
       process.exit(1);
@@ -26,7 +27,7 @@ function getPlatform() {
 
   let arch_name;
   switch (arch) {
-    case "x64": arch_name = "amd64"; break;
+    case "x64":   arch_name = "amd64"; break;
     case "arm64": arch_name = "arm64"; break;
     default:
       console.error(`Unsupported architecture: ${arch}`);
@@ -66,7 +67,9 @@ async function main() {
 
   const { os_name, arch_name } = getPlatform();
   const ver = tag.replace(/^v/, "");
-  const archive = `testmesh_${ver}_${os_name}_${arch_name}.tar.gz`;
+  const isWindows = os_name === "windows";
+  const archive = `testmesh_${ver}_${os_name}_${arch_name}.${isWindows ? "zip" : "tar.gz"}`;
+  const binaryName = isWindows ? "testmesh.exe" : "testmesh";
   const baseUrl = `https://github.com/${REPO}/releases/download/${tag}`;
 
   console.log(`Downloading testmesh ${tag} (${os_name}/${arch_name})...`);
@@ -90,15 +93,20 @@ async function main() {
     }
   }
 
-  // Extract binary from tar.gz
+  // Extract binary
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "testmesh-"));
   const archivePath = path.join(tmpDir, archive);
   fs.writeFileSync(archivePath, archiveBuf);
 
   if (!fs.existsSync(BIN_DIR)) fs.mkdirSync(BIN_DIR, { recursive: true });
 
-  execSync(`tar -xzf "${archivePath}" -C "${BIN_DIR}" testmesh`);
-  fs.chmodSync(path.join(BIN_DIR, "testmesh"), 0o755);
+  if (isWindows) {
+    execSync(`tar -xf "${archivePath}" -C "${tmpDir}" ${binaryName}`);
+    fs.copyFileSync(path.join(tmpDir, binaryName), path.join(BIN_DIR, binaryName));
+  } else {
+    execSync(`tar -xzf "${archivePath}" -C "${BIN_DIR}" ${binaryName}`);
+    fs.chmodSync(path.join(BIN_DIR, binaryName), 0o755);
+  }
   fs.rmSync(tmpDir, { recursive: true });
 
   console.log("testmesh installed successfully.");

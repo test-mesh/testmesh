@@ -9,7 +9,8 @@
   },
   "license": "MIT",
   "bin": {
-    "testmesh": "./bin/testmesh"
+    "testmesh": "./bin/testmesh",
+    "testmesh.cmd": "./bin/testmesh.exe"
   },
   "scripts": {
     "postinstall": "node postinstall.js"
