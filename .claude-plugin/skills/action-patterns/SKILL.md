@@ -1,6 +1,6 @@
 ---
-name: testmesh-action-patterns
-description: Use when writing TestMesh flow steps — provides copy-pasteable YAML patterns for each action type with all required and optional fields
+name: action-patterns
+description: Use when you need the config fields, output variables, or a copy-paste example for a specific action type (http_request, database_query, kafka, grpc, websocket, redis, mock_server, etc.)
 ---
 
 # TestMesh Action Patterns

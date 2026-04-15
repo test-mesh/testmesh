@@ -1,5 +1,5 @@
 ---
-name: testmesh-debugging-flows
+name: debugging-flows
 description: Use when a TestMesh flow step fails, an assertion errors, a variable is missing, or a flow produces unexpected results
 ---
 

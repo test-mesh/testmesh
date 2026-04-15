@@ -1,0 +1,15 @@
+{
+  "name": "testmesh",
+  "version": "1.0.0",
+  "description": "TestMesh MCP server + skills for writing and running E2E integration tests across HTTP, databases, Kafka, gRPC, WebSocket, and more.",
+  "author": {
+    "name": "TestMesh",
+    "email": "support@testmesh.io"
+  },
+  "homepage": "https://testmesh.io",
+  "repository": "https://github.com/test-mesh/testmesh",
+  "license": "MIT",
+  "keywords": ["testing", "e2e", "integration-testing", "http", "kafka", "grpc", "database", "yaml"],
+  "skills": "./.claude-plugin/skills/",
+  "mcpServers": "./.claude-plugin/.mcp.json"
+}

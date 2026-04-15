@@ -1,5 +1,5 @@
 ---
-name: testmesh-mcp-tools
+name: mcp-tools
 description: Use when working with TestMesh MCP tools to analyze services, generate flows, run tests, or interact with the TestMesh API. Covers all mcp__testmesh__* tools and the workflows that connect them.
 ---
 

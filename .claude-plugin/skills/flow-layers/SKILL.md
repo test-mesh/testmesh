@@ -1,5 +1,5 @@
 ---
-name: testmesh-flow-layers
+name: flow-layers
 description: Use when designing or writing TestMesh flows from scratch, choosing which layer (L1–L4) a test belongs to, or building a full test suite for a service or system.
 ---
 
