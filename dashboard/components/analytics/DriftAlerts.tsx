@@ -5,11 +5,15 @@ import Link from 'next/link';
 import { useDriftAlerts } from '@/lib/hooks/useTelemetry';
 
 export function DriftAlerts() {
-  const { data, isLoading } = useDriftAlerts();
+  const { data, isLoading, error } = useDriftAlerts();
   const alerts = data?.alerts ?? [];
 
   if (isLoading) {
     return <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />;
+  }
+
+  if (error) {
+    return <p className="text-sm text-red-600">Failed to load drift alerts.</p>;
   }
 
   if (alerts.length === 0) {

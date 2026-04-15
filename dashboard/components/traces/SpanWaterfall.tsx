@@ -62,7 +62,6 @@ export function SpanWaterfall({
 }: SpanWaterfallProps) {
   const [selectedSpan, setSelectedSpan] = useState<Span | null>(null);
   const [showOnlyErrors, setShowOnlyErrors] = useState(false);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const nodes = useMemo(() => buildTree(spans), [spans]);
 
@@ -125,12 +124,6 @@ export function SpanWaterfall({
         >
           Show errors only
         </button>
-        <button
-          onClick={() => setCollapsed(new Set())}
-          className="px-2 py-1 rounded border border-border text-xs text-muted-foreground hover:bg-muted"
-        >
-          Expand all
-        </button>
         <span className="ml-auto text-muted-foreground text-xs">{spans.length} spans</span>
       </div>
 
@@ -184,21 +177,6 @@ export function SpanWaterfall({
                 className="w-[220px] shrink-0 pr-3 text-xs font-mono truncate flex items-center gap-1"
                 style={{ paddingLeft: `${node.depth * 12 + 4}px` }}
               >
-                {node.children.length > 0 && (
-                  <button
-                    className="shrink-0 text-muted-foreground"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCollapsed((prev) => {
-                        const next = new Set(prev);
-                        next.has(span.span_id) ? next.delete(span.span_id) : next.add(span.span_id);
-                        return next;
-                      });
-                    }}
-                  >
-                    {collapsed.has(span.span_id) ? '▶' : '▼'}
-                  </button>
-                )}
                 <span className="text-muted-foreground">{span.service}</span>
                 <span>: {span.operation}</span>
               </div>

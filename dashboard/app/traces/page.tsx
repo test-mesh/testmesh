@@ -1,24 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Copy, Check, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { SpanWaterfall } from '@/components/traces/SpanWaterfall';
 import { useSpans } from '@/lib/hooks/useTelemetry';
 
-export default function TracesPage() {
+function TracesContent() {
   const searchParams = useSearchParams();
   const traceId = searchParams.get('trace_id') ?? '';
   const executionId = searchParams.get('execution_id') ?? '';
 
   const [serviceFilter, setServiceFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [operationFilter, setOperationFilter] = useState('');
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading, error } = useSpans(
@@ -26,12 +24,9 @@ export default function TracesPage() {
   );
 
   const spans = data?.spans ?? [];
-
   const services = Array.from(new Set(spans.map((s) => s.service)));
-
   const errorSpanIds = spans.filter((s) => s.status_code === 'error').map((s) => s.span_id);
   const overallStatus = errorSpanIds.length > 0 ? 'error' : 'ok';
-
   const totalDuration =
     spans.length > 0
       ? Math.max(...spans.map((s) => new Date(s.end_time).getTime())) -
@@ -109,16 +104,9 @@ export default function TracesPage() {
             <SelectItem value="slow">Slow</SelectItem>
           </SelectContent>
         </Select>
-
-        <Input
-          placeholder="Filter by operation..."
-          value={operationFilter}
-          onChange={(e) => setOperationFilter(e.target.value)}
-          className="w-[200px]"
-        />
       </div>
 
-      {/* Empty state — no trace_id */}
+      {/* Empty state */}
       {!traceId && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground text-sm">
@@ -162,5 +150,19 @@ export default function TracesPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function TracesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto py-8 flex justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <TracesContent />
+    </Suspense>
   );
 }
