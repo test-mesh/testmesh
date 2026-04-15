@@ -26,10 +26,24 @@ func InitTracer(serviceName string) (func(context.Context) error, error) {
 		}
 	}
 
-	exporter, err := otlptracehttp.New(context.Background(),
+	opts := []otlptracehttp.Option{
 		otlptracehttp.WithEndpoint(endpoint),
 		otlptracehttp.WithInsecure(),
-	)
+	}
+
+	// Support custom URL path (e.g. /otlp/v1/traces for TestMesh API)
+	if urlPath := os.Getenv("OTEL_EXPORTER_OTLP_URL_PATH"); urlPath != "" {
+		opts = append(opts, otlptracehttp.WithURLPath(urlPath))
+	}
+
+	// Inject X-Workspace-ID header if configured
+	if wsID := os.Getenv("OTEL_WORKSPACE_ID"); wsID != "" {
+		opts = append(opts, otlptracehttp.WithHeaders(map[string]string{
+			"X-Workspace-ID": wsID,
+		}))
+	}
+
+	exporter, err := otlptracehttp.New(context.Background(), opts...)
 	if err != nil {
 		return nil, err
 	}

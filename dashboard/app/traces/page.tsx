@@ -15,8 +15,8 @@ function TracesContent() {
   const traceId = searchParams.get('trace_id') ?? '';
   const executionId = searchParams.get('execution_id') ?? '';
 
-  const [serviceFilter, setServiceFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [serviceFilter, setServiceFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [copied, setCopied] = useState(false);
 
   const { data, isLoading, error } = useSpans(
@@ -84,7 +84,7 @@ function TracesContent() {
             <SelectValue placeholder="All services" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All services</SelectItem>
+            <SelectItem value="all">All services</SelectItem>
             {services.map((s) => (
               <SelectItem key={s} value={s}>
                 {s}
@@ -98,7 +98,7 @@ function TracesContent() {
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All statuses</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="ok">OK</SelectItem>
             <SelectItem value="error">Error</SelectItem>
             <SelectItem value="slow">Slow</SelectItem>
@@ -143,8 +143,8 @@ function TracesContent() {
             <SpanWaterfall
               spans={spans}
               errorSpanIds={errorSpanIds}
-              filterService={serviceFilter}
-              filterStatus={statusFilter}
+              filterService={serviceFilter === 'all' ? undefined : serviceFilter}
+              filterStatus={statusFilter === 'all' ? undefined : statusFilter}
             />
           </CardContent>
         </Card>

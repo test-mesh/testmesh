@@ -68,18 +68,21 @@ func NewTracer(config *Config) (*Tracer, error) {
 		return nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
 
-	// Create resource
-	res, err := resource.Merge(
-		resource.Default(),
-		resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName(config.ServiceName),
-			semconv.ServiceVersion(config.ServiceVersion),
+	// Create resource using detectors — avoids schema URL conflicts from resource.Merge.
+	res, err := resource.New(context.Background(),
+		resource.WithProcess(),
+		resource.WithOS(),
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(config.ServiceName),
+			semconv.ServiceVersionKey.String(config.ServiceVersion),
 			attribute.String("environment", config.Environment),
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
+		// Non-fatal: fall back to minimal resource so tracing still works.
+		res = resource.NewSchemaless(
+			semconv.ServiceNameKey.String(config.ServiceName),
+		)
 	}
 
 	// Create sampler

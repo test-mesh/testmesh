@@ -1,8 +1,10 @@
 package telemetry
 
 import (
+	"compress/gzip"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -39,8 +41,19 @@ func (r *OTLPReceiver) HandleTraces(c *gin.Context) {
 		return
 	}
 
-	// Read body
-	body, err := io.ReadAll(c.Request.Body)
+	// Read body — decompress if gzip-encoded
+	reader := c.Request.Body
+	if strings.EqualFold(c.GetHeader("Content-Encoding"), "gzip") {
+		gz, err := gzip.NewReader(reader)
+		if err != nil {
+			r.logger.Error("failed to create gzip reader", zap.Error(err))
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to decompress gzip body"})
+			return
+		}
+		defer gz.Close()
+		reader = gz
+	}
+	body, err := io.ReadAll(reader)
 	if err != nil {
 		r.logger.Error("failed to read OTLP request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})

@@ -98,7 +98,7 @@ func (a *integrationRepoAdapter) GetAIIntegrationsForWorkspace(workspaceID uuid.
 }
 
 // NewRouter creates and configures the API router
-func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, graphEngine ...graph.Engine) *gin.Engine {
+func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub *websocket.Hub, port int, graphEngine ...graph.Engine) *gin.Engine {
 	// Set Gin mode
 	gin.SetMode(gin.ReleaseMode)
 
@@ -138,16 +138,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	// Initialize notification dispatcher
 	notifRepo := repository.NewNotificationRepository(db)
 	notifDispatcher := notifications.NewNotificationDispatcher(notifRepo, integrationRepo, logger)
-
-	// Initialize reporting services
-	reportOutputDir := filepath.Join(os.TempDir(), "testmesh", "reports")
-	aggregator := reporting.NewAggregator(db, reportingRepo, executionRepo, flowRepo, logger)
-	generator := reporting.NewGenerator(db, reportingRepo, executionRepo, flowRepo, logger, reportOutputDir)
-
-	// Start scheduled aggregation
-	if err := aggregator.ScheduleAggregation(); err != nil {
-		logger.Error("Failed to schedule aggregation", zap.Error(err))
-	}
 
 	// Initialize AI services
 	// First try to load from database, fallback to environment variables
@@ -204,7 +194,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	executionHandler := handlers.NewExecutionHandler(executionRepo, flowRepo, envRepo, mockManager, logger, wsHub)
 	executionHandler.SetNotificationDispatcher(notifDispatcher)
 	mockHandler := handlers.NewMockHandler(mockRepo, mockManager, logger)
-	reportingHandler := handlers.NewReportingHandler(reportingRepo, aggregator, generator, logger)
 	aiHandler := handlers.NewAIHandler(db, aiRepo, aiGenerator, aiAnalyzer, aiSelfHealing, aiProviders, logger)
 	collectionHandler := handlers.NewCollectionHandler(collectionRepo, flowRepo, logger)
 	oauth2Handler := handlers.NewOAuth2Handler(oauth2Service, logger)
@@ -220,6 +209,20 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	executor.SetDebugController(debugController)
 	collectionRunner := runner.NewCollectionRunner(executor, logger)
 	runnerHandler := handlers.NewRunnerHandler(collectionRunner, flowRepo, envRepo, logger)
+
+	// Initialize OTel global provider (enables trace context propagation in HTTP actions)
+	tracingCfg := &tracing.Config{
+		ServiceName:    "testmesh",
+		ServiceVersion: "1.0.0",
+		Environment:    cfg.Environment,
+		Enabled:        cfg.OTel.Enabled,
+		Exporter:       cfg.OTel.Exporter,
+		Endpoint:       cfg.OTel.ExporterEndpoint,
+		SampleRate:     cfg.OTel.SampleRate,
+	}
+	if _, err := tracing.NewTracer(tracingCfg); err != nil {
+		logger.Warn("failed to initialize OTel tracer, execution traces will be no-ops", zap.Error(err))
+	}
 
 	// Initialize execution tracer for OpenTelemetry instrumentation
 	executionTracer := tracing.NewExecutionTracer()
@@ -284,6 +287,17 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 		logger.Info("MinIO file storage initialized")
 	}
 	datasetHandler := handlers.NewDatasetHandler(datasetRepo, s3Client, logger)
+
+	// Initialize reporting services
+	reportOutputDir := filepath.Join(os.TempDir(), "testmesh", "reports")
+	aggregator := reporting.NewAggregator(db, reportingRepo, executionRepo, flowRepo, logger)
+	generator := reporting.NewGenerator(db, reportingRepo, executionRepo, flowRepo, logger, reportOutputDir, s3Client)
+	reportingHandler := handlers.NewReportingHandler(reportingRepo, aggregator, generator, s3Client, logger)
+
+	// Start scheduled aggregation
+	if err := aggregator.ScheduleAggregation(); err != nil {
+		logger.Error("Failed to schedule aggregation", zap.Error(err))
+	}
 
 	// Initialize plugin registry
 	pluginDir := filepath.Join(os.TempDir(), "testmesh", "plugins")

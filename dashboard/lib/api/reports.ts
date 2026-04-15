@@ -34,11 +34,18 @@ export const reportsApi = {
     return response.data;
   },
 
-  download: async (id: string): Promise<Blob> => {
+  download: async (id: string): Promise<{ type: 'redirect'; url: string } | { type: 'blob'; blob: Blob }> => {
     const response = await apiClient.get(`/api/v1/reports/${id}/download`, {
-      responseType: 'blob',
+      responseType: 'arraybuffer',
     });
-    return response.data;
+    const contentType = response.headers['content-type'] || '';
+    if (contentType.includes('application/json')) {
+      const text = new TextDecoder().decode(response.data as ArrayBuffer);
+      const json = JSON.parse(text) as { url: string };
+      return { type: 'redirect', url: json.url };
+    }
+    const blob = new Blob([response.data as ArrayBuffer], { type: contentType });
+    return { type: 'blob', blob };
   },
 
   delete: async (id: string): Promise<void> => {

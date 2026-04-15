@@ -1,0 +1,68 @@
+---
+title: Dashboard
+description: The TestMesh OSS dashboard is a visual interface for building, running, and analysing integration test flows — available at http://localhost:3000 when running locally.
+---
+
+The TestMesh dashboard gives you a visual workspace for everything the CLI can do, plus features that only make sense with a UI: the visual flow canvas, real-time execution monitoring, analytics, AI generation, and system graph exploration.
+
+## Accessing the dashboard
+
+Start the dashboard with the rest of the stack:
+
+```bash
+# With Docker Compose (recommended)
+curl -O https://raw.githubusercontent.com/test-mesh/testmesh/main/deploy/docker-compose/docker-compose.yml
+docker compose up -d
+```
+
+Open [http://localhost:3000](http://localhost:3000). The dashboard connects to the TestMesh API on port `5016` by default.
+
+<Callout type="info">
+  Running from source? Start the dashboard separately: `cd dashboard && npm run dev`. It expects the API at `http://localhost:5016`. Override with the `NEXT_PUBLIC_API_URL` environment variable.
+</Callout>
+
+## What's in the dashboard
+
+| Section | What it does |
+|---------|-------------|
+| **Flows** | Browse, search, create, edit, and run flows |
+| **Flow Editor** | Visual canvas + YAML editor for building flows |
+| **Executions** | Real-time and historical execution results |
+| **Schedules** | Cron-based scheduled flow execution |
+| **Environments** | Variable sets and service routing policies |
+| **Mock Servers** | Create and manage local HTTP mock servers |
+| **Collections** | Organise flows into hierarchical groups |
+| **Analytics** | Trends, flakiness, endpoint coverage, AI diagnosis |
+| **AI** | Generate flows from natural language or import from specs |
+| **System Graph** | Interactive service dependency explorer |
+| **Request Builder** | Built-in HTTP client with history and bookmarking |
+| **Runner** | Batch execution with CSV/JSON parameterisation |
+| **Integrations** | GitHub/GitLab webhooks, Slack notifications, AI providers |
+| **Plugins** | Enable and manage action type extensions |
+| **Workspaces** | Multi-team isolation with role-based access control |
+
+## Workspaces
+
+All resources in the dashboard belong to a workspace. A personal workspace is created automatically on first login. Team workspaces can be created from the **Workspaces** page.
+
+Roles: `owner`, `admin`, `editor`, `viewer`. The active workspace is shown in the top navigation and scopes all flows, executions, environments, and schedules.
+
+## Dashboard vs CLI
+
+The CLI and dashboard are two interfaces to the same API. Use whichever fits your workflow:
+
+| Task | CLI | Dashboard |
+|------|-----|-----------|
+| Run a flow locally without the API server | ✓ | — |
+| Build flows visually | — | ✓ |
+| Run flows in CI/CD pipelines | ✓ | — |
+| Inspect step-by-step execution results | ✓ | ✓ |
+| Generate flows from natural language | ✓ `testmesh generate` | ✓ AI tab |
+| View analytics and trends | — | ✓ |
+| Manage schedules, environments, mock servers | — | ✓ |
+
+<Cards>
+  <Card title="Mesh Canvas" href="/docs/dashboard/mesh-canvas" description="Build flows visually on the spatial node canvas." />
+  <Card title="Managing Flows" href="/docs/dashboard/managing-flows" description="Create, edit, organise, and run flows from the UI." />
+  <Card title="Executions" href="/docs/dashboard/executions" description="Read execution results and diagnose failures." />
+</Cards>

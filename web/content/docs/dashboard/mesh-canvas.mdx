@@ -1,0 +1,119 @@
+---
+title: Mesh Canvas
+description: The flow editor's visual canvas lets you build, connect, and configure test steps as nodes on an infinite spatial workspace — with two-way sync to the underlying YAML.
+---
+
+The Mesh Canvas is the core of the flow editor. It represents each step in your flow as a node, connected by edges that define execution order. Every change on the canvas is reflected immediately in the YAML, and vice versa.
+
+Open the canvas by navigating to any flow and clicking **Edit**, or creating a new flow from the **Flows** page.
+
+## Canvas navigation
+
+| Action | How |
+|--------|-----|
+| Pan | Hold Space + drag, or middle-click drag |
+| Zoom | Scroll wheel |
+| Select node | Click |
+| Multi-select | Click and drag a selection box |
+| Search steps | `Cmd/Ctrl+F` |
+| Keyboard shortcuts | `?` |
+| Close panels | `Escape` |
+
+A minimap in the corner shows the full flow at a glance. Use it to navigate large flows quickly.
+
+## Node types
+
+The canvas uses four node types:
+
+**Action nodes** represent individual test steps. Each node shows the step ID, action type, and current status during execution. The top edge of each node is colour-coded by protocol category:
+
+| Colour | Action category |
+|--------|----------------|
+| Coral / red | HTTP & API (`http_request`, `grpc_call`, `websocket`) |
+| Yellow | Messaging (`kafka_producer`, `kafka_consumer`) |
+| Green | Storage (`database_query`, `redis.*`, `minio.*`) |
+| Purple | Control flow (`condition`, `for_each`, `parallel`) |
+| Blue | Utilities (`log`, `delay`, `assert`, `transform`) |
+
+**Section headers** visually separate the three execution phases: Setup, Steps, and Teardown. Setup and teardown steps run before and after the main steps regardless of pass/fail.
+
+**Condition nodes** represent `condition` (if/else) steps. They show two outgoing edges: one for the `then` branch and one for the `else` branch.
+
+**For-each nodes** represent `for_each` loops and show nested steps inside a container.
+
+## Adding steps
+
+Steps are added from the action palette on the left side of the editor. Actions are grouped by category. Click any action type to add a new node to the canvas, then drag it into position.
+
+You can also drag directly from the palette onto the canvas.
+
+## Connecting steps
+
+Draw an edge from the bottom handle of one node to the top handle of the next to define execution order. The flow runs top-to-bottom following the connections you draw.
+
+For `condition` nodes, connect the `then` and `else` outputs to the appropriate branches.
+
+## Properties panel
+
+Select any node to open the Properties panel on the right. It has six tabs:
+
+**General**
+- Step ID (must be unique within the flow)
+- Display name and description
+- Timeout override (e.g. `30s`)
+- Run condition — an expression that gates whether this step executes at all (e.g. `${env.STAGE} == "staging"`)
+- Retry configuration — max attempts, delay between retries, backoff strategy
+
+**Config**
+Action-specific configuration form. Fields change based on the action type:
+- HTTP: method, URL, headers, auth, request body, timeout
+- Database: connection string, SQL query, parameters
+- Kafka: brokers, topic, key, value, consumer group, timeout
+- Redis: host, port, key, value, TTL
+- And so on for all 54+ supported action types
+
+**Assert**
+Define assertions using [expr-lang](https://github.com/expr-lang/expr) expressions. All assertions must pass for the step to succeed. Examples:
+
+```
+status == 201
+body.id != ""
+messages[0].value.order_id == "{{order_id}}"
+rows[0].status == "confirmed"
+```
+
+**Output**
+Map response values to variables using JSONPath. Variables are available to all subsequent steps via `{{variable_name}}` syntax:
+
+```
+user_id  →  $.body.id
+token    →  $.body.access_token
+```
+
+**Error**
+Configure error handling: retry policies, fallback steps, and whether a failure should stop the entire flow.
+
+**Comments**
+Leave notes on individual steps for collaborators. Comments are persisted and visible to all workspace members with access.
+
+## YAML mode
+
+Toggle between visual and YAML mode using the tabs at the top of the editor. The YAML editor shows the full flow definition in the same format used by the CLI.
+
+Edits in YAML mode are parsed and reflected on the canvas when you switch back to visual mode. Syntax errors are shown inline before the switch is allowed.
+
+The YAML format is identical to what you'd write by hand — no lock-in to the visual editor.
+
+## Auto-layout
+
+Use the **Auto-layout** button in the toolbar to automatically arrange nodes into a clean top-to-bottom flow. Useful after adding many steps manually or importing a YAML file.
+
+## Setup and teardown
+
+Every flow has three sections available on the canvas:
+
+- **Setup** — steps that run before the main flow, regardless of outcome (e.g. create a test user, seed data)
+- **Steps** — the main test scenario
+- **Teardown** — steps that always run after the flow completes, even on failure (e.g. delete the test user, clean up state)
+
+Section headers on the canvas visually separate these three areas.

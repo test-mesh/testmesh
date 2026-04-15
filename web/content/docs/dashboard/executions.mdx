@@ -1,0 +1,107 @@
+---
+title: Executions
+description: Read execution results, monitor live step progress, inspect response details, and diagnose failures with AI-powered root cause analysis.
+---
+
+Every time you run a flow — manually, on a schedule, or via the CLI — an execution record is created. The **Executions** page gives you real-time and historical visibility into what happened.
+
+## Execution list
+
+The Executions page shows all recent runs with:
+
+- Flow name and workspace
+- Triggered by (user, schedule, API, CLI)
+- Start time and duration
+- Overall status: `passed`, `failed`, `running`, `cancelled`
+
+Click any execution to open the detail view.
+
+## Execution detail
+
+The execution detail view has two panels:
+
+**Left — Step timeline**: A vertical list of all steps in the order they executed. Each step shows:
+- Step ID and action type
+- Status icon: ✓ passed, ✗ failed, ⚡ skipped, ↻ retrying
+- Duration
+
+Click a step to open its details in the right panel.
+
+**Right — Step details**: Shows the full input and output for the selected step, formatted by action type:
+
+| Action type | What you see |
+|------------|-------------|
+| `http_request` | Method, URL, request headers + body, response status, response headers + body |
+| `database_query` | Connection (masked), SQL query, parameters, returned rows |
+| `kafka_producer` | Topic, key, value, partition and offset |
+| `kafka_consumer` | Messages received, each with key, value, offset, timestamp |
+| `redis_get` / `redis_set` | Key, value, TTL |
+| `grpc_call` | Service, method, request, response |
+
+Assertion results are shown below the output — each assertion expression with its evaluated value and pass/fail.
+
+Output variable extractions are shown last — the JSONPath expressions and the values they captured.
+
+## Live execution monitoring
+
+When a flow is actively running, the execution detail view streams updates over WebSocket. Steps appear in real time as they complete. The page does not need to be refreshed.
+
+If you navigate away during a run, the execution continues in the background. Return to the Executions page to find it.
+
+## Execution status values
+
+| Status | Meaning |
+|--------|---------|
+| `running` | Flow is actively executing |
+| `passed` | All steps completed and all assertions passed |
+| `failed` | One or more steps failed or assertions did not pass |
+| `cancelled` | Manually stopped before completion |
+| `timed_out` | Flow-level timeout was exceeded |
+
+A flow with skipped steps (via `run_condition`) is still `passed` if all executed steps passed.
+
+## Failure inspection
+
+When a step fails, the step detail panel shows exactly what went wrong:
+
+**Assertion failures** — each failed assertion is highlighted with:
+- The expression that was evaluated
+- The actual value that was present
+- What was expected
+
+**Action errors** — for connection errors, timeouts, or action-level failures, the raw error message is shown with the partial response if one was received.
+
+**Retry history** — if a step was configured with retries, each attempt is shown with its own result. You can see which attempt succeeded or whether all attempts failed.
+
+## AI failure analysis
+
+For failed executions, click **Analyse with AI** in the execution header. The AI examines:
+
+- Which step failed and why
+- What the actual vs expected values were
+- Patterns from prior executions of the same flow
+- Potential root causes: service errors, environment issues, data problems, timing issues
+
+The analysis appears inline. It includes a suggested next action — whether that's checking a service log, adjusting a timeout, or updating an assertion.
+
+## Re-running an execution
+
+From any execution detail view, click **Re-run** to execute the same flow again with the same environment and variable overrides. Useful for confirming a fix without navigating back to the Flows page.
+
+The new execution is linked to the original — you can switch between them from the execution header.
+
+## Execution history and retention
+
+All execution records are stored in PostgreSQL. The Executions list shows the 100 most recent by default. Use the date filter to search further back.
+
+Execution records include the full step input/output at the time of the run. If you edit a flow after a run, the execution record reflects what the flow looked like when it ran, not the current version.
+
+## Analytics
+
+Aggregate execution data is available in the **Analytics** section:
+
+- Pass rate trends over time
+- Flakiness detection (steps that pass and fail intermittently)
+- Duration trends per flow
+- Endpoint coverage (which services and routes are exercised by your flows)
+- AI-powered diagnosis of recurring failures

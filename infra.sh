@@ -166,7 +166,6 @@ start_tempo() {
     --network "$NETWORK" \
     -p 3200:3200 \
     -v "$SCRIPT_DIR/infra/tempo.yaml:/etc/tempo.yaml:ro" \
-    -v tempo-data:/tmp/tempo \
     grafana/tempo:latest \
     -config.file=/etc/tempo.yaml
 }
@@ -228,7 +227,7 @@ start_grafana() {
   docker run -d \
     --name grafana \
     --network "$NETWORK" \
-    -p 3002:3000 \
+    -p 3030:3000 \
     -e GF_AUTH_ANONYMOUS_ENABLED=true \
     -e GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
     -v "$SCRIPT_DIR/infra/grafana:/etc/grafana/provisioning/datasources:ro" \
@@ -259,7 +258,7 @@ case "$ACTION" in
     echo "Tempo        http://localhost:3200"
     echo "Loki         http://localhost:3100"
     echo "Prometheus   http://localhost:9090"
-    echo "Grafana      http://localhost:3002  (anonymous admin)"
+    echo "Grafana      http://localhost:3030  (anonymous admin)"
     ;;
   down)
     echo "Stopping containers (data volumes preserved)"

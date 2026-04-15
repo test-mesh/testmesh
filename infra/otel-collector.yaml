@@ -14,8 +14,17 @@ exporters:
     endpoint: "tempo:4317"
     tls:
       insecure: true
-  loki:
-    endpoint: "http://loki:3100/loki/api/v1/push"
+  otlphttp/testmesh:
+    traces_endpoint: "http://host.docker.internal:5016/otlp/v1/traces"
+    compression: none
+    headers:
+      X-Workspace-ID: "00000000-0000-0000-0000-000000000001"
+    tls:
+      insecure: true
+  otlphttp/loki:
+    endpoint: "http://loki:3100/otlp"
+    tls:
+      insecure: true
   prometheusremotewrite:
     endpoint: "http://prometheus:9090/api/v1/write"
 
@@ -24,11 +33,11 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp/tempo]
+      exporters: [otlp/tempo, otlphttp/testmesh]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [loki]
+      exporters: [otlphttp/loki]
     metrics:
       receivers: [otlp]
       processors: [batch]

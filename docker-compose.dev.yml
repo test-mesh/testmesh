@@ -62,6 +62,11 @@ services:
       # CORS
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
 
+      # OpenTelemetry (enables trace context propagation so execution traces link to spans)
+      OTEL_ENABLED: ${OTEL_ENABLED:-true}
+      OTEL_EXPORTER: ${OTEL_EXPORTER:-otlp}
+      OTEL_EXPORTER_ENDPOINT: ${OTEL_EXPORTER_ENDPOINT:-otel-collector:4317}
+
       # Secrets
       JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

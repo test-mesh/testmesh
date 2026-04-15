@@ -3,6 +3,7 @@
   "pages": [
     "index",
     "why-testmesh",
+    "dashboard",
     "getting-started",
     "yaml-reference",
     "cli",

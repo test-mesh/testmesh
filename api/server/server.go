@@ -7,6 +7,7 @@ import (
 	ossapi "github.com/test-mesh/testmesh/internal/api"
 	osswebsocket "github.com/test-mesh/testmesh/internal/api/websocket"
 	ossdatabase "github.com/test-mesh/testmesh/internal/shared/database"
+	ossconfig "github.com/test-mesh/testmesh/internal/shared/config"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -16,7 +17,8 @@ import (
 func NewRouter(db *gorm.DB, logger *zap.Logger, port int) *gin.Engine {
 	hub := osswebsocket.NewHub(logger)
 	go hub.Run()
-	return ossapi.NewRouter(db, logger, hub, port)
+	cfg, _ := ossconfig.Load()
+	return ossapi.NewRouter(db, cfg, logger, hub, port)
 }
 
 // AutoMigrate runs OSS database schema migrations on db.

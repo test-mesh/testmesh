@@ -71,15 +71,18 @@ export function useGenerateReport() {
 export function useDownloadReport() {
   return useMutation({
     mutationFn: async ({ id, filename }: { id: string; filename: string }) => {
-      const blob = await reportsApi.download(id);
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const result = await reportsApi.download(id);
+      if (result.type === 'redirect') {
+        window.location.assign(result.url);
+        return;
+      }
+      const url = window.URL.createObjectURL(result.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
     },
   });

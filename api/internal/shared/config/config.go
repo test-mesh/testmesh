@@ -19,6 +19,15 @@ type Config struct {
 	MinIO       MinIOConfig
 	Logger      LoggerConfig
 	GitHub      GitHubAppConfig
+	OTel        OTelConfig
+}
+
+// OTelConfig holds OpenTelemetry tracing configuration
+type OTelConfig struct {
+	Enabled          bool
+	Exporter         string // "otlp" (gRPC) | "stdout"
+	ExporterEndpoint string // host:port for otlp exporter
+	SampleRate       float64
 }
 
 // MinIOConfig holds MinIO/S3-compatible object storage configuration
@@ -175,6 +184,11 @@ func Load() (*Config, error) {
 	viper.SetDefault("logger.level", "info")
 	viper.SetDefault("logger.output_path", "stdout")
 
+	viper.SetDefault("otel.enabled", true)
+	viper.SetDefault("otel.exporter", "otlp")
+	viper.SetDefault("otel.exporter_endpoint", "localhost:4317")
+	viper.SetDefault("otel.sample_rate", 1.0)
+
 	// Auto-load environment variables (map DATABASE_HOST → database.host)
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
@@ -261,6 +275,12 @@ func Load() (*Config, error) {
 			ClientID:      viper.GetString("github.client_id"),
 			ClientSecret:  viper.GetString("github.client_secret"),
 			WebhookSecret: viper.GetString("github.webhook_secret"),
+		},
+		OTel: OTelConfig{
+			Enabled:          viper.GetBool("otel.enabled"),
+			Exporter:         viper.GetString("otel.exporter"),
+			ExporterEndpoint: viper.GetString("otel.exporter_endpoint"),
+			SampleRate:       viper.GetFloat64("otel.sample_rate"),
 		},
 	}
 

@@ -14,19 +14,21 @@ import (
 	"github.com/test-mesh/testmesh/internal/shared/notifications"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
+	"github.com/test-mesh/testmesh/internal/tracing"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
 // ExecutionHandler handles execution-related requests
 type ExecutionHandler struct {
-	execRepo    *repository.ExecutionRepository
-	flowRepo    *repository.FlowRepository
-	envRepo     *repository.EnvironmentRepository
-	mockManager *mocks.Manager
-	logger      *zap.Logger
-	wsHub       runner.WSHub
-	dispatcher  *notifications.NotificationDispatcher
+	execRepo       *repository.ExecutionRepository
+	flowRepo       *repository.FlowRepository
+	envRepo        *repository.EnvironmentRepository
+	mockManager    *mocks.Manager
+	logger         *zap.Logger
+	wsHub          runner.WSHub
+	dispatcher     *notifications.NotificationDispatcher
+	execTracer     *tracing.ExecutionTracer
 }
 
 // NewExecutionHandler creates a new execution handler
@@ -38,6 +40,7 @@ func NewExecutionHandler(execRepo *repository.ExecutionRepository, flowRepo *rep
 		mockManager: mockManager,
 		logger:      logger,
 		wsHub:       wsHub,
+		execTracer:  tracing.NewExecutionTracer(),
 	}
 }
 
@@ -110,6 +113,7 @@ func (h *ExecutionHandler) executeFlow(execution *models.Execution, flow *models
 
 	// Execute flow using the runner
 	executor := runner.NewExecutor(h.execRepo, h.logger, h.wsHub, h.mockManager)
+	executor.SetExecutionTracer(h.execTracer)
 	err := executor.Execute(execution, &flow.Definition, mergedVars)
 
 	// Update execution status

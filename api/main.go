@@ -83,7 +83,7 @@ func main() {
 	go wsHub.Run()
 
 	// Initialize API server
-	router := api.NewRouter(db, log, wsHub, cfg.Server.Port, graphEngine)
+	router := api.NewRouter(db, cfg, log, wsHub, cfg.Server.Port, graphEngine)
 
 	// Create HTTP server
 	srv := &http.Server{

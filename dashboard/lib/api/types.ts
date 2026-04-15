@@ -58,6 +58,7 @@ export interface Execution {
   passed_steps: number;
   failed_steps: number;
   error?: string;
+  trace_id?: string;
   created_at: string;
   updated_at: string;
 }

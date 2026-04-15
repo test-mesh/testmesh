@@ -23,6 +23,9 @@ import {
   Clock,
   Zap,
   AlertTriangle,
+  AlertCircle,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import type { StepPerformance } from '@/lib/api/types';
 
@@ -117,6 +120,16 @@ export default function StepPerformancePage() {
     const slowSteps = steps.filter((s) => s.avg_duration_ms > 5000).length;
     return { totalExecutions, avgDuration, avgPassRate, slowSteps };
   }, [steps]);
+
+  // Top 10 most-failing steps
+  const topFailures = useMemo(() => {
+    return [...steps]
+      .filter((s) => s.failed_count > 0)
+      .sort((a, b) => b.failed_count - a.failed_count)
+      .slice(0, 10);
+  }, [steps]);
+
+  const [topFailuresOpen, setTopFailuresOpen] = useState(false);
 
   const SortableHeader = ({ label, sortKeyName }: { label: string; sortKeyName: SortKey }) => (
     <TableHead
@@ -231,6 +244,91 @@ export default function StepPerformancePage() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Top Failures Panel */}
+      {topFailures.length > 0 && (
+        <Card className="mb-6 border-red-200 dark:border-red-900">
+          <CardHeader
+            className="cursor-pointer select-none"
+            onClick={() => setTopFailuresOpen(!topFailuresOpen)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={topFailuresOpen}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setTopFailuresOpen(!topFailuresOpen);
+              }
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                Top Failures
+                <Badge variant="destructive" className="text-xs">{topFailures.length}</Badge>
+              </CardTitle>
+              {topFailuresOpen
+                ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            </div>
+            <CardDescription>Steps with the highest failure count in the selected period</CardDescription>
+          </CardHeader>
+          {topFailuresOpen && (
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Step</TableHead>
+                    <TableHead>Flow</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Failures</TableHead>
+                    <TableHead>Failure Rate</TableHead>
+                    <TableHead>Common Error</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {topFailures.map((step) => (
+                    <TableRow key={step.id}>
+                      <TableCell className="font-medium">{step.step_name}</TableCell>
+                      <TableCell>
+                        {step.flow ? (
+                          <Link href={`/flows/${step.flow_id}`} className="text-primary hover:underline">
+                            {step.flow.name}
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{step.action}</Badge>
+                      </TableCell>
+                      <TableCell className="text-red-600 font-medium">{step.failed_count}</TableCell>
+                      <TableCell>
+                        <span className="text-red-600">
+                          {step.execution_count > 0
+                            ? `${((step.failed_count / step.execution_count) * 100).toFixed(1)}%`
+                            : '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs">
+                        {step.common_errors && step.common_errors.length > 0 ? (
+                          <span title={step.common_errors[0]} className="truncate block max-w-xs">
+                            {step.common_errors[0].length > 80
+                              ? step.common_errors[0].slice(0, 80) + '…'
+                              : step.common_errors[0]}
+                          </span>
+                        ) : (
+                          <span>—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          )}
+        </Card>
       )}
 
       {/* Step Performance Table */}

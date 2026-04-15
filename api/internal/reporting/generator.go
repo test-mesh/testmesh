@@ -7,10 +7,12 @@ import (
 	"encoding/xml"
 	"fmt"
 	"html/template"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/test-mesh/testmesh/internal/filestorage"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"github.com/google/uuid"
@@ -26,6 +28,7 @@ type Generator struct {
 	flowRepo   *repository.FlowRepository
 	logger     *zap.Logger
 	outputDir  string
+	s3Client   *filestorage.Client
 }
 
 // NewGenerator creates a new report generator
@@ -36,9 +39,11 @@ func NewGenerator(
 	flowRepo *repository.FlowRepository,
 	logger *zap.Logger,
 	outputDir string,
+	s3Client *filestorage.Client,
 ) *Generator {
-	// Ensure output directory exists
-	os.MkdirAll(outputDir, 0755)
+	if s3Client == nil {
+		os.MkdirAll(outputDir, 0755)
+	}
 	return &Generator{
 		db:         db,
 		reportRepo: reportRepo,
@@ -46,6 +51,7 @@ func NewGenerator(
 		flowRepo:   flowRepo,
 		logger:     logger,
 		outputDir:  outputDir,
+		s3Client:   s3Client,
 	}
 }
 
@@ -387,11 +393,19 @@ func (g *Generator) generateHTML(data *ReportData, reportID string) (string, int
 		return "", 0, err
 	}
 
+	if g.s3Client != nil {
+		key := fmt.Sprintf("reports/%s.html", reportID)
+		size := int64(buf.Len())
+		if err := g.s3Client.Upload(context.Background(), key, &buf, size, "text/html"); err != nil {
+			return "", 0, err
+		}
+		return key, size, nil
+	}
+
 	filePath := filepath.Join(g.outputDir, fmt.Sprintf("%s.html", reportID))
 	if err := os.WriteFile(filePath, buf.Bytes(), 0644); err != nil {
 		return "", 0, err
 	}
-
 	info, _ := os.Stat(filePath)
 	return filePath, info.Size(), nil
 }
@@ -403,11 +417,19 @@ func (g *Generator) generateJSON(data *ReportData, reportID string) (string, int
 		return "", 0, err
 	}
 
+	if g.s3Client != nil {
+		key := fmt.Sprintf("reports/%s.json", reportID)
+		size := int64(len(jsonBytes))
+		if err := g.s3Client.Upload(context.Background(), key, bytes.NewReader(jsonBytes), size, "application/json"); err != nil {
+			return "", 0, err
+		}
+		return key, size, nil
+	}
+
 	filePath := filepath.Join(g.outputDir, fmt.Sprintf("%s.json", reportID))
 	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
 		return "", 0, err
 	}
-
 	info, _ := os.Stat(filePath)
 	return filePath, info.Size(), nil
 }
@@ -466,11 +488,19 @@ func (g *Generator) generateJUnit(data *ReportData, reportID string) (string, in
 	// Add XML header
 	xmlContent := []byte(xml.Header + string(xmlBytes))
 
+	if g.s3Client != nil {
+		key := fmt.Sprintf("reports/%s.xml", reportID)
+		size := int64(len(xmlContent))
+		if err := g.s3Client.Upload(context.Background(), key, bytes.NewReader(xmlContent), size, "application/xml"); err != nil {
+			return "", 0, err
+		}
+		return key, size, nil
+	}
+
 	filePath := filepath.Join(g.outputDir, fmt.Sprintf("%s.xml", reportID))
 	if err := os.WriteFile(filePath, xmlContent, 0644); err != nil {
 		return "", 0, err
 	}
-
 	info, _ := os.Stat(filePath)
 	return filePath, info.Size(), nil
 }
@@ -486,9 +516,22 @@ func (g *Generator) GetReportFile(reportID uuid.UUID) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("report is not ready: status=%s", report.Status)
 	}
 
-	content, err := os.ReadFile(report.FilePath)
-	if err != nil {
-		return nil, "", err
+	var content []byte
+	if g.s3Client != nil {
+		rc, err := g.s3Client.Download(context.Background(), report.FilePath)
+		if err != nil {
+			return nil, "", fmt.Errorf("downloading report from storage: %w", err)
+		}
+		defer rc.Close()
+		content, err = io.ReadAll(rc)
+		if err != nil {
+			return nil, "", fmt.Errorf("reading report from storage: %w", err)
+		}
+	} else {
+		content, err = os.ReadFile(report.FilePath)
+		if err != nil {
+			return nil, "", err
+		}
 	}
 
 	// Determine content type

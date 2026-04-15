@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -91,4 +92,14 @@ func (c *Client) Delete(ctx context.Context, key string) error {
 func (c *Client) IsAvailable(ctx context.Context) bool {
 	_, err := c.mc.BucketExists(ctx, c.bucket)
 	return err == nil
+}
+
+// PresignedGetURL returns a time-limited URL for downloading an object directly from MinIO.
+// expiry controls how long the URL is valid; 1 hour is typical for report downloads.
+func (c *Client) PresignedGetURL(ctx context.Context, key string, expiry time.Duration) (string, error) {
+	u, err := c.mc.PresignedGetObject(ctx, c.bucket, key, expiry, nil)
+	if err != nil {
+		return "", fmt.Errorf("minio presign: %w", err)
+	}
+	return u.String(), nil
 }

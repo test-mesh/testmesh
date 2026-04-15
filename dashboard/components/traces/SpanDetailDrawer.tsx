@@ -110,13 +110,13 @@ export function SpanDetailDrawer({ span, onClose }: SpanDetailDrawerProps) {
         )}
 
         {/* Events */}
-        {span.events.length > 0 && (
+        {(span.events?.length ?? 0) > 0 && (
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
               Events
             </p>
             <div className="space-y-2">
-              {span.events.map((event, i) => (
+              {(span.events ?? []).map((event, i) => (
                 <div key={i} className="rounded-md border px-3 py-2 text-sm">
                   <div className="flex justify-between mb-1">
                     <span className="font-semibold">{event.name}</span>
@@ -124,7 +124,7 @@ export function SpanDetailDrawer({ span, onClose }: SpanDetailDrawerProps) {
                       {new Date(event.timestamp).toISOString()}
                     </span>
                   </div>
-                  {Object.entries(event.attributes).map(([k, v]) => (
+                  {Object.entries(event.attributes ?? {}).map(([k, v]) => (
                     <div key={k} className="text-xs text-muted-foreground font-mono">
                       {k}: {String(v)}
                     </div>

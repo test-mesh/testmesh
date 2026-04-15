@@ -7,11 +7,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/api/middleware"
+	"github.com/test-mesh/testmesh/internal/filestorage"
 	"github.com/test-mesh/testmesh/internal/reporting"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -20,6 +21,7 @@ type ReportingHandler struct {
 	repo       *repository.ReportingRepository
 	aggregator *reporting.Aggregator
 	generator  *reporting.Generator
+	s3Client   *filestorage.Client
 	logger     *zap.Logger
 }
 
@@ -28,12 +30,14 @@ func NewReportingHandler(
 	repo *repository.ReportingRepository,
 	aggregator *reporting.Aggregator,
 	generator *reporting.Generator,
+	s3Client *filestorage.Client,
 	logger *zap.Logger,
 ) *ReportingHandler {
 	return &ReportingHandler{
 		repo:       repo,
 		aggregator: aggregator,
 		generator:  generator,
+		s3Client:   s3Client,
 		logger:     logger,
 	}
 }
@@ -146,6 +150,28 @@ func (h *ReportingHandler) DownloadReport(c *gin.Context) {
 		return
 	}
 
+	report, err := h.repo.GetReportByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "report not found"})
+		return
+	}
+	if report.Status != models.ReportStatusCompleted {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "report is not ready"})
+		return
+	}
+
+	if h.s3Client != nil {
+		url, err := h.s3Client.PresignedGetURL(c.Request.Context(), report.FilePath, time.Hour)
+		if err != nil {
+			h.logger.Error("Failed to generate presigned URL", zap.String("id", id.String()), zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate download URL"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"url": url})
+		return
+	}
+
+	// Local disk fallback (development without MinIO)
 	content, contentType, err := h.generator.GetReportFile(id)
 	if err != nil {
 		h.logger.Error("Failed to get report file", zap.String("id", id.String()), zap.Error(err))
@@ -153,7 +179,6 @@ func (h *ReportingHandler) DownloadReport(c *gin.Context) {
 		return
 	}
 
-	report, _ := h.repo.GetReportByID(id)
 	filename := report.Name
 	switch report.Format {
 	case models.ReportFormatHTML:

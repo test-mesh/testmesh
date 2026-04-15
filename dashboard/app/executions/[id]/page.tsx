@@ -122,9 +122,9 @@ export default function ExecutionDetailPage({
 
   const steps = stepsData?.steps || [];
 
-  // Trace data hooks
+  // Trace data hooks — prefer execution.trace_id (set by runner), fall back to validation record
   const { data: traceValidation } = useTraceValidation(id);
-  const traceId = traceValidation?.trace_id;
+  const traceId = execution?.trace_id || traceValidation?.trace_id;
   const { data: spansData, isLoading: spansLoading } = useSpans(
     traceId ? { trace_id: traceId } : {}
   );
@@ -413,14 +413,6 @@ export default function ExecutionDetailPage({
 
         <TabsContent value="trace">
           <div className="space-y-4">
-            {!traceValidation && !spansLoading && (
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                  No trace data for this execution. Ensure tracing is enabled in workspace settings.
-                </CardContent>
-              </Card>
-            )}
-
             {spansLoading && (
               <Card>
                 <CardContent className="py-8 flex justify-center">
@@ -429,7 +421,15 @@ export default function ExecutionDetailPage({
               </Card>
             )}
 
-            {traceValidation && (
+            {!spansLoading && !traceId && (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground text-sm">
+                  No trace data for this execution. Ensure tracing is enabled in workspace settings.
+                </CardContent>
+              </Card>
+            )}
+
+            {!spansLoading && traceId && (
               <Card>
                 <CardContent className="pt-4">
                   {errorSpan && <ErrorHero span={errorSpan} />}
@@ -437,27 +437,29 @@ export default function ExecutionDetailPage({
                     <ValidationSummary validation={traceValidation} />
                   )}
                   {hasDrift && <DriftCallout driftDetails={driftDetails} />}
-                  {spans.length > 0 && (
+                  {spans.length > 0 ? (
                     <SpanWaterfall
                       spans={spans}
-                      violations={traceValidation.failed_assertions as ValidationViolation[]}
-                      missingNodes={traceValidation.missing_nodes}
-                      slowSpanIds={traceValidation.slow_spans}
-                      errorSpanIds={traceValidation.error_spans}
+                      violations={(traceValidation?.failed_assertions ?? []) as ValidationViolation[]}
+                      missingNodes={traceValidation?.missing_nodes}
+                      slowSpanIds={traceValidation?.slow_spans}
+                      errorSpanIds={traceValidation?.error_spans}
                       highlightSpanId={errorSpan?.span_id}
                     />
-                  )}
-                  {traceId && (
-                    <div className="mt-4 text-right">
-                      <Link
-                        href={`/traces?trace_id=${traceId}`}
-                        className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                      >
-                        Open full trace explorer
-                        <ExternalLink className="w-3 h-3" />
-                      </Link>
+                  ) : (
+                    <div className="py-8 text-center text-muted-foreground text-sm">
+                      Trace found but no spans loaded yet.
                     </div>
                   )}
+                  <div className="mt-4 text-right">
+                    <Link
+                      href={`/traces?trace_id=${traceId}`}
+                      className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                    >
+                      Open full trace explorer
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  </div>
                 </CardContent>
               </Card>
             )}

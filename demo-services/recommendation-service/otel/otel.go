@@ -13,26 +13,45 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
+// InitTracer sets up the OpenTelemetry trace provider with an OTLP HTTP exporter.
+// Returns a shutdown function that should be deferred in main().
 func InitTracer(serviceName string) (func(context.Context) error, error) {
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
 		endpoint = "otel-collector:4318"
 	} else {
+		// Strip scheme if present — otlptracehttp.WithEndpoint expects host:port only
 		if u, err := url.Parse(endpoint); err == nil && u.Host != "" {
 			endpoint = u.Host
 		}
 	}
 
-	exporter, err := otlptracehttp.New(context.Background(),
+	opts := []otlptracehttp.Option{
 		otlptracehttp.WithEndpoint(endpoint),
 		otlptracehttp.WithInsecure(),
-	)
+	}
+
+	// Support custom URL path (e.g. /otlp/v1/traces for TestMesh API)
+	if urlPath := os.Getenv("OTEL_EXPORTER_OTLP_URL_PATH"); urlPath != "" {
+		opts = append(opts, otlptracehttp.WithURLPath(urlPath))
+	}
+
+	// Inject X-Workspace-ID header if configured
+	if wsID := os.Getenv("OTEL_WORKSPACE_ID"); wsID != "" {
+		opts = append(opts, otlptracehttp.WithHeaders(map[string]string{
+			"X-Workspace-ID": wsID,
+		}))
+	}
+
+	exporter, err := otlptracehttp.New(context.Background(), opts...)
 	if err != nil {
 		return nil, err
 	}
 
 	res, err := resource.New(context.Background(),
-		resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)),
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+		),
 	)
 	if err != nil {
 		return nil, err

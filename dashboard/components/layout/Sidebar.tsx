@@ -14,7 +14,6 @@ import {
   Server,
   Calendar,
   BarChart3,
-  FileBarChart,
   Send,
   ExternalLink,
   Plug,
@@ -54,7 +53,6 @@ const navigation: NavItem[] = [
 
   // Insights
   { title: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { title: 'Reports', href: '/reports', icon: FileBarChart },
 
   // Administration
   { title: 'Integrations', href: '/integrations', icon: Plug },
