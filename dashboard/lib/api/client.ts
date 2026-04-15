@@ -211,6 +211,7 @@ export const executionApi = {
 
 // Telemetry API
 export const telemetryApi = {
+  // NOTE: workspace-scoped via the /executions entry in WORKSPACE_SCOPED_PATHS interceptor
   getTraceValidation: async (executionId: string): Promise<TraceValidation> => {
     const response = await apiClient.get<TraceValidation>(
       `/api/v1/executions/${executionId}/trace-validation`
@@ -218,7 +219,7 @@ export const telemetryApi = {
     return response.data;
   },
 
-  getSpans: async (params: {
+  getSpans: async (params?: {
     trace_id?: string;
     service?: string;
     operation?: string;
@@ -241,10 +242,10 @@ export const telemetryApi = {
   },
 
   exportDiscoveredFlow: async (flowId: string): Promise<string> => {
-    const response = await apiClient.post<string>(
+    const response = await apiClient.post<{ yaml: string }>(
       `/api/v1/telemetry/flows/${flowId}/export`
     );
-    return response.data;
+    return response.data.yaml;
   },
 };
 
