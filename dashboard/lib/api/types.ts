@@ -725,7 +725,7 @@ export interface Span {
   workspace_id: string;
   trace_id: string;
   span_id: string;
-  parent_span_id: string | null;
+  parent_span_id: string | undefined;
   service: string;
   operation: string;
   kind: 'client' | 'server' | 'producer' | 'consumer' | 'internal';
@@ -737,6 +737,8 @@ export interface Span {
   attributes: Record<string, unknown>;
   resource_attrs: Record<string, unknown>;
   events: SpanEvent[];
+  is_test_generated: boolean;
+  created_at: string;
 }
 
 export interface ValidationViolation {
@@ -759,7 +761,8 @@ export interface TraceValidation {
   order_violations: string[];
   slow_spans: string[];
   error_spans: string[];
-  failed_assertions: ValidationViolation[];
+  failed_assertions: unknown[];
+  root_cause_diff: Record<string, unknown>;
 }
 
 export interface DiscoveredFlow {
@@ -777,7 +780,10 @@ export interface DiscoveredFlow {
   error_rate: number;
   risk_score: number;
   drifted: boolean;
-  drift_details: string;
+  drift_details: Record<string, unknown>;
+  sample_trace_id?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DriftAlert {
@@ -791,6 +797,7 @@ export interface DriftAlert {
 
 export interface ListSpansResponse {
   spans: Span[];
+  total: number;
 }
 
 export interface ListDiscoveredFlowsResponse {
@@ -799,5 +806,6 @@ export interface ListDiscoveredFlowsResponse {
 }
 
 export interface ListDriftAlertsResponse {
-  flows: DiscoveredFlow[];
+  alerts: DiscoveredFlow[];
+  total: number;
 }
