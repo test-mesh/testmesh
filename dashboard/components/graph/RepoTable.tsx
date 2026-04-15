@@ -13,16 +13,25 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { MoreHorizontal, Plus, RefreshCw, Trash2, Edit } from 'lucide-react';
-import { useGraphRepos, useDeleteRepo, useTriggerRepoScan } from '@/lib/hooks/useGraph';
+import { MoreHorizontal, Plus, RefreshCw, Trash2, Edit, Loader2 } from 'lucide-react';
+import { useGraphRepos, useDeleteRepo, useTriggerRepoScan, useMergeJobs, useTriggerMerge } from '@/lib/hooks/useGraph';
 import type { GraphRepo } from '@/lib/api/graph';
 import { RepoDialog } from './RepoDialog';
 import { formatDistanceToNow } from 'date-fns';
+import { useActiveWorkspace } from '@/lib/hooks/useWorkspaces';
 
 export function RepoTable() {
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? '';
+
   const { data, isLoading } = useGraphRepos();
   const deleteMutation = useDeleteRepo();
   const scanMutation = useTriggerRepoScan();
+
+  const { data: mergeData } = useMergeJobs(workspaceId);
+  const triggerMerge = useTriggerMerge(workspaceId);
+  const latestJob = mergeData?.merge_jobs?.[0];
+  const isMerging = latestJob?.status === 'running' || latestJob?.status === 'pending';
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editRepo, setEditRepo] = useState<GraphRepo | undefined>();
@@ -70,6 +79,33 @@ export function RepoTable() {
         <Button size="sm" onClick={openCreate}>
           <Plus className="h-4 w-4 mr-1" />
           Register Repo
+        </Button>
+      </div>
+
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {isMerging ? (
+            <>
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Rebuilding cross-repo graph…</span>
+            </>
+          ) : latestJob?.status === 'completed' ? (
+            <span>
+              Cross-repo graph updated{' '}
+              {latestJob.completed_at ? formatDistanceToNow(new Date(latestJob.completed_at), { addSuffix: true }) : ''}
+            </span>
+          ) : latestJob?.status === 'failed' ? (
+            <span className="text-destructive">Graph merge failed: {latestJob.error}</span>
+          ) : null}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => triggerMerge.mutate()}
+          disabled={isMerging || triggerMerge.isPending || !workspaceId}
+        >
+          <RefreshCw className="h-3 w-3 mr-1" />
+          Rebuild graph
         </Button>
       </div>
 

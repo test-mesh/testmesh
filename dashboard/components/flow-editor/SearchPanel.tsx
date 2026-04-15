@@ -26,6 +26,9 @@ import {
   Chrome,
   Timer,
   Box,
+  HardDrive,
+  Activity,
+  Settings,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +72,30 @@ const actionIcons: Record<ActionType, React.ElementType> = {
   mock_server_reset_state: Server,
   contract_generate: FileCode,
   contract_verify: FileCheck,
+  docker_run: Box,
+  docker_stop: Box,
+  'redis.get': Database,
+  'redis.set': Database,
+  'redis.del': Database,
+  'redis.exists': Database,
+  'minio.put': HardDrive,
+  'minio.get': HardDrive,
+  'minio.delete': HardDrive,
+  'minio.assert': HardDrive,
+  'neo4j.query': Network,
+  'neo4j.assert': Network,
+  'otel.inject': Activity,
+  'otel.assert': Activity,
+  'postgresql.query': Database,
+  'postgresql.insert': Database,
+  'postgresql.update': Database,
+  'postgresql.delete': Database,
+  'postgresql.assert': Database,
+  'postgresql.execute': Database,
+  'postgresql.transaction': Database,
+  'postgresql.tables': Database,
+  'postgresql.columns': Database,
+  mock_server_configure: Settings,
 };
 
 // Action type categories

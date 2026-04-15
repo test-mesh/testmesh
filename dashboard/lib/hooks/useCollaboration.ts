@@ -14,6 +14,7 @@ import {
   getFlowVersions,
   getFlowVersion,
   compareFlowVersions,
+  restoreFlowVersion,
   type UserPresence,
   type SetPresenceRequest,
   type CreateCommentRequest,
@@ -247,5 +248,17 @@ export function useCompareFlowVersions(flowId: string, v1: number, v2: number) {
     queryKey: [...collaborationKeys.versions(flowId), 'compare', v1, v2],
     queryFn: () => compareFlowVersions(flowId, v1, v2),
     enabled: !!flowId && v1 > 0 && v2 > 0 && v1 !== v2,
+  });
+}
+
+export function useRestoreFlowVersion(flowId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (version: number) => restoreFlowVersion(flowId, version),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['flows', 'detail', flowId] });
+      queryClient.invalidateQueries({ queryKey: collaborationKeys.versions(flowId) });
+    },
   });
 }

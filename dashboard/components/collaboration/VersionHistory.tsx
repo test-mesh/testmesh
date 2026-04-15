@@ -84,8 +84,8 @@ export function VersionHistory({ flowId, onRestore, className }: VersionHistoryP
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-[600px] sm:max-w-[600px]">
-        <SheetHeader>
+      <SheetContent className="!w-[min(900px,90vw)] !max-w-none px-6">
+        <SheetHeader className="px-0">
           <SheetTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
             Version History
@@ -120,7 +120,7 @@ export function VersionHistory({ flowId, onRestore, className }: VersionHistoryP
             {/* Version List */}
             <div className="space-y-2">
               <h4 className="text-sm font-medium">Versions</h4>
-              <ScrollArea className="h-[400px] rounded-md border p-2">
+              <ScrollArea className="h-[500px] rounded-md border p-2">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-8">
                     <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -151,7 +151,7 @@ export function VersionHistory({ flowId, onRestore, className }: VersionHistoryP
               <h4 className="text-sm font-medium">
                 {isComparing && compareVersion ? 'Comparison' : 'Details'}
               </h4>
-              <ScrollArea className="h-[400px] rounded-md border p-2">
+              <ScrollArea className="h-[500px] rounded-md border p-2">
                 {isComparing && selectedVersion && compareVersion ? (
                   // Comparison View
                   comparisonLoading ? (

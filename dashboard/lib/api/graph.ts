@@ -92,6 +92,18 @@ export interface ScanResult {
   duration_ms: number;
 }
 
+export interface WorkspaceMergeJob {
+  id: string;
+  workspace_id: string;
+  trigger_scan_id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  edges_added: number;
+  edges_updated: number;
+  error?: string;
+  started_at: string;
+  completed_at?: string;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const base = '/api/v1/graph';
@@ -175,5 +187,21 @@ export const graphApi = {
 
   resolveConflict: async (id: string, resolution: string): Promise<void> => {
     await apiClient.post(`${base}/conflicts/${id}/resolve`, { resolution });
+  },
+};
+
+export const mergeJobsApi = {
+  list: async (workspaceId: string) => {
+    const response = await apiClient.get<{ merge_jobs: WorkspaceMergeJob[]; total: number }>(
+      `/api/v1/workspaces/${workspaceId}/graph/merge-jobs`
+    );
+    return response.data;
+  },
+
+  trigger: async (workspaceId: string) => {
+    const response = await apiClient.post<{ message: string }>(
+      `/api/v1/workspaces/${workspaceId}/graph/merge`
+    );
+    return response.data;
   },
 };

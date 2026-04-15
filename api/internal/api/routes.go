@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/ai"
 	"github.com/test-mesh/testmesh/internal/api/handlers"
+	sharedconfig "github.com/test-mesh/testmesh/internal/shared/config"
 	"github.com/test-mesh/testmesh/internal/filestorage"
 	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/api/websocket"
@@ -192,10 +194,13 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	mockManager := mocks.NewManager(mockRepo, logger, mockBaseURL)
 	mockManager.RestoreRunningServers() // re-register DB-persisted running servers on startup
 
+	// Initialize collaboration repository (needed by multiple handlers)
+	collaborationRepo := repository.NewCollaborationRepository(db)
+
 	// Initialize handlers
 	healthHandler := handlers.NewHealthHandler(db)
 	proxyHandler := handlers.NewProxyHandler(logger)
-	flowHandler := handlers.NewFlowHandler(flowRepo, logger)
+	flowHandler := handlers.NewFlowHandler(flowRepo, collaborationRepo, logger)
 	executionHandler := handlers.NewExecutionHandler(executionRepo, flowRepo, envRepo, mockManager, logger, wsHub)
 	executionHandler.SetNotificationDispatcher(notifDispatcher)
 	mockHandler := handlers.NewMockHandler(mockRepo, mockManager, logger)
@@ -313,7 +318,6 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	}
 
 	// Initialize collaboration handler
-	collaborationRepo := repository.NewCollaborationRepository(db)
 	collaborationHandler := handlers.NewCollaborationHandler(collaborationRepo, logger)
 
 	// Initialize environment handler
@@ -324,6 +328,18 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 	gitTriggerRuleHandler := handlers.NewGitTriggerRuleHandler(gitTriggerRuleRepo, logger)
 	webhookHandler := handlers.NewWebhookHandler(integrationRepo, gitTriggerRuleRepo, webhookDeliveryRepo, repoLinkRepo, aiDiffAnalyzer, aiSelfHealing, sched, embeddingPipeline, logger)
 	repositoryLinkHandler := handlers.NewRepositoryLinkHandler(repoLinkRepo, logger)
+
+	// Initialize GitHub OAuth handler
+	githubAppID, _ := strconv.ParseInt(os.Getenv("GITHUB_APP_ID"), 10, 64)
+	githubCfg := sharedconfig.GitHubAppConfig{
+		AppID:         githubAppID,
+		PrivateKey:    os.Getenv("GITHUB_PRIVATE_KEY"),
+		ClientID:      os.Getenv("GITHUB_CLIENT_ID"),
+		ClientSecret:  os.Getenv("GITHUB_CLIENT_SECRET"),
+		WebhookSecret: os.Getenv("GITHUB_WEBHOOK_SECRET"),
+	}
+	dashboardURL := getEnvOrDefault("DASHBOARD_URL", "http://localhost:3000")
+	githubOAuthHandler := handlers.NewGitHubOAuthHandler(db, githubCfg, integrationRepo, dashboardURL, logger)
 
 	// Health check
 	router.GET("/health", healthHandler.Check)
@@ -358,6 +374,13 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 				gitTriggerRules.GET("/:id", gitTriggerRuleHandler.Get)
 				gitTriggerRules.PUT("/:id", gitTriggerRuleHandler.Update)
 				gitTriggerRules.DELETE("/:id", gitTriggerRuleHandler.Delete)
+			}
+
+			// GitHub OAuth (workspace-scoped: authorize + installations require workspace context)
+			wsGitHub := ws.Group("/github")
+			{
+				wsGitHub.GET("/oauth/authorize", githubOAuthHandler.Authorize)
+				wsGitHub.GET("/installations", githubOAuthHandler.ListInstallations)
 			}
 
 			// Repository links (workspace-scoped)
@@ -457,6 +480,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 				flows.GET("/:id", flowHandler.Get)
 				flows.PUT("/:id", flowHandler.Update)
 				flows.DELETE("/:id", flowHandler.Delete)
+				flows.POST("/:id/versions/:version/restore", flowHandler.RestoreVersion)
 			}
 
 			// Import/Export routes (workspace-scoped)
@@ -531,7 +555,8 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 					traceScanner,
 				}
 				mergeEngine := graph.NewMergeEngine(db, ge, logger)
-				orchestrator := graphscanner.NewOrchestrator(ge, mergeEngine, scanners, logger)
+				crossRepoMerger := graphscanner.NewCrossRepoMerger(db, ge, logger)
+				orchestrator := graphscanner.NewOrchestrator(ge, mergeEngine, crossRepoMerger, scanners, logger)
 
 				// Wire graph resolver into the executor for graph-aware step resolution
 				graphResolver := graph.NewGraphResolver(ge, logger)
@@ -541,7 +566,7 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 					clonePath = "/tmp/testmesh-repos"
 				}
 				repoMgr := graphrepo.NewManager(ge, clonePath, logger)
-				graphHandler := handlers.NewGraphHandler(ge, orchestrator, repoMgr, logger)
+				graphHandler := handlers.NewGraphHandler(ge, orchestrator, repoMgr, crossRepoMerger, db, logger)
 
 				// Wire graph scan deps into the webhook handler so pushes trigger rescans
 				webhookHandler.SetGraphScanDeps(ge, repoMgr, orchestrator)
@@ -585,6 +610,10 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 					graphRoutes.GET("/contracts", graphHandler.GetContracts)
 					graphRoutes.GET("/conflicts", graphHandler.GetConflicts)
 					graphRoutes.POST("/conflicts/:id/resolve", graphHandler.ResolveConflict)
+
+					// Merge jobs
+					graphRoutes.GET("/merge-jobs", graphHandler.ListMergeJobs)
+					graphRoutes.POST("/merge", graphHandler.TriggerMerge)
 
 					// Cloud graph endpoints (runtime, history, AI agents)
 					runtimeScanner := cloud.NewRuntimeScanner(ge, logger)
@@ -846,6 +875,13 @@ func NewRouter(db *gorm.DB, logger *zap.Logger, wsHub *websocket.Hub, port int, 
 		v1.POST("/webhooks/github", webhookHandler.HandleGitHub)
 		v1.POST("/webhooks/gitea", webhookHandler.HandleGitea)
 		v1.POST("/webhooks/gitlab", webhookHandler.HandleGitLab)
+
+		// GitHub OAuth routes (unscoped: app-status is public, callback has no auth context from GitHub)
+		github := v1.Group("/github")
+		{
+			github.GET("/app/status", githubOAuthHandler.AppStatus)
+			github.GET("/oauth/callback", githubOAuthHandler.Callback)
+		}
 
 	}
 

@@ -98,6 +98,22 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	// Create oauth_states table (GitHub OAuth state tokens)
+	if err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS oauth_states (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			state TEXT NOT NULL UNIQUE,
+			workspace_id UUID,
+			redirect_url TEXT NOT NULL DEFAULT '',
+			expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_oauth_states_state ON oauth_states(state);
+		CREATE INDEX IF NOT EXISTS idx_oauth_states_expires_at ON oauth_states(expires_at);
+	`).Error; err != nil {
+		return err
+	}
+
 	// Create datasets table (file storage for data-driven testing)
 	db.Exec(`
 		CREATE TABLE IF NOT EXISTS storage.datasets (
@@ -1293,6 +1309,25 @@ func migrateGraphSchema(db *gorm.DB) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_graph_diffs_workspace ON graph.graph_diffs(workspace_id);
 	`)
+
+	// Workspace merge jobs (cross-repo dependency merge operations)
+	if err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS graph.workspace_merge_jobs (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			trigger_scan_id UUID,
+			status VARCHAR(20) NOT NULL DEFAULT 'pending',
+			edges_added INTEGER NOT NULL DEFAULT 0,
+			edges_updated INTEGER NOT NULL DEFAULT 0,
+			error TEXT NOT NULL DEFAULT '',
+			started_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			completed_at TIMESTAMP WITH TIME ZONE
+		);
+		CREATE INDEX IF NOT EXISTS idx_workspace_merge_jobs_workspace_id ON graph.workspace_merge_jobs(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_workspace_merge_jobs_status ON graph.workspace_merge_jobs(status);
+	`).Error; err != nil {
+		return err
+	}
 
 	return nil
 }

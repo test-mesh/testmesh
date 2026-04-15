@@ -30,6 +30,8 @@ export interface IntegrationConfig {
   // Slack config
   channel?: string;
   notify_on_events?: string[];
+  github_installation_id?: number;
+  github_user_login?: string;
 }
 
 export interface ServicePathMapping {
@@ -73,6 +75,18 @@ export interface GitRepository {
   description: string;
   private: boolean;
   html_url: string;
+}
+
+export interface GitHubInstallation {
+  id: number;
+  login: string;
+  avatar_url: string;
+  type: string;
+}
+
+export interface GitHubAppStatus {
+  configured: boolean;
+  client_id: string;
 }
 
 export interface CreateIntegrationRequest {
@@ -278,5 +292,20 @@ export const gitTriggerRulesApi = {
 
   delete: async (workspaceId: string, id: string) => {
     await apiClient.delete(`/api/v1/workspaces/${workspaceId}/git-trigger-rules/${id}`);
+  },
+};
+
+export const githubOAuthApi = {
+  appStatus: async () => {
+    const response = await apiClient.get<GitHubAppStatus>('/api/v1/github/app/status');
+    return response.data;
+  },
+  authorize: async (workspaceId: string) => {
+    const response = await apiClient.get<{ url: string }>(`/api/v1/workspaces/${workspaceId}/github/oauth/authorize`);
+    return response.data;
+  },
+  listInstallations: async (workspaceId: string) => {
+    const response = await apiClient.get<{ installations: GitHubInstallation[] }>(`/api/v1/workspaces/${workspaceId}/github/installations`);
+    return response.data;
   },
 };

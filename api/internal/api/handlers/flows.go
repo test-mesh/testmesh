@@ -16,13 +16,15 @@ import (
 // FlowHandler handles flow-related requests
 type FlowHandler struct {
 	repo   *repository.FlowRepository
+	collab *repository.CollaborationRepository
 	logger *zap.Logger
 }
 
 // NewFlowHandler creates a new flow handler
-func NewFlowHandler(repo *repository.FlowRepository, logger *zap.Logger) *FlowHandler {
+func NewFlowHandler(repo *repository.FlowRepository, collab *repository.CollaborationRepository, logger *zap.Logger) *FlowHandler {
 	return &FlowHandler{
 		repo:   repo,
+		collab: collab,
 		logger: logger,
 	}
 }
@@ -174,6 +176,86 @@ func (h *FlowHandler) Update(c *gin.Context) {
 		h.logger.Error("Failed to update flow", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update flow"})
 		return
+	}
+
+	// Record version snapshot (non-critical — don't fail the request on error)
+	if h.collab != nil {
+		version := &models.FlowVersion{
+			FlowID:  flow.ID,
+			Content: req.YAML,
+		}
+		if err := h.collab.CreateFlowVersion(version); err != nil {
+			h.logger.Warn("Failed to create flow version", zap.Error(err))
+		}
+	}
+
+	c.JSON(http.StatusOK, flow)
+}
+
+// RestoreVersion handles POST /api/v1/workspaces/:workspace_id/flows/:id/versions/:version/restore
+func (h *FlowHandler) RestoreVersion(c *gin.Context) {
+	workspaceID := middleware.GetWorkspaceID(c)
+	if workspaceID == uuid.Nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace context required"})
+		return
+	}
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid flow ID"})
+		return
+	}
+
+	versionNum, err := strconv.Atoi(c.Param("version"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid version number"})
+		return
+	}
+
+	// Get the version to restore
+	v, err := h.collab.GetFlowVersion(id, versionNum)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "version not found"})
+		return
+	}
+
+	// Get current flow
+	flow, err := h.repo.GetByID(id, workspaceID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "flow not found"})
+		return
+	}
+
+	// Parse the historical YAML
+	definition, err := parseFlowYAML(v.Content)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "stored version has invalid YAML: " + err.Error()})
+		return
+	}
+
+	// Apply restored definition
+	flow.Name = definition.Name
+	flow.Description = definition.Description
+	flow.Suite = definition.Suite
+	flow.Tags = definition.Tags
+	flow.Definition = definition
+
+	if err := h.repo.Update(flow, workspaceID); err != nil {
+		h.logger.Error("Failed to restore flow version", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to restore flow"})
+		return
+	}
+
+	// Record restore as a new version
+	if h.collab != nil {
+		restored := &models.FlowVersion{
+			FlowID:  flow.ID,
+			Content: v.Content,
+			Message: "Restored from v" + strconv.Itoa(versionNum),
+		}
+		if err := h.collab.CreateFlowVersion(restored); err != nil {
+			h.logger.Warn("Failed to record restore version", zap.Error(err))
+		}
 	}
 
 	c.JSON(http.StatusOK, flow)

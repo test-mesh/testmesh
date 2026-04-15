@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { integrationsApi, gitTriggerRulesApi, repositoryLinksApi, type SystemIntegration, type GitTriggerRule, type RepositoryLink, type CreateIntegrationRequest, type UpdateIntegrationRequest, type UpdateSecretsRequest, type CreateGitTriggerRuleRequest, type UpdateGitTriggerRuleRequest, type CreateRepositoryLinkRequest, type UpdateRepositoryLinkRequest } from '../api/integrations';
+import { integrationsApi, gitTriggerRulesApi, repositoryLinksApi, githubOAuthApi, type SystemIntegration, type GitTriggerRule, type RepositoryLink, type CreateIntegrationRequest, type UpdateIntegrationRequest, type UpdateSecretsRequest, type CreateGitTriggerRuleRequest, type UpdateGitTriggerRuleRequest, type CreateRepositoryLinkRequest, type UpdateRepositoryLinkRequest } from '../api/integrations';
 export type { GitRepository } from '../api/integrations';
 
 // Query keys
@@ -210,6 +210,32 @@ export function useDeleteGitTriggerRule() {
       gitTriggerRulesApi.delete(workspaceId, id),
     onSuccess: (_, { workspaceId }) => {
       queryClient.invalidateQueries({ queryKey: gitTriggerRuleKeys.list(workspaceId) });
+    },
+  });
+}
+
+export function useGitHubAppStatus() {
+  return useQuery({
+    queryKey: ['github', 'app-status'],
+    queryFn: () => githubOAuthApi.appStatus(),
+    staleTime: 60_000,
+  });
+}
+
+export function useGitHubInstallations(workspaceId: string, isConfigured: boolean) {
+  return useQuery({
+    queryKey: ['github', 'installations', workspaceId],
+    queryFn: () => githubOAuthApi.listInstallations(workspaceId),
+    staleTime: 30_000,
+    enabled: !!workspaceId && isConfigured,
+  });
+}
+
+export function useGitHubAuthorize(workspaceId: string) {
+  return useMutation({
+    mutationFn: async () => {
+      const { url } = await githubOAuthApi.authorize(workspaceId);
+      window.location.href = url;
     },
   });
 }

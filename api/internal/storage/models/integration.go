@@ -85,6 +85,10 @@ type IntegrationConfig struct {
 	BaseURL         string              `json:"base_url,omitempty"`         // For self-hosted Gitea: "https://gitea.example.com"
 	PR              *PRIntegrationConfig `json:"pr,omitempty"`              // PR write-back configuration
 
+	// GitHub App OAuth config
+	GitHubInstallationID int64  `json:"github_installation_id,omitempty"`
+	GitHubUserLogin      string `json:"github_user_login,omitempty"`
+
 	// Notification (Slack) config
 	Channel         string   `json:"channel,omitempty"`          // e.g. "#alerts"
 	NotifyOnEvents  []string `json:"notify_on_events,omitempty"` // ["execution_failed","execution_passed","schedule_triggered"]

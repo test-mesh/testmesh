@@ -52,12 +52,13 @@ const (
 type SourceLayer string
 
 const (
-	SourceLayerCode    SourceLayer = "code"
-	SourceLayerInfra   SourceLayer = "infra"
-	SourceLayerSpec    SourceLayer = "spec"
-	SourceLayerFlow    SourceLayer = "flow"
-	SourceLayerRuntime SourceLayer = "runtime"
-	SourceLayerHistory SourceLayer = "history"
+	SourceLayerCode      SourceLayer = "code"
+	SourceLayerInfra     SourceLayer = "infra"
+	SourceLayerSpec      SourceLayer = "spec"
+	SourceLayerFlow      SourceLayer = "flow"
+	SourceLayerRuntime   SourceLayer = "runtime"
+	SourceLayerHistory   SourceLayer = "history"
+	SourceLayerCrossRepo SourceLayer = "cross-repo"
 )
 
 // ConflictType categorizes merge conflicts.
@@ -202,6 +203,33 @@ type GraphConflict struct {
 
 func (GraphConflict) TableName() string {
 	return "graph.graph_conflicts"
+}
+
+// WorkspaceMergeJob tracks cross-repo dependency merge operations.
+type WorkspaceMergeJob struct {
+	ID            uuid.UUID  `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	WorkspaceID   uuid.UUID  `gorm:"type:uuid;index;not null" json:"workspace_id"`
+	TriggerScanID uuid.UUID  `gorm:"type:uuid;index" json:"trigger_scan_id"`
+	Status        string     `gorm:"type:varchar(20);default:'pending'" json:"status"` // pending|running|completed|failed
+	EdgesAdded    int        `gorm:"default:0" json:"edges_added"`
+	EdgesUpdated  int        `gorm:"default:0" json:"edges_updated"`
+	Error         string     `json:"error,omitempty"`
+	StartedAt     time.Time  `json:"started_at"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty"`
+}
+
+func (WorkspaceMergeJob) TableName() string {
+	return "graph.workspace_merge_jobs"
+}
+
+func (j *WorkspaceMergeJob) BeforeCreate(tx *gorm.DB) error {
+	if j.ID == uuid.Nil {
+		j.ID = uuid.New()
+	}
+	if j.StartedAt.IsZero() {
+		j.StartedAt = time.Now().UTC()
+	}
+	return nil
 }
 
 // --- Derived / Query Structures (not stored directly) ---

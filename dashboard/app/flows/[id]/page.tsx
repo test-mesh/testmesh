@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PresenceIndicator, CommentThread, VersionHistory } from '@/components/collaboration';
+import { useRestoreFlowVersion } from '@/lib/hooks/useCollaboration';
+import type { FlowVersion } from '@/lib/api/collaboration';
 import { Play, Trash2, Edit, ArrowLeft, Clock, MessageSquare, FileCode } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -39,6 +41,7 @@ export default function FlowDetailPage({
   const { data: executionsData } = useExecutions({ flow_id: id });
   const deleteFlow = useDeleteFlow();
   const createExecution = useCreateExecution();
+  const restoreVersion = useRestoreFlowVersion(id);
 
   const handleDelete = async () => {
     if (confirm('Are you sure you want to delete this flow?')) {
@@ -118,7 +121,10 @@ export default function FlowDetailPage({
             </div>
           </div>
           <div className="flex gap-2">
-            <VersionHistory flowId={id} />
+            <VersionHistory
+                flowId={id}
+                onRestore={(version: FlowVersion) => restoreVersion.mutate(version.version)}
+              />
             <Button onClick={handleRun} disabled={createExecution.isPending}>
               <Play className="w-4 h-4 mr-2" />
               Run Flow

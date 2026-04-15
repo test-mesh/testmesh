@@ -23,7 +23,8 @@ const WORKSPACE_SCOPED_PATHS = ['/flows', '/collections', '/environments', '/exe
 
 // Check if a path should be workspace-scoped
 const isWorkspaceScopedPath = (url: string): boolean => {
-  return WORKSPACE_SCOPED_PATHS.some(path => url.includes(path) && !url.includes('/workspaces'));
+  if (url.includes('/workspaces') || url.includes('/collaboration')) return false;
+  return WORKSPACE_SCOPED_PATHS.some(path => url.includes(path));
 };
 
 // Create axios instance with default configuration

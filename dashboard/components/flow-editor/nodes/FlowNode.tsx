@@ -26,6 +26,9 @@ import {
   Radio,
   Chrome,
   Timer,
+  HardDrive,
+  Activity,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { FlowNodeData, ActionType } from '../types';
@@ -58,6 +61,30 @@ const actionIcons: Record<ActionType, React.ElementType> = {
   mock_server_reset_state: Server,
   contract_generate: FileCode,
   contract_verify: FileCheck,
+  docker_run: Box,
+  docker_stop: Box,
+  'redis.get': Database,
+  'redis.set': Database,
+  'redis.del': Database,
+  'redis.exists': Database,
+  'minio.put': HardDrive,
+  'minio.get': HardDrive,
+  'minio.delete': HardDrive,
+  'minio.assert': HardDrive,
+  'neo4j.query': Network,
+  'neo4j.assert': Network,
+  'otel.inject': Activity,
+  'otel.assert': Activity,
+  'postgresql.query': Database,
+  'postgresql.insert': Database,
+  'postgresql.update': Database,
+  'postgresql.delete': Database,
+  'postgresql.assert': Database,
+  'postgresql.execute': Database,
+  'postgresql.transaction': Database,
+  'postgresql.tables': Database,
+  'postgresql.columns': Database,
+  mock_server_configure: Settings,
 };
 
 // Color mapping for action types
@@ -188,6 +215,126 @@ const actionColors: Record<ActionType, { bg: string; border: string; icon: strin
     icon: 'text-pink-500',
   },
   mock_server_reset_state: {
+    bg: 'bg-pink-50 dark:bg-pink-950',
+    border: 'border-pink-200 dark:border-pink-800',
+    icon: 'text-pink-500',
+  },
+  docker_run: {
+    bg: 'bg-slate-50 dark:bg-slate-900',
+    border: 'border-slate-200 dark:border-slate-700',
+    icon: 'text-slate-500',
+  },
+  docker_stop: {
+    bg: 'bg-slate-50 dark:bg-slate-900',
+    border: 'border-slate-200 dark:border-slate-700',
+    icon: 'text-slate-500',
+  },
+  'redis.get': {
+    bg: 'bg-red-50 dark:bg-red-950',
+    border: 'border-red-200 dark:border-red-800',
+    icon: 'text-red-500',
+  },
+  'redis.set': {
+    bg: 'bg-red-50 dark:bg-red-950',
+    border: 'border-red-200 dark:border-red-800',
+    icon: 'text-red-500',
+  },
+  'redis.del': {
+    bg: 'bg-red-50 dark:bg-red-950',
+    border: 'border-red-200 dark:border-red-800',
+    icon: 'text-red-500',
+  },
+  'redis.exists': {
+    bg: 'bg-red-50 dark:bg-red-950',
+    border: 'border-red-200 dark:border-red-800',
+    icon: 'text-red-500',
+  },
+  'minio.put': {
+    bg: 'bg-amber-50 dark:bg-amber-950',
+    border: 'border-amber-200 dark:border-amber-800',
+    icon: 'text-amber-500',
+  },
+  'minio.get': {
+    bg: 'bg-amber-50 dark:bg-amber-950',
+    border: 'border-amber-200 dark:border-amber-800',
+    icon: 'text-amber-500',
+  },
+  'minio.delete': {
+    bg: 'bg-amber-50 dark:bg-amber-950',
+    border: 'border-amber-200 dark:border-amber-800',
+    icon: 'text-amber-500',
+  },
+  'minio.assert': {
+    bg: 'bg-amber-50 dark:bg-amber-950',
+    border: 'border-amber-200 dark:border-amber-800',
+    icon: 'text-amber-500',
+  },
+  'neo4j.query': {
+    bg: 'bg-sky-50 dark:bg-sky-950',
+    border: 'border-sky-200 dark:border-sky-800',
+    icon: 'text-sky-500',
+  },
+  'neo4j.assert': {
+    bg: 'bg-sky-50 dark:bg-sky-950',
+    border: 'border-sky-200 dark:border-sky-800',
+    icon: 'text-sky-500',
+  },
+  'otel.inject': {
+    bg: 'bg-indigo-50 dark:bg-indigo-950',
+    border: 'border-indigo-200 dark:border-indigo-800',
+    icon: 'text-indigo-500',
+  },
+  'otel.assert': {
+    bg: 'bg-indigo-50 dark:bg-indigo-950',
+    border: 'border-indigo-200 dark:border-indigo-800',
+    icon: 'text-indigo-500',
+  },
+  'postgresql.query': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  'postgresql.insert': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  'postgresql.update': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  'postgresql.delete': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  'postgresql.assert': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  'postgresql.execute': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  'postgresql.transaction': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  'postgresql.tables': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  'postgresql.columns': {
+    bg: 'bg-blue-50 dark:bg-blue-950',
+    border: 'border-blue-200 dark:border-blue-800',
+    icon: 'text-blue-600',
+  },
+  mock_server_configure: {
     bg: 'bg-pink-50 dark:bg-pink-950',
     border: 'border-pink-200 dark:border-pink-800',
     icon: 'text-pink-500',

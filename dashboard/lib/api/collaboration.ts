@@ -198,6 +198,10 @@ export async function compareFlowVersions(
   return response.data;
 }
 
+export async function restoreFlowVersion(flowId: string, version: number): Promise<void> {
+  await apiClient.post(`/api/v1/flows/${flowId}/versions/${version}/restore`);
+}
+
 // Event type constants
 export const EventTypes = {
   FLOW_CREATED: 'flow.created',

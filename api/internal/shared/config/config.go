@@ -18,6 +18,7 @@ type Config struct {
 	Graph       GraphConfig
 	MinIO       MinIOConfig
 	Logger      LoggerConfig
+	GitHub      GitHubAppConfig
 }
 
 // MinIOConfig holds MinIO/S3-compatible object storage configuration
@@ -100,6 +101,15 @@ type LoggerConfig struct {
 	OutputPath string
 }
 
+// GitHubAppConfig holds GitHub App credentials for OAuth and API access
+type GitHubAppConfig struct {
+	AppID         int64
+	PrivateKey    string // PEM-encoded RSA private key
+	ClientID      string
+	ClientSecret  string
+	WebhookSecret string
+}
+
 // Load loads configuration from environment variables and config files
 func Load() (*Config, error) {
 	viper.SetDefault("environment", "development")
@@ -155,6 +165,12 @@ func Load() (*Config, error) {
 	viper.SetDefault("minio.use_ssl", false)
 	viper.SetDefault("minio.bucket", "testmesh")
 	viper.SetDefault("minio.region", "")
+
+	viper.SetDefault("github.app_id", 0)
+	viper.SetDefault("github.private_key", "")
+	viper.SetDefault("github.client_id", "")
+	viper.SetDefault("github.client_secret", "")
+	viper.SetDefault("github.webhook_secret", "")
 
 	viper.SetDefault("logger.level", "info")
 	viper.SetDefault("logger.output_path", "stdout")
@@ -238,6 +254,13 @@ func Load() (*Config, error) {
 		Logger: LoggerConfig{
 			Level:      viper.GetString("logger.level"),
 			OutputPath: viper.GetString("logger.output_path"),
+		},
+		GitHub: GitHubAppConfig{
+			AppID:         viper.GetInt64("github.app_id"),
+			PrivateKey:    viper.GetString("github.private_key"),
+			ClientID:      viper.GetString("github.client_id"),
+			ClientSecret:  viper.GetString("github.client_secret"),
+			WebhookSecret: viper.GetString("github.webhook_secret"),
 		},
 	}
 

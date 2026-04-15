@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useIntegrations, useCreateIntegration, useUpdateSecrets } from '@/lib/hooks/useIntegrations';
+import { useIntegrations, useCreateIntegration, useUpdateSecrets, useGitHubAppStatus, useGitHubInstallations, useGitHubAuthorize } from '@/lib/hooks/useIntegrations';
+import { useActiveWorkspace } from '@/lib/hooks/useWorkspaces';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +14,9 @@ import { useToast } from '@/hooks/use-toast';
 import { TriggerRulesTable } from './TriggerRulesTable';
 
 export function GitIntegrationSection() {
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? '';
+
   const { data, isLoading } = useIntegrations({ type: 'git' });
   const createIntegration = useCreateIntegration();
   const updateSecrets = useUpdateSecrets();
@@ -25,6 +29,12 @@ export function GitIntegrationSection() {
 
   const integration = data?.integrations?.find(i => i.provider === 'github');
   const isConfigured = !!integration;
+
+  const { data: appStatus } = useGitHubAppStatus();
+  const isAppConfigured = appStatus?.configured ?? false;
+  const { data: installationsData } = useGitHubInstallations(workspaceId, isAppConfigured);
+  const authorize = useGitHubAuthorize(workspaceId);
+  const installations = installationsData?.installations ?? [];
 
   const webhookUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5016'}/api/v1/webhooks/github`;
 
@@ -110,6 +120,48 @@ export function GitIntegrationSection() {
 
   return (
     <div className="space-y-6">
+      {isAppConfigured && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Connect with GitHub</CardTitle>
+            <CardDescription>
+              Authorize TestMesh to access your GitHub repositories via the GitHub App.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isConfigured && integration?.config?.github_user_login ? (
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span className="text-sm">
+                  Connected as <strong>{integration.config.github_user_login}</strong>
+                </span>
+              </div>
+            ) : null}
+            <Button
+              onClick={() => authorize.mutate()}
+              disabled={authorize.isPending}
+              variant={isConfigured ? 'outline' : 'default'}
+            >
+              {authorize.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isConfigured ? 'Reconnect with GitHub' : 'Connect with GitHub'}
+            </Button>
+            {installations.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">App installed on:</p>
+                {installations.map(inst => (
+                  <div key={inst.id} className="flex items-center gap-2 text-sm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={inst.avatar_url} alt={inst.login} className="h-5 w-5 rounded-full" />
+                    <span>{inst.login}</span>
+                    <Badge variant="secondary">{inst.type}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Webhook Configuration */}
       <Card>
         <CardHeader>

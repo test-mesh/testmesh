@@ -204,6 +204,42 @@ func (r *IntegrationRepository) GetByTypeAndProviderWithSecrets(integrationType 
 	return integration, nil
 }
 
+// GetByTypeAndProviderForWorkspace gets an integration by type, provider, and workspace.
+func (r *IntegrationRepository) GetByTypeAndProviderForWorkspace(integrationType models.IntegrationType, provider models.IntegrationProvider, workspaceID uuid.UUID) (*models.SystemIntegration, error) {
+	var integration models.SystemIntegration
+	err := r.db.Where("type = ? AND provider = ? AND workspace_id = ? AND deleted_at IS NULL", integrationType, provider, workspaceID).
+		First(&integration).Error
+	if err != nil {
+		return nil, err
+	}
+	return &integration, nil
+}
+
+// GetByTypeAndProviderForWorkspaceWithSecrets gets an integration with secrets by type, provider, and workspace.
+func (r *IntegrationRepository) GetByTypeAndProviderForWorkspaceWithSecrets(integrationType models.IntegrationType, provider models.IntegrationProvider, workspaceID uuid.UUID) (*models.SystemIntegration, error) {
+	integration, err := r.GetByTypeAndProviderForWorkspace(integrationType, provider, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+
+	var secret models.IntegrationSecret
+	err = r.db.Where("integration_id = ?", integration.ID).First(&secret).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return integration, nil
+		}
+		return nil, fmt.Errorf("failed to load secrets: %w", err)
+	}
+
+	decrypted, err := r.encryption.Decrypt(secret.EncryptedData, secret.Nonce)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt secrets: %w", err)
+	}
+
+	integration.Secrets = decrypted
+	return integration, nil
+}
+
 // GetAllAIIntegrationsWithSecrets returns all active AI provider integrations with secrets
 func (r *IntegrationRepository) GetAllAIIntegrationsWithSecrets() ([]*models.SystemIntegration, error) {
 	integrations, err := r.ListByType(models.IntegrationTypeAIProvider, models.IntegrationStatusActive)

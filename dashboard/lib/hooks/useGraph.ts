@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   graphApi,
+  mergeJobsApi,
   type CreateRepoRequest,
   type ListNodesParams,
   type UpdateRepoRequest,
@@ -144,6 +145,31 @@ export function useResolveConflict() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: graphKeys.conflicts() });
       qc.invalidateQueries({ queryKey: graphKeys.stats() });
+    },
+  });
+}
+
+// ── Merge Jobs ────────────────────────────────────────────────────────────────
+
+export function useMergeJobs(workspaceId: string) {
+  return useQuery({
+    queryKey: ['graph', 'merge-jobs', workspaceId],
+    queryFn: () => mergeJobsApi.list(workspaceId),
+    refetchInterval: (query) => {
+      const jobs = query.state.data?.merge_jobs ?? [];
+      return jobs.some(j => j.status === 'running' || j.status === 'pending') ? 3000 : false;
+    },
+    staleTime: 5000,
+    enabled: !!workspaceId,
+  });
+}
+
+export function useTriggerMerge(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => mergeJobsApi.trigger(workspaceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['graph', 'merge-jobs', workspaceId] });
     },
   });
 }

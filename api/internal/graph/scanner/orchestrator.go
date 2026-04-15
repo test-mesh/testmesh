@@ -14,6 +14,7 @@ import (
 type Orchestrator struct {
 	engine      graph.Engine
 	mergeEngine *graph.MergeEngine
+	merger      *CrossRepoMerger
 	scanners    []Scanner
 	logger      *zap.Logger
 }
@@ -21,10 +22,11 @@ type Orchestrator struct {
 // NewOrchestrator creates a scanner orchestrator.
 // Scanners should be provided in execution order (infra → spec → code → flow).
 // If mergeEngine is nil, results are bulk-upserted directly without merge resolution.
-func NewOrchestrator(engine graph.Engine, mergeEngine *graph.MergeEngine, scanners []Scanner, logger *zap.Logger) *Orchestrator {
+func NewOrchestrator(engine graph.Engine, mergeEngine *graph.MergeEngine, merger *CrossRepoMerger, scanners []Scanner, logger *zap.Logger) *Orchestrator {
 	return &Orchestrator{
 		engine:      engine,
 		mergeEngine: mergeEngine,
+		merger:      merger,
 		scanners:    scanners,
 		logger:      logger,
 	}
@@ -126,6 +128,11 @@ func (o *Orchestrator) RunFullScan(ctx context.Context, input ScanInput) (*graph
 		zap.Int("edges_added", edgesAdded),
 		zap.Int("warnings", len(combined.Warnings)),
 	)
+
+	// Trigger cross-repo dependency merge in background
+	if o.merger != nil {
+		go o.merger.EnqueueForWorkspace(context.Background(), input.WorkspaceID, scan.ID)
+	}
 
 	return scan, nil
 }

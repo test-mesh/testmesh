@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -22,15 +23,19 @@ type GraphHandler struct {
 	engine       graph.Engine
 	orchestrator *scanner.Orchestrator
 	repoManager  *graphrepo.Manager
+	merger       *scanner.CrossRepoMerger
+	db           *gorm.DB
 	logger       *zap.Logger
 }
 
 // NewGraphHandler creates a new graph handler.
-func NewGraphHandler(engine graph.Engine, orchestrator *scanner.Orchestrator, repoManager *graphrepo.Manager, logger *zap.Logger) *GraphHandler {
+func NewGraphHandler(engine graph.Engine, orchestrator *scanner.Orchestrator, repoManager *graphrepo.Manager, merger *scanner.CrossRepoMerger, db *gorm.DB, logger *zap.Logger) *GraphHandler {
 	return &GraphHandler{
 		engine:       engine,
 		orchestrator: orchestrator,
 		repoManager:  repoManager,
+		merger:       merger,
+		db:           db,
 		logger:       logger,
 	}
 }
@@ -640,4 +645,34 @@ func (h *GraphHandler) GetStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, stats)
+}
+
+// ListMergeJobs handles GET /graph/merge-jobs
+func (h *GraphHandler) ListMergeJobs(c *gin.Context) {
+	workspaceID := middleware.GetWorkspaceID(c)
+
+	var jobs []graph.WorkspaceMergeJob
+	if err := h.db.Where("workspace_id = ?", workspaceID).
+		Order("started_at DESC").
+		Limit(20).
+		Find(&jobs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list merge jobs"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"merge_jobs": jobs, "total": len(jobs)})
+}
+
+// TriggerMerge handles POST /graph/merge
+func (h *GraphHandler) TriggerMerge(c *gin.Context) {
+	workspaceID := middleware.GetWorkspaceID(c)
+
+	if h.merger == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "merger not configured"})
+		return
+	}
+
+	go h.merger.EnqueueForWorkspace(context.Background(), workspaceID, uuid.Nil)
+
+	c.JSON(http.StatusAccepted, gin.H{"message": "merge triggered"})
 }
