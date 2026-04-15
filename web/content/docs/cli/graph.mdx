@@ -22,7 +22,7 @@ All subcommands accept a global `--api-url` flag (default `http://localhost:5016
 
 ---
 
-## `graph scan` {#scan}
+## `graph scan`
 
 Scan a local directory or remote Git repository. TestMesh walks source files to discover services, HTTP routes, database access, message queue producers/consumers, and inter-service calls, then writes the results to the API.
 
@@ -66,7 +66,7 @@ Graph stored. Run `testmesh graph status` for a summary.
 
 ---
 
-## `graph status` {#status}
+## `graph status`
 
 Print a high-level summary of the current graph: node counts by type, edge count, coverage percentage, and number of unresolved conflicts.
 
@@ -94,7 +94,7 @@ System Graph Status
 
 ---
 
-## `graph services` {#services}
+## `graph services`
 
 List every service discovered in the graph with its language, framework, and the number of inbound and outbound edges.
 
@@ -117,7 +117,7 @@ testmesh graph services
 
 ---
 
-## `graph show` {#show}
+## `graph show`
 
 Show detailed metadata for a single node — its type, source location, properties, and all inbound and outbound dependency edges.
 
@@ -151,7 +151,7 @@ Depended on by (inbound)
 
 ---
 
-## `graph coverage` {#coverage}
+## `graph coverage`
 
 Show what percentage of graph nodes have at least one test flow covering them, and list all uncovered nodes.
 
@@ -179,7 +179,7 @@ Uncovered Nodes (40)
 
 ---
 
-## `graph search` {#search}
+## `graph search`
 
 Search for nodes by name, type, or keyword. Results are displayed in a table.
 
@@ -210,7 +210,7 @@ Results for "order" (7 matches)
 
 ---
 
-## `graph conflicts` {#conflicts}
+## `graph conflicts`
 
 List nodes or edges where the graph has detected merge conflicts — typically from concurrent scans of different branches that produced incompatible definitions.
 
@@ -242,7 +242,7 @@ Resolve conflicts before merging to avoid test coverage gaps.
 
 ---
 
-## `graph export` {#export}
+## `graph export`
 
 Export the full graph in a machine-readable or visualization format.
 
