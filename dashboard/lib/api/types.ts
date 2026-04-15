@@ -711,3 +711,93 @@ export interface ReorderItemsRequest {
     sort_order: number;
   }>;
 }
+
+// ─── Telemetry / Tracing ───────────────────────────────────────────────────
+
+export interface SpanEvent {
+  name: string;
+  timestamp: string;
+  attributes: Record<string, unknown>;
+}
+
+export interface Span {
+  id: string;
+  workspace_id: string;
+  trace_id: string;
+  span_id: string;
+  parent_span_id: string | null;
+  service: string;
+  operation: string;
+  kind: 'client' | 'server' | 'producer' | 'consumer' | 'internal';
+  status_code: 'ok' | 'error' | 'unset';
+  status_message: string;
+  start_time: string;
+  end_time: string;
+  duration_ms: number;
+  attributes: Record<string, unknown>;
+  resource_attrs: Record<string, unknown>;
+  events: SpanEvent[];
+}
+
+export interface ValidationViolation {
+  type: 'missing_node' | 'unexpected_node' | 'order_violation' | 'slow_span' | 'error_span';
+  span_id?: string;
+  service?: string;
+  operation?: string;
+  details: string;
+}
+
+export interface TraceValidation {
+  id: string;
+  execution_id: string;
+  workspace_id: string;
+  trace_id: string;
+  status: 'passed' | 'failed' | 'partial';
+  path_match: boolean;
+  missing_nodes: string[];
+  unexpected_nodes: string[];
+  order_violations: string[];
+  slow_spans: string[];
+  error_spans: string[];
+  failed_assertions: ValidationViolation[];
+}
+
+export interface DiscoveredFlow {
+  id: string;
+  workspace_id: string;
+  fingerprint: string;
+  name: string;
+  entry_service: string;
+  entry_operation: string;
+  graph_path: unknown;
+  occurrence_count: number;
+  last_seen_at: string;
+  avg_duration_ms: number;
+  p95_duration_ms: number;
+  error_rate: number;
+  risk_score: number;
+  drifted: boolean;
+  drift_details: string;
+}
+
+export interface DriftAlert {
+  id: string;
+  name: string;
+  drift_details: string;
+  last_seen_at: string;
+  entry_service: string;
+  occurrence_count: number;
+}
+
+export interface ListSpansResponse {
+  spans: Span[];
+}
+
+export interface ListDiscoveredFlowsResponse {
+  flows: DiscoveredFlow[];
+  total: number;
+}
+
+export interface ListDriftAlertsResponse {
+  flows: DiscoveredFlow[];
+}
