@@ -7,6 +7,16 @@ These commands handle project setup, server integration, reporting, and extensib
 
 ## Command Reference
 
+### `graph`
+
+Scan repositories and interact with the system graph. See the [System Graph](/docs/cli/graph) reference for full documentation.
+
+```bash
+testmesh graph scan .
+testmesh graph status
+testmesh graph coverage
+```
+
 ### `init`
 
 Initialize a new TestMesh project in the current directory. Creates a `testmesh.yaml` config file and an `examples/` directory with a starter flow.
@@ -148,6 +158,7 @@ testmesh mcp --workspace ./flows/
 
 | Command | Requires Server | Description |
 |---------|----------------|-------------|
+| `graph` | No | Scan repos and manage system graph |
 | `init` | No | Create a new project skeleton |
 | `login` | Yes | Authenticate with a TestMesh server |
 | `report` | Yes | View and export execution reports |

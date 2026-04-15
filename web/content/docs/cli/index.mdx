@@ -7,7 +7,7 @@ The TestMesh CLI is a standalone tool that parses and executes flow YAML files d
 
 ## Installation
 
-<Tabs items={["Homebrew", "curl", "npm", "go install", "Build from Source"]}>
+<Tabs items={["Homebrew", "curl", "npm", "Build from Source"]}>
   <Tab value="Homebrew">
     ```bash
     brew install test-mesh/brew/testmesh
@@ -22,13 +22,7 @@ The TestMesh CLI is a standalone tool that parses and executes flow YAML files d
   </Tab>
   <Tab value="npm">
     ```bash
-    npm install -g testmesh
-    testmesh --help
-    ```
-  </Tab>
-  <Tab value="go install">
-    ```bash
-    go install github.com/test-mesh/testmesh/cli@latest
+    npm install -g @testmesh/cli
     testmesh --help
     ```
   </Tab>
@@ -52,6 +46,7 @@ The TestMesh CLI is a standalone tool that parses and executes flow YAML files d
 | [`generate`](/docs/cli/generate) | AI-powered flow generation from specs or descriptions |
 | [`chat`](/docs/cli/chat) | Conversational test creation with AI |
 | [`mock`](/docs/cli/mock) | Start a local mock HTTP server |
+| [`graph`](/docs/cli/graph) | Scan repos, view services, check coverage |
 | [`init`](/docs/cli/other-commands) | Initialize a new TestMesh project |
 | [`login`](/docs/cli/other-commands) | Authenticate with a TestMesh server |
 | [`report`](/docs/cli/other-commands) | View execution reports |
@@ -60,6 +55,14 @@ The TestMesh CLI is a standalone tool that parses and executes flow YAML files d
 | [`config`](/docs/cli/other-commands) | Manage CLI configuration |
 | [`schedule`](/docs/cli/other-commands) | Manage scheduled flows |
 | [`mcp`](/docs/cli/other-commands) | Start the MCP server for AI integration |
+
+## Global Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--api-url` | `http://localhost:5016` | TestMesh API URL — point this at a remote instance |
+| `--config` | `.testmesh.yaml` | Config file path |
+| `--verbose` / `-v` | false | Enable verbose output |
 
 ## Environment Variables
 

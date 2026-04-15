@@ -38,7 +38,7 @@ Grafana comes pre-configured with Tempo, Loki, and Prometheus as datasources.
 
 ## Install the CLI
 
-<Tabs items={["Homebrew", "Windows", "curl", "npm", "Install via Go", "Build from Source"]}>
+<Tabs items={["Homebrew", "Windows", "curl", "npm", "Build from Source"]}>
   <Tab value="Homebrew">
     ```bash
     brew install test-mesh/brew/testmesh
@@ -97,19 +97,6 @@ Grafana comes pre-configured with Tempo, Loki, and Prometheus as datasources.
 
     ```bash
     npx @testmesh/cli run ./flow.yaml
-    ```
-  </Tab>
-  <Tab value="Install via Go">
-    Install the latest released version directly with `go install`:
-
-    ```bash
-    go install github.com/test-mesh/testmesh/cli@latest
-    ```
-
-    Verify the installation:
-
-    ```bash
-    testmesh --help
     ```
   </Tab>
   <Tab value="Build from Source">

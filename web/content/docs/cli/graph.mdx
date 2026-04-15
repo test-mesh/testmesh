@@ -1,0 +1,304 @@
+---
+title: System Graph
+description: Scan repositories to build a system graph of services, APIs, databases, and their relationships. Use coverage and conflict detection to guide test planning.
+---
+
+The `testmesh graph` commands let you scan local directories or remote Git repositories to build a system graph — a structured map of services, API endpoints, database tables, queues, and their relationships. Use coverage and conflict detection to prioritize test writing and surface gaps before they become incidents.
+
+## Commands
+
+| Subcommand | Description |
+|------------|-------------|
+| [`graph scan`](#scan) | Scan a directory or remote repo to build the graph |
+| [`graph status`](#status) | Show node, edge, coverage, and conflict statistics |
+| [`graph services`](#services) | List all discovered services in a table |
+| [`graph show`](#show) | Inspect a specific node and its dependencies |
+| [`graph coverage`](#coverage) | Show coverage percentage and uncovered nodes |
+| [`graph search`](#search) | Search across all graph nodes |
+| [`graph conflicts`](#conflicts) | List merge conflicts detected in the graph |
+| [`graph export`](#export) | Export the graph to JSON, DOT, or Mermaid format |
+
+All subcommands accept a global `--api-url` flag (default `http://localhost:5016`) to connect to a TestMesh API server.
+
+---
+
+## `graph scan` {#scan}
+
+Scan a local directory or remote Git repository. TestMesh walks source files to discover services, HTTP routes, database access, message queue producers/consumers, and inter-service calls, then writes the results to the API.
+
+```bash
+# Scan the current directory
+testmesh graph scan .
+
+# Scan a subdirectory
+testmesh graph scan ./services/order-service
+
+# Scan a remote public repo
+testmesh graph scan --url https://github.com/my-org/my-repo
+
+# Scan a private repo with a PAT
+testmesh graph scan --url https://github.com/my-org/private-repo --token ghp_xxxx
+
+# Scan a private repo via SSH
+testmesh graph scan --url git@github.com:my-org/private-repo --ssh-key ~/.ssh/id_ed25519
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--url` | Remote Git URL to clone and scan (HTTPS or SSH) |
+| `--token` | Personal Access Token for private HTTPS repos |
+| `--ssh-key` | Path to SSH private key for private SSH repos |
+
+### Example Output
+
+```
+Scanning ./services ...
+  Discovered  12 services
+  Discovered  84 API routes
+  Discovered  23 database tables
+  Discovered   6 Kafka topics
+  Discovered  47 inter-service edges
+
+Graph stored. Run `testmesh graph status` for a summary.
+```
+
+---
+
+## `graph status` {#status}
+
+Print a high-level summary of the current graph: node counts by type, edge count, coverage percentage, and number of unresolved conflicts.
+
+```bash
+testmesh graph status
+```
+
+### Example Output
+
+```
+System Graph Status
+───────────────────────────────
+  Nodes
+    Services        12
+    API Routes      84
+    DB Tables       23
+    Queues           6
+  Total Nodes      125
+  Total Edges       47
+───────────────────────────────
+  Coverage        68.0%   (85 / 125 nodes covered)
+  Conflicts            3  unresolved
+───────────────────────────────
+```
+
+---
+
+## `graph services` {#services}
+
+List every service discovered in the graph with its language, framework, and the number of inbound and outbound edges.
+
+```bash
+testmesh graph services
+```
+
+### Example Output
+
+```
+┌─────────────────────┬──────────┬───────────┬─────────┬──────────┐
+│ Service             │ Language │ Framework │ Inbound │ Outbound │
+├─────────────────────┼──────────┼───────────┼─────────┼──────────┤
+│ order-service       │ Go       │ net/http  │       3 │        4 │
+│ user-service        │ Go       │ net/http  │       5 │        1 │
+│ product-service     │ Go       │ net/http  │       4 │        2 │
+│ notification-service│ Go       │ net/http  │       2 │        0 │
+└─────────────────────┴──────────┴───────────┴─────────┴──────────┘
+```
+
+---
+
+## `graph show` {#show}
+
+Show detailed metadata for a single node — its type, source location, properties, and all inbound and outbound dependency edges.
+
+```bash
+testmesh graph show <node-id>
+```
+
+### Example
+
+```bash
+testmesh graph show order-service::POST /orders
+```
+
+```
+Node: order-service::POST /orders
+  Type        API Route
+  Service     order-service
+  Method      POST
+  Path        /orders
+  Source      services/order-service/handlers/order.go:42
+
+Dependencies (outbound)
+  → product-service::GET /products/{id}   [http_call]
+  → user-service::GET /users/{id}         [http_call]
+  → order_service.orders                  [db_write]
+  → orders.created                        [kafka_produce]
+
+Depended on by (inbound)
+  ← api-gateway::POST /v1/orders          [http_call]
+```
+
+---
+
+## `graph coverage` {#coverage}
+
+Show what percentage of graph nodes have at least one test flow covering them, and list all uncovered nodes.
+
+```bash
+testmesh graph coverage
+```
+
+### Example Output
+
+```
+Coverage: 68.0%  (85 / 125 nodes covered)
+
+Uncovered Nodes (40)
+──────────────────────────────────────────────
+  notification-service::POST /notifications
+  notification-service::GET  /notifications/{id}
+  order_service.order_items                      [DB Table]
+  payments                                       [Kafka Topic]
+  ...
+```
+
+<Callout type="tip">
+  Pipe the output into your CI script to fail the build when coverage drops below a threshold. Use `--api-url` to point at a shared server so all team members share the same graph state.
+</Callout>
+
+---
+
+## `graph search` {#search}
+
+Search for nodes by name, type, or keyword. Results are displayed in a table.
+
+```bash
+testmesh graph search <query>
+```
+
+### Example
+
+```bash
+testmesh graph search "order"
+```
+
+```
+Results for "order" (7 matches)
+┌────────────────────────────────────┬───────────┬─────────────────┐
+│ Node ID                            │ Type      │ Service         │
+├────────────────────────────────────┼───────────┼─────────────────┤
+│ order-service::POST /orders        │ API Route │ order-service   │
+│ order-service::GET  /orders/{id}   │ API Route │ order-service   │
+│ order-service::DELETE /orders/{id} │ API Route │ order-service   │
+│ order_service.orders               │ DB Table  │ order-service   │
+│ order_service.order_items          │ DB Table  │ order-service   │
+│ orders.created                     │ Queue     │ order-service   │
+│ orders.cancelled                   │ Queue     │ order-service   │
+└────────────────────────────────────┴───────────┴─────────────────┘
+```
+
+---
+
+## `graph conflicts` {#conflicts}
+
+List nodes or edges where the graph has detected merge conflicts — typically from concurrent scans of different branches that produced incompatible definitions.
+
+```bash
+testmesh graph conflicts
+```
+
+### Example Output
+
+```
+3 Conflicts Detected
+──────────────────────────────────────────────────────
+  1. order-service::POST /orders
+     Conflict: route signature changed between main and feature/payments
+     main:    POST /orders  → body: { user_id, items }
+     feature: POST /orders  → body: { user_id, items, payment_method }
+
+  2. order_service.orders
+     Conflict: column added in feature/payments not present in main
+     Added column: payment_method (varchar)
+
+  3. orders.created
+     Conflict: message schema diverged
+     main:    { order_id, user_id, total }
+     feature: { order_id, user_id, total, payment_method }
+──────────────────────────────────────────────────────
+Resolve conflicts before merging to avoid test coverage gaps.
+```
+
+---
+
+## `graph export` {#export}
+
+Export the full graph in a machine-readable or visualization format.
+
+```bash
+# Export as JSON (default)
+testmesh graph export
+
+# Export as DOT (for Graphviz)
+testmesh graph export --format dot > graph.dot
+
+# Export as Mermaid diagram
+testmesh graph export --format mermaid > graph.md
+```
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format` | `json` | Output format: `json`, `dot`, or `mermaid` |
+
+### Example: Mermaid Output
+
+```
+graph LR
+  order-service --> user-service
+  order-service --> product-service
+  order-service --> order_service.orders
+  order-service --> orders.created
+  api-gateway --> order-service
+```
+
+Paste the Mermaid output directly into GitHub Markdown, Notion, or any Mermaid-compatible renderer.
+
+---
+
+## Connecting to a Remote TestMesh Server
+
+By default all `graph` commands talk to a local API at `http://localhost:5016`. Point them at a shared or remote instance with `--api-url`:
+
+```bash
+testmesh graph scan . --api-url https://testmesh.example.com
+testmesh graph status --api-url https://testmesh.example.com
+testmesh graph coverage --api-url https://testmesh.example.com
+```
+
+You can set the URL once in your config file so you don't need to repeat it:
+
+```bash
+testmesh config set server.url https://testmesh.example.com
+```
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Git Integration" href="/docs/features/git-integration" description="Connect repos, trigger scans on PR events, and write analysis back as PR comments." />
+  <Card title="Embeddings & Semantic Search" href="/docs/features/embeddings" description="Vector search over graph nodes and flows powered by pgvector." />
+</Cards>
