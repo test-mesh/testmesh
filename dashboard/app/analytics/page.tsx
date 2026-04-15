@@ -13,11 +13,12 @@ import { Progress } from '@/components/ui/progress';
 import { TrendChart } from '@/components/analytics/TrendChart';
 import { FlakinessTable } from '@/components/analytics/FlakinessTable';
 import { MetricsSummary } from '@/components/analytics/MetricsCard';
-import { useMetrics, useTrends, useFlakiness, useTriggerAggregation } from '@/lib/hooks/useReports';
+import { DiscoveredFlowsTable } from '@/components/analytics/DiscoveredFlowsTable';
+import { DriftAlerts } from '@/components/analytics/DriftAlerts';
+import { useMetrics, useTrends, useFlakiness, useTriggerAggregation, useGenerateReport, useDownloadReport, useReports, useReport } from '@/lib/hooks/useReports';
 import { useAnalyzeCoverage, useCoverageAnalyses } from '@/lib/hooks/useAI';
 import { getActiveWorkspaceId } from '@/lib/hooks/useWorkspaces';
 import {
-  BarChart3,
   TrendingUp,
   AlertTriangle,
   RefreshCw,
@@ -37,8 +38,19 @@ import {
   ChevronDown,
   ChevronRight,
   History,
+  Download,
+  FileDown,
 } from 'lucide-react';
-import type { GetFlakinessResponse, AnalyzeCoverageResponse, EndpointCoverage } from '@/lib/api/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import type { GetFlakinessResponse, AnalyzeCoverageResponse, EndpointCoverage, ReportFormat } from '@/lib/api/types';
 
 // ── Coverage sub-components ───────────────────────────────────────────────────
 
@@ -177,6 +189,42 @@ export default function AnalyticsPage() {
   const { data: flakinessData, isLoading: flakinessLoading } = useFlakiness({ limit: 10 });
   const triggerAggregation = useTriggerAggregation();
 
+  // Export dialog state
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<ReportFormat>('html');
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+
+  const generateReport = useGenerateReport();
+  const downloadReport = useDownloadReport();
+  const { data: recentReportsData } = useReports({ limit: 5 });
+  const recentReports = recentReportsData?.reports || [];
+
+  const { data: generatingReport } = useReport(generatingId ?? '');
+
+  const handleExport = () => {
+    generateReport.mutate(
+      {
+        name: `Analytics Export ${new Date().toISOString().split('T')[0]}`,
+        format: exportFormat,
+        start_date: startDate,
+        end_date: endDate,
+      },
+      {
+        onSuccess: (report) => {
+          setGeneratingId(report.id);
+        },
+      }
+    );
+  };
+
+  const handleDownloadGenerated = () => {
+    if (!generatingReport) return;
+    const ext = generatingReport.format === 'junit' ? 'xml' : generatingReport.format;
+    downloadReport.mutate({ id: generatingReport.id, filename: `${generatingReport.name}.${ext}` });
+    setGeneratingId(null);
+    setExportDialogOpen(false);
+  };
+
   const handleRefreshData = () => {
     triggerAggregation.mutate({ start_date: startDate, end_date: endDate });
   };
@@ -216,6 +264,116 @@ export default function AnalyticsPage() {
               <SelectItem value="90">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
+          <Dialog open={exportDialogOpen} onOpenChange={(open) => {
+            if (!open) {
+              setGeneratingId(null);
+              setExportFormat('html');
+            }
+            setExportDialogOpen(open);
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <FileDown className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Export Report</DialogTitle>
+                <DialogDescription>
+                  Generate a report for the currently selected date range ({startDate} to {endDate}).
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Format selector */}
+              <div className="space-y-2">
+                <Label>Format</Label>
+                <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as ReportFormat)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="html">HTML (with charts)</SelectItem>
+                    <SelectItem value="json">JSON (raw data)</SelectItem>
+                    <SelectItem value="junit">JUnit XML (CI/CD)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Generation status */}
+              {generatingId && generatingReport && (
+                <div className="rounded-md border p-3 space-y-2">
+                  {generatingReport.status === 'completed' ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-green-600 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Report ready
+                      </span>
+                      <Button size="sm" onClick={handleDownloadGenerated}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download
+                      </Button>
+                    </div>
+                  ) : generatingReport.status === 'failed' ? (
+                    <p className="text-sm text-red-600 flex items-center gap-2">
+                      <XCircle className="h-4 w-4" />
+                      {generatingReport.error || 'Generation failed'}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {generatingReport.status === 'generating' ? 'Generating…' : 'Queued…'}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Recent exports */}
+              {recentReports.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Recent Exports</Label>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {recentReports.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs text-muted-foreground uppercase font-mono">{r.format}</span>
+                          <span className="truncate">{r.name}</span>
+                        </div>
+                        {r.status === 'completed' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              const ext = r.format === 'junit' ? 'xml' : r.format;
+                              downloadReport.mutate({ id: r.id, filename: `${r.name}.${ext}` });
+                            }}
+                          >
+                            <Download className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleExport}
+                  disabled={generateReport.isPending || (!!generatingId && generatingReport?.status !== 'completed' && generatingReport?.status !== 'failed')}
+                >
+                  {generateReport.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating…</>
+                  ) : (
+                    <><FileDown className="h-4 w-4 mr-2" />Generate</>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" onClick={handleRefreshData} disabled={triggerAggregation.isPending}>
             <RefreshCw className={`h-4 w-4 mr-2 ${triggerAggregation.isPending ? 'animate-spin' : ''}`} />
             Refresh Data
@@ -235,7 +393,7 @@ export default function AnalyticsPage() {
       )}
 
       {/* Quick Navigation Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6 mb-8">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-6 mb-8">
         <Link href="/analytics/trends">
           <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -256,18 +414,6 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">Identify and track unreliable tests</p>
-              <div className="flex items-center text-sm text-primary mt-2">View Details <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/reports">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Reports</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Generate and download detailed reports</p>
               <div className="flex items-center text-sm text-primary mt-2">View Details <ArrowRight className="h-4 w-4 ml-1" /></div>
             </CardContent>
           </Card>
@@ -377,6 +523,7 @@ export default function AnalyticsPage() {
             <Target className="h-4 w-4 mr-2" />
             Coverage
           </TabsTrigger>
+          <TabsTrigger value="telemetry">Telemetry</TabsTrigger>
         </TabsList>
 
         <TabsContent value="trends" className="space-y-4">
@@ -506,6 +653,17 @@ export default function AnalyticsPage() {
               )}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="telemetry" className="space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold mb-3">Discovered Flows</h3>
+            <DiscoveredFlowsTable />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold mb-3">Drift Alerts</h3>
+            <DriftAlerts />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
