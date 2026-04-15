@@ -13,13 +13,17 @@ import type {
   GetLogsResponse,
   HealthResponse,
   ExecutionStatus,
+  TraceValidation,
+  ListSpansResponse,
+  ListDiscoveredFlowsResponse,
+  ListDriftAlertsResponse,
 } from './types';
 
 // API Configuration
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5016';
 
 // Paths that should be workspace-scoped
-const WORKSPACE_SCOPED_PATHS = ['/flows', '/collections', '/environments', '/executions', '/import', '/export', '/reports', '/ai-config', '/datasets', '/graph'];
+const WORKSPACE_SCOPED_PATHS = ['/flows', '/collections', '/environments', '/executions', '/import', '/export', '/reports', '/ai-config', '/datasets', '/graph', '/telemetry'];
 
 // Check if a path should be workspace-scoped
 const isWorkspaceScopedPath = (url: string): boolean => {
@@ -205,11 +209,51 @@ export const executionApi = {
   },
 };
 
+// Telemetry API
+export const telemetryApi = {
+  getTraceValidation: async (executionId: string): Promise<TraceValidation> => {
+    const response = await apiClient.get<TraceValidation>(
+      `/api/v1/executions/${executionId}/trace-validation`
+    );
+    return response.data;
+  },
+
+  getSpans: async (params: {
+    trace_id?: string;
+    service?: string;
+    operation?: string;
+    status?: string;
+  }): Promise<ListSpansResponse> => {
+    const response = await apiClient.get<ListSpansResponse>('/api/v1/telemetry/spans', { params });
+    return response.data;
+  },
+
+  getDiscoveredFlows: async (params?: { drifted?: boolean }): Promise<ListDiscoveredFlowsResponse> => {
+    const response = await apiClient.get<ListDiscoveredFlowsResponse>('/api/v1/telemetry/flows', {
+      params,
+    });
+    return response.data;
+  },
+
+  getDriftAlerts: async (): Promise<ListDriftAlertsResponse> => {
+    const response = await apiClient.get<ListDriftAlertsResponse>('/api/v1/telemetry/drift');
+    return response.data;
+  },
+
+  exportDiscoveredFlow: async (flowId: string): Promise<string> => {
+    const response = await apiClient.post<string>(
+      `/api/v1/telemetry/flows/${flowId}/export`
+    );
+    return response.data;
+  },
+};
+
 // Export a default API object with all endpoints
 const api = {
   health: healthApi,
   flows: flowApi,
   executions: executionApi,
+  telemetry: telemetryApi,
 };
 
 export default api;
