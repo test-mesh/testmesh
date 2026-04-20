@@ -89,7 +89,13 @@ export default function CoveragePage() {
     }
   };
 
-  const handleSaveFlow = (_yaml: string) => {
+  const handleSaveFlow = (yaml: string) => {
+    // Persist YAML so /flows/new can pre-populate the editor on mount
+    try {
+      localStorage.setItem('testmesh:new-flow-yaml', yaml);
+    } catch {
+      // localStorage unavailable (SSR, private mode) — navigate anyway
+    }
     router.push('/flows/new');
     setGeneratedFlow(null);
   };
@@ -143,7 +149,7 @@ export default function CoveragePage() {
           <TabsTrigger value="all">All</TabsTrigger>
         </TabsList>
 
-        <TabsContent value={tab}>
+        <TabsContent key={tab} value={tab}>
           <Card>
             <CardHeader>
               <CardTitle>Endpoints</CardTitle>
