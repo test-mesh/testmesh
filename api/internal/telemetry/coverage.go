@@ -89,7 +89,7 @@ func (c *CoverageIndexer) Update(ctx context.Context, workspaceID uuid.UUID, tra
 				updated_at       = EXCLUDED.updated_at
 		`,
 			workspaceID, s.Service, s.Operation, method, route,
-			errorInc, float64(s.DurationMs), now, traceID, now, now,
+			errorInc, float64(s.DurationMs), now, traceID, now,
 		).Error
 		if err != nil {
 			c.logger.Warn("failed to upsert coverage gap",

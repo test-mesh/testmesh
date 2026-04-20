@@ -38,7 +38,7 @@ func (a *GORMExecRepoAdapter) GetByTraceID(ctx context.Context, traceID string) 
 	err := a.db.WithContext(ctx).
 		Raw(`SELECT e.id, e.flow_id, e.status, f.workspace_id
 			   FROM executions.executions e
-			   JOIN flows f ON f.id = e.flow_id
+			   JOIN flows.flows f ON f.id = e.flow_id
 			  WHERE e.trace_id = ?
 			  LIMIT 1`, traceID).
 		Scan(&r).Error
