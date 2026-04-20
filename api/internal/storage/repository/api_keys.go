@@ -65,7 +65,7 @@ func (r *APIKeyRepository) ResolveKey(ctx context.Context, plaintext string) (uu
 	}
 
 	now := time.Now()
-	go r.db.Model(&key).Update("last_used_at", now) //nolint:errcheck
+	go r.db.WithContext(context.Background()).Model(&key).Update("last_used_at", now) //nolint:errcheck
 
 	return key.WorkspaceID, nil
 }
