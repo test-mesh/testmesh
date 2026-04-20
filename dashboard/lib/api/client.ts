@@ -17,6 +17,10 @@ import type {
   ListSpansResponse,
   ListDiscoveredFlowsResponse,
   ListDriftAlertsResponse,
+  CoverageGap,
+  CoverageGapsResponse,
+  TraceGenerateFlowResponse,
+  RepairSuggestion,
 } from './types';
 
 // API Configuration
@@ -246,6 +250,44 @@ export const telemetryApi = {
       `/api/v1/telemetry/flows/${flowId}/export`
     );
     return response.data.yaml;
+  },
+
+  generateFlow: async (workspaceId: string, traceId: string): Promise<TraceGenerateFlowResponse> => {
+    const response = await apiClient.post<TraceGenerateFlowResponse>(
+      `/api/v1/workspaces/${workspaceId}/telemetry/traces/${traceId}/generate-flow`
+    );
+    return response.data;
+  },
+
+  getCoverageGaps: async (workspaceId: string, params?: {
+    uncovered?: boolean;
+    sort?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<CoverageGapsResponse> => {
+    const response = await apiClient.get<CoverageGapsResponse>(
+      `/api/v1/workspaces/${workspaceId}/telemetry/coverage-gaps`,
+      { params }
+    );
+    return response.data;
+  },
+
+  getRepairSuggestions: async (workspaceId: string, executionId: string): Promise<{ suggestions: RepairSuggestion[] }> => {
+    const response = await apiClient.get<{ suggestions: RepairSuggestion[] }>(
+      `/api/v1/workspaces/${workspaceId}/executions/${executionId}/repair-suggestions`
+    );
+    return response.data;
+  },
+
+  applyRepairSuggestion: async (workspaceId: string, suggestionId: string): Promise<RepairSuggestion> => {
+    const response = await apiClient.post<RepairSuggestion>(
+      `/api/v1/workspaces/${workspaceId}/repair-suggestions/${suggestionId}/apply`
+    );
+    return response.data;
+  },
+
+  dismissRepairSuggestion: async (workspaceId: string, suggestionId: string): Promise<void> => {
+    await apiClient.post(`/api/v1/workspaces/${workspaceId}/repair-suggestions/${suggestionId}/dismiss`);
   },
 };
 

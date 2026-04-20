@@ -8,6 +8,7 @@ export const telemetryKeys = {
   spans: (params: Record<string, unknown>) => [...telemetryKeys.all, 'spans', params] as const,
   discoveredFlows: (params?: { drifted?: boolean }) => [...telemetryKeys.all, 'discovered-flows', params] as const,
   driftAlerts: () => [...telemetryKeys.all, 'drift-alerts'] as const,
+  repairSuggestions: (workspaceId: string, executionId: string) => [...telemetryKeys.all, 'repair', workspaceId, executionId] as const,
 };
 
 // Hooks for telemetry data
@@ -50,5 +51,32 @@ export function useDriftAlerts() {
 export function useExportDiscoveredFlow() {
   return useMutation({
     mutationFn: (flowId: string) => telemetryApi.exportDiscoveredFlow(flowId),
+  });
+}
+
+export function useRepairSuggestions(workspaceId: string | null, executionId: string) {
+  return useQuery({
+    queryKey: telemetryKeys.repairSuggestions(workspaceId ?? '', executionId),
+    queryFn: () => telemetryApi.getRepairSuggestions(workspaceId!, executionId),
+    enabled: !!workspaceId && !!executionId,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const hasPending = data?.suggestions?.some(s => s.status === 'pending');
+      return hasPending || !data ? 3000 : false;
+    },
+  });
+}
+
+export function useApplyRepairSuggestion() {
+  return useMutation({
+    mutationFn: ({ workspaceId, suggestionId }: { workspaceId: string; suggestionId: string }) =>
+      telemetryApi.applyRepairSuggestion(workspaceId, suggestionId),
+  });
+}
+
+export function useDismissRepairSuggestion() {
+  return useMutation({
+    mutationFn: ({ workspaceId, suggestionId }: { workspaceId: string; suggestionId: string }) =>
+      telemetryApi.dismissRepairSuggestion(workspaceId, suggestionId),
   });
 }

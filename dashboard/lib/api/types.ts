@@ -810,3 +810,44 @@ export interface ListDriftAlertsResponse {
   alerts: DiscoveredFlow[];
   total: number;
 }
+
+export interface CoverageGap {
+  id: string;
+  service: string;
+  method: string;
+  route: string;
+  occurrence_count: number;
+  error_count: number;
+  avg_latency_ms: number;
+  last_seen_at: string;
+  risk_score: number;
+  has_test_flow: boolean;
+  sample_trace_id: string;
+}
+
+export interface CoverageGapsResponse {
+  gaps: CoverageGap[];
+  total: number;
+  uncovered_count: number;
+}
+
+export interface TraceGenerateFlowResponse {
+  yaml: string;
+  confidence: number;
+  intent: string;
+  coverage: Array<{ method: string; route: string; service: string }>;
+  cached: boolean;
+}
+
+export interface RepairSuggestion {
+  id: string;
+  execution_id: string;
+  step_id: string;
+  diagnosis: string;
+  yaml_diff: string;
+  fixed_yaml: string;
+  confidence: number;
+  status: 'pending' | 'applied' | 'dismissed';
+  applied_at?: string;
+  created_at: string;
+}
