@@ -309,6 +309,10 @@ Produce ONLY valid JSON (no markdown):
 		return fmt.Errorf("LLM call: %w", err)
 	}
 
+	const maxResponseBytes = 256 * 1024 // 256 KiB
+	if len(resp.Content) > maxResponseBytes {
+		return fmt.Errorf("LLM response too large (%d bytes)", len(resp.Content))
+	}
 	content := strings.TrimSpace(resp.Content)
 	if idx := strings.Index(content, "{"); idx > 0 {
 		content = content[idx:]
@@ -366,7 +370,7 @@ func matchSpan(spans []Span, step stepRecord) *Span {
 		if stepMethod != "" && spanMethod != "" && !strings.EqualFold(stepMethod, spanMethod) {
 			continue
 		}
-		if stepURL != "" && spanRoute != "" && strings.Contains(stepURL, strings.TrimRight(spanRoute, "/:id")) {
+		if stepURL != "" && spanRoute != "" && strings.Contains(stepURL, strings.TrimSuffix(spanRoute, "/:id")) {
 			return s
 		}
 	}

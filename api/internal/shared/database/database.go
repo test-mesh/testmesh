@@ -1193,6 +1193,7 @@ func migrateTelemetrySchema(db *gorm.DB) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_repair_suggestions_execution_id ON telemetry.repair_suggestions(execution_id);
 		CREATE INDEX IF NOT EXISTS idx_repair_suggestions_workspace_id ON telemetry.repair_suggestions(workspace_id);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_repair_suggestions_exec_step ON telemetry.repair_suggestions(execution_id, step_id);
 	`).Error; err != nil {
 		return err
 	}

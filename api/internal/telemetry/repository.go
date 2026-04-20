@@ -291,30 +291,32 @@ func (r *TelemetryRepository) CountCoverageGaps(ctx context.Context, workspaceID
 // --- Repair Suggestion operations ---
 
 // GetRepairSuggestions returns all repair suggestions for a given execution, newest first.
-func (r *TelemetryRepository) GetRepairSuggestions(ctx context.Context, executionID uuid.UUID) ([]RepairSuggestion, error) {
+func (r *TelemetryRepository) GetRepairSuggestions(ctx context.Context, workspaceID uuid.UUID, executionID uuid.UUID) ([]RepairSuggestion, error) {
 	var suggestions []RepairSuggestion
 	err := r.db.WithContext(ctx).
-		Where("execution_id = ?", executionID).
+		Where("workspace_id = ? AND execution_id = ?", workspaceID, executionID).
 		Order("created_at DESC").
 		Find(&suggestions).Error
 	return suggestions, err
 }
 
-// ApplyRepairSuggestion marks a repair suggestion as accepted and records the applied time.
-func (r *TelemetryRepository) ApplyRepairSuggestion(ctx context.Context, suggestionID uuid.UUID) (*RepairSuggestion, error) {
+// ApplyRepairSuggestion marks a repair suggestion as applied and records the applied time.
+func (r *TelemetryRepository) ApplyRepairSuggestion(ctx context.Context, workspaceID uuid.UUID, suggestionID uuid.UUID) (*RepairSuggestion, error) {
 	var s RepairSuggestion
-	if err := r.db.WithContext(ctx).Where("id = ?", suggestionID).First(&s).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).
+		First(&s).Error; err != nil {
 		return nil, err
 	}
 	now := time.Now().UTC()
-	s.Status = "accepted"
+	s.Status = "applied"
 	s.AppliedAt = &now
 	return &s, r.db.WithContext(ctx).Save(&s).Error
 }
 
 // DismissRepairSuggestion marks a repair suggestion as dismissed.
-func (r *TelemetryRepository) DismissRepairSuggestion(ctx context.Context, suggestionID uuid.UUID) error {
+func (r *TelemetryRepository) DismissRepairSuggestion(ctx context.Context, workspaceID uuid.UUID, suggestionID uuid.UUID) error {
 	return r.db.WithContext(ctx).Model(&RepairSuggestion{}).
-		Where("id = ?", suggestionID).
+		Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).
 		Update("status", "dismissed").Error
 }
