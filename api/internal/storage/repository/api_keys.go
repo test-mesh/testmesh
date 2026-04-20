@@ -57,24 +57,35 @@ func (r *APIKeyRepository) ResolveKey(ctx context.Context, plaintext string) (uu
 		Where("prefix = ? AND revoked_at IS NULL", prefix).
 		First(&key).Error
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("key not found")
+		return uuid.Nil, fmt.Errorf("invalid api key")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(key.KeyHash), []byte(plaintext)); err != nil {
-		return uuid.Nil, fmt.Errorf("invalid key")
+		return uuid.Nil, fmt.Errorf("invalid api key")
 	}
 
 	now := time.Now()
-	go r.db.WithContext(context.Background()).Model(&key).Update("last_used_at", now) //nolint:errcheck
+	go func() {
+		if err := r.db.WithContext(context.Background()).Model(&key).Update("last_used_at", now).Error; err != nil {
+			_ = err // best-effort, non-fatal
+		}
+	}()
 
 	return key.WorkspaceID, nil
 }
 
 func (r *APIKeyRepository) Revoke(ctx context.Context, keyID uuid.UUID) error {
 	now := time.Now()
-	return r.db.WithContext(ctx).Model(&models.WorkspaceAPIKey{}).
+	result := r.db.WithContext(ctx).Model(&models.WorkspaceAPIKey{}).
 		Where("id = ?", keyID).
-		Update("revoked_at", now).Error
+		Update("revoked_at", now)
+	if result.Error != nil {
+		return fmt.Errorf("revoke key: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("key not found or already revoked")
+	}
+	return nil
 }
 
 func (r *APIKeyRepository) ListForWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]models.WorkspaceAPIKey, error) {
