@@ -317,7 +317,7 @@ func (h *TelemetryHandler) GetRepairSuggestions(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
 		return
 	}
-	executionID, err := uuid.Parse(c.Param("execution_id"))
+	executionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution_id"})
 		return

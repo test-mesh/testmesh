@@ -559,7 +559,7 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 			ws.GET("/settings/telemetry", telemetryHandler.GetTraceSettings)
 			ws.PUT("/settings/telemetry", telemetryHandler.UpdateTraceSettings)
 			ws.GET("/executions/:id/trace-validation", telemetryHandler.GetTraceValidation)
-			ws.GET("/executions/:execution_id/repair-suggestions", telemetryHandler.GetRepairSuggestions)
+			ws.GET("/executions/:id/repair-suggestions", telemetryHandler.GetRepairSuggestions)
 			ws.POST("/repair-suggestions/:suggestion_id/apply", telemetryHandler.ApplyRepairSuggestion)
 			ws.POST("/repair-suggestions/:suggestion_id/dismiss", telemetryHandler.DismissRepairSuggestion)
 
