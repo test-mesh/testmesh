@@ -5,22 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
-
-// CoverageIndexer stub — replaced in Task 5
-type CoverageIndexer struct {
-	logger *zap.Logger
-	db     *gorm.DB
-}
-
-func NewCoverageIndexer(repo *TelemetryRepository, _ interface{}, logger *zap.Logger) *CoverageIndexer {
-	return &CoverageIndexer{logger: logger, db: repo.db}
-}
-
-func (c *CoverageIndexer) Update(ctx context.Context, wsID uuid.UUID, traceID string) error {
-	return nil
-}
 
 // ExecutionLinker stub — replaced in Task 8
 type ExecutionLinker struct{ logger *zap.Logger }

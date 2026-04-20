@@ -262,3 +262,28 @@ func (r *TelemetryRepository) GetAllWorkspaceIDs(ctx context.Context) ([]uuid.UU
 		Pluck("workspace_id", &ids).Error
 	return ids, err
 }
+
+// ListCoverageGaps returns coverage gaps for a workspace with optional filtering and sorting.
+func (r *TelemetryRepository) ListCoverageGaps(ctx context.Context, workspaceID uuid.UUID, uncoveredOnly bool, sort string, limit, offset int) ([]CoverageGap, error) {
+	q := r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
+	if uncoveredOnly {
+		q = q.Where("has_test_flow = false")
+	}
+	allowedSort := map[string]bool{"risk_score": true, "last_seen_at": true, "occurrence_count": true}
+	if !allowedSort[sort] {
+		sort = "risk_score"
+	}
+	q = q.Order(sort + " DESC").Limit(limit).Offset(offset)
+	var gaps []CoverageGap
+	return gaps, q.Find(&gaps).Error
+}
+
+// CountCoverageGaps returns the count of coverage gaps for a workspace.
+func (r *TelemetryRepository) CountCoverageGaps(ctx context.Context, workspaceID uuid.UUID, uncoveredOnly bool) (int64, error) {
+	q := r.db.WithContext(ctx).Model(&CoverageGap{}).Where("workspace_id = ?", workspaceID)
+	if uncoveredOnly {
+		q = q.Where("has_test_flow = false")
+	}
+	var count int64
+	return count, q.Count(&count).Error
+}
