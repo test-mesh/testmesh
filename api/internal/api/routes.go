@@ -231,7 +231,8 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 	// Initialize telemetry pipeline
 	telemetryRepo := telemetry.NewTelemetryRepository(db, logger)
 	spanProcessor := telemetry.NewSpanProcessor(telemetryRepo, logger)
-	otlpReceiver := telemetry.NewOTLPReceiver(spanProcessor, logger)
+	apiKeyRepo := repository.NewAPIKeyRepository(db)
+	otlpReceiver := telemetry.NewOTLPReceiver(spanProcessor, apiKeyRepo, logger)
 	cleanupJob := telemetry.NewCleanupJob(telemetryRepo, logger)
 	flowDiscovery := telemetry.NewFlowDiscovery(telemetryRepo, logger)
 	traceValidator := telemetry.NewTraceValidator(telemetryRepo, flowDiscovery, logger)
