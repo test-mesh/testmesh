@@ -62,7 +62,11 @@ func (r *OTLPReceiver) HandleTraces(c *gin.Context) {
 	}
 
 	resp := &coltracepb.ExportTraceServiceResponse{}
-	out, _ := proto.Marshal(resp)
+	out, err := proto.Marshal(resp)
+	if err != nil {
+		r.logger.Error("failed to marshal OTLP success response", zap.Error(err))
+		out = []byte{}
+	}
 	c.Data(http.StatusOK, "application/x-protobuf", out)
 }
 
@@ -92,22 +96,29 @@ func (r *OTLPReceiver) resolveWorkspace(c *gin.Context) (uuid.UUID, error) {
 	return uuid.Nil, fmt.Errorf("X-Workspace-ID header or Authorization: Bearer token required")
 }
 
+const maxOTLPBodyBytes = 32 * 1024 * 1024 // 32 MiB
+
 func (r *OTLPReceiver) readBody(c *gin.Context) ([]byte, error) {
-	reader := c.Request.Body
+	var reader io.Reader = io.LimitReader(c.Request.Body, maxOTLPBodyBytes)
 	if strings.EqualFold(c.GetHeader("Content-Encoding"), "gzip") {
 		gz, err := gzip.NewReader(reader)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decompress gzip body")
 		}
 		defer gz.Close()
-		reader = gz
+		// LimitReader on the decompressed output prevents gzip bomb attacks
+		reader = io.LimitReader(gz, maxOTLPBodyBytes)
 	}
 	return io.ReadAll(reader)
 }
 
 func (r *OTLPReceiver) otlpError(c *gin.Context, status int, msg string) {
 	resp := &coltracepb.ExportTraceServiceResponse{}
-	out, _ := proto.Marshal(resp)
+	out, err := proto.Marshal(resp)
+	if err != nil {
+		r.logger.Error("failed to marshal OTLP error response", zap.Error(err))
+		out = []byte{}
+	}
 	r.logger.Warn("OTLP request rejected", zap.Int("status", status), zap.String("reason", msg))
 	c.Data(status, "application/x-protobuf", out)
 }
