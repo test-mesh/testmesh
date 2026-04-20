@@ -2,6 +2,8 @@ package telemetry
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +11,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// ErrSuggestionNotPending is returned when trying to apply or dismiss a suggestion that is already resolved.
+var ErrSuggestionNotPending = errors.New("suggestion not pending")
 
 // TelemetryRepository handles database operations for telemetry data.
 type TelemetryRepository struct {
@@ -301,12 +306,16 @@ func (r *TelemetryRepository) GetRepairSuggestions(ctx context.Context, workspac
 }
 
 // ApplyRepairSuggestion marks a repair suggestion as applied and records the applied time.
+// Returns gorm.ErrRecordNotFound if not found, ErrSuggestionNotPending if already resolved.
 func (r *TelemetryRepository) ApplyRepairSuggestion(ctx context.Context, workspaceID uuid.UUID, suggestionID uuid.UUID) (*RepairSuggestion, error) {
 	var s RepairSuggestion
 	if err := r.db.WithContext(ctx).
 		Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).
 		First(&s).Error; err != nil {
 		return nil, err
+	}
+	if s.Status != "pending" {
+		return nil, fmt.Errorf("suggestion is already %s: %w", s.Status, ErrSuggestionNotPending)
 	}
 	now := time.Now().UTC()
 	s.Status = "applied"
@@ -315,8 +324,23 @@ func (r *TelemetryRepository) ApplyRepairSuggestion(ctx context.Context, workspa
 }
 
 // DismissRepairSuggestion marks a repair suggestion as dismissed.
+// Returns gorm.ErrRecordNotFound if not found, ErrSuggestionNotPending if already resolved.
 func (r *TelemetryRepository) DismissRepairSuggestion(ctx context.Context, workspaceID uuid.UUID, suggestionID uuid.UUID) error {
-	return r.db.WithContext(ctx).Model(&RepairSuggestion{}).
-		Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).
-		Update("status", "dismissed").Error
+	result := r.db.WithContext(ctx).Model(&RepairSuggestion{}).
+		Where("id = ? AND workspace_id = ? AND status = 'pending'", suggestionID, workspaceID).
+		Update("status", "dismissed")
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		// Distinguish not-found from already-resolved by checking existence.
+		var count int64
+		r.db.WithContext(ctx).Model(&RepairSuggestion{}).
+			Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).Count(&count)
+		if count == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return fmt.Errorf("suggestion is already resolved: %w", ErrSuggestionNotPending)
+	}
+	return nil
 }

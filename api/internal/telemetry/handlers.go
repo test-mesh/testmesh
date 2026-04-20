@@ -347,6 +347,10 @@ func (h *TelemetryHandler) ApplyRepairSuggestion(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "suggestion not found"})
 			return
 		}
+		if errors.Is(err, ErrSuggestionNotPending) {
+			c.JSON(http.StatusConflict, gin.H{"error": "suggestion is already resolved"})
+			return
+		}
 		h.logger.Error("failed to apply repair suggestion", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to apply repair suggestion"})
 		return
@@ -369,6 +373,14 @@ func (h *TelemetryHandler) DismissRepairSuggestion(c *gin.Context) {
 	}
 
 	if err := h.repo.DismissRepairSuggestion(c.Request.Context(), workspaceID, suggestionID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "suggestion not found"})
+			return
+		}
+		if errors.Is(err, ErrSuggestionNotPending) {
+			c.JSON(http.StatusConflict, gin.H{"error": "suggestion is already resolved"})
+			return
+		}
 		h.logger.Error("failed to dismiss repair suggestion", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to dismiss repair suggestion"})
 		return
