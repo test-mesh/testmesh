@@ -243,16 +243,19 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 	spanProcessor.Start(context.Background())
 	cleanupJob.Start(context.Background())
 
-	// Wire flow discovery: completed traces → discover flow patterns
-	go func() {
-		for tc := range spanProcessor.DiscoveryChan() {
-			if err := flowDiscovery.ProcessCompletedTrace(context.Background(), tc.WorkspaceID, tc.TraceID); err != nil {
-				logger.Warn("flow discovery failed",
-					zap.String("trace_id", tc.TraceID),
-					zap.Error(err))
-			}
-		}
-	}()
+	// Wire TraceEnrichmentWorker: replaces ad-hoc discovery goroutine
+	coverageIndexer := telemetry.NewCoverageIndexer(telemetryRepo, nil, logger)
+	executionLinker := telemetry.NewExecutionLinker(telemetryRepo, nil, nil, logger)
+	traceInsightCache := telemetry.NewTraceInsightCache(telemetryRepo, nil, nil, logger)
+	enrichmentWorker := telemetry.NewTraceEnrichmentWorker(
+		flowDiscovery,
+		coverageIndexer,
+		executionLinker,
+		traceInsightCache,
+		spanProcessor.DiscoveryChan(),
+		logger,
+	)
+	enrichmentWorker.Start(context.Background())
 
 	// Initialize debug handler
 	debugHandler := handlers.NewDebugHandler(debugController, logger)
