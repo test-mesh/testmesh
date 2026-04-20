@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { telemetryApi } from '../api/client';
 
 // Query keys
@@ -60,23 +60,31 @@ export function useRepairSuggestions(workspaceId: string | null, executionId: st
     queryFn: () => telemetryApi.getRepairSuggestions(workspaceId!, executionId),
     enabled: !!workspaceId && !!executionId,
     refetchInterval: (query) => {
-      const data = query.state.data;
-      const hasPending = data?.suggestions?.some(s => s.status === 'pending');
-      return hasPending || !data ? 3000 : false;
+      const suggestions = query.state.data?.suggestions;
+      if (!suggestions || suggestions.length === 0) return 3000; // poll until suggestions arrive
+      return suggestions.some(s => s.status === 'pending') ? 3000 : false;
     },
   });
 }
 
 export function useApplyRepairSuggestion() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ workspaceId, suggestionId }: { workspaceId: string; suggestionId: string }) =>
       telemetryApi.applyRepairSuggestion(workspaceId, suggestionId),
+    onSuccess: (_data, { workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: [...telemetryKeys.all, 'repair', workspaceId] });
+    },
   });
 }
 
 export function useDismissRepairSuggestion() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ workspaceId, suggestionId }: { workspaceId: string; suggestionId: string }) =>
       telemetryApi.dismissRepairSuggestion(workspaceId, suggestionId),
+    onSuccess: (_data, { workspaceId }) => {
+      queryClient.invalidateQueries({ queryKey: [...telemetryKeys.all, 'repair', workspaceId] });
+    },
   });
 }
