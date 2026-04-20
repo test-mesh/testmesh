@@ -76,6 +76,12 @@ func (c *TraceInsightCache) Summarize(ctx context.Context, workspaceID uuid.UUID
 		return nil
 	}
 
+	// Skip LLM for known monitoring scrapers. They generate high-frequency traces
+	// with unique trace IDs so the cache never helps, burning LLM quota for no value.
+	if isBotTrace(realSpans) {
+		return nil
+	}
+
 	if c.providers == nil {
 		c.logger.Warn("no AI provider configured, skipping trace insight", zap.String("trace_id", traceID))
 		return nil
@@ -267,6 +273,38 @@ func summaryAsJSONArray(summary []map[string]interface{}) graph.JSONArray {
 		out[i] = m
 	}
 	return out
+}
+
+// isBotTrace returns true when every span in the trace originates from a known
+// monitoring scraper (Prometheus, kube-probe, GoogleHC, etc.). These traces are
+// high-frequency, always hit the same routes, and carry no meaningful user intent,
+// so generating LLM summaries for them wastes quota with zero value.
+func isBotTrace(spans []Span) bool {
+	if len(spans) == 0 {
+		return false
+	}
+	botPrefixes := []string{
+		"Prometheus/",
+		"kube-probe/",
+		"GoogleHC/",
+		"Go-http-client/", // often used by health-check crawlers
+		"ELB-HealthChecker/",
+		"HealthChecker/",
+	}
+	for _, s := range spans {
+		ua := getStringAttrMap(s.Attributes, "http.user_agent")
+		isBot := false
+		for _, prefix := range botPrefixes {
+			if strings.HasPrefix(ua, prefix) {
+				isBot = true
+				break
+			}
+		}
+		if !isBot {
+			return false // at least one non-bot span → keep the trace
+		}
+	}
+	return true
 }
 
 // getAttrInt reads an integer attribute from a JSONMap.
