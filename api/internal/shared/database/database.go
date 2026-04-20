@@ -1039,6 +1039,22 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	// workspace_api_keys — long-lived tokens for OTLP ingest auth
+	db.Exec(`
+		CREATE TABLE IF NOT EXISTS workspace_api_keys (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			key_hash TEXT NOT NULL,
+			prefix VARCHAR(12) NOT NULL,
+			last_used_at TIMESTAMP WITH TIME ZONE,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			revoked_at TIMESTAMP WITH TIME ZONE
+		);
+		CREATE INDEX IF NOT EXISTS idx_api_keys_workspace_id ON workspace_api_keys(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_api_keys_prefix ON workspace_api_keys(prefix);
+	`)
+
 	// Seed comprehensive sample data
 	seedSampleData(db)
 
