@@ -2,6 +2,8 @@ package telemetry
 
 import (
 	"compress/gzip"
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -13,70 +15,110 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// APIKeyResolver resolves a Bearer token to a workspace ID.
+type APIKeyResolver interface {
+	ResolveKey(ctx context.Context, token string) (uuid.UUID, error)
+}
+
 // OTLPReceiver handles incoming OTLP trace data.
 type OTLPReceiver struct {
 	processor *SpanProcessor
+	keyRepo   APIKeyResolver
 	logger    *zap.Logger
 }
 
 // NewOTLPReceiver creates a new OTLPReceiver.
-func NewOTLPReceiver(processor *SpanProcessor, logger *zap.Logger) *OTLPReceiver {
-	return &OTLPReceiver{
-		processor: processor,
-		logger:    logger,
-	}
+func NewOTLPReceiver(processor *SpanProcessor, keyRepo APIKeyResolver, logger *zap.Logger) *OTLPReceiver {
+	return &OTLPReceiver{processor: processor, keyRepo: keyRepo, logger: logger}
 }
 
 // HandleTraces is the Gin handler for POST /otlp/v1/traces.
 func (r *OTLPReceiver) HandleTraces(c *gin.Context) {
-	// Extract workspace ID from header
-	wsIDStr := c.GetHeader("X-Workspace-ID")
-	if wsIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "X-Workspace-ID header is required"})
-		return
-	}
-	workspaceID, err := uuid.Parse(wsIDStr)
+	workspaceID, err := r.resolveWorkspace(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid X-Workspace-ID"})
+		r.otlpError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Read body — decompress if gzip-encoded
-	reader := c.Request.Body
-	if strings.EqualFold(c.GetHeader("Content-Encoding"), "gzip") {
-		gz, err := gzip.NewReader(reader)
-		if err != nil {
-			r.logger.Error("failed to create gzip reader", zap.Error(err))
-			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to decompress gzip body"})
-			return
-		}
-		defer gz.Close()
-		reader = gz
-	}
-	body, err := io.ReadAll(reader)
+	body, err := r.readBody(c)
 	if err != nil {
-		r.logger.Error("failed to read OTLP request body", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+		r.otlpError(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	// Parse OTLP protobuf
 	var req coltracepb.ExportTraceServiceRequest
 	if err := proto.Unmarshal(body, &req); err != nil {
 		r.logger.Error("failed to unmarshal OTLP request", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid OTLP protobuf payload"})
+		r.otlpError(c, http.StatusBadRequest, "invalid OTLP protobuf payload")
 		return
 	}
 
-	// Process spans
 	if err := r.processor.ProcessOTLP(c.Request.Context(), workspaceID, &req); err != nil {
 		r.logger.Error("failed to process OTLP spans",
 			zap.String("workspace_id", workspaceID.String()),
 			zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process spans"})
+		r.otlpError(c, http.StatusInternalServerError, "failed to process spans")
 		return
 	}
 
-	// OTLP convention: return empty response on success
-	c.Status(http.StatusOK)
+	resp := &coltracepb.ExportTraceServiceResponse{}
+	out, err := proto.Marshal(resp)
+	if err != nil {
+		r.logger.Error("failed to marshal OTLP success response", zap.Error(err))
+		out = []byte{}
+	}
+	c.Data(http.StatusOK, "application/x-protobuf", out)
+}
+
+func (r *OTLPReceiver) resolveWorkspace(c *gin.Context) (uuid.UUID, error) {
+	// Option 1: workspace UUID header (local dev / trusted network)
+	if wsIDStr := c.GetHeader("X-Workspace-ID"); wsIDStr != "" {
+		id, err := uuid.Parse(wsIDStr)
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("invalid X-Workspace-ID")
+		}
+		return id, nil
+	}
+
+	// Option 2: Bearer API key
+	if authHeader := c.GetHeader("Authorization"); strings.HasPrefix(authHeader, "Bearer ") {
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		if r.keyRepo == nil {
+			return uuid.Nil, fmt.Errorf("API key auth not configured")
+		}
+		id, err := r.keyRepo.ResolveKey(c.Request.Context(), token)
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("invalid API key")
+		}
+		return id, nil
+	}
+
+	return uuid.Nil, fmt.Errorf("X-Workspace-ID header or Authorization: Bearer token required")
+}
+
+const maxOTLPBodyBytes = 32 * 1024 * 1024 // 32 MiB
+
+func (r *OTLPReceiver) readBody(c *gin.Context) ([]byte, error) {
+	var reader io.Reader = io.LimitReader(c.Request.Body, maxOTLPBodyBytes)
+	if strings.EqualFold(c.GetHeader("Content-Encoding"), "gzip") {
+		gz, err := gzip.NewReader(reader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decompress gzip body")
+		}
+		defer gz.Close()
+		// LimitReader on the decompressed output prevents gzip bomb attacks
+		reader = io.LimitReader(gz, maxOTLPBodyBytes)
+	}
+	return io.ReadAll(reader)
+}
+
+func (r *OTLPReceiver) otlpError(c *gin.Context, status int, msg string) {
+	resp := &coltracepb.ExportTraceServiceResponse{}
+	out, err := proto.Marshal(resp)
+	if err != nil {
+		r.logger.Error("failed to marshal OTLP error response", zap.Error(err))
+		out = []byte{}
+	}
+	r.logger.Warn("OTLP request rejected", zap.Int("status", status), zap.String("reason", msg))
+	c.Data(status, "application/x-protobuf", out)
 }

@@ -2,6 +2,8 @@ package telemetry
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,6 +11,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// ErrSuggestionNotPending is returned when trying to apply or dismiss a suggestion that is already resolved.
+var ErrSuggestionNotPending = errors.New("suggestion not pending")
 
 // TelemetryRepository handles database operations for telemetry data.
 type TelemetryRepository struct {
@@ -178,11 +183,11 @@ func (r *TelemetryRepository) CreateValidationResult(ctx context.Context, result
 		Create(result).Error
 }
 
-// GetValidationByExecutionID retrieves a validation result by execution ID.
-func (r *TelemetryRepository) GetValidationByExecutionID(ctx context.Context, executionID uuid.UUID) (*TraceValidationResult, error) {
+// GetValidationByExecutionID retrieves a validation result by execution ID, scoped to a workspace.
+func (r *TelemetryRepository) GetValidationByExecutionID(ctx context.Context, workspaceID uuid.UUID, executionID uuid.UUID) (*TraceValidationResult, error) {
 	var result TraceValidationResult
 	err := r.db.WithContext(ctx).
-		Where("execution_id = ?", executionID).
+		Where("workspace_id = ? AND execution_id = ?", workspaceID, executionID).
 		First(&result).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -261,4 +266,83 @@ func (r *TelemetryRepository) GetAllWorkspaceIDs(ctx context.Context) ([]uuid.UU
 		Distinct("workspace_id").
 		Pluck("workspace_id", &ids).Error
 	return ids, err
+}
+
+// ListCoverageGaps returns coverage gaps for a workspace with optional filtering and sorting.
+func (r *TelemetryRepository) ListCoverageGaps(ctx context.Context, workspaceID uuid.UUID, uncoveredOnly bool, sort string, limit, offset int) ([]CoverageGap, error) {
+	q := r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
+	if uncoveredOnly {
+		q = q.Where("has_test_flow = false")
+	}
+	allowedSort := map[string]bool{"risk_score": true, "last_seen_at": true, "occurrence_count": true}
+	if !allowedSort[sort] {
+		sort = "risk_score"
+	}
+	q = q.Order(sort + " DESC").Limit(limit).Offset(offset)
+	var gaps []CoverageGap
+	return gaps, q.Find(&gaps).Error
+}
+
+// CountCoverageGaps returns the count of coverage gaps for a workspace.
+func (r *TelemetryRepository) CountCoverageGaps(ctx context.Context, workspaceID uuid.UUID, uncoveredOnly bool) (int64, error) {
+	q := r.db.WithContext(ctx).Model(&CoverageGap{}).Where("workspace_id = ?", workspaceID)
+	if uncoveredOnly {
+		q = q.Where("has_test_flow = false")
+	}
+	var count int64
+	return count, q.Count(&count).Error
+}
+
+// --- Repair Suggestion operations ---
+
+// GetRepairSuggestions returns all repair suggestions for a given execution, newest first.
+func (r *TelemetryRepository) GetRepairSuggestions(ctx context.Context, workspaceID uuid.UUID, executionID uuid.UUID) ([]RepairSuggestion, error) {
+	var suggestions []RepairSuggestion
+	err := r.db.WithContext(ctx).
+		Where("workspace_id = ? AND execution_id = ?", workspaceID, executionID).
+		Order("created_at DESC").
+		Find(&suggestions).Error
+	return suggestions, err
+}
+
+// ApplyRepairSuggestion marks a repair suggestion as applied and records the applied time.
+// Returns gorm.ErrRecordNotFound if not found, ErrSuggestionNotPending if already resolved.
+func (r *TelemetryRepository) ApplyRepairSuggestion(ctx context.Context, workspaceID uuid.UUID, suggestionID uuid.UUID) (*RepairSuggestion, error) {
+	var s RepairSuggestion
+	if err := r.db.WithContext(ctx).
+		Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).
+		First(&s).Error; err != nil {
+		return nil, err
+	}
+	if s.Status != "pending" {
+		return nil, fmt.Errorf("suggestion is already %s: %w", s.Status, ErrSuggestionNotPending)
+	}
+	now := time.Now().UTC()
+	s.Status = "applied"
+	s.AppliedAt = &now
+	return &s, r.db.WithContext(ctx).Save(&s).Error
+}
+
+// DismissRepairSuggestion marks a repair suggestion as dismissed.
+// Returns gorm.ErrRecordNotFound if not found, ErrSuggestionNotPending if already resolved.
+func (r *TelemetryRepository) DismissRepairSuggestion(ctx context.Context, workspaceID uuid.UUID, suggestionID uuid.UUID) error {
+	result := r.db.WithContext(ctx).Model(&RepairSuggestion{}).
+		Where("id = ? AND workspace_id = ? AND status = 'pending'", suggestionID, workspaceID).
+		Update("status", "dismissed")
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		// Distinguish not-found from already-resolved by checking existence.
+		var count int64
+		if err := r.db.WithContext(ctx).Model(&RepairSuggestion{}).
+			Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return fmt.Errorf("suggestion is already resolved: %w", ErrSuggestionNotPending)
+	}
+	return nil
 }

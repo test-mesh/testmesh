@@ -231,27 +231,32 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 	// Initialize telemetry pipeline
 	telemetryRepo := telemetry.NewTelemetryRepository(db, logger)
 	spanProcessor := telemetry.NewSpanProcessor(telemetryRepo, logger)
-	otlpReceiver := telemetry.NewOTLPReceiver(spanProcessor, logger)
+	apiKeyRepo := repository.NewAPIKeyRepository(db)
+	otlpReceiver := telemetry.NewOTLPReceiver(spanProcessor, apiKeyRepo, logger)
 	cleanupJob := telemetry.NewCleanupJob(telemetryRepo, logger)
 	flowDiscovery := telemetry.NewFlowDiscovery(telemetryRepo, logger)
 	traceValidator := telemetry.NewTraceValidator(telemetryRepo, flowDiscovery, logger)
 	rootCauseAnalyzer := telemetry.NewRootCauseAnalyzer(telemetryRepo, logger)
-	telemetryHandler := telemetry.NewTelemetryHandler(telemetryRepo, flowDiscovery, traceValidator, rootCauseAnalyzer, logger)
 
 	// Start telemetry lifecycle
 	spanProcessor.Start(context.Background())
 	cleanupJob.Start(context.Background())
 
-	// Wire flow discovery: completed traces → discover flow patterns
-	go func() {
-		for tc := range spanProcessor.DiscoveryChan() {
-			if err := flowDiscovery.ProcessCompletedTrace(context.Background(), tc.WorkspaceID, tc.TraceID); err != nil {
-				logger.Warn("flow discovery failed",
-					zap.String("trace_id", tc.TraceID),
-					zap.Error(err))
-			}
-		}
-	}()
+	// Wire TraceEnrichmentWorker: replaces ad-hoc discovery goroutine
+	coverageIndexer := telemetry.NewCoverageIndexer(telemetryRepo, nil, logger)
+	execRepoAdapter := telemetry.NewGORMExecRepoAdapter(db)
+	executionLinker := telemetry.NewExecutionLinker(telemetryRepo, execRepoAdapter, aiProviders, logger)
+	traceInsightCache := telemetry.NewTraceInsightCache(telemetryRepo, nil, aiProviders, logger)
+	telemetryHandler := telemetry.NewTelemetryHandler(telemetryRepo, flowDiscovery, traceValidator, rootCauseAnalyzer, traceInsightCache, coverageIndexer, logger)
+	enrichmentWorker := telemetry.NewTraceEnrichmentWorker(
+		flowDiscovery,
+		coverageIndexer,
+		executionLinker,
+		traceInsightCache,
+		spanProcessor.DiscoveryChan(),
+		logger,
+	)
+	enrichmentWorker.Start(context.Background())
 
 	// Initialize debug handler
 	debugHandler := handlers.NewDebugHandler(debugController, logger)
@@ -549,9 +554,14 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 				telemetryRoutes.GET("/spans", telemetryHandler.QuerySpans)
 				telemetryRoutes.GET("/drift", telemetryHandler.ListDriftAlerts)
 			}
+			ws.POST("/telemetry/traces/:trace_id/generate-flow", telemetryHandler.GenerateFlow)
+			ws.GET("/telemetry/coverage-gaps", telemetryHandler.ListCoverageGaps)
 			ws.GET("/settings/telemetry", telemetryHandler.GetTraceSettings)
 			ws.PUT("/settings/telemetry", telemetryHandler.UpdateTraceSettings)
 			ws.GET("/executions/:id/trace-validation", telemetryHandler.GetTraceValidation)
+			ws.GET("/executions/:execution_id/repair-suggestions", telemetryHandler.GetRepairSuggestions)
+			ws.POST("/repair-suggestions/:suggestion_id/apply", telemetryHandler.ApplyRepairSuggestion)
+			ws.POST("/repair-suggestions/:suggestion_id/dismiss", telemetryHandler.DismissRepairSuggestion)
 
 			// Graph routes (workspace-scoped)
 			if len(graphEngine) > 0 && graphEngine[0] != nil && graphEngine[0].IsAvailable() || (len(graphEngine) > 0 && graphEngine[0] != nil) {

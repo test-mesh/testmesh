@@ -24,8 +24,9 @@ import { ErrorHero } from '@/components/traces/ErrorHero';
 import { ValidationSummary } from '@/components/traces/ValidationSummary';
 import { DriftCallout } from '@/components/traces/DriftCallout';
 import { SpanWaterfall } from '@/components/traces/SpanWaterfall';
-import { useTraceValidation, useSpans, useDiscoveredFlows } from '@/lib/hooks/useTelemetry';
+import { useTraceValidation, useSpans, useDiscoveredFlows, useRepairSuggestions } from '@/lib/hooks/useTelemetry';
 import type { ValidationViolation } from '@/lib/api/types';
+import { RepairSuggestionCard } from '@/components/traces/RepairSuggestionCard';
 
 function statusColor(status: number) {
   if (status >= 200 && status < 300) return 'text-green-600';
@@ -105,6 +106,13 @@ export default function ExecutionDetailPage({
   const { data: execution, isLoading, error, refetch: refetchExecution } = useExecution(id);
   const { data: stepsData, refetch: refetchSteps } = useExecutionSteps(id);
   const analyzeFailure = useAnalyzeFailure(getActiveWorkspaceId() ?? '');
+
+  const workspaceId = getActiveWorkspaceId();
+  const { data: repairData } = useRepairSuggestions(
+    execution?.status === 'failed' ? workspaceId : null,
+    id,
+  );
+  const repairSuggestion = repairData?.suggestions?.find(s => s.status === 'pending');
 
   // Connect to WebSocket for real-time updates
   const { isConnected, lastMessage } = useWebSocket({
@@ -272,6 +280,9 @@ export default function ExecutionDetailPage({
 
         <TabsContent value="results">
           <div className="grid gap-6">
+            {repairSuggestion && workspaceId && (
+              <RepairSuggestionCard workspaceId={workspaceId} suggestion={repairSuggestion} />
+            )}
             <Card>
               <CardHeader>
                 <CardTitle>Summary</CardTitle>
