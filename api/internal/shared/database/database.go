@@ -1157,6 +1157,72 @@ func migrateTelemetrySchema(db *gorm.DB) error {
 		return err
 	}
 
+	// telemetry.trace_insights — LLM-generated per-trace summaries and YAML flows
+	if err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS telemetry.trace_insights (
+			trace_id TEXT PRIMARY KEY,
+			workspace_id UUID NOT NULL,
+			span_summary JSONB NOT NULL DEFAULT '[]',
+			inferred_intent TEXT NOT NULL DEFAULT '',
+			generated_yaml TEXT NOT NULL DEFAULT '',
+			confidence FLOAT NOT NULL DEFAULT 0,
+			coverage JSONB NOT NULL DEFAULT '[]',
+			llm_model TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_trace_insights_workspace_id ON telemetry.trace_insights(workspace_id);
+	`).Error; err != nil {
+		return err
+	}
+
+	// telemetry.repair_suggestions — AI-generated repair suggestions for failed executions
+	if err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS telemetry.repair_suggestions (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			execution_id UUID NOT NULL,
+			workspace_id UUID NOT NULL,
+			step_id TEXT NOT NULL DEFAULT '',
+			diagnosis TEXT NOT NULL DEFAULT '',
+			yaml_diff TEXT NOT NULL DEFAULT '',
+			fixed_yaml TEXT NOT NULL DEFAULT '',
+			confidence FLOAT NOT NULL DEFAULT 0,
+			status TEXT NOT NULL DEFAULT 'pending',
+			applied_at TIMESTAMP WITH TIME ZONE,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_repair_suggestions_execution_id ON telemetry.repair_suggestions(execution_id);
+		CREATE INDEX IF NOT EXISTS idx_repair_suggestions_workspace_id ON telemetry.repair_suggestions(workspace_id);
+	`).Error; err != nil {
+		return err
+	}
+
+	// telemetry.coverage_gaps — real-traffic endpoints without test coverage
+	if err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS telemetry.coverage_gaps (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			service TEXT NOT NULL,
+			operation TEXT NOT NULL DEFAULT '',
+			method TEXT NOT NULL DEFAULT '',
+			route TEXT NOT NULL DEFAULT '',
+			occurrence_count INTEGER NOT NULL DEFAULT 1,
+			error_count INTEGER NOT NULL DEFAULT 0,
+			avg_latency_ms FLOAT NOT NULL DEFAULT 0,
+			last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			risk_score FLOAT NOT NULL DEFAULT 0,
+			has_test_flow BOOLEAN NOT NULL DEFAULT false,
+			sample_trace_id TEXT NOT NULL DEFAULT '',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE (workspace_id, service, method, route)
+		);
+		CREATE INDEX IF NOT EXISTS idx_coverage_gaps_workspace_id ON telemetry.coverage_gaps(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_coverage_gaps_risk_score ON telemetry.coverage_gaps(risk_score DESC);
+	`).Error; err != nil {
+		return err
+	}
+
 	return nil
 }
 
