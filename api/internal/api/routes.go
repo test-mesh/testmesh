@@ -559,6 +559,9 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 			ws.GET("/settings/telemetry", telemetryHandler.GetTraceSettings)
 			ws.PUT("/settings/telemetry", telemetryHandler.UpdateTraceSettings)
 			ws.GET("/executions/:id/trace-validation", telemetryHandler.GetTraceValidation)
+			ws.GET("/executions/:execution_id/repair-suggestions", telemetryHandler.GetRepairSuggestions)
+			ws.POST("/repair-suggestions/:suggestion_id/apply", telemetryHandler.ApplyRepairSuggestion)
+			ws.POST("/repair-suggestions/:suggestion_id/dismiss", telemetryHandler.DismissRepairSuggestion)
 
 			// Graph routes (workspace-scoped)
 			if len(graphEngine) > 0 && graphEngine[0] != nil && graphEngine[0].IsAvailable() || (len(graphEngine) > 0 && graphEngine[0] != nil) {

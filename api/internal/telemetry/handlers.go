@@ -1,12 +1,14 @@
 package telemetry
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 // TelemetryHandler handles HTTP requests for telemetry endpoints.
@@ -301,4 +303,76 @@ func (h *TelemetryHandler) ListCoverageGaps(c *gin.Context) {
 		"total":           total,
 		"uncovered_count": uncovTotal,
 	})
+}
+
+// GetRepairSuggestions handles GET /workspaces/:workspace_id/executions/:execution_id/repair-suggestions
+func (h *TelemetryHandler) GetRepairSuggestions(c *gin.Context) {
+	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+	executionID, err := uuid.Parse(c.Param("execution_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution_id"})
+		return
+	}
+
+	suggestions, err := h.repo.GetRepairSuggestions(c.Request.Context(), workspaceID, executionID)
+	if err != nil {
+		h.logger.Error("failed to get repair suggestions", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get repair suggestions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"suggestions": suggestions})
+}
+
+// ApplyRepairSuggestion handles POST /workspaces/:workspace_id/repair-suggestions/:suggestion_id/apply
+func (h *TelemetryHandler) ApplyRepairSuggestion(c *gin.Context) {
+	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+	suggestionID, err := uuid.Parse(c.Param("suggestion_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid suggestion_id"})
+		return
+	}
+
+	suggestion, err := h.repo.ApplyRepairSuggestion(c.Request.Context(), workspaceID, suggestionID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "suggestion not found"})
+			return
+		}
+		h.logger.Error("failed to apply repair suggestion", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to apply repair suggestion"})
+		return
+	}
+
+	c.JSON(http.StatusOK, suggestion)
+}
+
+// DismissRepairSuggestion handles POST /workspaces/:workspace_id/repair-suggestions/:suggestion_id/dismiss
+func (h *TelemetryHandler) DismissRepairSuggestion(c *gin.Context) {
+	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+	suggestionID, err := uuid.Parse(c.Param("suggestion_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid suggestion_id"})
+		return
+	}
+
+	if err := h.repo.DismissRepairSuggestion(c.Request.Context(), workspaceID, suggestionID); err != nil {
+		h.logger.Error("failed to dismiss repair suggestion", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to dismiss repair suggestion"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
