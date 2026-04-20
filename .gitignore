@@ -5,6 +5,7 @@ node_modules/
 
 # Testing
 coverage/
+!dashboard/app/coverage/
 
 # Next.js
 web/.next/
