@@ -54,7 +54,7 @@ func NewTraceInsightCache(repo *TelemetryRepository, _ interface{}, providers in
 func (c *TraceInsightCache) Summarize(ctx context.Context, workspaceID uuid.UUID, traceID string) error {
 	// Skip if already cached
 	var existing TraceInsight
-	if err := c.db.WithContext(ctx).Where("trace_id = ?", traceID).First(&existing).Error; err == nil {
+	if err := c.db.WithContext(ctx).Where("workspace_id = ? AND trace_id = ?", workspaceID, traceID).First(&existing).Error; err == nil {
 		return nil
 	}
 
@@ -170,10 +170,10 @@ Return ONLY valid JSON (no markdown):
 		Create(insight).Error
 }
 
-// GetInsight retrieves a cached trace insight by trace ID.
-func (c *TraceInsightCache) GetInsight(ctx context.Context, traceID string) (*TraceInsight, error) {
+// GetInsight retrieves a cached trace insight by workspace and trace ID.
+func (c *TraceInsightCache) GetInsight(ctx context.Context, workspaceID uuid.UUID, traceID string) (*TraceInsight, error) {
 	var insight TraceInsight
-	err := c.db.WithContext(ctx).Where("trace_id = ?", traceID).First(&insight).Error
+	err := c.db.WithContext(ctx).Where("workspace_id = ? AND trace_id = ?", workspaceID, traceID).First(&insight).Error
 	if err != nil {
 		return nil, err
 	}

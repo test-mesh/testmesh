@@ -142,13 +142,18 @@ func (h *TelemetryHandler) QuerySpans(c *gin.Context) {
 
 // GetTraceValidation handles GET /executions/:id/trace-validation
 func (h *TelemetryHandler) GetTraceValidation(c *gin.Context) {
+	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
 	execID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid execution_id"})
 		return
 	}
 
-	result, err := h.repo.GetValidationByExecutionID(c.Request.Context(), execID)
+	result, err := h.repo.GetValidationByExecutionID(c.Request.Context(), workspaceID, execID)
 	if err != nil {
 		h.logger.Error("failed to get trace validation", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get validation"})
@@ -236,7 +241,7 @@ func (h *TelemetryHandler) GenerateFlow(c *gin.Context) {
 	}
 
 	// Fast path: return cached insight
-	insight, err := h.insights.GetInsight(c.Request.Context(), traceID)
+	insight, err := h.insights.GetInsight(c.Request.Context(), workspaceID, traceID)
 	if err == nil && insight.GeneratedYAML != "" {
 		c.JSON(http.StatusOK, gin.H{
 			"yaml":       insight.GeneratedYAML,
@@ -255,7 +260,7 @@ func (h *TelemetryHandler) GenerateFlow(c *gin.Context) {
 		return
 	}
 
-	insight, err = h.insights.GetInsight(c.Request.Context(), traceID)
+	insight, err = h.insights.GetInsight(c.Request.Context(), workspaceID, traceID)
 	if err != nil || insight.GeneratedYAML == "" {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "could not generate YAML — ensure AI provider is configured"})
 		return

@@ -183,11 +183,11 @@ func (r *TelemetryRepository) CreateValidationResult(ctx context.Context, result
 		Create(result).Error
 }
 
-// GetValidationByExecutionID retrieves a validation result by execution ID.
-func (r *TelemetryRepository) GetValidationByExecutionID(ctx context.Context, executionID uuid.UUID) (*TraceValidationResult, error) {
+// GetValidationByExecutionID retrieves a validation result by execution ID, scoped to a workspace.
+func (r *TelemetryRepository) GetValidationByExecutionID(ctx context.Context, workspaceID uuid.UUID, executionID uuid.UUID) (*TraceValidationResult, error) {
 	var result TraceValidationResult
 	err := r.db.WithContext(ctx).
-		Where("execution_id = ?", executionID).
+		Where("workspace_id = ? AND execution_id = ?", workspaceID, executionID).
 		First(&result).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -335,8 +335,10 @@ func (r *TelemetryRepository) DismissRepairSuggestion(ctx context.Context, works
 	if result.RowsAffected == 0 {
 		// Distinguish not-found from already-resolved by checking existence.
 		var count int64
-		r.db.WithContext(ctx).Model(&RepairSuggestion{}).
-			Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).Count(&count)
+		if err := r.db.WithContext(ctx).Model(&RepairSuggestion{}).
+			Where("id = ? AND workspace_id = ?", suggestionID, workspaceID).Count(&count).Error; err != nil {
+			return err
+		}
 		if count == 0 {
 			return gorm.ErrRecordNotFound
 		}
