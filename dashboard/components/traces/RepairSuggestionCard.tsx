@@ -58,7 +58,7 @@ export function RepairSuggestionCard({ workspaceId, suggestion }: Props) {
           <Button
             size="sm"
             onClick={() => apply.mutate({ workspaceId, suggestionId: suggestion.id })}
-            disabled={apply.isPending}
+            disabled={apply.isPending || apply.isSuccess || dismiss.isPending}
           >
             <Check className="w-3 h-3 mr-1" />
             Apply fix
@@ -67,7 +67,7 @@ export function RepairSuggestionCard({ workspaceId, suggestion }: Props) {
             size="sm"
             variant="ghost"
             onClick={() => dismiss.mutate({ workspaceId, suggestionId: suggestion.id })}
-            disabled={dismiss.isPending}
+            disabled={dismiss.isPending || apply.isPending || apply.isSuccess}
           >
             <X className="w-3 h-3 mr-1" />
             Dismiss

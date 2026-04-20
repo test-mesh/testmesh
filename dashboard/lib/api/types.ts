@@ -844,7 +844,7 @@ export interface RepairSuggestion {
   execution_id: string;
   step_id: string;
   diagnosis: string;
-  yaml_diff: string;
+  yaml_diff?: string;
   fixed_yaml: string;
   confidence: number;
   status: 'pending' | 'applied' | 'dismissed';
