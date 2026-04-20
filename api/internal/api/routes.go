@@ -237,7 +237,6 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 	flowDiscovery := telemetry.NewFlowDiscovery(telemetryRepo, logger)
 	traceValidator := telemetry.NewTraceValidator(telemetryRepo, flowDiscovery, logger)
 	rootCauseAnalyzer := telemetry.NewRootCauseAnalyzer(telemetryRepo, logger)
-	telemetryHandler := telemetry.NewTelemetryHandler(telemetryRepo, flowDiscovery, traceValidator, rootCauseAnalyzer, logger)
 
 	// Start telemetry lifecycle
 	spanProcessor.Start(context.Background())
@@ -247,6 +246,7 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 	coverageIndexer := telemetry.NewCoverageIndexer(telemetryRepo, nil, logger)
 	executionLinker := telemetry.NewExecutionLinker(telemetryRepo, nil, nil, logger)
 	traceInsightCache := telemetry.NewTraceInsightCache(telemetryRepo, nil, aiProviders, logger)
+	telemetryHandler := telemetry.NewTelemetryHandler(telemetryRepo, flowDiscovery, traceValidator, rootCauseAnalyzer, traceInsightCache, coverageIndexer, logger)
 	enrichmentWorker := telemetry.NewTraceEnrichmentWorker(
 		flowDiscovery,
 		coverageIndexer,
@@ -553,6 +553,8 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 				telemetryRoutes.GET("/spans", telemetryHandler.QuerySpans)
 				telemetryRoutes.GET("/drift", telemetryHandler.ListDriftAlerts)
 			}
+			ws.POST("/telemetry/traces/:trace_id/generate-flow", telemetryHandler.GenerateFlow)
+			ws.GET("/telemetry/coverage-gaps", telemetryHandler.ListCoverageGaps)
 			ws.GET("/settings/telemetry", telemetryHandler.GetTraceSettings)
 			ws.PUT("/settings/telemetry", telemetryHandler.UpdateTraceSettings)
 			ws.GET("/executions/:id/trace-validation", telemetryHandler.GetTraceValidation)

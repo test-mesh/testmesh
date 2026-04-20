@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -14,6 +15,8 @@ type TelemetryHandler struct {
 	discovery *FlowDiscovery
 	validator *TraceValidator
 	rootcause *RootCauseAnalyzer
+	insights  *TraceInsightCache
+	coverage  *CoverageIndexer
 	logger    *zap.Logger
 }
 
@@ -23,6 +26,8 @@ func NewTelemetryHandler(
 	discovery *FlowDiscovery,
 	validator *TraceValidator,
 	rootcause *RootCauseAnalyzer,
+	insights *TraceInsightCache,
+	coverage *CoverageIndexer,
 	logger *zap.Logger,
 ) *TelemetryHandler {
 	return &TelemetryHandler{
@@ -30,6 +35,8 @@ func NewTelemetryHandler(
 		discovery: discovery,
 		validator: validator,
 		rootcause: rootcause,
+		insights:  insights,
+		coverage:  coverage,
 		logger:    logger,
 	}
 }
@@ -211,4 +218,87 @@ func (h *TelemetryHandler) UpdateTraceSettings(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, settings)
+}
+
+// GenerateFlow handles POST /workspaces/:workspace_id/telemetry/traces/:trace_id/generate-flow
+func (h *TelemetryHandler) GenerateFlow(c *gin.Context) {
+	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+	traceID := c.Param("trace_id")
+	if traceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "trace_id required"})
+		return
+	}
+
+	// Fast path: return cached insight
+	insight, err := h.insights.GetInsight(c.Request.Context(), traceID)
+	if err == nil && insight.GeneratedYAML != "" {
+		c.JSON(http.StatusOK, gin.H{
+			"yaml":       insight.GeneratedYAML,
+			"confidence": insight.Confidence,
+			"intent":     insight.InferredIntent,
+			"coverage":   insight.Coverage,
+			"cached":     true,
+		})
+		return
+	}
+
+	// Slow path: compute now
+	if err := h.insights.Summarize(c.Request.Context(), workspaceID, traceID); err != nil {
+		h.logger.Error("failed to generate trace insight", zap.String("trace_id", traceID), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate flow"})
+		return
+	}
+
+	insight, err = h.insights.GetInsight(c.Request.Context(), traceID)
+	if err != nil || insight.GeneratedYAML == "" {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "could not generate YAML — ensure AI provider is configured"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"yaml":       insight.GeneratedYAML,
+		"confidence": insight.Confidence,
+		"intent":     insight.InferredIntent,
+		"coverage":   insight.Coverage,
+		"cached":     false,
+	})
+}
+
+// ListCoverageGaps handles GET /workspaces/:workspace_id/telemetry/coverage-gaps
+func (h *TelemetryHandler) ListCoverageGaps(c *gin.Context) {
+	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
+
+	uncoveredOnly := c.DefaultQuery("uncovered", "true") == "true"
+	sort := c.DefaultQuery("sort", "risk_score")
+	limit := 50
+	offset := 0
+	if v, err := strconv.Atoi(c.Query("limit")); err == nil && v > 0 {
+		limit = v
+	}
+	if v, err := strconv.Atoi(c.Query("offset")); err == nil && v >= 0 {
+		offset = v
+	}
+
+	gaps, err := h.repo.ListCoverageGaps(c.Request.Context(), workspaceID, uncoveredOnly, sort, limit, offset)
+	if err != nil {
+		h.logger.Error("failed to list coverage gaps", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list gaps"})
+		return
+	}
+	total, _ := h.repo.CountCoverageGaps(c.Request.Context(), workspaceID, false)
+	uncovTotal, _ := h.repo.CountCoverageGaps(c.Request.Context(), workspaceID, true)
+
+	c.JSON(http.StatusOK, gin.H{
+		"gaps":            gaps,
+		"total":           total,
+		"uncovered_count": uncovTotal,
+	})
 }
