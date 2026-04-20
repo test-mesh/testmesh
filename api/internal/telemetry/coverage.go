@@ -3,7 +3,6 @@ package telemetry
 import (
 	"context"
 	"math"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,16 +59,6 @@ func (c *CoverageIndexer) Update(ctx context.Context, workspaceID uuid.UUID, tra
 
 	for _, s := range spans {
 		if s.IsTestGenerated {
-			continue
-		}
-
-		// Skip monitoring scrapers — their routes (/metrics, /healthz) are not
-		// user-facing endpoints and should not appear in coverage gap reports.
-		ua := getStringAttrMap(s.Attributes, "http.user_agent")
-		if strings.HasPrefix(ua, "Prometheus/") ||
-			strings.HasPrefix(ua, "kube-probe/") ||
-			strings.HasPrefix(ua, "ELB-HealthChecker/") ||
-			strings.HasPrefix(ua, "GoogleHC/") {
 			continue
 		}
 

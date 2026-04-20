@@ -275,33 +275,27 @@ func summaryAsJSONArray(summary []map[string]interface{}) graph.JSONArray {
 	return out
 }
 
-// isBotTrace returns true when every span in the trace originates from a known
-// monitoring scraper (Prometheus, kube-probe, GoogleHC, etc.). These traces are
-// high-frequency, always hit the same routes, and carry no meaningful user intent,
-// so generating LLM summaries for them wastes quota with zero value.
+// isBotSpan returns true when a span originates from a known monitoring scraper
+// (Prometheus, kube-probe, GoogleHC, ELB health-checker, etc.). These generate
+// high-frequency unique traces that carry no meaningful user intent.
+func isBotSpan(s Span) bool {
+	ua := getStringAttrMap(s.Attributes, "http.user_agent")
+	return strings.HasPrefix(ua, "Prometheus/") ||
+		strings.HasPrefix(ua, "kube-probe/") ||
+		strings.HasPrefix(ua, "GoogleHC/") ||
+		strings.HasPrefix(ua, "Go-http-client/") ||
+		strings.HasPrefix(ua, "ELB-HealthChecker/") ||
+		strings.HasPrefix(ua, "HealthChecker/")
+}
+
+// isBotTrace returns true when every span in the trace is from a known bot.
 func isBotTrace(spans []Span) bool {
 	if len(spans) == 0 {
 		return false
 	}
-	botPrefixes := []string{
-		"Prometheus/",
-		"kube-probe/",
-		"GoogleHC/",
-		"Go-http-client/", // often used by health-check crawlers
-		"ELB-HealthChecker/",
-		"HealthChecker/",
-	}
 	for _, s := range spans {
-		ua := getStringAttrMap(s.Attributes, "http.user_agent")
-		isBot := false
-		for _, prefix := range botPrefixes {
-			if strings.HasPrefix(ua, prefix) {
-				isBot = true
-				break
-			}
-		}
-		if !isBot {
-			return false // at least one non-bot span → keep the trace
+		if !isBotSpan(s) {
+			return false // at least one real span — keep the trace
 		}
 	}
 	return true

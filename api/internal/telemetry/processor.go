@@ -113,6 +113,21 @@ func (p *SpanProcessor) ProcessOTLP(ctx context.Context, workspaceID uuid.UUID, 
 		return nil
 	}
 
+	// Drop monitoring-scraper spans before persisting. They generate high-frequency
+	// unique traces that would pollute discovered_flows, coverage gaps, and the
+	// LLM pipeline with zero test value.
+	filtered := spans[:0]
+	for _, s := range spans {
+		if !isBotSpan(s) {
+			filtered = append(filtered, s)
+		}
+	}
+	spans = filtered
+
+	if len(spans) == 0 {
+		return nil
+	}
+
 	// Persist spans immediately
 	if err := p.repo.InsertSpans(ctx, spans); err != nil {
 		return err
