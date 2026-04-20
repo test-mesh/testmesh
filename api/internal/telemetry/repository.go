@@ -287,3 +287,34 @@ func (r *TelemetryRepository) CountCoverageGaps(ctx context.Context, workspaceID
 	var count int64
 	return count, q.Count(&count).Error
 }
+
+// --- Repair Suggestion operations ---
+
+// GetRepairSuggestions returns all repair suggestions for a given execution, newest first.
+func (r *TelemetryRepository) GetRepairSuggestions(ctx context.Context, executionID uuid.UUID) ([]RepairSuggestion, error) {
+	var suggestions []RepairSuggestion
+	err := r.db.WithContext(ctx).
+		Where("execution_id = ?", executionID).
+		Order("created_at DESC").
+		Find(&suggestions).Error
+	return suggestions, err
+}
+
+// ApplyRepairSuggestion marks a repair suggestion as accepted and records the applied time.
+func (r *TelemetryRepository) ApplyRepairSuggestion(ctx context.Context, suggestionID uuid.UUID) (*RepairSuggestion, error) {
+	var s RepairSuggestion
+	if err := r.db.WithContext(ctx).Where("id = ?", suggestionID).First(&s).Error; err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	s.Status = "accepted"
+	s.AppliedAt = &now
+	return &s, r.db.WithContext(ctx).Save(&s).Error
+}
+
+// DismissRepairSuggestion marks a repair suggestion as dismissed.
+func (r *TelemetryRepository) DismissRepairSuggestion(ctx context.Context, suggestionID uuid.UUID) error {
+	return r.db.WithContext(ctx).Model(&RepairSuggestion{}).
+		Where("id = ?", suggestionID).
+		Update("status", "dismissed").Error
+}

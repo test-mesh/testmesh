@@ -244,7 +244,8 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 
 	// Wire TraceEnrichmentWorker: replaces ad-hoc discovery goroutine
 	coverageIndexer := telemetry.NewCoverageIndexer(telemetryRepo, nil, logger)
-	executionLinker := telemetry.NewExecutionLinker(telemetryRepo, nil, nil, logger)
+	execRepoAdapter := telemetry.NewGORMExecRepoAdapter(db)
+	executionLinker := telemetry.NewExecutionLinker(telemetryRepo, execRepoAdapter, aiProviders, logger)
 	traceInsightCache := telemetry.NewTraceInsightCache(telemetryRepo, nil, aiProviders, logger)
 	telemetryHandler := telemetry.NewTelemetryHandler(telemetryRepo, flowDiscovery, traceValidator, rootCauseAnalyzer, traceInsightCache, coverageIndexer, logger)
 	enrichmentWorker := telemetry.NewTraceEnrichmentWorker(
