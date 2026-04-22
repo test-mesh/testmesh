@@ -129,6 +129,9 @@ func (h *SuiteHandler) List(c *gin.Context) {
 			params.Limit = l
 		}
 	}
+	if params.Limit > 200 {
+		params.Limit = 200
+	}
 	if offsetStr := c.Query("offset"); offsetStr != "" {
 		if o, err := strconv.Atoi(offsetStr); err == nil {
 			params.Offset = o
@@ -164,6 +167,12 @@ func (h *SuiteHandler) Get(c *gin.Context) {
 		return
 	}
 
+	workspaceID, _ := uuid.Parse(c.Param("workspace_id"))
+	if suite.WorkspaceID != workspaceID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "suite not found"})
+		return
+	}
+
 	c.JSON(http.StatusOK, suite)
 }
 
@@ -178,6 +187,12 @@ func (h *SuiteHandler) Update(c *gin.Context) {
 	suite, err := h.repo.Get(c.Request.Context(), suiteID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Suite not found"})
+		return
+	}
+
+	workspaceID, _ := uuid.Parse(c.Param("workspace_id"))
+	if suite.WorkspaceID != workspaceID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "suite not found"})
 		return
 	}
 
@@ -238,6 +253,18 @@ func (h *SuiteHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	suite, err := h.repo.Get(c.Request.Context(), suiteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Suite not found"})
+		return
+	}
+
+	workspaceID, _ := uuid.Parse(c.Param("workspace_id"))
+	if suite.WorkspaceID != workspaceID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "suite not found"})
+		return
+	}
+
 	if err := h.repo.Delete(c.Request.Context(), suiteID); err != nil {
 		h.logger.Error("Failed to delete suite", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -252,6 +279,18 @@ func (h *SuiteHandler) Run(c *gin.Context) {
 	suiteID, err := uuid.Parse(c.Param("suite_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid suite ID"})
+		return
+	}
+
+	suite, err := h.repo.Get(c.Request.Context(), suiteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Suite not found"})
+		return
+	}
+
+	workspaceID, _ := uuid.Parse(c.Param("workspace_id"))
+	if suite.WorkspaceID != workspaceID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "suite not found"})
 		return
 	}
 
@@ -286,6 +325,18 @@ func (h *SuiteHandler) ListRuns(c *gin.Context) {
 		return
 	}
 
+	suite, err := h.repo.Get(c.Request.Context(), suiteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Suite not found"})
+		return
+	}
+
+	workspaceID, _ := uuid.Parse(c.Param("workspace_id"))
+	if suite.WorkspaceID != workspaceID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "suite not found"})
+		return
+	}
+
 	limit := 20
 	offset := 0
 
@@ -293,6 +344,9 @@ func (h *SuiteHandler) ListRuns(c *gin.Context) {
 		if l, err := strconv.Atoi(limitStr); err == nil {
 			limit = l
 		}
+	}
+	if limit > 200 {
+		limit = 200
 	}
 	if offsetStr := c.Query("offset"); offsetStr != "" {
 		if o, err := strconv.Atoi(offsetStr); err == nil {
@@ -320,6 +374,18 @@ func (h *SuiteHandler) GetRun(c *gin.Context) {
 	suiteID, err := uuid.Parse(c.Param("suite_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid suite ID"})
+		return
+	}
+
+	suite, err := h.repo.Get(c.Request.Context(), suiteID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Suite not found"})
+		return
+	}
+
+	workspaceID, _ := uuid.Parse(c.Param("workspace_id"))
+	if suite.WorkspaceID != workspaceID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "suite not found"})
 		return
 	}
 
