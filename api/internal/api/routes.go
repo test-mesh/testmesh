@@ -549,6 +549,17 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 				suites.GET("/:suite_id/runs/:run_id", suiteHandler.GetRun)
 			}
 
+			// Test environment routes (workspace-scoped)
+			testEnvHandler := handlers.NewTestEnvironmentHandler(testEnvRepo, envService, logger)
+
+			testEnvs := ws.Group("/test-environments")
+			{
+				testEnvs.GET("", testEnvHandler.List)
+				testEnvs.POST("", testEnvHandler.Create)
+				testEnvs.GET("/:env_id", testEnvHandler.Get)
+				testEnvs.DELETE("/:env_id", testEnvHandler.Destroy)
+			}
+
 			// Import/Export routes (workspace-scoped)
 			ws.POST("/import/parse", importExportHandler.Parse)
 			ws.POST("/import", importExportHandler.Import)
