@@ -72,7 +72,7 @@ func (r *SuiteRepository) List(ctx context.Context, p SuiteListParams) ([]models
 	}
 
 	var suites []models.Suite
-	err := query.Preload("SuiteFlows.Flow").Order("created_at DESC").Find(&suites).Error
+	err := query.Order("created_at DESC").Find(&suites).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -108,12 +108,12 @@ func (r *SuiteRepository) CreateRun(ctx context.Context, run *models.SuiteRun) e
 	return r.db.WithContext(ctx).Create(run).Error
 }
 
-// GetRun retrieves a suite run by ID, preloading SuiteRunExecutions and their Execution
-func (r *SuiteRepository) GetRun(ctx context.Context, id uuid.UUID) (*models.SuiteRun, error) {
+// GetRun retrieves a suite run by ID and suiteID, preloading SuiteRunExecutions and their Execution
+func (r *SuiteRepository) GetRun(ctx context.Context, suiteID, id uuid.UUID) (*models.SuiteRun, error) {
 	var run models.SuiteRun
 	err := r.db.WithContext(ctx).
 		Preload("SuiteRunExecutions.Execution").
-		First(&run, "id = ?", id).Error
+		First(&run, "id = ? AND suite_id = ?", id, suiteID).Error
 	if err != nil {
 		return nil, err
 	}
