@@ -23,6 +23,8 @@ type Schedule struct {
 	Description string         `json:"description,omitempty"`
 	FlowID      uuid.UUID      `gorm:"type:uuid;index" json:"flow_id"`
 	Flow        *Flow          `gorm:"foreignKey:FlowID" json:"flow,omitempty"`
+	SuiteID     *uuid.UUID     `gorm:"type:uuid" json:"suite_id,omitempty"`
+	TargetType  string         `gorm:"default:'flow'" json:"target_type"`
 	CronExpr    string         `gorm:"not null" json:"cron_expr"`
 	Timezone    string         `gorm:"default:'UTC'" json:"timezone"`
 	Status      ScheduleStatus `gorm:"type:varchar(20);not null;default:'active'" json:"status"`

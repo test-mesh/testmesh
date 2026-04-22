@@ -32,6 +32,9 @@ const (
 
 	// Notification Providers
 	IntegrationProviderSlack IntegrationProvider = "slack"
+
+	// CD Providers
+	IntegrationProviderArgoCD IntegrationProvider = "argocd"
 )
 
 // IntegrationStatus represents the status of an integration
@@ -92,6 +95,10 @@ type IntegrationConfig struct {
 	// Notification (Slack) config
 	Channel         string   `json:"channel,omitempty"`          // e.g. "#alerts"
 	NotifyOnEvents  []string `json:"notify_on_events,omitempty"` // ["execution_failed","execution_passed","schedule_triggered"]
+
+	// ArgoCD config
+	ArgoCDURL       string `json:"argocd_url,omitempty"`
+	ArgoCDAppFilter string `json:"argocd_app_filter,omitempty"`
 }
 
 // BeforeCreate generates UUID if not set
@@ -140,6 +147,8 @@ type GitTriggerRule struct {
 	TriggerMode   TriggerMode `gorm:"type:varchar(20);not null" json:"trigger_mode"`
 	ScheduleID    *uuid.UUID  `gorm:"type:uuid" json:"schedule_id,omitempty"`
 	FlowID        *uuid.UUID  `gorm:"type:uuid" json:"flow_id,omitempty"`
+	// SuiteID is set when TriggerMode is "direct" and the target is a suite.
+	SuiteID       *uuid.UUID  `gorm:"type:uuid" json:"suite_id,omitempty"`
 	Enabled       bool        `gorm:"default:true" json:"enabled"`
 	CreatedAt     time.Time   `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt     time.Time   `gorm:"autoUpdateTime" json:"updated_at"`

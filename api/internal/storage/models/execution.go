@@ -34,6 +34,9 @@ type Execution struct {
 	FailedSteps int             `json:"failed_steps"`
 	Error       string          `json:"error,omitempty"`
 	TraceID     string          `gorm:"size:32" json:"trace_id,omitempty"`
+	TriggerType TriggerType     `gorm:"column:trigger_type;default:'manual'" json:"trigger_type"`
+	TriggerRef  string          `gorm:"column:trigger_ref" json:"trigger_ref"`
+	SuiteRunID  *uuid.UUID      `gorm:"type:uuid;column:suite_run_id" json:"suite_run_id,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
