@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -108,7 +109,11 @@ func (h *TestEnvironmentHandler) Get(c *gin.Context) {
 		return
 	}
 
-	workspaceID, _ := uuid.Parse(c.Param("workspace_id"))
+	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
 	if env.WorkspaceID != workspaceID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Test environment not found"})
 		return
@@ -133,7 +138,11 @@ func (h *TestEnvironmentHandler) Destroy(c *gin.Context) {
 		return
 	}
 
-	workspaceID, _ := uuid.Parse(c.Param("workspace_id"))
+	workspaceID, err := uuid.Parse(c.Param("workspace_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid workspace_id"})
+		return
+	}
 	if env.WorkspaceID != workspaceID {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Test environment not found"})
 		return
@@ -148,7 +157,7 @@ func (h *TestEnvironmentHandler) Destroy(c *gin.Context) {
 	}
 
 	// Trigger cleanup asynchronously
-	go h.service.CleanupExpired(c.Request.Context())
+	go h.service.CleanupExpired(context.Background())
 
 	c.JSON(http.StatusAccepted, gin.H{"message": "teardown initiated"})
 }
