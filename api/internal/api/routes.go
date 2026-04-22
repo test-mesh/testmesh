@@ -380,6 +380,27 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 	// Mock server wildcard route — serves all mock endpoints through the main API server
 	router.Any("/mocks/:server_id/*path", mockManager.GinHandler())
 
+	// Suite repo + runner — created here so they can be shared between the
+	// workspace-scoped suite endpoints and the global Argo CD webhook receiver.
+	suiteRepo := repository.NewSuiteRepository(db)
+	// TODO: pass server shutdown context instead of context.Background()
+	suiteRunner := runner.NewSuiteRunner(context.Background(), suiteRepo, executionRepo, func(
+		ctx context.Context,
+		flowID uuid.UUID,
+		environment string,
+		variables map[string]interface{},
+		triggerType models.TriggerType,
+		triggerRef string,
+		suiteRunID uuid.UUID,
+	) (uuid.UUID, bool, error) {
+		// TODO: wire real flow executor (create execution record + run via executor)
+		logger.Warn("suite flow executor stub called — no real execution performed",
+			zap.String("flow_id", flowID.String()),
+			zap.String("suite_run_id", suiteRunID.String()),
+		)
+		return uuid.Nil, true, nil
+	}, logger)
+
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
@@ -514,24 +535,6 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 			}
 
 			// Suite routes (workspace-scoped)
-			suiteRepo := repository.NewSuiteRepository(db)
-			// TODO: pass server shutdown context instead of context.Background()
-			suiteRunner := runner.NewSuiteRunner(context.Background(), suiteRepo, executionRepo, func(
-				ctx context.Context,
-				flowID uuid.UUID,
-				environment string,
-				variables map[string]interface{},
-				triggerType models.TriggerType,
-				triggerRef string,
-				suiteRunID uuid.UUID,
-			) (uuid.UUID, bool, error) {
-				// TODO: wire real flow executor (create execution record + run via executor)
-				logger.Warn("suite flow executor stub called — no real execution performed",
-					zap.String("flow_id", flowID.String()),
-					zap.String("suite_run_id", suiteRunID.String()),
-				)
-				return uuid.Nil, true, nil
-			}, logger)
 			suiteHandler := handlers.NewSuiteHandler(suiteRepo, suiteRunner, logger)
 
 			suites := ws.Group("/suites")
@@ -943,6 +946,12 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 		v1.POST("/webhooks/github", webhookHandler.HandleGitHub)
 		v1.POST("/webhooks/gitea", webhookHandler.HandleGitea)
 		v1.POST("/webhooks/gitlab", webhookHandler.HandleGitLab)
+
+		// Argo CD sync webhook — fires suite runs when an Application sync succeeds.
+		// TODO: add shared-secret validation (X-TestMesh-Secret header) once the
+		//       argocd-notifications secret strategy is finalised.
+		argoCDWebhookHandler := handlers.NewArgoCDWebhookHandler(gitTriggerRuleRepo, webhookDeliveryRepo, suiteRunner, logger)
+		v1.POST("/webhooks/argocd", argoCDWebhookHandler.HandleSync)
 
 		// GitHub OAuth routes (unscoped: app-status is public, callback has no auth context from GitHub)
 		github := v1.Group("/github")

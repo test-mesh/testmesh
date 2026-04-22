@@ -397,6 +397,23 @@ func (r *GitTriggerRuleRepository) FindMatchingRules(repository, branch, eventTy
 	return matchingRules, nil
 }
 
+// FindByRepository finds all enabled trigger rules whose repository field matches
+// the given name. Unlike FindMatchingRules it does not filter by branch or event
+// type, which makes it suitable for CD systems (e.g. Argo CD) where syncs are not
+// branch-scoped.
+func (r *GitTriggerRuleRepository) FindByRepository(repositoryName string) ([]*models.GitTriggerRule, error) {
+	var rules []*models.GitTriggerRule
+	err := r.db.Where("repository = ? AND enabled = ?", repositoryName, true).
+		Preload("Integration").
+		Preload("Schedule").
+		Preload("Flow").
+		Find(&rules).Error
+	if err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
 // matchesBranch performs simple glob matching
 // TODO: Implement proper glob matching with * and **
 func matchesBranch(pattern, branch string) bool {
