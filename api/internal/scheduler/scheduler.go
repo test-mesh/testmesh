@@ -295,7 +295,12 @@ func (s *Scheduler) executeSchedule(schedule *models.Schedule) (*models.Schedule
 	go func() {
 		startTime := time.Now()
 
-		execID, result, err := s.executeFunc(s.ctx, schedule.FlowID, schedule.Environment)
+		if schedule.FlowID == nil {
+			s.scheduleRepo.MarkRunCompleted(run.ID, "failure", "No flow ID configured for schedule")
+			s.scheduleRepo.UpdateLastRun(schedule.ID, run.ID, "failure")
+			return
+		}
+		execID, result, err := s.executeFunc(s.ctx, *schedule.FlowID, schedule.Environment)
 
 		duration := time.Since(startTime).Milliseconds()
 

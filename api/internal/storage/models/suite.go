@@ -74,6 +74,7 @@ type SuiteRun struct {
 	PassedFlows int            `json:"passed_flows"`
 	FailedFlows int            `json:"failed_flows"`
 	Error       string         `json:"error"`
+	CreatedAt   time.Time      `gorm:"autoCreateTime" json:"created_at"`
 
 	SuiteRunExecutions []SuiteRunExecution `gorm:"foreignKey:SuiteRunID;constraint:OnDelete:CASCADE" json:"executions,omitempty"`
 }

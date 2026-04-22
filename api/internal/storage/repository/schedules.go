@@ -51,8 +51,8 @@ func (r *ScheduleRepository) List(params models.ScheduleListParams) ([]*models.S
 	if params.Status != "" {
 		query = query.Where("status = ?", params.Status)
 	}
-	if params.FlowID != uuid.Nil {
-		query = query.Where("flow_id = ?", params.FlowID)
+	if params.FlowID != nil {
+		query = query.Where("flow_id = ?", *params.FlowID)
 	}
 	if params.Search != "" {
 		query = query.Where("name ILIKE ? OR description ILIKE ?",

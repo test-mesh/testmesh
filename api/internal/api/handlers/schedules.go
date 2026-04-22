@@ -76,7 +76,7 @@ func (h *ScheduleHandler) Create(c *gin.Context) {
 	schedule := &models.Schedule{
 		Name:            req.Name,
 		Description:     req.Description,
-		FlowID:          flowID,
+		FlowID:          &flowID,
 		CronExpr:        req.CronExpr,
 		Timezone:        timezone,
 		Status:          models.ScheduleStatusActive,
@@ -113,7 +113,7 @@ func (h *ScheduleHandler) List(c *gin.Context) {
 	// Parse flow ID filter
 	if flowIDStr := c.Query("flow_id"); flowIDStr != "" {
 		if flowID, err := uuid.Parse(flowIDStr); err == nil {
-			params.FlowID = flowID
+			params.FlowID = &flowID
 		}
 	}
 
@@ -192,7 +192,7 @@ func (h *ScheduleHandler) Update(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid flow ID"})
 			return
 		}
-		schedule.FlowID = flowID
+		schedule.FlowID = &flowID
 	}
 
 	// Update fields

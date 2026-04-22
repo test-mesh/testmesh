@@ -1058,7 +1058,7 @@ func AutoMigrate(db *gorm.DB) error {
 	}
 
 	// Create flows.suites table
-	db.Exec(`
+	if err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS flows.suites (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -1071,10 +1071,12 @@ func AutoMigrate(db *gorm.DB) error {
 		);
 		CREATE INDEX IF NOT EXISTS idx_suites_workspace_id ON flows.suites(workspace_id);
 		CREATE INDEX IF NOT EXISTS idx_suites_deleted_at ON flows.suites(deleted_at);
-	`)
+	`).Error; err != nil {
+		return err
+	}
 
 	// Create flows.suite_flows table
-	db.Exec(`
+	if err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS flows.suite_flows (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			suite_id UUID NOT NULL REFERENCES flows.suites(id) ON DELETE CASCADE,
@@ -1083,10 +1085,13 @@ func AutoMigrate(db *gorm.DB) error {
 			parallel BOOLEAN DEFAULT false
 		);
 		CREATE INDEX IF NOT EXISTS idx_suite_flows_suite_id ON flows.suite_flows(suite_id);
-	`)
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_suite_flows_unique ON flows.suite_flows(suite_id, flow_id);
+	`).Error; err != nil {
+		return err
+	}
 
 	// Create flows.suite_runs table
-	db.Exec(`
+	if err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS flows.suite_runs (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			suite_id UUID NOT NULL REFERENCES flows.suites(id) ON DELETE CASCADE,
@@ -1100,35 +1105,52 @@ func AutoMigrate(db *gorm.DB) error {
 			total_flows INTEGER DEFAULT 0,
 			passed_flows INTEGER DEFAULT 0,
 			failed_flows INTEGER DEFAULT 0,
-			error TEXT
+			error TEXT,
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_suite_runs_suite_id ON flows.suite_runs(suite_id);
 		CREATE INDEX IF NOT EXISTS idx_suite_runs_status ON flows.suite_runs(status);
-	`)
+	`).Error; err != nil {
+		return err
+	}
 
 	// Create flows.suite_run_executions table
-	db.Exec(`
+	if err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS flows.suite_run_executions (
 			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			suite_run_id UUID NOT NULL REFERENCES flows.suite_runs(id) ON DELETE CASCADE,
-			execution_id UUID NOT NULL REFERENCES executions.executions(id),
-			flow_id UUID NOT NULL REFERENCES flows.flows(id),
+			execution_id UUID NOT NULL REFERENCES executions.executions(id) ON DELETE CASCADE,
+			flow_id UUID NOT NULL REFERENCES flows.flows(id) ON DELETE CASCADE,
 			"order" INTEGER DEFAULT 0
 		);
 		CREATE INDEX IF NOT EXISTS idx_suite_run_executions_suite_run_id ON flows.suite_run_executions(suite_run_id);
-	`)
+	`).Error; err != nil {
+		return err
+	}
 
 	// Add suite_id and target_type to schedules (idempotent)
-	db.Exec(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS suite_id UUID`)
-	db.Exec(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS target_type VARCHAR(20) DEFAULT 'flow'`)
+	if err := db.Exec(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS suite_id UUID`).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS target_type VARCHAR(20) DEFAULT 'flow'`).Error; err != nil {
+		return err
+	}
 
 	// Add suite_id to git_trigger_rules (idempotent)
-	db.Exec(`ALTER TABLE git_trigger_rules ADD COLUMN IF NOT EXISTS suite_id UUID`)
+	if err := db.Exec(`ALTER TABLE git_trigger_rules ADD COLUMN IF NOT EXISTS suite_id UUID`).Error; err != nil {
+		return err
+	}
 
 	// Add trigger tracking columns to executions (idempotent)
-	db.Exec(`ALTER TABLE executions.executions ADD COLUMN IF NOT EXISTS trigger_type VARCHAR(50) DEFAULT 'manual'`)
-	db.Exec(`ALTER TABLE executions.executions ADD COLUMN IF NOT EXISTS trigger_ref TEXT`)
-	db.Exec(`ALTER TABLE executions.executions ADD COLUMN IF NOT EXISTS suite_run_id UUID`)
+	if err := db.Exec(`ALTER TABLE executions.executions ADD COLUMN IF NOT EXISTS trigger_type VARCHAR(50) DEFAULT 'manual'`).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(`ALTER TABLE executions.executions ADD COLUMN IF NOT EXISTS trigger_ref TEXT`).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(`ALTER TABLE executions.executions ADD COLUMN IF NOT EXISTS suite_run_id UUID REFERENCES flows.suite_runs(id) ON DELETE SET NULL`).Error; err != nil {
+		return err
+	}
 
 	// Seed comprehensive sample data
 	seedSampleData(db)

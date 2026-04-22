@@ -21,7 +21,7 @@ type Schedule struct {
 	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	Name        string         `gorm:"not null" json:"name"`
 	Description string         `json:"description,omitempty"`
-	FlowID      uuid.UUID      `gorm:"type:uuid;index" json:"flow_id"`
+	FlowID      *uuid.UUID     `gorm:"type:uuid;index" json:"flow_id,omitempty"`
 	Flow        *Flow          `gorm:"foreignKey:FlowID" json:"flow,omitempty"`
 	SuiteID     *uuid.UUID     `gorm:"type:uuid" json:"suite_id,omitempty"`
 	TargetType  string         `gorm:"default:'flow'" json:"target_type"`
@@ -92,7 +92,7 @@ func (sr *ScheduleRun) BeforeCreate(tx *gorm.DB) error {
 // ScheduleListParams defines parameters for listing schedules
 type ScheduleListParams struct {
 	Status   ScheduleStatus
-	FlowID   uuid.UUID
+	FlowID   *uuid.UUID
 	Tags     []string
 	Search   string
 	Page     int

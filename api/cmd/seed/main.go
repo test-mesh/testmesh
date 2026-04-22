@@ -1369,7 +1369,7 @@ func seedSchedules(db *gorm.DB) {
 			ID:              uuid.New(),
 			Name:            s.name,
 			Description:     fmt.Sprintf("Scheduled run for %s", s.name),
-			FlowID:          flow.ID,
+			FlowID:          &flow.ID,
 			CronExpr:        s.cron,
 			Timezone:        s.timezone,
 			Status:          s.status,
