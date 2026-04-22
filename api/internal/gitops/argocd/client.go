@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -37,7 +38,7 @@ type appResponse struct {
 
 // GetApp calls GET /api/v1/applications/{name}
 func (c *Client) GetApp(ctx context.Context, appName string) (*appResponse, error) {
-	url := fmt.Sprintf("%s/api/v1/applications/%s", c.baseURL, appName)
+	url := fmt.Sprintf("%s/api/v1/applications/%s", c.baseURL, url.PathEscape(appName))
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
@@ -66,7 +67,7 @@ func (c *Client) GetApp(ctx context.Context, appName string) (*appResponse, erro
 
 // DeleteApp calls DELETE /api/v1/applications/{name}?cascade=true
 func (c *Client) DeleteApp(ctx context.Context, appName string) error {
-	url := fmt.Sprintf("%s/api/v1/applications/%s?cascade=true", c.baseURL, appName)
+	url := fmt.Sprintf("%s/api/v1/applications/%s?cascade=true", c.baseURL, url.PathEscape(appName))
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err

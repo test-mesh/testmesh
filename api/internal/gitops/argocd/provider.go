@@ -34,11 +34,14 @@ func (p *Provider) GetAppStatus(ctx context.Context, appName string) (*gitops.Ap
 }
 
 func (p *Provider) WaitForHealthy(ctx context.Context, appName string) error {
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("timed out waiting for %q to become healthy: %w", appName, ctx.Err())
-		case <-time.After(pollInterval):
+		case <-ticker.C:
 			status, err := p.GetAppStatus(ctx, appName)
 			if err != nil {
 				// Transient error — keep polling.
