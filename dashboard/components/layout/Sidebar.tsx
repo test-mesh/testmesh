@@ -21,6 +21,7 @@ import {
   HeartPulse,
   Network,
   ShieldCheck,
+  Layers,
 } from 'lucide-react';
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
@@ -44,6 +45,7 @@ const navigation: NavItem[] = [
   // Execution
   { title: 'Executions', href: '/executions', icon: Play },
   { title: 'Coverage', href: '/coverage', icon: ShieldCheck },
+  { title: 'Suites', href: '/suites', icon: Layers },
   { title: 'Schedules', href: '/schedules', icon: Calendar },
 
   // Test infrastructure
