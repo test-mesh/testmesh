@@ -502,6 +502,39 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 				flows.POST("/:id/versions/:version/restore", flowHandler.RestoreVersion)
 			}
 
+			// Suite routes (workspace-scoped)
+			suiteRepo := repository.NewSuiteRepository(db)
+			// TODO: pass server shutdown context instead of context.Background()
+			suiteRunner := runner.NewSuiteRunner(context.Background(), suiteRepo, executionRepo, func(
+				ctx context.Context,
+				flowID uuid.UUID,
+				environment string,
+				variables map[string]interface{},
+				triggerType models.TriggerType,
+				triggerRef string,
+				suiteRunID uuid.UUID,
+			) (uuid.UUID, bool, error) {
+				// TODO: wire real flow executor (create execution record + run via executor)
+				logger.Warn("suite flow executor stub called — no real execution performed",
+					zap.String("flow_id", flowID.String()),
+					zap.String("suite_run_id", suiteRunID.String()),
+				)
+				return uuid.Nil, true, nil
+			}, logger)
+			suiteHandler := handlers.NewSuiteHandler(suiteRepo, suiteRunner, logger)
+
+			suites := ws.Group("/suites")
+			{
+				suites.GET("", suiteHandler.List)
+				suites.POST("", suiteHandler.Create)
+				suites.GET("/:suite_id", suiteHandler.Get)
+				suites.PUT("/:suite_id", suiteHandler.Update)
+				suites.DELETE("/:suite_id", suiteHandler.Delete)
+				suites.POST("/:suite_id/run", suiteHandler.Run)
+				suites.GET("/:suite_id/runs", suiteHandler.ListRuns)
+				suites.GET("/:suite_id/runs/:run_id", suiteHandler.GetRun)
+			}
+
 			// Import/Export routes (workspace-scoped)
 			ws.POST("/import/parse", importExportHandler.Parse)
 			ws.POST("/import", importExportHandler.Import)
