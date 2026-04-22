@@ -45,12 +45,16 @@ export interface RetryConfig {
 
 export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
+export type TriggerType = 'manual' | 'schedule' | 'webhook' | 'argocd' | 'api';
+
 export interface Execution {
   id: string;
   flow_id: string;
   flow?: Flow;
   status: ExecutionStatus;
   environment: string;
+  trigger_type?: TriggerType;
+  trigger_ref?: string;
   started_at: string | null;
   finished_at: string | null;
   duration_ms: number;

@@ -22,6 +22,7 @@ import {
   Network,
   ShieldCheck,
   Layers,
+  Container,
 } from 'lucide-react';
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
@@ -46,6 +47,7 @@ const navigation: NavItem[] = [
   { title: 'Executions', href: '/executions', icon: Play },
   { title: 'Coverage', href: '/coverage', icon: ShieldCheck },
   { title: 'Suites', href: '/suites', icon: Layers },
+  { title: 'Test Environments', href: '/test-environments', icon: Container },
   { title: 'Schedules', href: '/schedules', icon: Calendar },
 
   // Test infrastructure

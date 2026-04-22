@@ -30,7 +30,15 @@ import {
 } from '@/components/ui/select';
 import { Eye, Clock, CheckCircle2, XCircle, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import type { ExecutionStatus } from '@/lib/api/types';
+import type { ExecutionStatus, TriggerType } from '@/lib/api/types';
+
+const TRIGGER_LABELS: Record<string, string> = {
+  manual: 'Manual',
+  schedule: 'Schedule',
+  webhook: 'Webhook',
+  argocd: 'Argo CD',
+  api: 'API',
+};
 
 const PAGE_SIZE = 5;
 
@@ -151,6 +159,7 @@ export default function ExecutionsPage() {
                 <TableHead>Flow</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Environment</TableHead>
+                <TableHead>Triggered By</TableHead>
                 <TableHead>Steps</TableHead>
                 <TableHead>Duration</TableHead>
                 <TableHead>Started</TableHead>
@@ -175,6 +184,15 @@ export default function ExecutionsPage() {
                   <TableCell>{getStatusBadge(execution.status)}</TableCell>
                   <TableCell>
                     <Badge variant="outline">{execution.environment}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {execution.trigger_type ? (
+                      <Badge variant="outline">
+                        {TRIGGER_LABELS[execution.trigger_type] ?? execution.trigger_type}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
