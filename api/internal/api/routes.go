@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/test-mesh/testmesh/internal/ai"
 	"github.com/test-mesh/testmesh/internal/api/handlers"
+	"github.com/test-mesh/testmesh/internal/gitops"
 	sharedconfig "github.com/test-mesh/testmesh/internal/shared/config"
 	"github.com/test-mesh/testmesh/internal/filestorage"
 	"github.com/test-mesh/testmesh/internal/api/middleware"
@@ -335,6 +336,16 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 	if err := sched.Start(); err != nil {
 		logger.Error("Failed to start scheduler", zap.Error(err))
 	}
+
+	// Initialize environment service and register TTL cleanup cron
+	testEnvRepo := repository.NewTestEnvironmentRepository(db)
+	envService := gitops.NewEnvironmentService(testEnvRepo, logger)
+	// Register Argo CD provider if integration config is available (skip for now — just create the service)
+
+	// Cleanup expired test environments every 5 minutes
+	sched.GetCron().AddFunc("*/5 * * * *", func() {
+		envService.CleanupExpired(context.Background())
+	})
 
 	// Initialize collaboration handler
 	collaborationHandler := handlers.NewCollaborationHandler(collaborationRepo, logger)

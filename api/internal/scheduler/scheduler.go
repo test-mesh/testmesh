@@ -52,6 +52,13 @@ func (s *Scheduler) SetExecutionFunc(fn ExecutionFunc) {
 	s.executeFunc = fn
 }
 
+// GetCron returns the underlying cron instance, allowing callers to register
+// additional cron jobs (e.g. TTL cleanup tasks) without going through the
+// schedule repository.
+func (s *Scheduler) GetCron() *cron.Cron {
+	return s.cron
+}
+
 // Start starts the scheduler
 func (s *Scheduler) Start() error {
 	s.mu.Lock()
