@@ -430,26 +430,71 @@ testmesh mcp
 
 This exposes the following tools to MCP clients:
 
+**Discovery & Schema**
+
 | Tool | Description |
 |---|---|
-| `analyze_workspace` | Analyze a directory of flows and report coverage |
-| `analyze_service` | Analyze a running service's API endpoints |
-| `generate_flow` | Generate a test flow from a description |
-| `generate_e2e_flow` | Generate an end-to-end flow across multiple services |
-| `list_flows` | List available flows in the workspace |
-| `run_flow` | Execute a flow and return results |
-| `validate_flow` | Validate a flow YAML file |
-| `get_action_types` | List all supported action types |
+| `list_workspaces` | List all workspaces — always call first to get a workspace ID |
+| `list_flows` | List flow YAML files on disk recursively under a directory |
+| `list_flows_api` | List flows stored in the API (returns flow IDs for `trigger_execution`) |
+| `get_action_types` | All supported action types with required/optional config fields |
+| `get_yaml_schema` | Complete YAML schema with examples for every action type |
+| `get_testing_guide` | Best-practices guide: layers, assertions, async, setup/teardown |
+
+**Analysis**
+
+| Tool | Description |
+|---|---|
+| `analyze_workspace` | Multi-service analysis: endpoints, schemas, Kafka topics, DB tables, call graph |
+| `analyze_service` | Single-service analysis: endpoints, DB tables, Kafka topics, Redis keys |
+| `get_coverage_gaps` | Show uncovered endpoints/operations and coverage percentage |
+| `generate_test_plan` | Structured context for planning a full test suite across a workspace |
+
+**Authoring**
+
+| Tool | Description |
+|---|---|
+| `generate_flow` | Focused context for writing one flow (endpoints, schemas, examples, guidance) |
+| `write_flow` | Write + validate a flow YAML to disk |
+| `read_flow` | Read an existing flow from disk |
+| `write_env_file` | Write a shared `.env.test` file for infrastructure connection strings |
+| `validate_flow` | Validate flow structure, action types, and variable dependencies without executing |
+
+**Execution**
+
+| Tool | Description |
+|---|---|
+| `run_step` | Run a single action step in isolation — debug a query, probe an endpoint |
+| `run_flow` | Execute a flow (inline YAML or file path) and return per-step results |
+| `run_suite` | Execute a directory or test plan with tiered validation (tiers 1–4) |
+| `upload_flow` | Upload a flow to the API — makes it visible in the dashboard |
+| `trigger_execution` | Trigger an API-stored flow by ID; returns `execution_id` |
+| `get_execution` | Poll an `execution_id` for full per-step results |
 
 ### Using with Claude Code
 
-Add TestMesh to Claude Code's MCP configuration:
+**Option A — Claude Code plugin (recommended)**
 
-```json title="~/.claude/mcp_servers.json"
+The TestMesh plugin is available in the Claude Code plugin registry. Install it with one command:
+
+```bash
+/plugin install testmesh
+```
+
+This installs the MCP server and 8 skills (`generate-flow`, `run-flow`, `validate-flow`, `action-patterns`, `debugging-flows`, `flow-layers`, `mcp-tools`, `yaml-schema`) that guide you through common workflows.
+
+**Option B — Manual configuration**
+
+Add a `.mcp.json` file at the root of your project:
+
+```json title=".mcp.json"
 {
-  "testmesh": {
-    "command": "testmesh",
-    "args": ["mcp"]
+  "mcpServers": {
+    "testmesh": {
+      "command": "testmesh",
+      "args": ["mcp"],
+      "description": "TestMesh MCP server — analyze services, generate, run, and validate E2E flows"
+    }
   }
 }
 ```
