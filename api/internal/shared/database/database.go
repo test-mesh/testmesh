@@ -1128,6 +1128,30 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	// Create test_environments table
+	if err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS test_environments (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			workspace_id UUID NOT NULL,
+			name VARCHAR(255) NOT NULL,
+			context VARCHAR(255),
+			namespace VARCHAR(255),
+			provider VARCHAR(50) NOT NULL DEFAULT 'argocd',
+			provider_app_name VARCHAR(255),
+			state VARCHAR(20) NOT NULL DEFAULT 'cold',
+			ttl_minutes INTEGER NOT NULL DEFAULT 120,
+			last_used_at TIMESTAMP WITH TIME ZONE,
+			services JSONB DEFAULT '[]',
+			routing_policy JSONB DEFAULT '{}',
+			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_test_environments_workspace ON test_environments(workspace_id);
+		CREATE INDEX IF NOT EXISTS idx_test_environments_context ON test_environments(context);
+	`).Error; err != nil {
+		return err
+	}
+
 	// Add suite_id and target_type to schedules (idempotent)
 	if err := db.Exec(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS suite_id UUID`).Error; err != nil {
 		return err
