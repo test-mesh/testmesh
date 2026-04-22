@@ -34,3 +34,13 @@
   --color-fd-secondary: oklch(0.25 0 0);
   --color-fd-muted-foreground: oklch(0.72 0 0);
 }
+
+/* Prevent the layout's centering spacer columns from growing.
+   The grid has minmax(min-content, 1fr) spacers on both sides of the content
+   area. On screens wider than --fd-layout-width (default 97rem / 1552px) those
+   spacers expand, creating visible empty space to the left of the sidebar nav
+   items. Setting this to a large value collapses the spacers on all common
+   monitor widths, keeping the sidebar flush against the content area. */
+#nd-docs-layout {
+  --fd-layout-width: 1920px;
+}
