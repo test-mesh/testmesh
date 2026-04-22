@@ -1151,6 +1151,12 @@ func AutoMigrate(db *gorm.DB) error {
 	`).Error; err != nil {
 		return err
 	}
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_test_environments_find_warm ON test_environments (workspace_id, context, state)`).Error; err != nil {
+		return err
+	}
+	if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_test_environments_state ON test_environments (state)`).Error; err != nil {
+		return err
+	}
 
 	// Add suite_id and target_type to schedules (idempotent)
 	if err := db.Exec(`ALTER TABLE schedules ADD COLUMN IF NOT EXISTS suite_id UUID`).Error; err != nil {

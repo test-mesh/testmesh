@@ -37,24 +37,28 @@ func (r *TestEnvironmentRepository) Get(ctx context.Context, id uuid.UUID) (*mod
 
 // FindWarm finds a warm, running, or cooling environment for the given
 // workspace + context key. Returns gorm.ErrRecordNotFound if none exists.
-// Results are ordered by last_used_at DESC so the most recently used
-// environment is preferred.
+// Results are ordered by last_used_at DESC NULLS LAST so the most recently
+// used environment is preferred.
+//
+// NOTE: FOR UPDATE SKIP LOCKED is used to prevent double-assignment under
+// concurrent callers. The caller MUST call TouchLastUsed or UpdateState
+// immediately after FindWarm (within the same transaction) to claim the
+// environment before releasing the row lock.
 func (r *TestEnvironmentRepository) FindWarm(ctx context.Context, workspaceID uuid.UUID, envContext string) (*models.TestEnvironment, error) {
 	var env models.TestEnvironment
 	err := r.db.WithContext(ctx).
-		Where("state IN ? AND workspace_id = ? AND context = ?",
-			[]string{
-				string(models.TestEnvWarm),
-				string(models.TestEnvRunning),
-				string(models.TestEnvCooling),
-			},
-			workspaceID,
-			envContext,
-		).
-		Order("last_used_at DESC").
-		First(&env).Error
+		Raw(`SELECT * FROM test_environments
+             WHERE workspace_id = ? AND context = ?
+             AND state IN ('warm','running','cooling')
+             ORDER BY last_used_at DESC NULLS LAST
+             LIMIT 1
+             FOR UPDATE SKIP LOCKED`, workspaceID, envContext).
+		Scan(&env).Error
 	if err != nil {
 		return nil, err
+	}
+	if env.ID == uuid.Nil {
+		return nil, gorm.ErrRecordNotFound
 	}
 	return &env, nil
 }
@@ -66,7 +70,7 @@ func (r *TestEnvironmentRepository) ListExpired(ctx context.Context) ([]models.T
 	var envs []models.TestEnvironment
 	err := r.db.WithContext(ctx).
 		Where(
-			"state IN ? AND last_used_at + (ttl_minutes * interval '1 minute') < NOW()",
+			"state IN ? AND COALESCE(last_used_at, created_at) + (ttl_minutes * interval '1 minute') < NOW()",
 			[]string{
 				string(models.TestEnvWarm),
 				string(models.TestEnvCooling),
@@ -83,12 +87,12 @@ func (r *TestEnvironmentRepository) ListExpired(ctx context.Context) ([]models.T
 // last_used_at is also set to NOW() when the new state is warm or running,
 // since those states imply active use.
 func (r *TestEnvironmentRepository) UpdateState(ctx context.Context, id uuid.UUID, state models.TestEnvState) error {
+	now := time.Now()
 	updates := map[string]interface{}{
 		"state":      state,
-		"updated_at": time.Now(),
+		"updated_at": now,
 	}
 	if state == models.TestEnvWarm || state == models.TestEnvRunning {
-		now := time.Now()
 		updates["last_used_at"] = now
 	}
 	return r.db.WithContext(ctx).
