@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/test-mesh/testmesh/internal/gitops"
 	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"go.uber.org/zap"
@@ -41,6 +42,10 @@ type SuiteRunner struct {
 	executor  FlowExecutorFunc
 	logger    *zap.Logger
 	serverCtx context.Context
+
+	statusReporter    *gitops.StatusReporter // nil when no Gitea integration configured
+	reporterOwnerRepo string                 // "owner/repo" for status reporting
+	dashboardURL      string
 }
 
 // NewSuiteRunner creates a new SuiteRunner.
@@ -58,6 +63,13 @@ func NewSuiteRunner(
 		logger:    logger,
 		serverCtx: serverCtx,
 	}
+}
+
+// WithStatusReporter attaches a Gitea commit status reporter to the SuiteRunner.
+func (sr *SuiteRunner) WithStatusReporter(reporter *gitops.StatusReporter, ownerRepo, dashboardURL string) {
+	sr.statusReporter = reporter
+	sr.reporterOwnerRepo = ownerRepo
+	sr.dashboardURL = dashboardURL
 }
 
 // Run creates a SuiteRun record, starts execution in the background, and returns immediately.
@@ -90,7 +102,7 @@ func (sr *SuiteRunner) Run(ctx context.Context, req RunSuiteRequest) (*models.Su
 
 	// Execute in the background; the caller gets the run record immediately.
 	// Fix 5: Use server context instead of context.Background().
-	go sr.execute(sr.serverCtx, run, suite.SuiteFlows, req)
+	go sr.execute(sr.serverCtx, run, suite, req)
 
 	return run, nil
 }
@@ -104,7 +116,8 @@ type flowResult struct {
 }
 
 // execute runs all flow groups in order, concurrently within each group.
-func (sr *SuiteRunner) execute(ctx context.Context, run *models.SuiteRun, suiteFlows []models.SuiteFlow, req RunSuiteRequest) {
+func (sr *SuiteRunner) execute(ctx context.Context, run *models.SuiteRun, suite *models.Suite, req RunSuiteRequest) {
+	suiteFlows := suite.SuiteFlows
 	// Fix 1: Recover from panics so a panicking run gets marked failed instead of stuck in running.
 	defer func() {
 		if r := recover(); r != nil {
@@ -171,6 +184,22 @@ func (sr *SuiteRunner) execute(ctx context.Context, run *models.SuiteRun, suiteF
 		run.Status = models.SuiteRunCompleted
 	} else {
 		run.Status = models.SuiteRunFailed
+	}
+
+	if sr.statusReporter != nil && run.TriggerRef != "" {
+		status := gitops.CommitStatusSuccess
+		if run.FailedFlows > 0 {
+			status = gitops.CommitStatusFailure
+		}
+		_ = sr.statusReporter.Report(
+			ctx,
+			sr.reporterOwnerRepo,
+			run.TriggerRef,
+			status,
+			suite.Name,
+			run.ID.String(),
+			sr.dashboardURL,
+		)
 	}
 
 	if err := sr.suiteRepo.UpdateRun(ctx, run); err != nil {
