@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -39,10 +40,12 @@ type SuiteRunner struct {
 	execRepo  *repository.ExecutionRepository
 	executor  FlowExecutorFunc
 	logger    *zap.Logger
+	serverCtx context.Context
 }
 
 // NewSuiteRunner creates a new SuiteRunner.
 func NewSuiteRunner(
+	serverCtx context.Context,
 	suiteRepo *repository.SuiteRepository,
 	execRepo *repository.ExecutionRepository,
 	executor FlowExecutorFunc,
@@ -53,6 +56,7 @@ func NewSuiteRunner(
 		execRepo:  execRepo,
 		executor:  executor,
 		logger:    logger,
+		serverCtx: serverCtx,
 	}
 }
 
@@ -62,6 +66,11 @@ func (sr *SuiteRunner) Run(ctx context.Context, req RunSuiteRequest) (*models.Su
 	suite, err := sr.suiteRepo.Get(ctx, req.SuiteID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Fix 3: Guard against empty suite.
+	if len(suite.SuiteFlows) == 0 {
+		return nil, fmt.Errorf("suite %s has no flows", req.SuiteID)
 	}
 
 	now := time.Now()
@@ -80,7 +89,8 @@ func (sr *SuiteRunner) Run(ctx context.Context, req RunSuiteRequest) (*models.Su
 	}
 
 	// Execute in the background; the caller gets the run record immediately.
-	go sr.execute(context.Background(), run, suite.SuiteFlows, req)
+	// Fix 5: Use server context instead of context.Background().
+	go sr.execute(sr.serverCtx, run, suite.SuiteFlows, req)
 
 	return run, nil
 }
@@ -95,6 +105,17 @@ type flowResult struct {
 
 // execute runs all flow groups in order, concurrently within each group.
 func (sr *SuiteRunner) execute(ctx context.Context, run *models.SuiteRun, suiteFlows []models.SuiteFlow, req RunSuiteRequest) {
+	// Fix 1: Recover from panics so a panicking run gets marked failed instead of stuck in running.
+	defer func() {
+		if r := recover(); r != nil {
+			sr.logger.Error("suite_runner: panic in execute", zap.Any("panic", r))
+			run.Status = models.SuiteRunFailed
+			now := time.Now()
+			run.CompletedAt = &now
+			_ = sr.suiteRepo.UpdateRun(ctx, run)
+		}
+	}()
+
 	// Mark the run as running.
 	run.Status = models.SuiteRunRunning
 	if err := sr.suiteRepo.UpdateRun(ctx, run); err != nil {
@@ -112,19 +133,22 @@ func (sr *SuiteRunner) execute(ctx context.Context, run *models.SuiteRun, suiteF
 	for _, group := range groups {
 		results := sr.executeGroup(ctx, group, run.ID, req)
 		for _, res := range results {
-			// Persist SuiteRunExecution join record.
-			sre := &models.SuiteRunExecution{
-				SuiteRunID:  run.ID,
-				ExecutionID: res.executionID,
-				FlowID:      res.suiteFlow.FlowID,
-				Order:       res.suiteFlow.Order,
-			}
-			if createErr := sr.suiteRepo.CreateRunExecution(ctx, sre); createErr != nil {
-				sr.logger.Error("suite_runner: failed to create suite run execution",
-					zap.String("suite_run_id", run.ID.String()),
-					zap.String("flow_id", res.suiteFlow.FlowID.String()),
-					zap.Error(createErr),
-				)
+			// Fix 2: Skip SuiteRunExecution insert when executionID is zero.
+			if res.executionID != uuid.Nil {
+				// Persist SuiteRunExecution join record.
+				sre := &models.SuiteRunExecution{
+					SuiteRunID:  run.ID,
+					ExecutionID: res.executionID,
+					FlowID:      res.suiteFlow.FlowID,
+					Order:       res.suiteFlow.Order,
+				}
+				if createErr := sr.suiteRepo.CreateRunExecution(ctx, sre); createErr != nil {
+					sr.logger.Error("suite_runner: failed to create suite run execution",
+						zap.String("suite_run_id", run.ID.String()),
+						zap.String("flow_id", res.suiteFlow.FlowID.String()),
+						zap.Error(createErr),
+					)
+				}
 			}
 
 			if res.success {
@@ -157,19 +181,26 @@ func (sr *SuiteRunner) execute(ctx context.Context, run *models.SuiteRun, suiteF
 	}
 }
 
-// executeGroup runs all flows in a single order-group concurrently.
+// executeGroup runs flows in a single order-group, respecting the Parallel field.
+// Flows with Parallel=true are launched concurrently. Flows with Parallel=false
+// wait for all previously launched goroutines to finish before starting.
 func (sr *SuiteRunner) executeGroup(
 	ctx context.Context,
-	group []models.SuiteFlow,
+	flows []models.SuiteFlow,
 	suiteRunID uuid.UUID,
 	req RunSuiteRequest,
 ) []flowResult {
-	results := make([]flowResult, len(group))
+	// Fix 4: Honour SuiteFlow.Parallel field.
+	resultCh := make(chan flowResult, len(flows))
 	var wg sync.WaitGroup
 
-	for i, sf := range group {
+	for _, sf := range flows {
+		if !sf.Parallel {
+			// Wait for any concurrent batch to complete before running this flow sequentially.
+			wg.Wait()
+		}
 		wg.Add(1)
-		go func(idx int, suiteFlow models.SuiteFlow) {
+		go func(suiteFlow models.SuiteFlow) {
 			defer wg.Done()
 
 			execID, success, err := sr.executor(
@@ -190,16 +221,22 @@ func (sr *SuiteRunner) executeGroup(
 				)
 			}
 
-			results[idx] = flowResult{
+			resultCh <- flowResult{
 				suiteFlow:   suiteFlow,
 				executionID: execID,
 				success:     success,
 				err:         err,
 			}
-		}(i, sf)
+		}(sf)
 	}
 
 	wg.Wait()
+	close(resultCh)
+
+	results := make([]flowResult, 0, len(flows))
+	for res := range resultCh {
+		results = append(results, res)
+	}
 	return results
 }
 
