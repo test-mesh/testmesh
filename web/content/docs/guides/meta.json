@@ -4,6 +4,7 @@
     "production-infrastructure",
     "microservices-testing",
     "ci-cd",
+    "gitops-integration",
     "best-practices",
     "migrating"
   ]

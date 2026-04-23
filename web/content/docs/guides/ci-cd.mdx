@@ -280,10 +280,33 @@ go run main.go run flow.yaml --output json > results.json
 - **Use Docker Compose health checks** rather than `sleep` — `docker-compose.infra.yml` includes health checks; wait for them instead of guessing how long services take to start.
 - **Keep test data isolated** by using unique identifiers (email = `ci-test-{{timestamp}}@example.com`) or setup/teardown blocks that clean up before each run.
 
+---
+
+## GitOps / Argo CD
+
+If you use Argo CD to deploy to Kubernetes, TestMesh can trigger suite runs automatically when an Application syncs — without any changes to your GitHub Actions or GitLab CI pipelines.
+
+<Steps>
+  <Step>
+    Configure the Argo CD integration and a GitTriggerRule in TestMesh pointing to the Suite you want to run.
+  </Step>
+  <Step>
+    Add an `argocd-notifications` webhook that POSTs to `POST /api/v1/integrations/webhooks/argocd` after each successful sync.
+  </Step>
+  <Step>
+    TestMesh runs the Suite and posts the result back to Gitea as a commit status.
+  </Step>
+</Steps>
+
+See the [GitOps Integration](/docs/guides/gitops-integration) guide for the full setup, including warm environment reuse and the Service Under Test pattern.
+
+---
+
 ## What's Next
 
 <Cards>
   <Card title="testmesh run" href="/docs/cli/run" description="CLI options for controlling flow execution." />
+  <Card title="GitOps Integration" href="/docs/guides/gitops-integration" description="Trigger suites automatically from Argo CD syncs." />
   <Card title="Reporting" href="/docs/features/reporting" description="JUnit XML and HTML reports for CI systems." />
   <Card title="Docker Setup" href="/docs/deployment/docker" description="Docker Compose configurations for CI environments." />
 </Cards>

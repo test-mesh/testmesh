@@ -1,0 +1,252 @@
+---
+title: GitOps Integration
+description: Automatically trigger TestMesh suite runs when Argo CD syncs or Gitea push events fire, report commit statuses back to your Git host, and reuse warm test environments with TTL-based lifecycle management.
+---
+
+TestMesh integrates with GitOps pipelines so that tests run automatically after a deployment syncs — without polling, without modifying your CI pipeline YAML, and without changing how Argo CD or Gitea works.
+
+The integration has three moving parts:
+
+1. **Argo CD notifies TestMesh** via a post-sync webhook when an Application reaches `Synced + Healthy`
+2. **TestMesh runs a Suite** against the newly-deployed services, optionally reusing a warm Test Environment
+3. **TestMesh reports the result** back to Gitea as a commit status (`pending → success / failure`)
+
+---
+
+## Architecture Overview
+
+```
+Gitea (push / PR)
+      │
+      ▼
+Argo CD (deploys to Kubernetes)
+      │  post-sync notification
+      ▼
+TestMesh /api/v1/integrations/webhooks/argocd
+      │  triggers Suite run
+      ▼
+TestEnvironment (warm reuse or new provision)
+      │  flows execute
+      ▼
+TestMesh → Gitea commit status API
+```
+
+---
+
+## Step 1: Configure the Argo CD Integration
+
+Create a **Source Control** integration in TestMesh pointing at your Argo CD instance. Store the Argo CD API token as an encrypted secret.
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/integrations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Argo CD Staging",
+    "type": "source_control",
+    "provider": "argocd",
+    "config": {
+      "url": "https://argocd.internal",
+      "app_filter": "testmesh-*"
+    },
+    "secrets": {
+      "token": "your-argocd-api-token"
+    }
+  }'
+```
+
+The `app_filter` glob restricts which Argo CD Applications TestMesh will react to. Leave it empty to receive events from all applications.
+
+---
+
+## Step 2: Configure Argo CD Notifications
+
+Install [argocd-notifications](https://argocd-notifications.readthedocs.io/) (included with Argo CD ≥ 2.6 as a core component) and add a trigger + template that POSTs to TestMesh on successful sync.
+
+### Notification Template
+
+```yaml title="argocd-notifications-cm (ConfigMap)"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+data:
+  template.testmesh-sync-success: |
+    webhook:
+      testmesh:
+        method: POST
+        path: /api/v1/integrations/webhooks/argocd
+        body: |
+          {
+            "app_name":   "{{.app.metadata.name}}",
+            "revision":   "{{.app.status.sync.revision}}",
+            "repository": "{{.app.spec.source.repoURL}}",
+            "status":     "Synced",
+            "health":     "{{.app.status.health.status}}"
+          }
+
+  trigger.on-sync-succeeded: |
+    - when: app.status.sync.status == 'Synced' && app.status.health.status == 'Healthy'
+      send: [testmesh-sync-success]
+```
+
+### Notification Service
+
+```yaml
+  service.webhook.testmesh: |
+    url: http://testmesh-api.internal:5016
+    headers:
+      - name: Content-Type
+        value: application/json
+```
+
+### Annotation on Your Argo CD Application
+
+```yaml
+metadata:
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-succeeded.testmesh: ""
+```
+
+TestMesh receives the webhook at `POST /api/v1/integrations/webhooks/argocd`, looks up the matching `GitTriggerRule` by `app_name`, and fires the configured Suite.
+
+---
+
+## Step 3: Create a Git Trigger Rule
+
+A `GitTriggerRule` maps an Argo CD application name (or a Gitea repository) to a Suite that should run when a sync or push event arrives.
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/integrations/{integration_id}/trigger-rules \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repository":    "testmesh-pr-123",
+    "branch_filter": "*",
+    "event_types":   ["sync"],
+    "suite_id":      "your-suite-uuid",
+    "enabled":       true
+  }'
+```
+
+| Field | Description |
+|---|---|
+| `repository` | Argo CD Application name **or** Gitea repository name |
+| `branch_filter` | `*` matches all branches; use `main` to restrict to a single branch |
+| `event_types` | `sync` for Argo CD; `push` or `pull_request` for Gitea |
+| `suite_id` | UUID of the Suite to run |
+| `enabled` | Set to `false` to pause without deleting the rule |
+
+---
+
+## Step 4: Configure the Gitea Integration (Commit Status)
+
+Create a **Source Control** integration pointing at Gitea so TestMesh can write commit statuses.
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/integrations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Gitea Internal",
+    "type": "source_control",
+    "provider": "gitea",
+    "config": {
+      "url": "https://gitea.internal"
+    },
+    "secrets": {
+      "token": "your-gitea-api-token"
+    }
+  }'
+```
+
+When a Suite run triggered by a webhook completes, TestMesh automatically posts a commit status to Gitea:
+
+- **`pending`** — suite run has started
+- **`success`** — all flows passed
+- **`failure`** — one or more flows failed
+- **`error`** — suite run encountered an unexpected error
+
+The status links back to the TestMesh dashboard so engineers can click through to the full run detail.
+
+---
+
+## Service Under Test Pattern
+
+In most GitOps pipelines only one service changes per pull request. Rather than provisioning an entire new stack for every PR, TestMesh supports the **Service Under Test** pattern:
+
+- The changed service is deployed in an isolated namespace (via Argo CD)
+- Other services in the `routing_policy` are pointed at their staging equivalents
+
+```json
+{
+  "routing_policy": {
+    "user-service":    "http://user-service.review-pr-123.svc.cluster.local:8080",
+    "product-service": "http://product-service.staging.svc.cluster.local:8080",
+    "order-service":   "http://order-service.staging.svc.cluster.local:8083"
+  }
+}
+```
+
+Only `user-service` runs in the isolated PR namespace; `product-service` and `order-service` use the shared staging endpoints. This dramatically reduces provisioning time and infrastructure cost.
+
+---
+
+## Warm Environment Reuse
+
+By default TestMesh creates a new Test Environment for every triggered run. Enable reuse by setting a `context` string on your Test Environments — any warm environment with the same `context` and `workspace_id` is reused within its TTL window:
+
+```json
+{
+  "context":     "pr-123",
+  "ttl_minutes": 60
+}
+```
+
+When the Argo CD sync webhook fires for PR-123, TestMesh:
+
+1. Looks for a warm environment with `context: "pr-123"`
+2. If found and within TTL → reuses it (no re-provisioning)
+3. If not found → provisions a new one via Argo CD, waits for `Healthy`, then runs the suite
+
+See [Test Environments](/docs/features/test-environments) for the full lifecycle reference.
+
+---
+
+## Manual Runs During Development
+
+Suite runs triggered manually (from the dashboard or API) behave identically to webhook-triggered runs except:
+
+- `trigger_type` is set to `manual` instead of `argocd` or `webhook`
+- No commit status is posted to Gitea (there is no `trigger_ref` SHA to report against)
+- The run uses whichever environment you select in the dashboard (or the default workspace environment)
+
+This means you can develop and debug your suite flows locally without needing a full GitOps pipeline in place.
+
+---
+
+## Troubleshooting
+
+### Webhook not received
+
+Check that the `argocd-notifications` pod has network access to your TestMesh API. Inspect the notification logs:
+
+```bash
+kubectl logs -n argocd deployment/argocd-notifications-controller | grep testmesh
+```
+
+### Suite not triggered
+
+Verify that the `GitTriggerRule` `repository` field matches the Argo CD Application name exactly (case-sensitive). Check `enabled: true`.
+
+### Commit status not posted
+
+Confirm the Gitea integration token has `repo:status` scope. Check that the `trigger_ref` on the suite run contains the commit SHA — it must be a valid SHA for the Gitea API to accept the status.
+
+---
+
+## What's Next
+
+<Cards>
+  <Card title="Suites" href="/docs/features/suites" description="Compose flows into ordered, parallelisable batch runs." />
+  <Card title="Test Environments" href="/docs/features/test-environments" description="Lifecycle-managed Kubernetes namespaces with TTL reuse." />
+  <Card title="CI/CD Integration" href="/docs/guides/ci-cd" description="Classic CI pipeline integration via the TestMesh CLI." />
+</Cards>
