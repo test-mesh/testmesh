@@ -1,0 +1,168 @@
+---
+title: Test Environments
+description: Provision isolated Kubernetes namespaces on demand, reuse warm environments within a TTL window, and manage the full lifecycle through GitOps providers like Argo CD.
+---
+
+A Test Environment is an isolated Kubernetes namespace managed by TestMesh and provisioned on demand for test execution. Environments are lifecycle-tracked, TTL-controlled, and reused automatically when a matching warm environment already exists — avoiding the cost of re-provisioning for every run.
+
+GitOps providers (currently Argo CD, with Flux planned) handle the actual deployment of services into the namespace. TestMesh tracks the state, manages TTL expiry, and exposes routing information to flows via the `routing_policy` map.
+
+---
+
+## Environment Lifecycle
+
+Test environments move through a defined set of states:
+
+| State | Meaning |
+|---|---|
+| `cold` | Registered but not yet provisioned |
+| `provisioning` | GitOps provider is syncing; services are starting |
+| `warm` | Services are running and the environment is ready but not in active use |
+| `running` | A suite or flow is actively executing against this environment |
+| `cooling` | The active run has ended; environment is idle, still within TTL |
+| `destroyed` | Namespace has been torn down; environment is no longer usable |
+
+```
+cold → provisioning → warm → running → cooling
+                        ↑_______________|
+                        (reuse within TTL)
+
+destroyed ← (TTL expired or manual destroy)
+```
+
+When a run completes, the environment transitions from `running` back to `warm` rather than being immediately destroyed. The next eligible run matching the same `context` string reuses the warm environment, skipping provisioning entirely.
+
+---
+
+## TTL-Based Reuse
+
+The `context` field is the reuse key — a free-form string identifying a logical scope, such as `"pr-123"`, `"branch-main"`, or `"nightly"`.
+
+When a run requests a test environment:
+
+<Steps>
+  <Step>
+    TestMesh queries for an existing `warm` environment with the same `workspace_id` and `context`.
+  </Step>
+  <Step>
+    If one is found and `last_used_at` is within the `ttl_minutes` window, it is reused immediately — no provisioning delay.
+  </Step>
+  <Step>
+    If no warm environment exists, a new one is created in `cold` state and provisioning begins via the configured GitOps provider.
+  </Step>
+</Steps>
+
+The default TTL is **120 minutes**. Set a shorter TTL for ephemeral PR environments or a longer one for stable branch namespaces.
+
+<Callout type="info">
+  A background cron job runs every 5 minutes and destroys environments where `last_used_at + ttl_minutes < now`. Expired environments are transitioned to `destroyed` and their Kubernetes namespace is deleted.
+</Callout>
+
+---
+
+## GitOps Providers
+
+TestMesh delegates namespace provisioning to a GitOps controller. The `provider` field on each environment identifies which controller to use.
+
+| Provider | Status | Notes |
+|---|---|---|
+| `argocd` | Supported | Set `provider_app_name` to the Argo CD Application name |
+| `flux` | Planned | Flux Kustomization support is planned for a future release |
+
+### Argo CD Setup
+
+TestMesh waits for the Argo CD Application named `provider_app_name` to reach `Healthy` health status before transitioning the environment to `warm`. The Application must already be defined in Argo CD (or in your App-of-Apps); TestMesh only monitors and waits — it does not create Argo CD Applications.
+
+Example environment payload for Argo CD:
+
+```json
+{
+  "name": "PR-123 Review Environment",
+  "context": "pr-123",
+  "provider": "argocd",
+  "provider_app_name": "testmesh-pr-123",
+  "namespace": "review-pr-123",
+  "ttl_minutes": 60,
+  "services": [
+    {
+      "name": "user-service",
+      "image": "myrepo/user-service:pr-123",
+      "repo": "github.com/org/user-service",
+      "source_ref": "pr-123"
+    },
+    {
+      "name": "product-service",
+      "image": "myrepo/product-service:pr-123",
+      "repo": "github.com/org/product-service",
+      "source_ref": "pr-123"
+    }
+  ]
+}
+```
+
+---
+
+## Services and Routing Policy
+
+Each environment carries two JSON fields that flows can reference:
+
+- **`services`** — array of `{ name, image, source_ref, repo }` describing what is deployed in the namespace
+- **`routing_policy`** — map of `service-name → URL` for reaching each service
+
+Example routing policy:
+
+```json
+{
+  "user-service":    "http://user-service.review-pr-123.svc.cluster.local:8080",
+  "product-service": "http://product-service.review-pr-123.svc.cluster.local:8080",
+  "order-service":   "http://order-service.staging.svc.cluster.local:8083"
+}
+```
+
+Services not present in the isolated namespace are routed to their staging equivalents, implementing the [Service Under Test](/docs/guides/gitops-integration#service-under-test) pattern.
+
+---
+
+## Dashboard
+
+Navigate to **Test Environments** (`/test-environments`) to see all environments for the current workspace. The list shows:
+
+- Environment name and context
+- Namespace and provider
+- Current state with a color-coded badge:
+  - Grey — `cold`
+  - Blue — `provisioning`
+  - Green — `warm` / `running`
+  - Orange — `cooling`
+  - Red — `destroyed`
+- TTL and last used timestamp
+
+Use the **Destroy** button to immediately initiate cleanup on any non-destroyed environment.
+
+---
+
+## Auto-Cleanup
+
+The background cron job runs every 5 minutes. For each expired environment it:
+
+1. Calls the GitOps provider to delete the Application (triggering namespace deletion)
+2. Transitions the environment state to `destroyed`
+
+<Callout type="tip">
+  Use short TTLs (e.g. 30 minutes) for PR environments and longer TTLs (e.g. 480 minutes) for stable or nightly environments that are reused throughout the day.
+</Callout>
+
+---
+
+## API Reference
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/workspaces/{workspace_id}/test-environments` | List all test environments in a workspace |
+| `POST` | `/api/v1/workspaces/{workspace_id}/test-environments` | Create a new environment and begin provisioning |
+| `GET` | `/api/v1/workspaces/{workspace_id}/test-environments/{id}` | Get an environment by ID including current state, services, and routing policy |
+| `DELETE` | `/api/v1/workspaces/{workspace_id}/test-environments/{id}` | Trigger destroy — transitions to `destroyed` and deletes the Kubernetes namespace |
+
+<Callout type="info">
+  The `DELETE` endpoint initiates an asynchronous destroy. Poll `GET /{id}` until state reaches `destroyed` to confirm completion.
+</Callout>

@@ -1,0 +1,154 @@
+---
+title: Suites
+description: Group flows into named collections and run them as a single batch — in sequence, in parallel, or in mixed order — with a unified pass/fail result.
+---
+
+A Suite is a named collection of flows that TestMesh executes as a single batch run. Suites let you compose complex integration scenarios from individual reusable flows, control execution order, and track the overall result in one place.
+
+---
+
+## How Suites Work
+
+Each Suite contains an ordered list of flow memberships. When a suite run is triggered:
+
+<Steps>
+  <Step>
+    TestMesh creates a `SuiteRun` record with status `pending`.
+  </Step>
+  <Step>
+    Flows are executed in ascending `order` value. Flows that share the same `order` value and have `parallel: true` run concurrently.
+  </Step>
+  <Step>
+    Each individual flow execution is recorded and linked back to the parent run.
+  </Step>
+  <Step>
+    When all flows complete, the suite run transitions to `completed` (all passed) or `failed` (one or more flows failed).
+  </Step>
+</Steps>
+
+---
+
+## Creating a Suite
+
+### Via the Dashboard
+
+Navigate to **Suites** in the sidebar and click **New Suite** (or go to `/suites/new`). Fill in:
+
+- **Name** — a unique, human-readable label for this suite
+- **Description** — optional context for teammates
+- **Tags** — for filtering and grouping in the suites list
+- **Flows** — add flows and assign each an `order` value; set `parallel` on flows that should run concurrently within the same stage
+
+### Via the API
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/suites \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Checkout End-to-End",
+    "description": "Full purchase path: auth → browse → cart → order → notify",
+    "tags": ["e2e", "checkout"],
+    "flows": [
+      { "flow_id": "auth-flow-id",    "order": 1, "parallel": false },
+      { "flow_id": "browse-flow-id",  "order": 2, "parallel": false },
+      { "flow_id": "cart-flow-id",    "order": 3, "parallel": false },
+      { "flow_id": "order-flow-id",   "order": 4, "parallel": false },
+      { "flow_id": "notify-flow-id",  "order": 4, "parallel": true  }
+    ]
+  }'
+```
+
+In this example, `order-flow-id` and `notify-flow-id` share `order: 4` and both have `parallel: true`, so they execute concurrently in the final stage.
+
+---
+
+## Flow Ordering and Parallelism
+
+| Field | Type | Behaviour |
+|---|---|---|
+| `order` | integer | Ascending sort — lower values execute first |
+| `parallel` | boolean | When `true`, flows at the same `order` value run concurrently |
+
+<Callout type="info">
+  Flows at different `order` values always execute sequentially — the next stage starts only after all flows at the current stage have finished.
+</Callout>
+
+A typical mixed-mode suite:
+
+```
+order 1 → auth-flow                          (sequential)
+order 2 → product-flow                       (sequential)
+order 3 → cart-flow, wishlist-flow           (parallel — order:3, parallel:true on both)
+order 4 → order-flow                         (sequential)
+order 5 → email-flow, sms-flow               (parallel — order:5, parallel:true on both)
+```
+
+---
+
+## Triggering a Suite Run
+
+### Manual (Dashboard)
+
+Open a suite and click **Run Now**.
+
+### Manual (API)
+
+```bash
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/suites/{suite_id}/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "environment": "staging",
+    "trigger_ref": "manual-run-from-api"
+  }'
+```
+
+### Schedule (Cron)
+
+Attach a schedule to a suite using the [Scheduling](/docs/features/scheduling) feature. The scheduler sets `trigger_type: "schedule"` on the resulting run.
+
+### Webhook (Argo CD or Gitea)
+
+Configure Argo CD post-sync notifications or Gitea push webhooks to call the suite run endpoint. Set `trigger_ref` to the Git commit SHA or Argo CD application name for traceability. See the [GitOps Integration](/docs/guides/gitops-integration) guide for details.
+
+---
+
+## Suite Run Lifecycle
+
+| Status | Meaning |
+|---|---|
+| `pending` | Run created; not yet started |
+| `running` | One or more flows are executing |
+| `completed` | All flows passed |
+| `failed` | One or more flows failed |
+| `cancelled` | Run was manually cancelled |
+
+Each run also tracks `total_flows`, `passed_flows`, `failed_flows`, `duration_ms`, `started_at`, and `completed_at`.
+
+---
+
+## Viewing Suite Runs
+
+The **Suites** dashboard shows each suite's last run status and a pass-rate indicator. Click into a suite to see:
+
+- Full run history with status, trigger type, and duration
+- Per-flow execution results within each run
+- Direct links to individual flow execution detail pages
+
+---
+
+## API Reference
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/workspaces/{workspace_id}/suites` | List all suites in a workspace |
+| `POST` | `/api/v1/workspaces/{workspace_id}/suites` | Create a new suite |
+| `GET` | `/api/v1/workspaces/{workspace_id}/suites/{id}` | Get a suite by ID |
+| `PUT` | `/api/v1/workspaces/{workspace_id}/suites/{id}` | Update suite name, description, tags, or flows |
+| `DELETE` | `/api/v1/workspaces/{workspace_id}/suites/{id}` | Delete a suite (flows are not deleted) |
+| `POST` | `/api/v1/workspaces/{workspace_id}/suites/{id}/run` | Trigger a new suite run |
+| `GET` | `/api/v1/workspaces/{workspace_id}/suites/{id}/runs` | List all runs for a suite |
+| `GET` | `/api/v1/workspaces/{workspace_id}/suites/{id}/runs/{run_id}` | Get a specific suite run with per-flow execution detail |
+
+<Callout type="tip">
+  All suite endpoints are workspace-scoped. Include your workspace UUID in every path.
+</Callout>

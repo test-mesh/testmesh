@@ -13,6 +13,8 @@
     "observability",
     "telemetry",
     "scheduling",
+    "suites",
+    "test-environments",
     "reporting",
     "load-testing",
     "debugging",
