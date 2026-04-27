@@ -38,7 +38,7 @@ export interface StepSnapshot {
 }
 
 export interface DebugState {
-  state: string;
+  state: DebugSession['state'];
   current_step?: string;
   variables: Record<string, unknown>;
   step_outputs: Record<string, unknown>;
@@ -59,7 +59,7 @@ export interface AddBreakpointRequest {
 export const debugApi = {
   listSessions: async () => {
     const response = await apiClient.get<{ sessions: DebugSession[] }>('/api/v1/debug/sessions');
-    return response.data;
+    return response.data.sessions;
   },
 
   startSession: async (data: StartSessionRequest) => {

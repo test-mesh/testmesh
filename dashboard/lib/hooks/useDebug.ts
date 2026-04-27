@@ -24,19 +24,25 @@ export function useDebugSessions() {
 
 export function useDebugSession(executionId: string | undefined) {
   return useQuery({
-    queryKey: debugKeys.session(executionId!),
+    queryKey: debugKeys.session(executionId ?? ''),
     queryFn: () => debugApi.getSession(executionId!),
     enabled: !!executionId,
-    refetchInterval: 2000,
+    refetchInterval: (query) => {
+      const state = (query.state.data as { state?: string } | undefined)?.state;
+      return state === 'terminated' || state === 'idle' ? false : 2000;
+    },
   });
 }
 
 export function useDebugState(executionId: string | undefined) {
   return useQuery({
-    queryKey: debugKeys.state(executionId!),
+    queryKey: debugKeys.state(executionId ?? ''),
     queryFn: () => debugApi.getState(executionId!),
     enabled: !!executionId,
-    refetchInterval: 2000,
+    refetchInterval: (query) => {
+      const state = (query.state.data as { state?: string } | undefined)?.state;
+      return state === 'terminated' || state === 'idle' ? false : 2000;
+    },
   });
 }
 
@@ -68,62 +74,88 @@ export function useEndDebugSession() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (executionId: string) => debugApi.endSession(executionId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.sessions() }); },
+    onSuccess: (_, executionId) => {
+      queryClient.invalidateQueries({ queryKey: debugKeys.sessions() });
+      queryClient.invalidateQueries({ queryKey: debugKeys.session(executionId) });
+      queryClient.invalidateQueries({ queryKey: debugKeys.state(executionId) });
+    },
   });
 }
 
-export function useAddBreakpoint(executionId: string) {
+export function usePause() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: AddBreakpointRequest) => debugApi.addBreakpoint(executionId, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.breakpoints(executionId) }); },
+    mutationFn: (executionId: string) => debugApi.pause(executionId),
+    onSuccess: (_, executionId) => {
+      queryClient.invalidateQueries({ queryKey: debugKeys.session(executionId) });
+      queryClient.invalidateQueries({ queryKey: debugKeys.state(executionId) });
+    },
   });
 }
 
-export function useRemoveBreakpoint(executionId: string) {
+export function useResume() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (breakpointId: string) => debugApi.removeBreakpoint(executionId, breakpointId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.breakpoints(executionId) }); },
+    mutationFn: (executionId: string) => debugApi.resume(executionId),
+    onSuccess: (_, executionId) => {
+      queryClient.invalidateQueries({ queryKey: debugKeys.session(executionId) });
+      queryClient.invalidateQueries({ queryKey: debugKeys.state(executionId) });
+    },
   });
 }
 
-export function useToggleBreakpoint(executionId: string) {
+export function useStepOver() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (breakpointId: string) => debugApi.toggleBreakpoint(executionId, breakpointId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.breakpoints(executionId) }); },
+    mutationFn: (executionId: string) => debugApi.stepOver(executionId),
+    onSuccess: (_, executionId) => {
+      queryClient.invalidateQueries({ queryKey: debugKeys.session(executionId) });
+      queryClient.invalidateQueries({ queryKey: debugKeys.state(executionId) });
+    },
   });
 }
 
-export function usePause(executionId: string) {
+export function useStop() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => debugApi.pause(executionId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.session(executionId) }); },
+    mutationFn: (executionId: string) => debugApi.stop(executionId),
+    onSuccess: (_, executionId) => {
+      queryClient.invalidateQueries({ queryKey: debugKeys.sessions() });
+      queryClient.invalidateQueries({ queryKey: debugKeys.session(executionId) });
+      queryClient.invalidateQueries({ queryKey: debugKeys.state(executionId) });
+    },
   });
 }
 
-export function useResume(executionId: string) {
+export function useAddBreakpoint() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => debugApi.resume(executionId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.session(executionId) }); },
+    mutationFn: ({ executionId, data }: { executionId: string; data: AddBreakpointRequest }) =>
+      debugApi.addBreakpoint(executionId, data),
+    onSuccess: (_, { executionId }) => {
+      queryClient.invalidateQueries({ queryKey: debugKeys.breakpoints(executionId) });
+    },
   });
 }
 
-export function useStepOver(executionId: string) {
+export function useRemoveBreakpoint() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => debugApi.stepOver(executionId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.session(executionId) }); },
+    mutationFn: ({ executionId, breakpointId }: { executionId: string; breakpointId: string }) =>
+      debugApi.removeBreakpoint(executionId, breakpointId),
+    onSuccess: (_, { executionId }) => {
+      queryClient.invalidateQueries({ queryKey: debugKeys.breakpoints(executionId) });
+    },
   });
 }
 
-export function useStop(executionId: string) {
+export function useToggleBreakpoint() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => debugApi.stop(executionId),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.sessions() }); },
+    mutationFn: ({ executionId, breakpointId }: { executionId: string; breakpointId: string }) =>
+      debugApi.toggleBreakpoint(executionId, breakpointId),
+    onSuccess: (_, { executionId }) => {
+      queryClient.invalidateQueries({ queryKey: debugKeys.breakpoints(executionId) });
+    },
   });
 }
