@@ -10,6 +10,6 @@
   "repository": "https://github.com/test-mesh/testmesh",
   "license": "MIT",
   "keywords": ["testing", "e2e", "integration-testing", "http", "kafka", "grpc", "database", "yaml"],
-  "skills": "./.claude-plugin/skills/",
-  "mcpServers": "./.claude-plugin/.mcp.json"
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
 }
