@@ -492,6 +492,10 @@ This installs the MCP server and 10 skills (`generate-flow`, `run-flow`, `valida
   Then retry the install.
 </Callout>
 
+<Callout type="info">
+  After install you may see a `Failed to download/cache` error alongside a successful install. This is a known Claude Code issue when the marketplace and plugin share the same repository — the plugin is fully functional despite the message. It will be resolved once the plugin is available in the official Claude Code marketplace.
+</Callout>
+
 **Option B — Manual configuration**
 
 Add a `.mcp.json` file at the root of your project:
