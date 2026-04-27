@@ -239,3 +239,12 @@ export function useGitHubAuthorize(workspaceId: string) {
     },
   });
 }
+
+export function useWebhookDeliveries(integrationId: string | undefined, limit = 50) {
+  return useQuery({
+    queryKey: ['integrations', integrationId, 'deliveries'],
+    queryFn: () => integrationsApi.listDeliveries(integrationId!, limit),
+    enabled: !!integrationId,
+    refetchInterval: 30000,
+  });
+}

@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, CheckCircle, XCircle, Loader2, AlertCircle, Plus, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TriggerRulesTable } from './TriggerRulesTable';
+import { WebhookDeliveryLog } from './WebhookDeliveryLog';
 
 export function GitIntegrationSection() {
   const { activeWorkspaceId } = useActiveWorkspace();
@@ -292,6 +293,10 @@ export function GitIntegrationSection() {
             <TriggerRulesTable integrationId={integration.id} />
           </CardContent>
         </Card>
+      )}
+
+      {isConfigured && integration && (
+        <WebhookDeliveryLog integrationId={integration.id} />
       )}
     </div>
   );

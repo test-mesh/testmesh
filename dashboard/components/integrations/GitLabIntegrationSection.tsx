@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, CheckCircle, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TriggerRulesTable } from './TriggerRulesTable';
+import { WebhookDeliveryLog } from './WebhookDeliveryLog';
 
 export function GitLabIntegrationSection() {
   const { data, isLoading } = useIntegrations({ type: 'git' });
@@ -234,6 +235,10 @@ export function GitLabIntegrationSection() {
             <TriggerRulesTable integrationId={integration.id} />
           </CardContent>
         </Card>
+      )}
+
+      {isConfigured && integration && (
+        <WebhookDeliveryLog integrationId={integration.id} />
       )}
     </div>
   );

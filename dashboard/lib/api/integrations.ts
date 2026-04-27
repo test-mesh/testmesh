@@ -233,6 +233,14 @@ export const integrationsApi = {
     );
     return response.data;
   },
+
+  listDeliveries: async (id: string, limit = 50) => {
+    const response = await apiClient.get<{ deliveries: WebhookDelivery[]; total: number }>(
+      `/api/v1/integrations/${id}/deliveries`,
+      { params: { limit } }
+    );
+    return response.data;
+  },
 };
 
 export const repositoryLinksApi = {
