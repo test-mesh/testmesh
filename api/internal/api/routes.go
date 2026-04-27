@@ -260,7 +260,7 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 	enrichmentWorker.Start(context.Background())
 
 	// Initialize debug handler
-	debugHandler := handlers.NewDebugHandler(debugController, logger)
+	debugHandler := handlers.NewDebugHandler(debugController, flowRepo, logger)
 
 	// Initialize notification handler
 	notifHandler := handlers.NewNotificationHandler(notifRepo, logger)
@@ -532,6 +532,7 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 				flows.PUT("/:id", flowHandler.Update)
 				flows.DELETE("/:id", flowHandler.Delete)
 				flows.POST("/:id/versions/:version/restore", flowHandler.RestoreVersion)
+				flows.POST("/:id/debug", debugHandler.RunFlowForDebug)
 			}
 
 			// Suite routes (workspace-scoped)

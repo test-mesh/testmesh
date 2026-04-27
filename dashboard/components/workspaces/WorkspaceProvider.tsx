@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { getPersonalWorkspace, type Workspace } from '@/lib/api/workspaces';
+import { getPersonalWorkspace, listWorkspaces, type Workspace } from '@/lib/api/workspaces';
 import {
   getActiveWorkspaceId,
   setActiveWorkspaceId,
@@ -55,18 +55,32 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setIsLoading(true);
 
       // Check localStorage first
-      let workspaceId = getActiveWorkspaceId();
+      const storedId = getActiveWorkspaceId();
+      let workspaceId: string | null = storedId;
 
-      if (!workspaceId) {
-        // No active workspace - fetch personal workspace
-        try {
-          const personal = await getPersonalWorkspace();
-          workspaceId = personal.id;
-          setActiveWorkspaceId(personal.id);
-          setWorkspace(personal);
-        } catch (error) {
-          console.error('Failed to get personal workspace:', error);
+      // Always fetch the workspace list to validate the stored ID
+      try {
+        const { workspaces } = await listWorkspaces();
+        const stored = storedId ? workspaces.find(w => w.id === storedId) : null;
+
+        if (!stored) {
+          // Stored workspace gone or none set — prefer first team workspace (has demo data)
+          const team = workspaces.find(w => w.type === 'team');
+          if (team) {
+            workspaceId = team.id;
+            setActiveWorkspaceId(team.id);
+            setWorkspace(team);
+          } else {
+            const personal = await getPersonalWorkspace();
+            workspaceId = personal.id;
+            setActiveWorkspaceId(personal.id);
+            setWorkspace(personal);
+          }
+        } else {
+          setWorkspace(stored);
         }
+      } catch (error) {
+        console.error('Failed to get workspace:', error);
       }
 
       setActiveId(workspaceId);

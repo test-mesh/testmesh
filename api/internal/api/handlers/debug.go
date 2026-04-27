@@ -3,9 +3,11 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/test-mesh/testmesh/internal/api/middleware"
 	"github.com/test-mesh/testmesh/internal/runner"
 	"github.com/test-mesh/testmesh/internal/runner/debugger"
 	"github.com/test-mesh/testmesh/internal/storage/models"
+	"github.com/test-mesh/testmesh/internal/storage/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -15,13 +17,15 @@ import (
 // DebugHandler handles debug-related HTTP requests
 type DebugHandler struct {
 	controller *debugger.Controller
+	flowRepo   *repository.FlowRepository
 	logger     *zap.Logger
 }
 
 // NewDebugHandler creates a new debug handler
-func NewDebugHandler(controller *debugger.Controller, logger *zap.Logger) *DebugHandler {
+func NewDebugHandler(controller *debugger.Controller, flowRepo *repository.FlowRepository, logger *zap.Logger) *DebugHandler {
 	return &DebugHandler{
 		controller: controller,
+		flowRepo:   flowRepo,
 		logger:     logger,
 	}
 }
@@ -111,6 +115,49 @@ func (h *DebugHandler) RunForDebug(c *gin.Context) {
 		exec.SetDebugController(h.controller)
 		exec.ExecuteInlineWithID(definition, nil, executionID)
 		// Mark session terminated so the CLI/UI knows execution finished.
+		if s, ok := h.controller.GetSession(executionID); ok {
+			s.SetState(debugger.StateTerminated)
+		}
+	}()
+
+	c.JSON(http.StatusCreated, session.ToJSON())
+}
+
+// RunFlowForDebug starts a debug session for an existing flow (by ID).
+// POST /api/v1/workspaces/:workspace_id/flows/:id/debug
+func (h *DebugHandler) RunFlowForDebug(c *gin.Context) {
+	workspaceID := middleware.GetWorkspaceID(c)
+	if workspaceID == uuid.Nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "workspace context required"})
+		return
+	}
+
+	flowID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid flow ID"})
+		return
+	}
+
+	flow, err := h.flowRepo.GetByID(flowID, workspaceID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "flow not found"})
+		return
+	}
+
+	executionID := uuid.New()
+
+	session, err := h.controller.StartSession(executionID, flowID)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+
+	session.SetState(debugger.StateStepping)
+
+	go func() {
+		exec := runner.NewExecutor(nil, h.logger, nil, nil)
+		exec.SetDebugController(h.controller)
+		exec.ExecuteInlineWithID(&flow.Definition, nil, executionID)
 		if s, ok := h.controller.GetSession(executionID); ok {
 			s.SetState(debugger.StateTerminated)
 		}

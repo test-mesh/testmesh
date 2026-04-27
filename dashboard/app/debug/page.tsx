@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle,
 } from '@/components/ui/card';
@@ -13,7 +14,18 @@ import { DebugPanel } from '@/components/debug/DebugPanel';
 export default function DebugPage() {
   const { data, isLoading } = useDebugSessions();
   const sessions = data ?? [];
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const [expanded, setExpanded] = useState<string | null>(
+    searchParams.get('session')
+  );
+
+  // When sessions load, auto-expand the session from the query param if present
+  useEffect(() => {
+    const sessionParam = searchParams.get('session');
+    if (sessionParam && sessions.some((s) => s.execution_id === sessionParam)) {
+      setExpanded(sessionParam);
+    }
+  }, [sessions, searchParams]);
 
   function stateVariant(state: string): 'outline' | 'default' | 'secondary' {
     if (state === 'paused') return 'outline';

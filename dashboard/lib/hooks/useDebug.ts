@@ -4,6 +4,7 @@ import {
   type StartSessionRequest,
   type AddBreakpointRequest,
 } from '../api/debug';
+import { getActiveWorkspaceId } from './useWorkspaces';
 
 export const debugKeys = {
   all: ['debug'] as const,
@@ -66,6 +67,18 @@ export function useStartDebugSession() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: StartSessionRequest) => debugApi.startSession(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.sessions() }); },
+  });
+}
+
+export function useRunFlowForDebug() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (flowId: string) => {
+      const workspaceId = getActiveWorkspaceId();
+      if (!workspaceId) throw new Error('No active workspace');
+      return debugApi.runFlowForDebug(workspaceId, flowId);
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: debugKeys.sessions() }); },
   });
 }

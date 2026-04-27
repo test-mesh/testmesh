@@ -120,4 +120,11 @@ export const debugApi = {
   stop: async (executionId: string) => {
     await apiClient.post(`/api/v1/debug/sessions/${executionId}/stop`);
   },
+
+  runFlowForDebug: async (workspaceId: string, flowId: string): Promise<DebugSession> => {
+    const response = await apiClient.post<DebugSession>(
+      `/api/v1/workspaces/${workspaceId}/flows/${flowId}/debug`
+    );
+    return response.data;
+  },
 };

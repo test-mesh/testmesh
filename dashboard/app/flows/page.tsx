@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useFlows, useDeleteFlow } from '@/lib/hooks/useFlows';
 import { useCreateExecution } from '@/lib/hooks/useExecutions';
+import { useRunFlowForDebug } from '@/lib/hooks/useDebug';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,7 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Play, Trash2, Eye, Plus, X, Search, ChevronLeft, ChevronRight, Upload, Sparkles, Zap } from 'lucide-react';
+import { Play, Trash2, Eye, Plus, X, Search, ChevronLeft, ChevronRight, Upload, Sparkles, Zap, Bug } from 'lucide-react';
 
 const PAGE_SIZE = 5;
 
@@ -40,6 +42,8 @@ export default function FlowsPage() {
 
   const deleteFlow = useDeleteFlow();
   const createExecution = useCreateExecution();
+  const runFlowForDebug = useRunFlowForDebug();
+  const router = useRouter();
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this flow?')) {
@@ -51,6 +55,14 @@ export default function FlowsPage() {
     createExecution.mutate({
       flow_id: flowId,
       environment: 'development',
+    });
+  };
+
+  const handleDebug = async (flowId: string) => {
+    runFlowForDebug.mutate(flowId, {
+      onSuccess: (session) => {
+        router.push(`/debug?session=${session.execution_id}`);
+      },
     });
   };
 
@@ -291,8 +303,18 @@ export default function FlowsPage() {
                         size="sm"
                         onClick={() => handleRun(flow.id)}
                         disabled={createExecution.isPending}
+                        title="Run"
                       >
                         <Play className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDebug(flow.id)}
+                        disabled={runFlowForDebug.isPending}
+                        title="Debug"
+                      >
+                        <Bug className="w-4 h-4" />
                       </Button>
                       <Link href={`/flows/${flow.id}`}>
                         <Button variant="ghost" size="sm">

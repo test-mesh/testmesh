@@ -11,8 +11,8 @@
       "name": "testmesh",
       "description": "TestMesh MCP server + skills for writing and running E2E integration tests",
       "source": {
-        "source": "git",
-        "url": "https://github.com/test-mesh/testmesh.git"
+        "source": "github",
+        "repo": "test-mesh/testmesh"
       }
     }
   ]
