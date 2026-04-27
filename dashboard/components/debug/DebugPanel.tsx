@@ -143,12 +143,13 @@ export function DebugPanel({ executionId, onClose }: DebugPanelProps) {
             ) : (
               <div className="space-y-1">
                 {history.map((snap, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1 border-b border-dashed text-xs">
+                  <div key={snap.step_id} className="flex items-center gap-2 py-1 border-b border-dashed text-xs">
                     <Badge variant={snap.error ? 'destructive' : 'secondary'} className="text-xs">
                       {snap.error ? 'FAIL' : 'OK'}
                     </Badge>
                     <code className="text-blue-600">{snap.step_id}</code>
                     <span className="text-muted-foreground">{snap.action}</span>
+                    {/* duration is nanoseconds from Go time.Duration */}
                     <span className="ml-auto text-muted-foreground">{Math.round(snap.duration / 1_000_000)}ms</span>
                   </div>
                 ))}
