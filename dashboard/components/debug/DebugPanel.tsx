@@ -1,401 +1,207 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import {
-  Play,
-  Pause,
-  SkipForward,
-  Square,
-  Bug,
-  CircleDot,
-  RefreshCw,
-  Settings,
-  Terminal,
-  Activity,
-  Variable,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import BreakpointManager from './BreakpointManager';
-import VariableInspector from './VariableInspector';
-
-interface DebugSession {
-  id: string;
-  execution_id: string;
-  flow_id: string;
-  state: 'idle' | 'running' | 'paused' | 'stepping' | 'terminated';
-  current_step: string;
-  breakpoints: Breakpoint[];
-  variables: Record<string, unknown>;
-  step_outputs: Record<string, unknown>;
-  started_at: string;
-  paused_at?: string;
-}
-
-interface Breakpoint {
-  id: string;
-  type: 'step' | 'conditional' | 'error' | 'assertion';
-  step_id?: string;
-  condition?: string;
-  enabled: boolean;
-  hit_count: number;
-  log_point?: string;
-}
-
-interface StepInfo {
-  id: string;
-  name: string;
-  action: string;
-}
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { Pause, Play, StepForward, Square, Trash2, ToggleRight } from 'lucide-react';
+import {
+  useDebugSession, useDebugState, useDebugHistory, useBreakpoints,
+  usePause, useResume, useStepOver, useStop,
+  useRemoveBreakpoint, useToggleBreakpoint,
+} from '@/lib/hooks/useDebug';
 
 interface DebugPanelProps {
   executionId: string;
-  flowId: string;
-  steps: StepInfo[];
   onClose?: () => void;
-  className?: string;
 }
 
-export default function DebugPanel({
-  executionId,
-  flowId,
-  steps,
-  onClose,
-  className,
-}: DebugPanelProps) {
-  const [session, setSession] = useState<DebugSession | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
+function stateColor(state: string) {
+  switch (state) {
+    case 'running': return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+    case 'paused': return 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20';
+    case 'terminated': return 'bg-gray-500/10 text-gray-600 border-gray-500/20';
+    default: return 'bg-muted text-muted-foreground';
+  }
+}
 
-  // Start debug session
-  const startSession = useCallback(async () => {
-    try {
-      const response = await fetch('/api/v1/debug/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          execution_id: executionId,
-          flow_id: flowId,
-        }),
-      });
+export function DebugPanel({ executionId, onClose }: DebugPanelProps) {
+  const [activeTab, setActiveTab] = useState<'variables' | 'history' | 'breakpoints'>('variables');
 
-      if (!response.ok) throw new Error('Failed to start session');
+  const { data: session } = useDebugSession(executionId);
+  const { data: state } = useDebugState(executionId);
+  const { data: history } = useDebugHistory(executionId);
+  const { data: breakpoints } = useBreakpoints(executionId);
 
-      const data = await response.json();
-      setSession(data.session);
-      setIsConnected(true);
-      addLog('Debug session started');
-    } catch (error) {
-      addLog(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }, [executionId, flowId]);
+  const pause = usePause();
+  const resume = useResume();
+  const stepOver = useStepOver();
+  const stop = useStop();
+  const removeBreakpoint = useRemoveBreakpoint();
+  const toggleBreakpoint = useToggleBreakpoint();
 
-  // End debug session
-  const endSession = useCallback(async () => {
-    if (!session) return;
-
-    try {
-      await fetch(`/api/v1/debug/sessions/${executionId}`, {
-        method: 'DELETE',
-      });
-      setSession(null);
-      setIsConnected(false);
-      addLog('Debug session ended');
-    } catch (error) {
-      addLog(`Error ending session: ${error instanceof Error ? error.message : 'Unknown'}`);
-    }
-  }, [executionId, session]);
-
-  // Refresh session state
-  const refreshSession = useCallback(async () => {
-    if (!isConnected) return;
-
-    try {
-      const response = await fetch(`/api/v1/debug/sessions/${executionId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSession(data.session);
-      }
-    } catch {
-      // Ignore refresh errors
-    }
-  }, [executionId, isConnected]);
-
-  // Debug controls
-  const sendCommand = async (command: 'pause' | 'resume' | 'step-over' | 'stop') => {
-    try {
-      const response = await fetch(`/api/v1/debug/sessions/${executionId}/${command}`, {
-        method: 'POST',
-      });
-
-      if (!response.ok) throw new Error(`Failed to ${command}`);
-
-      addLog(`Command: ${command}`);
-      await refreshSession();
-    } catch (error) {
-      addLog(`Error: ${error instanceof Error ? error.message : 'Unknown'}`);
-    }
-  };
-
-  const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setLogs((prev) => [...prev, `[${timestamp}] ${message}`]);
-  };
-
-  // Add breakpoint
-  const handleAddBreakpoint = async (stepId: string, type: string = 'step') => {
-    try {
-      const response = await fetch(`/api/v1/debug/sessions/${executionId}/breakpoints`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ step_id: stepId, type }),
-      });
-
-      if (!response.ok) throw new Error('Failed to add breakpoint');
-
-      addLog(`Breakpoint added at ${stepId}`);
-      await refreshSession();
-    } catch (error) {
-      addLog(`Error: ${error instanceof Error ? error.message : 'Unknown'}`);
-    }
-  };
-
-  // Remove breakpoint
-  const handleRemoveBreakpoint = async (breakpointId: string) => {
-    try {
-      await fetch(`/api/v1/debug/sessions/${executionId}/breakpoints/${breakpointId}`, {
-        method: 'DELETE',
-      });
-
-      addLog('Breakpoint removed');
-      await refreshSession();
-    } catch (error) {
-      addLog(`Error: ${error instanceof Error ? error.message : 'Unknown'}`);
-    }
-  };
-
-  // Toggle breakpoint
-  const handleToggleBreakpoint = async (breakpointId: string) => {
-    try {
-      await fetch(`/api/v1/debug/sessions/${executionId}/breakpoints/${breakpointId}/toggle`, {
-        method: 'POST',
-      });
-
-      await refreshSession();
-    } catch (error) {
-      addLog(`Error: ${error instanceof Error ? error.message : 'Unknown'}`);
-    }
-  };
-
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    if (!isConnected) return;
-
-    const ws = new WebSocket(`ws://${window.location.host}/ws/executions/${executionId}`);
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.type?.startsWith('debug.')) {
-        addLog(`Event: ${data.type}`);
-
-        if (data.type === 'debug.paused') {
-          setSession((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  state: 'paused',
-                  current_step: data.data?.step_id || prev.current_step,
-                  variables: data.data?.variables || prev.variables,
-                }
-              : null
-          );
-        } else if (data.type === 'debug.resumed') {
-          setSession((prev) => (prev ? { ...prev, state: 'running' } : null));
-        } else if (data.type === 'debug.variables') {
-          setSession((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  variables: data.data?.variables || prev.variables,
-                  step_outputs: data.data?.step_outputs || prev.step_outputs,
-                }
-              : null
-          );
-        }
-      }
-    };
-
-    ws.onerror = () => {
-      addLog('WebSocket error');
-    };
-
-    return () => {
-      ws.close();
-    };
-  }, [executionId, isConnected]);
-
-  // Periodic refresh
-  useEffect(() => {
-    if (!isConnected) return;
-
-    const interval = setInterval(refreshSession, 2000);
-    return () => clearInterval(interval);
-  }, [isConnected, refreshSession]);
-
-  const stateColors: Record<string, string> = {
-    idle: 'bg-gray-500',
-    running: 'bg-green-500',
-    paused: 'bg-yellow-500',
-    stepping: 'bg-blue-500',
-    terminated: 'bg-red-500',
-  };
+  const sessionState = session?.state ?? 'idle';
+  const isPaused = sessionState === 'paused';
+  const isRunning = sessionState === 'running' || sessionState === 'stepping';
+  const isTerminated = sessionState === 'terminated';
 
   return (
-    <div className={cn('flex flex-col h-full border-l bg-background', className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b">
-        <div className="flex items-center gap-2">
-          <Bug className="w-4 h-4 text-orange-500" />
-          <span className="font-semibold text-sm">Debug</span>
-          {session && (
-            <Badge
-              variant="secondary"
-              className={cn('text-white text-[10px]', stateColors[session.state])}
-            >
-              {session.state}
-            </Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={refreshSession} className="h-7 w-7 p-0">
-            <RefreshCw className="w-3 h-3" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0">
-            <Settings className="w-3 h-3" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Controls */}
-      <div className="flex items-center gap-1 p-2 border-b bg-muted/30">
-        {!isConnected ? (
-          <Button size="sm" onClick={startSession} className="h-8">
-            <Bug className="w-4 h-4 mr-2" />
-            Start Debug Session
-          </Button>
-        ) : (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sendCommand(session?.state === 'paused' ? 'resume' : 'pause')}
-              disabled={session?.state === 'terminated'}
-              className="h-8 w-8 p-0"
-              title={session?.state === 'paused' ? 'Resume' : 'Pause'}
-            >
-              {session?.state === 'paused' ? (
-                <Play className="w-4 h-4 text-green-500" />
-              ) : (
-                <Pause className="w-4 h-4 text-yellow-500" />
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sendCommand('step-over')}
-              disabled={session?.state !== 'paused'}
-              className="h-8 w-8 p-0"
-              title="Step Over"
-            >
-              <SkipForward className="w-4 h-4 text-blue-500" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => sendCommand('stop')}
-              disabled={session?.state === 'terminated'}
-              className="h-8 w-8 p-0"
-              title="Stop"
-            >
-              <Square className="w-4 h-4 text-red-500" />
-            </Button>
-            <div className="flex-1" />
-            <Button variant="ghost" size="sm" onClick={endSession} className="h-8 text-xs">
-              End Session
-            </Button>
-          </>
-        )}
-      </div>
-
-      {/* Current Step */}
-      {session?.current_step && (
-        <div className="p-2 border-b bg-yellow-50 dark:bg-yellow-950/30">
-          <div className="flex items-center gap-2 text-xs">
-            <CircleDot className="w-3 h-3 text-yellow-500" />
-            <span className="text-muted-foreground">Paused at:</span>
-            <span className="font-mono font-medium">{session.current_step}</span>
+    <Card className="font-mono text-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-base font-mono">Debug Session</CardTitle>
+            <Badge className={stateColor(sessionState)}>{sessionState}</Badge>
+            {state?.current_step && (
+              <span className="text-xs text-muted-foreground">
+                Step: <code className="bg-muted px-1 rounded">{state.current_step}</code>
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            {isRunning && (
+              <Button size="sm" variant="outline" onClick={() => pause.mutate(executionId)} disabled={pause.isPending}>
+                <Pause className="h-3 w-3" />
+              </Button>
+            )}
+            {isPaused && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => resume.mutate(executionId)} disabled={resume.isPending}>
+                  <Play className="h-3 w-3" />
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => stepOver.mutate(executionId)} disabled={stepOver.isPending}>
+                  <StepForward className="h-3 w-3" />
+                </Button>
+              </>
+            )}
+            {!isTerminated && (
+              <Button size="sm" variant="destructive" onClick={() => stop.mutate(executionId)} disabled={stop.isPending}>
+                <Square className="h-3 w-3" />
+              </Button>
+            )}
+            {onClose && (
+              <Button size="sm" variant="ghost" onClick={onClose}>✕</Button>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Tabs */}
-      <Tabs defaultValue="breakpoints" className="flex-1 flex flex-col">
-        <TabsList className="w-full justify-start rounded-none border-b px-2 h-9">
-          <TabsTrigger value="breakpoints" className="text-xs h-7">
-            <CircleDot className="w-3 h-3 mr-1" />
-            Breakpoints
-          </TabsTrigger>
-          <TabsTrigger value="variables" className="text-xs h-7">
-            <Variable className="w-3 h-3 mr-1" />
-            Variables
-          </TabsTrigger>
-          <TabsTrigger value="console" className="text-xs h-7">
-            <Terminal className="w-3 h-3 mr-1" />
-            Console
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="breakpoints" className="flex-1 m-0">
-          <BreakpointManager
-            steps={steps}
-            breakpoints={session?.breakpoints || []}
-            currentStep={session?.current_step}
-            onAdd={handleAddBreakpoint}
-            onRemove={handleRemoveBreakpoint}
-            onToggle={handleToggleBreakpoint}
-          />
-        </TabsContent>
-
-        <TabsContent value="variables" className="flex-1 m-0">
-          <VariableInspector
-            variables={session?.variables || {}}
-            stepOutputs={session?.step_outputs || {}}
-            currentStep={session?.current_step}
-          />
-        </TabsContent>
-
-        <TabsContent value="console" className="flex-1 m-0">
-          <ScrollArea className="h-full">
-            <div className="p-2 space-y-1 font-mono text-xs">
-              {logs.length === 0 ? (
-                <div className="text-muted-foreground text-center py-4">
-                  No logs yet
-                </div>
-              ) : (
-                logs.map((log, i) => (
-                  <div key={i} className="text-muted-foreground">
-                    {log}
-                  </div>
-                ))
+        {/* Tab bar */}
+        <div className="flex gap-1 mt-2">
+          {(['variables', 'history', 'breakpoints'] as const).map(tab => (
+            <Button
+              key={tab}
+              size="sm"
+              variant={activeTab === tab ? 'secondary' : 'ghost'}
+              className="capitalize"
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab}
+              {tab === 'breakpoints' && breakpoints && (
+                <Badge variant="secondary" className="ml-1 h-4 px-1 text-xs">{breakpoints.length}</Badge>
               )}
-            </div>
+            </Button>
+          ))}
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {activeTab === 'variables' && (
+          <ScrollArea className="h-48">
+            {!state?.variables || Object.keys(state.variables).length === 0 ? (
+              <p className="text-muted-foreground text-xs">No variables in scope</p>
+            ) : (
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left pb-1 font-medium">Name</th>
+                    <th className="text-left pb-1 font-medium">Value</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(state.variables).map(([k, v]) => (
+                    <tr key={k} className="border-b border-dashed">
+                      <td className="py-1 pr-4 text-blue-600">{k}</td>
+                      <td className="py-1 text-green-700 truncate max-w-xs">
+                        {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </ScrollArea>
-        </TabsContent>
-      </Tabs>
-    </div>
+        )}
+
+        {activeTab === 'history' && (
+          <ScrollArea className="h-48">
+            {!history || history.length === 0 ? (
+              <p className="text-muted-foreground text-xs">No steps executed yet</p>
+            ) : (
+              <div className="space-y-1">
+                {history.map((snap, i) => (
+                  <div key={i} className="flex items-center gap-2 py-1 border-b border-dashed text-xs">
+                    <Badge variant={snap.error ? 'destructive' : 'secondary'} className="text-xs">
+                      {snap.error ? 'FAIL' : 'OK'}
+                    </Badge>
+                    <code className="text-blue-600">{snap.step_id}</code>
+                    <span className="text-muted-foreground">{snap.action}</span>
+                    <span className="ml-auto text-muted-foreground">{Math.round(snap.duration / 1_000_000)}ms</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        )}
+
+        {activeTab === 'breakpoints' && (
+          <ScrollArea className="h-48">
+            {!breakpoints || breakpoints.length === 0 ? (
+              <p className="text-muted-foreground text-xs">No breakpoints set</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Step</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Hits</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {breakpoints.map((bp) => (
+                    <TableRow key={bp.id} className={bp.enabled ? '' : 'opacity-50'}>
+                      <TableCell><code>{bp.step_id ?? '(all)'}</code></TableCell>
+                      <TableCell><Badge variant="outline">{bp.type}</Badge></TableCell>
+                      <TableCell>{bp.hit_count}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm" variant="ghost" className="h-6 w-6 p-0"
+                            onClick={() => toggleBreakpoint.mutate({ executionId, breakpointId: bp.id })}
+                            title={bp.enabled ? 'Disable' : 'Enable'}
+                          >
+                            <ToggleRight className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm" variant="ghost" className="h-6 w-6 p-0 text-destructive"
+                            onClick={() => removeBreakpoint.mutate({ executionId, breakpointId: bp.id })}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </ScrollArea>
+        )}
+      </CardContent>
+    </Card>
   );
 }
