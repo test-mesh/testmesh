@@ -14,7 +14,7 @@ interface WebhookDeliveryLogProps {
 }
 
 export function WebhookDeliveryLog({ integrationId }: WebhookDeliveryLogProps) {
-  const { data, isLoading } = useWebhookDeliveries(integrationId);
+  const { data, isLoading, isError } = useWebhookDeliveries(integrationId);
   const deliveries = data?.deliveries ?? [];
 
   const getStatusBadge = (status: 'success' | 'failed' | 'rejected') => {
@@ -63,6 +63,10 @@ export function WebhookDeliveryLog({ integrationId }: WebhookDeliveryLogProps) {
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : isError ? (
+          <div className="text-center py-12 text-destructive text-sm">
+            Failed to load webhook deliveries
           </div>
         ) : deliveries.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">

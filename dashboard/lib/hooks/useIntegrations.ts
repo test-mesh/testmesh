@@ -10,6 +10,7 @@ export const integrationKeys = {
   details: () => [...integrationKeys.all, 'detail'] as const,
   detail: (id: string) => [...integrationKeys.details(), id] as const,
   secrets: (id: string) => [...integrationKeys.detail(id), 'secrets'] as const,
+  deliveries: (id: string) => [...integrationKeys.detail(id), 'deliveries'] as const,
 };
 
 export const gitTriggerRuleKeys = {
@@ -242,7 +243,7 @@ export function useGitHubAuthorize(workspaceId: string) {
 
 export function useWebhookDeliveries(integrationId: string | undefined, limit = 50) {
   return useQuery({
-    queryKey: ['integrations', integrationId, 'deliveries'],
+    queryKey: integrationKeys.deliveries(integrationId ?? ''),
     queryFn: () => integrationsApi.listDeliveries(integrationId!, limit),
     enabled: !!integrationId,
     refetchInterval: 30000,
