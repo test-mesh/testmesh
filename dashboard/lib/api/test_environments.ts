@@ -1,5 +1,4 @@
 import { apiClient } from './client';
-import { getActiveWorkspaceId } from '@/lib/hooks/useWorkspaces';
 
 // Types
 export type TestEnvState = 'cold' | 'provisioning' | 'warm' | 'running' | 'cooling' | 'destroyed';
@@ -36,26 +35,23 @@ export interface CreateTestEnvRequest {
   ttl_minutes?: number;
 }
 
-// Helper to build workspace-scoped test environments URL
-function testEnvsUrl(path: string = ''): string {
-  const wsId = getActiveWorkspaceId();
-  if (!wsId) throw new Error('No active workspace selected');
-  return `/api/v1/workspaces/${wsId}/test-environments${path}`;
+function testEnvsUrl(workspaceId: string, path: string = ''): string {
+  return `/api/v1/workspaces/${workspaceId}/test-environments${path}`;
 }
 
 // API functions
 export const testEnvironmentApi = {
-  list: async (): Promise<{ environments: TestEnvironment[]; total: number }> => {
-    const response = await apiClient.get(testEnvsUrl());
+  list: async (workspaceId: string): Promise<{ environments: TestEnvironment[]; total: number }> => {
+    const response = await apiClient.get(testEnvsUrl(workspaceId));
     return response.data;
   },
 
-  create: async (data: CreateTestEnvRequest): Promise<TestEnvironment> => {
-    const response = await apiClient.post(testEnvsUrl(), data);
+  create: async (workspaceId: string, data: CreateTestEnvRequest): Promise<TestEnvironment> => {
+    const response = await apiClient.post(testEnvsUrl(workspaceId), data);
     return response.data;
   },
 
-  destroy: async (envId: string): Promise<void> => {
-    await apiClient.delete(testEnvsUrl(`/${envId}`));
+  destroy: async (workspaceId: string, envId: string): Promise<void> => {
+    await apiClient.delete(testEnvsUrl(workspaceId, `/${envId}`));
   },
 };

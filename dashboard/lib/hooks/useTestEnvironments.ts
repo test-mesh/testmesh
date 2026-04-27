@@ -3,28 +3,33 @@ import {
   testEnvironmentApi,
   type CreateTestEnvRequest,
 } from '../api/test_environments';
+import { useActiveWorkspace } from './useWorkspaces';
 
 // Query keys
 export const testEnvKeys = {
   all: ['test-environments'] as const,
   lists: () => [...testEnvKeys.all, 'list'] as const,
-  list: () => [...testEnvKeys.lists()] as const,
+  list: (workspaceId: string) => [...testEnvKeys.lists(), workspaceId] as const,
 };
 
 // Hooks
 export function useTestEnvironments() {
+  const { activeWorkspaceId } = useActiveWorkspace();
   return useQuery({
-    queryKey: testEnvKeys.list(),
-    queryFn: () => testEnvironmentApi.list(),
+    queryKey: testEnvKeys.list(activeWorkspaceId ?? ''),
+    queryFn: () => testEnvironmentApi.list(activeWorkspaceId!),
+    enabled: !!activeWorkspaceId,
     refetchInterval: 10000,
   });
 }
 
 export function useCreateTestEnvironment() {
+  const { activeWorkspaceId } = useActiveWorkspace();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateTestEnvRequest) => testEnvironmentApi.create(data),
+    mutationFn: (data: CreateTestEnvRequest) =>
+      testEnvironmentApi.create(activeWorkspaceId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: testEnvKeys.lists() });
     },
@@ -32,10 +37,11 @@ export function useCreateTestEnvironment() {
 }
 
 export function useDestroyTestEnvironment() {
+  const { activeWorkspaceId } = useActiveWorkspace();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => testEnvironmentApi.destroy(id),
+    mutationFn: (id: string) => testEnvironmentApi.destroy(activeWorkspaceId!, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: testEnvKeys.lists() });
     },

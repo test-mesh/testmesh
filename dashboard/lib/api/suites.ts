@@ -1,5 +1,4 @@
 import { apiClient } from './client';
-import { getActiveWorkspaceId } from '@/lib/hooks/useWorkspaces';
 
 // Types
 export interface SuiteFlow {
@@ -55,54 +54,52 @@ export interface SuiteListParams {
   offset?: number;
 }
 
-// Helper to build workspace-scoped suites URL
-function suitesUrl(path: string = ''): string {
-  const wsId = getActiveWorkspaceId();
-  if (!wsId) throw new Error('No active workspace selected');
-  return `/api/v1/workspaces/${wsId}/suites${path}`;
+function suitesUrl(workspaceId: string, path: string = ''): string {
+  return `/api/v1/workspaces/${workspaceId}/suites${path}`;
 }
 
 // API functions
 export const suiteApi = {
-  list: async (params?: SuiteListParams): Promise<{ suites: Suite[]; total: number }> => {
-    const response = await apiClient.get(suitesUrl(), { params });
+  list: async (workspaceId: string, params?: SuiteListParams): Promise<{ suites: Suite[]; total: number }> => {
+    const response = await apiClient.get(suitesUrl(workspaceId), { params });
     return response.data;
   },
 
-  get: async (suiteId: string): Promise<Suite> => {
-    const response = await apiClient.get(suitesUrl(`/${suiteId}`));
+  get: async (workspaceId: string, suiteId: string): Promise<Suite> => {
+    const response = await apiClient.get(suitesUrl(workspaceId, `/${suiteId}`));
     return response.data;
   },
 
-  create: async (data: CreateSuiteRequest): Promise<Suite> => {
-    const response = await apiClient.post(suitesUrl(), data);
+  create: async (workspaceId: string, data: CreateSuiteRequest): Promise<Suite> => {
+    const response = await apiClient.post(suitesUrl(workspaceId), data);
     return response.data;
   },
 
-  update: async (suiteId: string, data: CreateSuiteRequest): Promise<Suite> => {
-    const response = await apiClient.put(suitesUrl(`/${suiteId}`), data);
+  update: async (workspaceId: string, suiteId: string, data: CreateSuiteRequest): Promise<Suite> => {
+    const response = await apiClient.put(suitesUrl(workspaceId, `/${suiteId}`), data);
     return response.data;
   },
 
-  delete: async (suiteId: string): Promise<void> => {
-    await apiClient.delete(suitesUrl(`/${suiteId}`));
+  delete: async (workspaceId: string, suiteId: string): Promise<void> => {
+    await apiClient.delete(suitesUrl(workspaceId, `/${suiteId}`));
   },
 
-  run: async (suiteId: string): Promise<{ run: SuiteRun }> => {
-    const response = await apiClient.post(suitesUrl(`/${suiteId}/run`));
+  run: async (workspaceId: string, suiteId: string): Promise<{ run: SuiteRun }> => {
+    const response = await apiClient.post(suitesUrl(workspaceId, `/${suiteId}/run`));
     return response.data;
   },
 
   listRuns: async (
+    workspaceId: string,
     suiteId: string,
     params?: { limit?: number; offset?: number }
   ): Promise<{ runs: SuiteRun[]; total: number }> => {
-    const response = await apiClient.get(suitesUrl(`/${suiteId}/runs`), { params });
+    const response = await apiClient.get(suitesUrl(workspaceId, `/${suiteId}/runs`), { params });
     return response.data;
   },
 
-  getRun: async (suiteId: string, runId: string): Promise<SuiteRun> => {
-    const response = await apiClient.get(suitesUrl(`/${suiteId}/runs/${runId}`));
+  getRun: async (workspaceId: string, suiteId: string, runId: string): Promise<SuiteRun> => {
+    const response = await apiClient.get(suitesUrl(workspaceId, `/${suiteId}/runs/${runId}`));
     return response.data;
   },
 };
