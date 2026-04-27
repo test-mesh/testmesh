@@ -143,7 +143,7 @@ Grafana comes pre-configured with Tempo, Loki, and Prometheus as datasources.
 
 ## Claude Code Plugin
 
-If you use Claude Code, install the TestMesh plugin to get the MCP server and 8 built-in skills:
+If you use Claude Code, install the TestMesh plugin to get the MCP server and 10 built-in skills:
 
 ```bash
 /plugin marketplace add test-mesh/testmesh
@@ -152,10 +152,17 @@ If you use Claude Code, install the TestMesh plugin to get the MCP server and 8 
 
 This gives you:
 - **MCP server** — Claude Code can analyze your services, generate flows, run tests, and check coverage without leaving the IDE
-- **Skills** — `generate-flow`, `run-flow`, `validate-flow`, `action-patterns`, `debugging-flows`, `flow-layers`, `mcp-tools`, `yaml-schema`
+- **Skills** — `setup`, `generate-flow`, `run-flow`, `validate-flow`, `action-patterns`, `debugging-flows`, `flow-layers`, `mcp-tools`, `yaml-schema`, `coverage`
 
 <Callout type="info">
   The plugin requires the TestMesh CLI to be installed and on your `PATH`. Install it using one of the options above first.
+</Callout>
+
+<Callout type="warning">
+  If you see `Permission denied (publickey)` during install, run this first:
+  ```bash
+  git config --global url."https://github.com/".insteadOf "git@github.com:"
+  ```
 </Callout>
 
 For manual MCP configuration (VS Code, Cursor, or other MCP clients), see [MCP Integration](/docs/features/mcp-integration#using-with-claude-code).
