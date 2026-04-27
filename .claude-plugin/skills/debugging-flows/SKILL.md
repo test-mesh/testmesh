@@ -5,70 +5,49 @@ description: Use when a TestMesh flow step fails, an assertion errors, a variabl
 
 # Debugging TestMesh Flows
 
-Systematic approach: validate → run locally → use debugger → fix assertion or config.
+Systematic approach: validate → isolate → run → fix.
 
-## 1. Start With Validation
+## 1. Validate First
 
-```bash
-cd testmesh/cli
-go run main.go validate path/to/flow.yaml
-```
+Use `mcp__testmesh__validate_flow` before running anything.
 
 | Error | Fix |
 |---|---|
 | `missing 'flow:' root key` | Wrap everything under `flow:` |
 | `flow.name is required` | Add `name:` under `flow:` |
 | `missing 'id' field` | Every step needs `id:` |
-| `unknown action 'X'` | See valid action list below |
+| `unknown action 'X'` | Check action list in `yaml-schema` skill |
 | `config.url is required` | Add missing required config key |
 | `references '{{var}}' but not defined` | Variable used before `output:` defines it |
+| `duplicate step id 'X'` | Step IDs must be unique within the flow |
 
-Valid actions: `http_request`, `database_query`, `kafka_producer`, `kafka_consumer`, `delay`, `log`, `assert`, `transform`, `condition`, `for_each`, `mock_server_start`, `mock_server_stop`, `mock_server_configure`, `contract_generate`, `contract_verify`, `websocket`, `grpc`, `wait_for`, `db_poll`, `redis.get`, `redis.set`, `redis.del`, `redis.exists`, `wait_until`, `parallel`, `run_flow`, `docker_run`, `docker_stop`, `mcp_call`.
+## 2. Isolate the Failing Step
 
-## 2. Run Locally
+Use `mcp__testmesh__run_step` to run a single action in isolation before debugging the whole flow. Useful for confirming a SQL query, checking a Redis key, or probing an HTTP response shape:
 
-```bash
-go run main.go run path/to/flow.yaml
+```
+action: database_query
+config:
+  connection: "postgres://root:admin@localhost:5432/postgres"
+  query: "SELECT * FROM user_service.users WHERE email = $1"
+  params: ["test@example.com"]
+assert:
+  - row_count == 1
+  - rows[0].status == "active"
 ```
 
-Output shows per-step result:
+## 3. Run the Full Flow
+
+Use `mcp__testmesh__run_flow` to execute and get per-step results:
+
 ```
-   ✅ create_user (http_request) — 45ms
-   ❌ verify_order (database_query) — 12ms
-      assertion failed:
-        - rows[0].status == "confirmed": rows[0].status = "pending"
-```
-
-For remote execution via API: `go run main.go run flow.yaml --remote`
-
-## 3. Interactive Debugger
-
-Requires API server running (`go run main.go` in `api/`).
-
-```bash
-go run main.go debug path/to/flow.yaml
-go run main.go debug path/to/flow.yaml --break step_id
+✅ create_user (http_request) — 45ms
+❌ verify_order (database_query) — 12ms
+   assertion failed:
+     - rows[0].status == "confirmed": rows[0].status = "pending"
 ```
 
-| Command | Alias | Description |
-|---|---|---|
-| `next` | `n` | Execute next step |
-| `continue` | `c` | Run to next breakpoint |
-| `vars` | `v` | List all variables |
-| `print <var>` | `p <var>` | Print variable value |
-| `break <step_id>` | `b` | Set breakpoint |
-| `watch <var>` | `w` | Watch variable for changes |
-| `restart` | `r` | Restart from step 1 |
-| `quit` | `q` | End session |
-
-Typical workflow:
-```
-(debug) n              # execute create_user
-(debug) v              # inspect captured variables
-(debug) b verify_order # set breakpoint
-(debug) c              # run to breakpoint
-(debug) p order_id     # order_id = null  ← problem found
-```
+The output shows the actual value — read it before guessing the fix.
 
 ## 4. Assertion Failures
 
@@ -110,13 +89,13 @@ config:
     user_id: "{{user_id}}"
 ```
 
-Cross-step dot notation: `${create_user.body.id}`
+Cross-step dot notation (no `output:` needed): `${create_user.body.id}`
 
 Built-in variables: `{{RANDOM_ID}}`, `{{UUID}}`, `{{TIMESTAMP}}`, `{{ISO_TIMESTAMP}}`, `{{DATE}}`, `{{TIME}}`, `{{DATETIME}}`.
 
 ## 6. Action-Specific Gotchas
 
-**http_request** — `method` is required; there is no default. `traceparent` injected automatically.
+**http_request** — `method` is required; there is no default.
 
 **database_query** — demo services use schema-qualified tables:
 ```yaml
@@ -164,7 +143,7 @@ config:
 
 ## 7. Environment Variables
 
-Define defaults in `flow.env:`, override via `--env` flag or system env:
+Define defaults in `flow.env:`, override via system env or `env_file:`:
 ```yaml
 flow:
   name: "E2E"
@@ -178,7 +157,7 @@ In Docker, use container names not `localhost` (`postgres`, `kafka`, `user-servi
 
 ## 8. Setup / Teardown
 
-`setup:` runs before steps, `teardown:` always runs (even on failure):
+`setup:` runs before steps; `teardown:` always runs (even on failure):
 ```yaml
 flow:
   setup:
@@ -199,13 +178,12 @@ flow:
 
 ## Debugging Checklist
 
-1. `validate` first — fixes structural issues before running
-2. Check infrastructure is up: `./infra.sh up`, `docker ps`
-3. Check service health: `curl http://localhost:5001/health`
+1. `validate_flow` first — fixes structural issues before running
+2. Check infrastructure is up: `list_workspaces` returns healthy workspaces
+3. Use `run_step` to probe a single action in isolation
 4. Read the assertion error — it shows the actual value
 5. No `{{}}` in `assert:` blocks — use bare variable names
 6. Check `output:` JSONPath matches actual response shape
-7. Use debugger for complex flows: step through with `n`, inspect with `v`
-8. Async results: use `wait_for`/`db_poll`/`wait_until`, not `delay`
-9. DB tables: always schema-qualified (`user_service.users`, not `users`)
-10. Docker: service URLs use container names, not `localhost`
+7. Async results: use `wait_for`/`db_poll`/`wait_until`, not `delay`
+8. DB tables: always schema-qualified (`user_service.users`, not `users`)
+9. Docker: service URLs use container names, not `localhost`
