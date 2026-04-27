@@ -17,7 +17,7 @@ export interface SystemIntegration {
 }
 
 export type IntegrationType = 'ai_provider' | 'git' | 'notification';
-export type IntegrationProvider = 'openai' | 'anthropic' | 'local' | 'github' | 'gitea' | 'gitlab' | 'slack';
+export type IntegrationProvider = 'openai' | 'anthropic' | 'local' | 'github' | 'gitea' | 'gitlab' | 'slack' | 'argocd';
 export type IntegrationStatus = 'active' | 'disabled' | 'error';
 
 export interface IntegrationConfig {
@@ -32,6 +32,9 @@ export interface IntegrationConfig {
   notify_on_events?: string[];
   github_installation_id?: number;
   github_user_login?: string;
+  // ArgoCD config
+  argocd_url?: string;
+  argocd_app_filter?: string;
 }
 
 export interface ServicePathMapping {

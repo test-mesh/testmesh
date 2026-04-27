@@ -47,9 +47,9 @@ curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/schedules \
   -d '{
     "name": "Hourly Health Check",
     "flow_id": "flow-uuid-here",
-    "cron": "0 * * * *",
-    "environment_id": "env-uuid-here",
-    "enabled": true
+    "cron_expr": "0 * * * *",
+    "environment": {},
+    "notify_on_failure": false
   }'
 ```
 
@@ -139,13 +139,10 @@ Configure the schedule:
 {
   "name": "Production Health Check (every 5 min)",
   "flow_id": "health-check-flow-id",
-  "cron": "*/5 * * * *",
-  "environment_id": "production-env-id",
-  "enabled": true,
-  "on_failure": {
-    "slack_webhook": "${SLACK_WEBHOOK_URL}",
-    "notify": true
-  }
+  "cron_expr": "*/5 * * * *",
+  "timezone": "UTC",
+  "notify_on_failure": true,
+  "notify_emails": ["oncall@example.com"]
 }
 ```
 
@@ -169,14 +166,14 @@ Drill into any scheduled execution to see full step-level detail, logs, and requ
 Schedules can be toggled without deleting them — useful when deploying a change and temporarily pausing a schedule:
 
 ```bash
-# Disable a schedule
-curl -X PATCH http://localhost:5016/api/v1/schedules/{schedule_id} \
-  -d '{"enabled": false}'
+# Pause a schedule
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/schedules/{schedule_id}/pause
 
-# Re-enable it
-curl -X PATCH http://localhost:5016/api/v1/schedules/{schedule_id} \
-  -d '{"enabled": true}'
+# Resume it
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/schedules/{schedule_id}/resume
 ```
+
+Schedules have three statuses: `active`, `paused`, and `disabled`. Pausing sets it to `paused`; deleting is the only way to fully remove it.
 
 In the dashboard, use the toggle switch on each schedule row.
 
@@ -189,7 +186,7 @@ Schedules run in UTC by default. Specify a time zone to schedule relative to loc
 ```json
 {
   "name": "Business Hours Report",
-  "cron": "0 9 * * 1-5",
+  "cron_expr": "0 9 * * 1-5",
   "timezone": "America/New_York"
 }
 ```
@@ -200,88 +197,38 @@ All supported [IANA time zone names](https://en.wikipedia.org/wiki/List_of_tz_da
 
 ## Notifications on Failure
 
-Configure failure notifications per schedule:
-
-<Tabs items={["Slack", "Email", "Webhook"]}>
-  <Tab value="Slack">
-    ```json
-    {
-      "on_failure": {
-        "slack_webhook": "${SLACK_WEBHOOK_URL}",
-        "notify": true
-      }
-    }
-    ```
-
-    The Slack message includes the flow name, which step failed, the error message, and a direct link to the execution detail page.
-  </Tab>
-  <Tab value="Email">
-    ```json
-    {
-      "on_failure": {
-        "email": {
-          "to": ["team@example.com"],
-          "notify": true
-        }
-      }
-    }
-    ```
-  </Tab>
-  <Tab value="Webhook">
-    ```json
-    {
-      "on_failure": {
-        "webhook": {
-          "url": "https://your-system.example.com/alerts",
-          "method": "POST",
-          "headers": {
-            "Authorization": "Bearer ${WEBHOOK_TOKEN}"
-          }
-        }
-      }
-    }
-    ```
-  </Tab>
-</Tabs>
-
----
-
-## Concurrent Execution Control
-
-By default, if a scheduled execution is still running when the next one is due, the new run is skipped (no stacking). Configure this behavior:
+Configure failure notifications per schedule using `notify_on_failure` and `notify_emails`:
 
 ```json
 {
-  "name": "Long-Running Suite",
-  "cron": "0 * * * *",
-  "concurrent_policy": "skip"  // "skip" (default) or "allow"
+  "name": "Nightly Regression",
+  "flow_id": "flow-uuid",
+  "cron_expr": "0 2 * * *",
+  "notify_on_failure": true,
+  "notify_emails": ["team@example.com", "oncall@example.com"]
 }
 ```
 
-Use `"allow"` only for fast flows where overlap is intentional, such as load simulations.
+When a scheduled run fails, TestMesh sends an email to all addresses in `notify_emails` with the flow name, which step failed, and a link to the execution detail page.
 
 ---
 
 ## Using Environments with Schedules
 
-Attach an environment to a schedule to run the same flow with different configuration in different contexts:
+Attach environment variables to a schedule so the same flow can run with different configuration in different contexts:
 
 ```json
-// Run the same health-check flow against staging and production
-[
-  {
-    "name": "Staging Health Check",
-    "flow_id": "health-check-id",
-    "cron": "*/10 * * * *",
-    "environment_id": "staging-environment-id"
-  },
-  {
-    "name": "Production Health Check",
-    "flow_id": "health-check-id",
-    "cron": "*/5 * * * *",
-    "environment_id": "production-environment-id"
+{
+  "name": "Staging Health Check",
+  "flow_id": "health-check-id",
+  "cron_expr": "*/10 * * * *",
+  "environment": {
+    "USER_SERVICE_URL": "http://user-service.staging",
+    "ORDER_SERVICE_URL": "http://order-service.staging"
   }
-]
+}
 ```
 
-See the [Environments](/docs/yaml-reference) documentation for how to define environment variable sets.
+Create a separate schedule record for each target environment — one for staging, one for production.
+
+See the [Environments](/docs/features/environments) documentation for how to define reusable environment variable sets.

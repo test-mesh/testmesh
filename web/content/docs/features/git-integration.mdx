@@ -22,7 +22,8 @@ Configure a Git integration in the dashboard under **Settings → Integrations**
 curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/integrations \
   -H "Content-Type: application/json" \
   -d '{
-    "type": "github",
+    "type": "git",
+    "provider": "github",
     "name": "My GitHub",
     "config": {
       "webhook_secret": "your-webhook-secret",
@@ -33,11 +34,12 @@ curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/integrations 
 
 ### Supported Providers
 
-| Provider | Type | Webhook Events |
-|----------|------|----------------|
-| GitHub | `github` | push, pull_request, create |
-| GitLab | `gitlab` | Push Hook, Merge Request Hook, Tag Push Hook |
-| Gitea | `gitea` | push, pull_request, create |
+| Provider | `type` | `provider` | Webhook Events |
+|----------|--------|------------|----------------|
+| GitHub | `git` | `github` | push, pull_request, create |
+| GitLab | `git` | `gitlab` | Push Hook, Merge Request Hook, Tag Push Hook |
+| Gitea | `git` | `gitea` | push, pull_request, create |
+| Argo CD | `git` | `argocd` | sync (via argocd-notifications) |
 
 ### Webhook Setup
 
@@ -84,9 +86,9 @@ curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/git-trigger-r
     "integration_id": "integration-uuid",
     "repository": "owner/my-repo",
     "event_types": ["pull_request"],
-    "branches": ["main"],
-    "flow_ids": ["flow-uuid-1", "flow-uuid-2"],
-    "environment_id": "staging-env-uuid",
+    "branch_filter": "main",
+    "trigger_mode": "direct",
+    "flow_id": "flow-uuid",
     "enabled": true
   }'
 ```
@@ -95,44 +97,56 @@ curl -X POST http://localhost:5016/api/v1/workspaces/$WORKSPACE_ID/git-trigger-r
 
 | Field | Description |
 |-------|-------------|
-| `event_types` | `push`, `pull_request`, `create` |
-| `branches` | Branch names to match (supports wildcards: `release/*`) |
-| `flow_ids` | Flows to run when the rule matches |
-| `environment_id` | Environment to use for the triggered run |
+| `integration_id` | UUID of the Git integration to bind this rule to |
+| `repository` | Repository name, e.g. `owner/my-repo` or Argo CD app name |
+| `event_types` | `push`, `pull_request`, `sync` (Argo CD) |
+| `branch_filter` | Glob pattern for branch matching — `*` matches all, `main` is exact, `release/*` is a prefix |
+| `trigger_mode` | `direct` — run a single flow; `schedule` — enqueue via a schedule |
+| `flow_id` | UUID of the flow to run (required when `trigger_mode = direct`) |
+| `suite_id` | UUID of the suite to run (alternative to `flow_id` for suite-level triggers) |
 | `enabled` | Whether the rule is active |
 
 ### Examples
 
-**Run integration tests on every push to main:**
+**Run an integration test on every push to main:**
 
 ```json
 {
   "name": "Main branch integration tests",
+  "integration_id": "integration-uuid",
+  "repository": "owner/my-repo",
   "event_types": ["push"],
-  "branches": ["main"],
-  "flow_ids": ["integration-suite-flow"]
+  "branch_filter": "main",
+  "trigger_mode": "direct",
+  "flow_id": "integration-flow-uuid"
 }
 ```
 
-**Run smoke tests on pull requests to any release branch:**
+**Run a smoke test on pull requests to any release branch:**
 
 ```json
 {
   "name": "Release branch smoke tests",
+  "integration_id": "integration-uuid",
+  "repository": "owner/my-repo",
   "event_types": ["pull_request"],
-  "branches": ["release/*"],
-  "flow_ids": ["smoke-test-flow"]
+  "branch_filter": "release/*",
+  "trigger_mode": "direct",
+  "flow_id": "smoke-test-flow-uuid"
 }
 ```
 
-**Run all tests when a tag is created:**
+**Trigger a suite on Argo CD sync:**
 
 ```json
 {
-  "name": "Tag: full test suite",
-  "event_types": ["create"],
-  "branches": ["v*"],
-  "flow_ids": ["smoke-flow", "integration-flow", "e2e-flow"]
+  "name": "Argo CD → E2E Suite",
+  "integration_id": "argocd-integration-uuid",
+  "repository": "testmesh-e2e",
+  "event_types": ["sync"],
+  "branch_filter": "*",
+  "trigger_mode": "direct",
+  "suite_id": "e2e-suite-uuid"
 }
 ```
 
@@ -167,7 +181,8 @@ Enable diff analysis in the integration settings:
 
 ```json
 {
-  "type": "github",
+  "type": "git",
+  "provider": "github",
   "config": {
     "diff_analysis": true,
     "ai_provider": "anthropic"

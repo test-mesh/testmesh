@@ -3,18 +3,19 @@ title: Mock Server
 description: Simulate external APIs and services directly within your test flows using built-in mock servers defined in YAML.
 ---
 
-TestMesh includes a built-in mock server that lets you simulate external APIs without external tools. Mock definitions live alongside your tests in YAML, making tests fully self-contained and portable.
+TestMesh includes a built-in mock server that lets you simulate external APIs without external tools. Mock definitions live alongside your tests in YAML, making tests fully self-contained and portable. The mock server routes traffic through the TestMesh API itself — no separate port binding required.
 
 <Cards>
   <Card title="Basic Setup" href="#basic-mock-server" description="Start a mock server in flow setup and stop it in teardown" />
-  <Card title="Request Matching" href="#request-matching" description="Match on path params, query params, headers, and body" />
-  <Card title="Response Types" href="#response-types" description="Static, dynamic, delayed, error, and file-based responses" />
-  <Card title="Stateful Mocking" href="#stateful-mocking" description="Scenario-based state, request counts, and shared state" />
+  <Card title="Request Matching" href="#request-matching" description="Match on path pattern, query params, headers, and body" />
+  <Card title="Response Types" href="#response-types" description="Static, delayed, and error responses" />
+  <Card title="Stateful Mocking" href="#stateful-mocking" description="Maintain state across requests within a flow" />
+  <Card title="Multiple Servers" href="#multiple-mock-servers" description="Simulate a full microservices environment" />
 </Cards>
 
 ## Basic Mock Server
 
-Define mock endpoints directly in your flow's `setup` block. The mock server starts before your steps run and is stopped in `teardown`.
+Define mock endpoints in your flow's `setup` block. The mock server is accessible at `base_url` — pass this into subsequent HTTP steps instead of pointing at a real service.
 
 ```yaml title="flow-with-mock.yaml"
 flow:
@@ -24,12 +25,12 @@ flow:
     - id: start_mock_server
       action: mock_server_start
       config:
-        port: 9000
+        name: "user-service-mock"
         endpoints:
           - path: /api/users/123
             method: GET
             response:
-              status: 200
+              status_code: 200
               body:
                 id: "123"
                 name: "John Doe"
@@ -38,7 +39,7 @@ flow:
           - path: /api/users
             method: POST
             response:
-              status: 201
+              status_code: 201
               headers:
                 Location: "/api/users/124"
               body:
@@ -46,6 +47,7 @@ flow:
                 message: "User created"
       output:
         mock_url: "$.base_url"
+        mock_id: "$.server_id"
 
   steps:
     - id: call_api
@@ -55,40 +57,15 @@ flow:
         url: "${start_mock_server.mock_url}/api/users/123"
       output:
         user: "$.body"
+      assert:
+        - status == 200
+        - body.name == "John Doe"
 
   teardown:
     - id: stop_mock_server
       action: mock_server_stop
-```
-
-### Loading from an External File
-
-For complex mocks, keep the definition in a separate file and reference it:
-
-```yaml title="mocks/user-service.yaml"
-mock_server:
-  name: "User Service Mock"
-  port: 9001
-
-  endpoints:
-    - path: /api/users/:id
-      method: GET
-      response:
-        status: 200
-        body:
-          id: "{{path.id}}"
-          name: "User {{path.id}}"
-          email: "user{{path.id}}@example.com"
-```
-
-```yaml title="flow.yaml"
-setup:
-  - id: start_mock
-    action: mock_server_start
-    config:
-      from_file: "mocks/user-service.yaml"
-    output:
-      mock_url: "$.base_url"
+      config:
+        server_id: "${start_mock_server.mock_id}"
 ```
 
 ---
@@ -97,34 +74,50 @@ setup:
 
 ### Path Parameters
 
-Use `:paramName` syntax to capture dynamic path segments, then reference them in responses with `{{path.paramName}}`:
+Use `:paramName` syntax to capture dynamic path segments:
 
 ```yaml
 endpoints:
   - path: /api/users/:userId/orders/:orderId
     method: GET
     response:
-      status: 200
+      status_code: 200
       body:
-        user_id: "{{path.userId}}"
-        order_id: "{{path.orderId}}"
+        user_id: "123"
+        order_id: "456"
         status: "completed"
+```
+
+### Path Pattern (Regex)
+
+Use `match.path_pattern` for regex-based matching on the full path:
+
+```yaml
+endpoints:
+  - path: /api/users/:id
+    method: GET
+    match:
+      path_pattern: "^/api/users/[0-9]+"
+    response:
+      status_code: 200
+      body:
+        type: "numeric-id user"
 ```
 
 ### Query Parameters
 
-Match only when specific query params are present:
+Match only when specific query params are present using `match.query_params`:
 
 ```yaml
 endpoints:
   - path: /api/users
     method: GET
     match:
-      query:
+      query_params:
         status: "active"
         role: "admin"
     response:
-      status: 200
+      status_code: 200
       body:
         users:
           - id: "1"
@@ -133,7 +126,7 @@ endpoints:
 
 ### Request Headers
 
-Serve different responses based on Authorization headers:
+Serve different responses based on headers:
 
 ```yaml
 endpoints:
@@ -143,338 +136,157 @@ endpoints:
       headers:
         Authorization: "Bearer secret-token"
     response:
-      status: 200
+      status_code: 200
       body:
         message: "Authorized"
 
   - path: /api/protected
     method: GET
     response:
-      status: 401
+      status_code: 401
       body:
         error: "Unauthorized"
 ```
 
 ### Request Body Matching
 
-Match on exact body fields or use JSON path expressions:
+Match on exact JSON sub-object using `match.body_json`, or use a regex string with `match.body_pattern`:
 
 ```yaml
 endpoints:
   - path: /api/login
     method: POST
     match:
-      body:
+      body_json:
         username: "admin"
         password: "secret"
     response:
-      status: 200
+      status_code: 200
       body:
         token: "valid-token-123"
 
   - path: /api/users
     method: POST
     match:
-      body_matches:
-        - "$.email contains '@example.com'"
-        - "$.age >= 18"
+      body_pattern: ".*@example\\.com.*"
     response:
-      status: 201
+      status_code: 201
       body:
-        id: "{{random.uuid}}"
+        id: "new-user-id"
         status: "created"
 ```
 
 ### Priority and Fallback
 
-Use `priority` to control which endpoint matches first, and a wildcard fallback for unmatched requests:
+Lower `priority` value wins. Use a catch-all endpoint with high priority for fallback:
 
 ```yaml
 endpoints:
   - path: /api/users/admin
     method: GET
-    priority: 1
+    priority: 0
     response:
-      status: 200
+      status_code: 200
       body:
         id: "admin"
         role: "administrator"
 
   - path: /api/users/:id
     method: GET
-    priority: 2
+    priority: 1
     response:
-      status: 200
+      status_code: 200
       body:
-        id: "{{path.id}}"
+        id: "regular-user"
         role: "user"
-
-  - path: "*"
-    method: "*"
-    response:
-      status: 404
-      body:
-        error: "Not found"
 ```
 
 ---
 
 ## Response Types
 
-### Dynamic Templates
-
-Use template variables to generate dynamic responses:
+### Static Response
 
 ```yaml
-endpoints:
-  - path: /api/time
-    method: GET
-    response:
-      status: 200
-      body:
-        server_time: "{{timestamp}}"
-        request_id: "{{random.uuid}}"
-        client_ip: "{{request.ip}}"
+response:
+  status_code: 200
+  headers:
+    Content-Type: "application/json"
+  body:
+    id: "123"
+    name: "Test User"
 ```
 
-### Delayed Responses
-
-Simulate slow or variable-latency APIs:
+### Plain Text Response
 
 ```yaml
-endpoints:
-  - path: /api/slow-endpoint
-    method: GET
-    response:
-      status: 200
-      delay: 5s
-      body:
-        message: "This took 5 seconds"
-
-  - path: /api/variable-latency
-    method: GET
-    response:
-      status: 200
-      delay:
-        min: 100ms
-        max: 2s
-      body:
-        message: "Variable latency"
+response:
+  status_code: 200
+  headers:
+    Content-Type: "text/plain"
+  body_text: "pong"
 ```
 
-### Error and Fault Responses
+### Delayed Response
 
-Simulate failures to test your error handling and retry logic:
+Simulate slow or variable-latency APIs using `delay_ms`:
+
+```yaml
+response:
+  status_code: 200
+  delay_ms: 500
+  body:
+    message: "This took 500ms"
+```
+
+### Error Responses
 
 ```yaml
 endpoints:
-  - path: /api/failing-endpoint
+  - path: /api/failing
     method: POST
     response:
-      status: 500
+      status_code: 500
       body:
         error: "Internal server error"
-        message: "Database connection failed"
-
-  - path: /api/timeout
-    method: GET
-    response:
-      hang: true  # Never responds
-
-  - path: /api/network-error
-    method: GET
-    response:
-      close_connection: true  # Closes connection immediately
-```
-
-### Response from File
-
-Serve large datasets or binary files from disk:
-
-```yaml
-endpoints:
-  - path: /api/large-dataset
-    method: GET
-    response:
-      status: 200
-      body_from_file: "mocks/data/large-dataset.json"
-
-  - path: /api/report
-    method: GET
-    response:
-      status: 200
-      headers:
-        Content-Type: "application/pdf"
-      body_from_file: "mocks/data/report.pdf"
-      binary: true
 ```
 
 ---
 
 ## Stateful Mocking
 
-### Scenario-Based States
-
-Define named scenarios where each response transitions to the next state:
+Stateful mocks maintain server-side state across requests using the `state` block per endpoint. The state is initialized on the first request and updated according to `update_rule`.
 
 ```yaml
-mock_server:
-  endpoints:
-    - path: /api/counter
-      method: GET
-      stateful: true
-      scenarios:
-        - name: "initial"
-          response:
-            status: 200
-            body:
-              count: 0
-          next_state: "incremented"
-
-        - name: "incremented"
-          response:
-            status: 200
-            body:
-              count: 1
-          next_state: "incremented_twice"
-
-        - name: "incremented_twice"
-          response:
-            status: 200
-            body:
-              count: 2
-          next_state: "incremented_twice"
+- id: start_stateful_mock
+  action: mock_server_start
+  config:
+    name: "counter-mock"
+    endpoints:
+      - path: /api/counter/increment
+        method: POST
+        state:
+          state_key: "count"
+          initial_value: 0
+          update_rule: "increment"
+        response:
+          status_code: 200
+          body:
+            message: "incremented"
 ```
 
-### Request Count Based
-
-Vary responses based on how many times an endpoint has been called — useful for simulating rate limiting or flaky services:
-
-```yaml
-endpoints:
-  - path: /api/rate-limited
-    method: GET
-    responses:
-      - when: "{{request_count <= 3}}"
-        status: 200
-        body:
-          message: "Success"
-          remaining: "{{3 - request_count}}"
-
-      - when: "{{request_count > 3}}"
-        status: 429
-        headers:
-          Retry-After: "60"
-        body:
-          error: "Rate limit exceeded"
-```
-
-### Shared State Across Endpoints
-
-Mock a stateful CRUD API where POST creates data that GET can later retrieve:
-
-```yaml
-mock_server:
-  state:
-    users: []
-    next_id: 1
-
-  endpoints:
-    - path: /api/users
-      method: POST
-      response:
-        status: 201
-        body:
-          id: "{{state.next_id}}"
-          name: "{{request.body.name}}"
-        state_changes:
-          - action: "append"
-            path: "users"
-            value:
-              id: "{{state.next_id}}"
-              name: "{{request.body.name}}"
-          - action: "increment"
-            path: "next_id"
-
-    - path: /api/users
-      method: GET
-      response:
-        status: 200
-        body:
-          users: "{{state.users}}"
-          total: "{{state.users.length}}"
-```
-
-Reset state between test scenarios:
-
-```yaml
-steps:
-  - id: reset_mock_state
-    action: mock_server_reset_state
-    config:
-      server: "user-service-mock"
-      state:
-        users: []
-        next_id: 1
-```
+| State field | Description |
+|---|---|
+| `state_key` | Key name for this endpoint's state |
+| `initial_value` | Starting value |
+| `update_rule` | `set`, `increment`, or `append` |
+| `update_value` | Value to use with `set` or `append` |
 
 ---
 
-## Advanced Patterns
+## Multiple Mock Servers
 
-### Proxy Mode (Partial Mocking)
-
-Override specific endpoints while proxying everything else to a real service:
-
-```yaml
-mock_server:
-  proxy:
-    target: "https://api.real-service.com"
-    pass_through: true
-
-  endpoints:
-    - path: /api/users/123
-      method: GET
-      response:
-        status: 200
-        body:
-          id: "123"
-          name: "Mocked User"
-```
-
-### Recording and Playback
-
-<Tabs items={["Record Mode", "Playback Mode"]}>
-  <Tab value="Record Mode">
-    Proxy requests to the real API and save responses for later replay:
-
-    ```yaml
-    setup:
-      - id: start_recording_mock
-        action: mock_server_start
-        config:
-          mode: "record"
-          proxy_target: "https://api.real-service.com"
-          save_to: "mocks/recorded/user-service.yaml"
-    ```
-  </Tab>
-  <Tab value="Playback Mode">
-    Replay previously recorded responses without hitting the real API:
-
-    ```yaml
-    setup:
-      - id: start_playback_mock
-        action: mock_server_start
-        config:
-          mode: "playback"
-          from_file: "mocks/recorded/user-service.yaml"
-    ```
-  </Tab>
-</Tabs>
-
-### Multiple Mock Servers
-
-Run multiple mock servers simultaneously to simulate a full microservices environment:
+Run multiple mock servers simultaneously — each gets its own `base_url`:
 
 ```yaml
 setup:
@@ -482,105 +294,81 @@ setup:
     action: mock_server_start
     config:
       name: "user-service"
-      port: 8081
-      from_file: "mocks/user-service.yaml"
+      endpoints:
+        - path: /api/users/:id
+          method: GET
+          response:
+            status_code: 200
+            body:
+              id: "123"
+              name: "Test User"
+    output:
+      user_mock_url: "$.base_url"
+      user_mock_id: "$.server_id"
 
   - id: start_payment_service_mock
     action: mock_server_start
     config:
       name: "payment-service"
-      port: 8082
-      from_file: "mocks/payment-service.yaml"
-
-steps:
-  - id: call_user_service
-    action: http_request
-    config:
-      url: "${start_user_service_mock.base_url}/api/users/123"
-
-  - id: call_payment_service
-    action: http_request
-    config:
-      url: "${start_payment_service_mock.base_url}/api/charge"
-```
-
-### Request Verification
-
-Assert that the mock received the expected requests with the correct data:
-
-```yaml
-steps:
-  - id: call_api
-    action: http_request
-    config:
-      url: "${mock_url}/api/users"
-      method: POST
-      body:
-        name: "John Doe"
-
-  - id: verify_mock_requests
-    action: mock_server_verify
-    config:
-      server: "user-service"
-      assertions:
-        - path: /api/users
+      endpoints:
+        - path: /api/charge
           method: POST
-          count: 1
-          body_matches:
-            - "$.name == 'John Doe'"
-```
-
-### Chaos Engineering
-
-Inject random failures to test resilience:
-
-```yaml
-mock_server:
-  chaos:
-    enabled: true
-
-  endpoints:
-    - path: /api/users
-      method: GET
-      chaos_rules:
-        - probability: 0.1
           response:
-            status: 500
+            status_code: 200
             body:
-              error: "Random server error"
+              status: "succeeded"
+    output:
+      payment_mock_url: "$.base_url"
+      payment_mock_id: "$.server_id"
 
-        - probability: 0.05
-          response:
-            hang: true
+teardown:
+  - id: stop_user_mock
+    action: mock_server_stop
+    config:
+      server_id: "${start_user_service_mock.user_mock_id}"
 
-        - probability: 0.85
-          response:
-            status: 200
-            body:
-              users: []
+  - id: stop_payment_mock
+    action: mock_server_stop
+    config:
+      server_id: "${start_payment_service_mock.payment_mock_id}"
 ```
 
 ---
 
-## Template Variables
+## Updating Endpoints Mid-Flow
 
-Available in all mock response templates:
+Use `mock_server_update` to swap out an endpoint's response during a flow — useful for simulating state changes like a service going down after the first call:
 
-| Variable | Description |
-|---|---|
-| `{{timestamp}}` | Current ISO 8601 timestamp |
-| `{{timestamp_unix}}` | Unix timestamp |
-| `{{random.uuid}}` | Random UUID v4 |
-| `{{random.int}}` | Random integer |
-| `{{random.int(min, max)}}` | Random integer in range |
-| `{{random.string(length)}}` | Random alphanumeric string |
-| `{{path.paramName}}` | Path parameter value |
-| `{{query.paramName}}` | Query parameter value |
-| `{{header.HeaderName}}` | Request header value |
-| `{{request.body.fieldName}}` | Request body field |
-| `{{request.ip}}` | Client IP address |
-| `{{request_count}}` | Number of times this endpoint was called |
-| `{{state.fieldName}}` | State variable value |
+```yaml
+steps:
+  - id: first_call_succeeds
+    action: http_request
+    config:
+      method: POST
+      url: "${start_mock.mock_url}/api/charge"
+    assert:
+      - status == 200
+
+  - id: simulate_outage
+    action: mock_server_update
+    config:
+      server_id: "${start_mock.mock_id}"
+      endpoints:
+        - path: /api/charge
+          method: POST
+          response:
+            status_code: 503
+            body:
+              error: "Service unavailable"
+
+  - id: second_call_fails
+    action: http_request
+    config:
+      method: POST
+      url: "${start_mock.mock_url}/api/charge"
+    assert:
+      - status == 503
+```
 
 ---
 
@@ -588,84 +376,65 @@ Available in all mock response templates:
 
 ```yaml title="payment-gateway-test.yaml"
 flow:
-  name: "Test Fare Calculation with Mock Payment Gateway"
+  name: "Test Order with Mock Payment Gateway"
 
   setup:
     - id: start_payment_gateway_mock
       action: mock_server_start
       config:
         name: "payment-gateway"
-        port: 9000
         endpoints:
           - path: /v1/charges
             method: POST
-            match:
-              body_matches:
-                - "$.amount <= 10.00"
             response:
-              status: 200
-              delay: 500ms
+              status_code: 200
+              delay_ms: 100
               body:
-                id: "{{random.uuid}}"
+                id: "ch_test_123"
                 status: "succeeded"
-                amount: "{{request.body.amount}}"
 
           - path: /v1/charges
             method: POST
             match:
-              body_matches:
-                - "$.amount > 10.00"
+              body_json:
+                currency: "EUR"
             response:
-              status: 402
+              status_code: 422
               body:
-                error:
-                  code: "card_declined"
-                  message: "Amount exceeds limit"
+                error: "Only USD supported"
       output:
-        payment_gateway_url: "$.base_url"
+        gateway_url: "$.base_url"
+        gateway_id: "$.server_id"
 
   steps:
-    - id: send_taps
-      action: kafka_publish
+    - id: place_order
+      action: http_request
       config:
-        topic: "matches"
-        value:
-          pan: "4111111111111111"
-          amount: 5.00
+        method: POST
+        url: "${API_URL}/orders"
+        body:
+          amount: 49.99
+          currency: "USD"
+          payment_gateway_url: "${start_payment_gateway_mock.gateway_url}"
+      assert:
+        - status == 201
+        - body.payment_status == "succeeded"
 
-    - id: wait_for_payment
-      action: kafka_consume
+    - id: rejected_currency
+      action: http_request
       config:
-        topic: "payments"
-        timeout: 10s
-
-    - id: verify_charge_request
-      action: mock_server_verify
-      config:
-        server: "payment-gateway"
-        assertions:
-          - path: /v1/charges
-            method: POST
-            count: 1
-            body_matches:
-              - "$.amount == 5.00"
-              - "$.currency == 'USD'"
+        method: POST
+        url: "${API_URL}/orders"
+        body:
+          amount: 49.99
+          currency: "EUR"
+          payment_gateway_url: "${start_payment_gateway_mock.gateway_url}"
+      assert:
+        - status == 422
 
   teardown:
-    - id: stop_mock
+    - id: stop_payment_mock
       action: mock_server_stop
       config:
-        server: "payment-gateway"
+        server_id: "${start_payment_gateway_mock.gateway_id}"
 ```
-
-<Callout type="tip">
-  Place mock definitions in a `mocks/` directory alongside your flow files and load them with `from_file`. This keeps flows readable while allowing complex mock configurations to be shared across multiple test flows.
-</Callout>
-
-## What's Next
-
-<Cards>
-  <Card title="Async Patterns" href="/docs/features/async-patterns" description="Testing Kafka and WebSocket async flows." />
-  <Card title="Contract Testing" href="/docs/features/contract-testing" description="Verify request/response contracts between services." />
-  <Card title="mock_server_start reference" href="/docs/yaml-reference/actions/mock-server" description="Full action reference for mock server configuration." />
-</Cards>

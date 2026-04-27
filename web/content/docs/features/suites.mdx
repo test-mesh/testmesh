@@ -97,10 +97,11 @@ Open a suite and click **Run Now**.
 curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/suites/{suite_id}/run \
   -H "Content-Type: application/json" \
   -d '{
-    "environment": "staging",
-    "trigger_ref": "manual-run-from-api"
+    "environment": "staging"
   }'
 ```
+
+The body is optional — omit it entirely to run with no environment or variable overrides.
 
 ### Schedule (Cron)
 
@@ -108,7 +109,7 @@ Attach a schedule to a suite using the [Scheduling](/docs/features/scheduling) f
 
 ### Webhook (Argo CD or Gitea)
 
-Configure Argo CD post-sync notifications or Gitea push webhooks to call the suite run endpoint. Set `trigger_ref` to the Git commit SHA or Argo CD application name for traceability. See the [GitOps Integration](/docs/guides/gitops-integration) guide for details.
+Configure Argo CD post-sync notifications to POST to `POST /api/v1/webhooks/argocd`. TestMesh automatically matches the Argo CD application name against `GitTriggerRule.repository`, triggers the linked suite, and records the commit SHA as `trigger_ref`. See the [GitOps Integration](/docs/guides/gitops-integration) guide for setup details.
 
 ---
 

@@ -11,6 +11,7 @@ import { GitIntegrationSection } from '@/components/integrations/GitIntegrationS
 import { GiteaIntegrationSection } from '@/components/integrations/GiteaIntegrationSection';
 import { GitLabIntegrationSection } from '@/components/integrations/GitLabIntegrationSection';
 import { SlackIntegrationSection } from '@/components/integrations/SlackIntegrationSection';
+import { ArgoCDIntegrationSection } from '@/components/integrations/ArgoCDIntegrationSection';
 import { useAIUsage } from '@/lib/hooks/useAI';
 
 export default function IntegrationsPage() {
@@ -30,7 +31,7 @@ export default function IntegrationsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-2xl grid-cols-5">
+        <TabsList className="grid w-full max-w-3xl grid-cols-6">
           <TabsTrigger value="ai-providers" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             AI Providers
@@ -46,6 +47,10 @@ export default function IntegrationsPage() {
           <TabsTrigger value="gitlab-integration" className="flex items-center gap-2">
             <GitBranch className="h-4 w-4" />
             GitLab
+          </TabsTrigger>
+          <TabsTrigger value="argocd" className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4" />
+            Argo CD
           </TabsTrigger>
           <TabsTrigger value="slack" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
@@ -152,6 +157,20 @@ export default function IntegrationsPage() {
             </CardHeader>
             <CardContent>
               <GitLabIntegrationSection />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="argocd" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Argo CD Integration</CardTitle>
+              <CardDescription>
+                Receive sync events from Argo CD and automatically trigger test suites after successful deployments.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ArgoCDIntegrationSection />
             </CardContent>
           </Card>
         </TabsContent>

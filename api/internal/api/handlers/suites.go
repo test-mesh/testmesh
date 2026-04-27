@@ -295,9 +295,11 @@ func (h *SuiteHandler) Run(c *gin.Context) {
 	}
 
 	var req RunSuiteHTTPRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	runReq := runner.RunSuiteRequest{

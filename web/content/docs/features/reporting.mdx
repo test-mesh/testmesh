@@ -447,18 +447,27 @@ testmesh report export --format csv --output data.csv
 
 ## Report Data API
 
-Query report data programmatically from the TestMesh API:
+Query and generate reports programmatically:
 
 ```bash
-# Latest summary
-curl http://localhost:5016/api/reports/latest/summary
+# Generate a report
+curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/reports/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Weekly Report",
+    "format": "html",
+    "start_date": "2026-04-01",
+    "end_date": "2026-04-27"
+  }'
 
-# Failures only
-curl http://localhost:5016/api/reports/latest/failures
+# List reports
+curl http://localhost:5016/api/v1/workspaces/{workspace_id}/reports
 
-# 30-day trend data
-curl http://localhost:5016/api/reports/trends?days=30
+# Download a specific report
+curl http://localhost:5016/api/v1/workspaces/{workspace_id}/reports/{id}/download
 ```
+
+Supported formats: `html`, `json`, `junit`.
 
 <Callout type="tip">
   The JSON report format is the most flexible for building custom dashboards or feeding results into external monitoring systems like Datadog or Grafana.

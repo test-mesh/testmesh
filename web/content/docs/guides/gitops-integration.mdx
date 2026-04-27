@@ -35,14 +35,14 @@ TestMesh → Gitea commit status API
 
 ## Step 1: Configure the Argo CD Integration
 
-Create a **Source Control** integration in TestMesh pointing at your Argo CD instance. Store the Argo CD API token as an encrypted secret.
+Create a **GitOps** integration in TestMesh pointing at your Argo CD instance. Store the Argo CD API token as an encrypted secret.
 
 ```bash
 curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/integrations \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Argo CD Staging",
-    "type": "source_control",
+    "type": "git",
     "provider": "argocd",
     "config": {
       "url": "https://argocd.internal",
@@ -75,7 +75,7 @@ data:
     webhook:
       testmesh:
         method: POST
-        path: /api/v1/integrations/webhooks/argocd
+        path: /api/v1/webhooks/argocd
         body: |
           {
             "app_name":   "{{.app.metadata.name}}",
@@ -108,7 +108,7 @@ metadata:
     notifications.argoproj.io/subscribe.on-sync-succeeded.testmesh: ""
 ```
 
-TestMesh receives the webhook at `POST /api/v1/integrations/webhooks/argocd`, looks up the matching `GitTriggerRule` by `app_name`, and fires the configured Suite.
+TestMesh receives the webhook at `POST /api/v1/webhooks/argocd`, looks up the matching `GitTriggerRule` by `app_name`, and fires the configured Suite.
 
 ---
 
@@ -140,14 +140,14 @@ curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/integrations
 
 ## Step 4: Configure the Gitea Integration (Commit Status)
 
-Create a **Source Control** integration pointing at Gitea so TestMesh can write commit statuses.
+Create a **Git** integration pointing at Gitea so TestMesh can write commit statuses.
 
 ```bash
 curl -X POST http://localhost:5016/api/v1/workspaces/{workspace_id}/integrations \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Gitea Internal",
-    "type": "source_control",
+    "type": "git",
     "provider": "gitea",
     "config": {
       "url": "https://gitea.internal"

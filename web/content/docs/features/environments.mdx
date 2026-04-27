@@ -144,14 +144,24 @@ Select an environment when running a flow or collection from the **Run** dialog.
 Pass `"environment"` in the run request body:
 
 ```json
-POST /api/v1/runner/run
+POST /api/v1/workspaces/{workspace_id}/runner/run
 {
-  "flow_ids": ["<flow-uuid>"],
+  "flow_id": "<flow-uuid>",
   "environment": "staging"
 }
 ```
 
-You can pass the environment name or UUID. Runtime `variables` in the same request override environment variables.
+Pass the environment name or UUID. Runtime `variables` in the same request override environment variables:
+
+```json
+{
+  "flow_id": "<flow-uuid>",
+  "environment": "staging",
+  "variables": {
+    "AUTH_TOKEN": "override-token"
+  }
+}
+```
 
 ### Via the CLI
 

@@ -98,28 +98,29 @@ flow:
 
 ---
 
-## config block
+## Step-level retry and timeout
 
-The `config` block sets flow-level execution behaviour.
+Retry and timeout are configured per step, not at the flow level.
 
 ```yaml
 flow:
-  config:
-    timeout: "5m"
-    fail_fast: true
-    retry:
-      enabled: true
-      max_attempts: 3
-      delay: "1s"
-      backoff: "exponential"
+  steps:
+    - id: call_api
+      action: http_request
+      timeout: "10s"
+      retry:
+        max_attempts: 3
+        delay: "1s"
+        backoff: "exponential"
+      config:
+        method: GET
+        url: "${API_URL}/users"
 ```
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `timeout` | duration | none | Maximum wall-clock time for the entire flow |
-| `fail_fast` | boolean | `true` | Stop execution after the first step failure |
-| `retry.enabled` | boolean | `false` | Enable flow-level retry |
-| `retry.max_attempts` | integer | `1` | Maximum retry attempts (1–10) |
+| `timeout` | duration | none | Maximum time for this step before it fails |
+| `retry.max_attempts` | integer | `1` | Maximum retry attempts |
 | `retry.delay` | duration | `"1s"` | Delay before first retry |
 | `retry.backoff` | string | `"exponential"` | `linear`, `exponential`, or `constant` |
 
@@ -200,10 +201,6 @@ flow:
   env:
     API_URL: "${API_BASE_URL}/v1"
     EMAIL_FROM: "noreply@example.com"
-
-  config:
-    timeout: "5m"
-    fail_fast: true
 
   setup:
     - id: check_api_health

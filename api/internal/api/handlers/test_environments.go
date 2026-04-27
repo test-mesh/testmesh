@@ -92,7 +92,7 @@ func (h *TestEnvironmentHandler) List(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": envs})
+	c.JSON(http.StatusOK, gin.H{"environments": envs, "total": len(envs)})
 }
 
 // Get handles GET /api/v1/workspaces/:workspace_id/test-environments/:env_id
