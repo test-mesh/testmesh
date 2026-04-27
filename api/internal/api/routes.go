@@ -948,6 +948,7 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 			integrations.GET("/:id/secrets", integrationHandler.GetSecrets)
 			integrations.PUT("/:id/secrets", integrationHandler.UpdateSecrets)
 			integrations.GET("/:id/repos", integrationHandler.ListRepositories)
+			integrations.GET("/:id/deliveries", webhookHandler.ListDeliveries)
 		}
 
 		// Request builder proxy

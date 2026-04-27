@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -919,6 +920,34 @@ func (h *WebhookHandler) logDelivery(
 	if err := h.deliveryRepo.Create(delivery); err != nil {
 		h.logger.Warn("Failed to log webhook delivery", zap.Error(err))
 	}
+}
+
+// ListDeliveries returns recent webhook deliveries for an integration
+// GET /api/v1/integrations/:id/deliveries
+func (h *WebhookHandler) ListDeliveries(c *gin.Context) {
+	integrationID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid integration id"})
+		return
+	}
+
+	limitStr := c.DefaultQuery("limit", "50")
+	limit := 50
+	if n, err := strconv.Atoi(limitStr); err == nil && n > 0 && n <= 200 {
+		limit = n
+	}
+
+	deliveries, err := h.deliveryRepo.ListByIntegration(integrationID, limit)
+	if err != nil {
+		h.logger.Error("failed to list webhook deliveries", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list deliveries"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"deliveries": deliveries,
+		"total":      len(deliveries),
+	})
 }
 
 // verifyGitHubSignature verifies the HMAC signature from GitHub
