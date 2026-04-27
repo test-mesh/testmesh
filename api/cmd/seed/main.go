@@ -33,14 +33,24 @@ func mockURL(id uuid.UUID) string {
 	return fmt.Sprintf("http://localhost:5016/mocks/%s", id)
 }
 
+// Fixed UUIDs for GitOps seed data
+var (
+	argoCDIntegrationID = uuid.MustParse("cc000000-0000-0000-0000-000000000001")
+	giteaIntegrationID  = uuid.MustParse("cc000000-0000-0000-0000-000000000002")
+	e2eSuiteID          = uuid.MustParse("dd000000-0000-0000-0000-000000000001")
+	smokeTestSuiteID    = uuid.MustParse("dd000000-0000-0000-0000-000000000002")
+)
+
 // Seed data holders for relationships
 var (
-	environments []models.Environment
-	collections  []models.Collection
-	flows        []models.Flow
-	executions   []models.Execution
-	mockServers  []models.MockServer
-	schedules    []models.Schedule
+	environments    []models.Environment
+	collections     []models.Collection
+	flows           []models.Flow
+	executions      []models.Execution
+	mockServers     []models.MockServer
+	schedules       []models.Schedule
+	suites          []models.Suite
+	testEnvironments []models.TestEnvironment
 )
 
 func main() {
@@ -102,6 +112,12 @@ func main() {
 	// Phase 10: Collaboration/Activity
 	seedActivityEvents(db)
 
+	// Phase 11: GitOps / CI-CD
+	seedIntegrations(db)
+	seedSuites(db)
+	seedSuiteRuns(db)
+	seedTestEnvironments(db)
+
 	// Microservices workspace (separate from demo workspace)
 	seedMicroservicesWorkspace(db)
 	seedMicroservicesEnvironments(db)
@@ -122,6 +138,15 @@ func clearData(db *gorm.DB) {
 		"flow_versions",
 		"user_presences",
 		"flows.request_history",
+		"flows.suite_run_executions",
+		"flows.suite_runs",
+		"flows.suite_flows",
+		"flows.suites",
+		"test_environments",
+		"webhook_deliveries",
+		"git_trigger_rules",
+		"integration_secrets",
+		"system_integrations",
 		"schedule_runs",
 		"schedules",
 		"ai.usage_stats",
@@ -1922,6 +1947,373 @@ func seedMicroservicesFlows(db *gorm.DB) {
 // Summary
 // ============================================================================
 
+// ============================================================================
+// PHASE 11: GitOps / CI-CD
+// ============================================================================
+
+func seedIntegrations(db *gorm.DB) {
+	log.Println("🔗 Seeding integrations (Argo CD + Gitea)...")
+	wsID := seedWorkspaceID
+
+	integrations := []models.SystemIntegration{
+		{
+			ID:          argoCDIntegrationID,
+			Name:        "Argo CD Staging",
+			Type:        "git",
+			Provider:    models.IntegrationProviderArgoCD,
+			Status:      models.IntegrationStatusActive,
+			WorkspaceID: &wsID,
+			Config: models.IntegrationConfig{
+				ArgoCDURL:       "https://argocd.internal",
+				ArgoCDAppFilter: "testmesh-*",
+			},
+		},
+		{
+			ID:          giteaIntegrationID,
+			Name:        "Gitea Internal",
+			Type:        "git",
+			Provider:    models.IntegrationProviderGitea,
+			Status:      models.IntegrationStatusActive,
+			WorkspaceID: &wsID,
+			Config: models.IntegrationConfig{
+				BaseURL:         "https://gitea.internal",
+				SignatureHeader: "X-Gitea-Signature",
+			},
+		},
+	}
+
+	for _, integ := range integrations {
+		if err := db.Where("id = ?", integ.ID).FirstOrCreate(&integ).Error; err != nil {
+			log.Printf("  Failed to create integration %s: %v", integ.Name, err)
+			continue
+		}
+		log.Printf("  Integration: %s (%s)", integ.Name, integ.Provider)
+	}
+
+	// Git trigger rules — one per suite, pointing at the Argo CD integration
+	if len(flows) == 0 {
+		log.Println("  No flows yet; skipping trigger rules")
+		return
+	}
+	suiteFlowID := flows[0].ID
+	rules := []models.GitTriggerRule{
+		{
+			WorkspaceID:   wsID,
+			IntegrationID: argoCDIntegrationID,
+			Name:          "Argo CD → E2E Suite",
+			Repository:    "testmesh-e2e",
+			BranchFilter:  "*",
+			EventTypes:    models.StringArray{"sync"},
+			TriggerMode:   models.TriggerModeDirect,
+			SuiteID:       &e2eSuiteID,
+			Enabled:       true,
+		},
+		{
+			WorkspaceID:   wsID,
+			IntegrationID: argoCDIntegrationID,
+			Name:          "Argo CD → Smoke Suite",
+			Repository:    "testmesh-smoke",
+			BranchFilter:  "main",
+			EventTypes:    models.StringArray{"sync"},
+			TriggerMode:   models.TriggerModeDirect,
+			SuiteID:       &smokeTestSuiteID,
+			Enabled:       true,
+		},
+		{
+			WorkspaceID:   wsID,
+			IntegrationID: giteaIntegrationID,
+			Name:          "Gitea push → flow",
+			Repository:    "org/user-service",
+			BranchFilter:  "main",
+			EventTypes:    models.StringArray{"push"},
+			TriggerMode:   models.TriggerModeDirect,
+			FlowID:        &suiteFlowID,
+			Enabled:       true,
+		},
+	}
+
+	for _, rule := range rules {
+		if err := db.Create(&rule).Error; err != nil {
+			log.Printf("  Failed to create trigger rule %s: %v", rule.Name, err)
+		}
+	}
+	log.Printf("  Created %d trigger rules", len(rules))
+}
+
+func seedSuites(db *gorm.DB) {
+	log.Println("🧩 Seeding suites...")
+	if len(flows) == 0 {
+		log.Println("  No flows found, skipping suites")
+		return
+	}
+
+	suiteData := []struct {
+		id          uuid.UUID
+		name        string
+		description string
+		tags        models.StringArray
+		// flow indices into the global flows slice, with order and parallel
+		members []struct {
+			idx      int
+			order    int
+			parallel bool
+		}
+	}{
+		{
+			id:          e2eSuiteID,
+			name:        "E2E Order Flow Suite",
+			description: "Full purchase path: auth → browse → cart → order → notify",
+			tags:        models.StringArray{"e2e", "checkout", "nightly"},
+			members: []struct {
+				idx      int
+				order    int
+				parallel bool
+			}{
+				{0, 1, false},
+				{1, 2, false},
+				{2, 3, false},
+				{3, 4, false},
+				{4, 4, true},
+			},
+		},
+		{
+			id:          smokeTestSuiteID,
+			name:        "Smoke Test Suite",
+			description: "Quick health check across all services — run after every deploy",
+			tags:        models.StringArray{"smoke", "deploy-gate"},
+			members: []struct {
+				idx      int
+				order    int
+				parallel bool
+			}{
+				{0, 1, false},
+				{1, 1, true},
+				{2, 2, false},
+			},
+		},
+		{
+			id:          uuid.New(),
+			name:        "Regression Suite",
+			description: "Weekly full regression run across all flows",
+			tags:        models.StringArray{"regression", "weekly"},
+			members: []struct {
+				idx      int
+				order    int
+				parallel bool
+			}{
+				{0, 1, false},
+				{1, 2, false},
+				{2, 2, true},
+				{3, 3, false},
+				{4, 3, true},
+				{5, 4, false},
+			},
+		},
+	}
+
+	for _, s := range suiteData {
+		suite := models.Suite{
+			ID:          s.id,
+			WorkspaceID: seedWorkspaceID,
+			Name:        s.name,
+			Description: s.description,
+			Tags:        s.tags,
+		}
+		if err := db.Where("id = ?", suite.ID).FirstOrCreate(&suite).Error; err != nil {
+			log.Printf("  Failed to create suite %s: %v", s.name, err)
+			continue
+		}
+
+		for _, m := range s.members {
+			flow := flows[m.idx%len(flows)]
+			sf := models.SuiteFlow{
+				SuiteID:  suite.ID,
+				FlowID:   flow.ID,
+				Order:    m.order,
+				Parallel: m.parallel,
+			}
+			if err := db.Create(&sf).Error; err != nil {
+				log.Printf("    Failed to add flow to suite: %v", err)
+			}
+		}
+
+		suites = append(suites, suite)
+		log.Printf("  Suite: %s (%d flows)", s.name, len(s.members))
+	}
+}
+
+func seedSuiteRuns(db *gorm.DB) {
+	log.Println("▶️  Seeding suite runs...")
+	if len(suites) == 0 {
+		return
+	}
+
+	statuses := []models.SuiteRunStatus{
+		models.SuiteRunCompleted,
+		models.SuiteRunCompleted,
+		models.SuiteRunCompleted,
+		models.SuiteRunFailed,
+	}
+	triggers := []models.TriggerType{
+		models.TriggerTypeArgoCD,
+		models.TriggerTypeManual,
+		models.TriggerTypeSchedule,
+		models.TriggerTypeArgoCD,
+	}
+	refs := []string{
+		"abc1234def567890abc1234def567890abc12345",
+		"",
+		"",
+		"def567890abc1234def567890abc1234def56789",
+	}
+
+	for _, suite := range suites {
+		numRuns := 4
+		for i := 0; i < numRuns; i++ {
+			startedAt := time.Now().Add(-time.Duration((numRuns-i)*12) * time.Hour)
+			completedAt := startedAt.Add(time.Duration(rand.Intn(180)+30) * time.Second)
+			totalFlows := rand.Intn(3) + 2
+			passedFlows := totalFlows
+			failedFlows := 0
+			status := statuses[i%len(statuses)]
+			if status == models.SuiteRunFailed {
+				failedFlows = 1
+				passedFlows = totalFlows - 1
+			}
+
+			run := models.SuiteRun{
+				SuiteID:     suite.ID,
+				Status:      status,
+				TriggerType: triggers[i%len(triggers)],
+				TriggerRef:  refs[i%len(refs)],
+				Environment: "staging",
+				StartedAt:   &startedAt,
+				CompletedAt: &completedAt,
+				DurationMs:  completedAt.Sub(startedAt).Milliseconds(),
+				TotalFlows:  totalFlows,
+				PassedFlows: passedFlows,
+				FailedFlows: failedFlows,
+			}
+			if err := db.Create(&run).Error; err != nil {
+				log.Printf("  Failed to create suite run: %v", err)
+			}
+		}
+	}
+	log.Printf("  Created %d suite runs (%d suites × 4 runs)", len(suites)*4, len(suites))
+}
+
+func seedTestEnvironments(db *gorm.DB) {
+	log.Println("🌐 Seeding test environments...")
+	wsID := seedWorkspaceID
+
+	now := time.Now()
+	oneHourAgo := now.Add(-1 * time.Hour)
+	twoHoursAgo := now.Add(-2 * time.Hour)
+	fourHoursAgo := now.Add(-4 * time.Hour)
+
+	envData := []models.TestEnvironment{
+		{
+			WorkspaceID:     wsID,
+			Name:            "PR-42 Review Env",
+			Context:         "pr-42",
+			Namespace:       "review-pr-42",
+			Provider:        models.GitOpsProviderArgoCD,
+			ProviderAppName: "testmesh-pr-42",
+			State:           models.TestEnvWarm,
+			TTLMinutes:      60,
+			LastUsedAt:      &oneHourAgo,
+			Services: models.TestEnvServices{
+				{Name: "user-service", Image: "myrepo/user-service:pr-42", SourceRef: "pr-42", Repo: "org/user-service"},
+			},
+			RoutingPolicy: models.TestEnvRoutingPolicy{
+				"user-service":    "http://user-service.review-pr-42.svc.cluster.local:8080",
+				"product-service": "http://product-service.staging.svc.cluster.local:8080",
+				"order-service":   "http://order-service.staging.svc.cluster.local:8083",
+			},
+		},
+		{
+			WorkspaceID:     wsID,
+			Name:            "Nightly Regression Env",
+			Context:         "nightly",
+			Namespace:       "testmesh-nightly",
+			Provider:        models.GitOpsProviderArgoCD,
+			ProviderAppName: "testmesh-nightly",
+			State:           models.TestEnvRunning,
+			TTLMinutes:      480,
+			LastUsedAt:      &now,
+			Services: models.TestEnvServices{
+				{Name: "user-service", Image: "myrepo/user-service:main", SourceRef: "main", Repo: "org/user-service"},
+				{Name: "order-service", Image: "myrepo/order-service:main", SourceRef: "main", Repo: "org/order-service"},
+			},
+			RoutingPolicy: models.TestEnvRoutingPolicy{
+				"user-service":  "http://user-service.testmesh-nightly.svc.cluster.local:8080",
+				"order-service": "http://order-service.testmesh-nightly.svc.cluster.local:8083",
+			},
+		},
+		{
+			WorkspaceID:     wsID,
+			Name:            "PR-38 Review Env",
+			Context:         "pr-38",
+			Namespace:       "review-pr-38",
+			Provider:        models.GitOpsProviderArgoCD,
+			ProviderAppName: "testmesh-pr-38",
+			State:           models.TestEnvCooling,
+			TTLMinutes:      60,
+			LastUsedAt:      &twoHoursAgo,
+			Services: models.TestEnvServices{
+				{Name: "order-service", Image: "myrepo/order-service:pr-38", SourceRef: "pr-38", Repo: "org/order-service"},
+			},
+			RoutingPolicy: models.TestEnvRoutingPolicy{
+				"order-service": "http://order-service.review-pr-38.svc.cluster.local:8083",
+				"user-service":  "http://user-service.staging.svc.cluster.local:8080",
+			},
+		},
+		{
+			WorkspaceID:     wsID,
+			Name:            "PR-35 Review Env",
+			Context:         "pr-35",
+			Namespace:       "review-pr-35",
+			Provider:        models.GitOpsProviderArgoCD,
+			ProviderAppName: "testmesh-pr-35",
+			State:           models.TestEnvDestroyed,
+			TTLMinutes:      60,
+			LastUsedAt:      &fourHoursAgo,
+			Services:        models.TestEnvServices{},
+			RoutingPolicy:   models.TestEnvRoutingPolicy{},
+		},
+		{
+			WorkspaceID:     wsID,
+			Name:            "Staging Baseline",
+			Context:         "staging",
+			Namespace:       "testmesh-staging",
+			Provider:        models.GitOpsProviderArgoCD,
+			ProviderAppName: "testmesh-staging",
+			State:           models.TestEnvWarm,
+			TTLMinutes:      1440,
+			LastUsedAt:      &oneHourAgo,
+			Services: models.TestEnvServices{
+				{Name: "user-service", Image: "myrepo/user-service:latest", SourceRef: "main", Repo: "org/user-service"},
+				{Name: "product-service", Image: "myrepo/product-service:latest", SourceRef: "main", Repo: "org/product-service"},
+				{Name: "order-service", Image: "myrepo/order-service:latest", SourceRef: "main", Repo: "org/order-service"},
+			},
+			RoutingPolicy: models.TestEnvRoutingPolicy{
+				"user-service":    "http://user-service.testmesh-staging.svc.cluster.local:8080",
+				"product-service": "http://product-service.testmesh-staging.svc.cluster.local:8080",
+				"order-service":   "http://order-service.testmesh-staging.svc.cluster.local:8083",
+			},
+		},
+	}
+
+	for _, env := range envData {
+		if err := db.Create(&env).Error; err != nil {
+			log.Printf("  Failed to create test environment %s: %v", env.Name, err)
+			continue
+		}
+		testEnvironments = append(testEnvironments, env)
+	}
+	log.Printf("  Created %d test environments", len(testEnvironments))
+}
+
 func printSummary() {
 	summary := `
 ╔════════════════════════════════════════════════════════════╗
@@ -1944,6 +2336,11 @@ func printSummary() {
 ║  AI Usage Stats:      120 (30 days × 4 models)             ║
 ║  Request History:     20                                   ║
 ║  Activity Events:     30                                   ║
+║  Integrations:        2 (Argo CD + Gitea)                  ║
+║  Trigger Rules:       3                                    ║
+║  Suites:              3                                    ║
+║  Suite Runs:          12 (3 suites × 4 runs)               ║
+║  Test Environments:   5 (warm/running/cooling/destroyed)   ║
 ╚════════════════════════════════════════════════════════════╝
 `
 	fmt.Println(summary)
