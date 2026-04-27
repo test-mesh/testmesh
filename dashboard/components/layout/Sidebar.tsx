@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Layers,
   Container,
+  Bug,
 } from 'lucide-react';
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
@@ -56,6 +57,7 @@ const navigation: NavItem[] = [
 
   // Development tools
   { title: 'Request Builder', href: '/request-builder', icon: Send },
+  { title: 'Debug', href: '/debug', icon: Bug },
 
   // Insights
   { title: 'Analytics', href: '/analytics', icon: BarChart3 },

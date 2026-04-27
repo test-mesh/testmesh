@@ -988,6 +988,93 @@ func (e *Executor) ExecuteInline(definition *models.FlowDefinition, variables ma
 	return result, nil
 }
 
+// ExecuteInlineWithID is like ExecuteInline but associates the execution with a known
+// UUID so the debug controller can intercept steps (breakpoints, step-over, etc.).
+func (e *Executor) ExecuteInlineWithID(definition *models.FlowDefinition, variables map[string]string, executionID uuid.UUID) (*InlineResult, error) {
+	ctx := context.Background()
+	start := time.Now()
+	env := e.resolveEnvFile(definition)
+	execCtx := NewContext(variables, env)
+	result := &InlineResult{Status: "passed"}
+
+	type phase struct {
+		name  string
+		steps []models.Step
+	}
+	phases := []phase{
+		{"setup", definition.Setup},
+		{"main", definition.Steps},
+		{"teardown", definition.Teardown},
+	}
+
+	for _, ph := range phases {
+		for i, step := range ph.steps {
+			stepID := step.ID
+			if stepID == "" {
+				stepID = fmt.Sprintf("step_%d", i+1)
+			}
+
+			if step.When != "" {
+				shouldRun, evalErr := evalWhenCondition(step.When, execCtx)
+				if evalErr != nil {
+					e.logger.Warn("Failed to evaluate when condition, executing step anyway",
+						zap.String("step_id", stepID),
+						zap.String("when", step.When),
+						zap.Error(evalErr),
+					)
+				} else if !shouldRun {
+					continue
+				}
+			}
+
+			stepStart := time.Now()
+			output, err := e.executeStepWithDebug(ctx, &step, execCtx, executionID)
+			sr := InlineStepResult{
+				StepID:     stepID,
+				StepName:   step.Name,
+				Action:     step.Action,
+				Phase:      ph.name,
+				DurationMs: time.Since(stepStart).Milliseconds(),
+			}
+			sr.Output = output
+
+			if err != nil {
+				sr.Status = "failed"
+				sr.Error = err.Error()
+				result.Failed++
+				result.Steps = append(result.Steps, sr)
+				if ph.name != "teardown" {
+					if step.OnError != nil {
+						switch step.OnError.Action {
+						case "continue", "retry":
+							continue
+						}
+					}
+					result.Status = "failed"
+					result.Error = fmt.Sprintf("[%s] step '%s' (%s): %s", ph.name, stepID, step.Action, err.Error())
+					result.TotalSteps = len(result.Steps)
+					result.DurationMs = time.Since(start).Milliseconds()
+					return result, nil
+				}
+				continue
+			}
+
+			sr.Status = "passed"
+			result.Passed++
+			for key, path := range step.Output {
+				value := extractValue(output, path)
+				execCtx.SetStepOutput(stepID, key, value)
+				execCtx.Set(key, fmt.Sprintf("%v", value))
+			}
+			result.Steps = append(result.Steps, sr)
+		}
+	}
+
+	result.TotalSteps = len(result.Steps)
+	result.DurationMs = time.Since(start).Milliseconds()
+	return result, nil
+}
+
 // evalWhenCondition evaluates a boolean expression from step.When against the current
 // execution context. Returns (true, nil) when the condition is met (step should run),
 // (false, nil) when the condition is not met (step should be skipped), and

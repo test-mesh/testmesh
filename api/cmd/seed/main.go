@@ -118,6 +118,11 @@ func main() {
 	seedSuiteRuns(db)
 	seedTestEnvironments(db)
 
+	// Phase 12: Collaboration & Webhook audit
+	seedWebhookDeliveries(db)
+	seedFlowVersions(db)
+	seedFlowComments(db)
+
 	// Microservices workspace (separate from demo workspace)
 	seedMicroservicesWorkspace(db)
 	seedMicroservicesEnvironments(db)
@@ -2318,6 +2323,256 @@ func seedTestEnvironments(db *gorm.DB) {
 	log.Printf("  Created %d test environments", len(testEnvironments))
 }
 
+// ============================================================================
+// PHASE 12: Collaboration & Webhook audit
+// ============================================================================
+
+func seedWebhookDeliveries(db *gorm.DB) {
+	log.Println("📬 Seeding webhook deliveries...")
+
+	now := time.Now()
+	deliveries := []models.WebhookDelivery{
+		// Gitea: successful push → flow triggered
+		{
+			IntegrationID: giteaIntegrationID,
+			EventType:     "push",
+			Repository:    "org/user-service",
+			Branch:        "main",
+			CommitSHA:     "a1b2c3d4e5f6a1b2",
+			Payload: map[string]interface{}{
+				"ref":        "refs/heads/main",
+				"repository": map[string]interface{}{"full_name": "org/user-service"},
+				"pusher":     map[string]interface{}{"login": "alice"},
+				"commits":    []interface{}{map[string]interface{}{"message": "fix: user validation"}},
+			},
+			Status:     models.WebhookDeliveryStatusSuccess,
+			ReceivedAt: now.Add(-3 * time.Hour),
+		},
+		{
+			IntegrationID: giteaIntegrationID,
+			EventType:     "push",
+			Repository:    "org/order-service",
+			Branch:        "feature/checkout-v2",
+			CommitSHA:     "b2c3d4e5f6a1b2c3",
+			Payload: map[string]interface{}{
+				"ref":        "refs/heads/feature/checkout-v2",
+				"repository": map[string]interface{}{"full_name": "org/order-service"},
+				"pusher":     map[string]interface{}{"login": "bob"},
+			},
+			Status:     models.WebhookDeliveryStatusSuccess,
+			ReceivedAt: now.Add(-2 * time.Hour),
+		},
+		{
+			IntegrationID: giteaIntegrationID,
+			EventType:     "pull_request",
+			Repository:    "org/user-service",
+			Branch:        "fix/auth-token",
+			CommitSHA:     "c3d4e5f6a1b2c3d4",
+			Payload: map[string]interface{}{
+				"action":      "opened",
+				"pull_request": map[string]interface{}{"title": "Fix auth token expiry", "number": 42},
+				"repository":  map[string]interface{}{"full_name": "org/user-service"},
+			},
+			Status:     models.WebhookDeliveryStatusSuccess,
+			ReceivedAt: now.Add(-90 * time.Minute),
+		},
+		// Gitea: rejected (bad signature)
+		{
+			IntegrationID: giteaIntegrationID,
+			EventType:     "push",
+			Repository:    "org/product-service",
+			Branch:        "main",
+			CommitSHA:     "d4e5f6a1b2c3d4e5",
+			Payload:       map[string]interface{}{"ref": "refs/heads/main"},
+			Status:        models.WebhookDeliveryStatusRejected,
+			Error:         "signature mismatch: expected X-Gitea-Signature header",
+			ReceivedAt:    now.Add(-45 * time.Minute),
+		},
+		// ArgoCD: successful sync → suite triggered
+		{
+			IntegrationID: argoCDIntegrationID,
+			EventType:     "sync",
+			Repository:    "testmesh-e2e",
+			Branch:        "main",
+			Payload: map[string]interface{}{
+				"app":    "testmesh-e2e",
+				"status": "Synced",
+				"health": "Healthy",
+				"revision": "e5f6a1b2c3d4e5f6",
+			},
+			Status:     models.WebhookDeliveryStatusSuccess,
+			ReceivedAt: now.Add(-30 * time.Minute),
+		},
+		{
+			IntegrationID: argoCDIntegrationID,
+			EventType:     "sync",
+			Repository:    "testmesh-smoke",
+			Branch:        "main",
+			Payload: map[string]interface{}{
+				"app":    "testmesh-smoke",
+				"status": "Synced",
+				"health": "Healthy",
+				"revision": "f6a1b2c3d4e5f6a1",
+			},
+			Status:     models.WebhookDeliveryStatusSuccess,
+			ReceivedAt: now.Add(-15 * time.Minute),
+		},
+		// ArgoCD: failed processing
+		{
+			IntegrationID: argoCDIntegrationID,
+			EventType:     "sync",
+			Repository:    "testmesh-e2e",
+			Branch:        "main",
+			Payload: map[string]interface{}{
+				"app":    "testmesh-e2e",
+				"status": "OutOfSync",
+			},
+			Status:     models.WebhookDeliveryStatusFailed,
+			Error:      "no matching trigger rule found for event type 'OutOfSync'",
+			ReceivedAt: now.Add(-5 * time.Minute),
+		},
+	}
+
+	count := 0
+	for i := range deliveries {
+		processedAt := deliveries[i].ReceivedAt.Add(time.Second)
+		if deliveries[i].Status != models.WebhookDeliveryStatusRejected {
+			deliveries[i].ProcessedAt = &processedAt
+		}
+		if err := db.Create(&deliveries[i]).Error; err != nil {
+			log.Printf("  Failed to create delivery: %v", err)
+			continue
+		}
+		count++
+	}
+	log.Printf("  Created %d webhook deliveries", count)
+}
+
+func seedFlowVersions(db *gorm.DB) {
+	log.Println("📝 Seeding flow versions...")
+
+	if len(flows) == 0 {
+		log.Println("  No flows; skipping flow versions")
+		return
+	}
+
+	authors := []struct {
+		id   uuid.UUID
+		name string
+	}{
+		{uuid.MustParse("ee000000-0000-0000-0000-000000000001"), "Alice Chen"},
+		{uuid.MustParse("ee000000-0000-0000-0000-000000000002"), "Bob Smith"},
+		{uuid.MustParse("ee000000-0000-0000-0000-000000000003"), "Carol Johnson"},
+	}
+
+	messages := []string{
+		"initial version",
+		"add retry logic on 5xx responses",
+		"extract auth token to output variable",
+	}
+
+	target := flows
+	if len(target) > 3 {
+		target = flows[:3]
+	}
+
+	total := 0
+	for i, flow := range target {
+		for v := 1; v <= 3; v++ {
+			author := authors[(i+v)%len(authors)]
+			ver := models.FlowVersion{
+				FlowID:     flow.ID,
+				Version:    v,
+				Content:    fmt.Sprintf("flow:\n  name: \"%s\"\n  # version %d\n  steps: []\n", flow.Name, v),
+				AuthorID:   author.id,
+				AuthorName: author.name,
+				Message:    messages[v-1],
+				CreatedAt:  time.Now().Add(-time.Duration(3-v) * 24 * time.Hour),
+			}
+			if err := db.Create(&ver).Error; err != nil {
+				log.Printf("  Failed to create flow version: %v", err)
+				continue
+			}
+			total++
+		}
+	}
+	log.Printf("  Created %d flow versions (%d flows × 3 versions)", total, len(target))
+}
+
+func seedFlowComments(db *gorm.DB) {
+	log.Println("💬 Seeding flow comments...")
+
+	if len(flows) == 0 {
+		log.Println("  No flows; skipping flow comments")
+		return
+	}
+
+	authors := []struct {
+		id     uuid.UUID
+		name   string
+		avatar string
+	}{
+		{uuid.MustParse("ee000000-0000-0000-0000-000000000001"), "Alice Chen", ""},
+		{uuid.MustParse("ee000000-0000-0000-0000-000000000002"), "Bob Smith", ""},
+		{uuid.MustParse("ee000000-0000-0000-0000-000000000003"), "Carol Johnson", ""},
+	}
+
+	target := flows
+	if len(target) > 2 {
+		target = flows[:2]
+	}
+
+	total := 0
+	for i, flow := range target {
+		// Top-level comment on the flow
+		parent := models.FlowComment{
+			FlowID:     flow.ID,
+			AuthorID:   authors[i%len(authors)].id,
+			AuthorName: authors[i%len(authors)].name,
+			Content:    fmt.Sprintf("Should we add a retry step after the main request in %q? We've seen transient 503s in staging.", flow.Name),
+			Resolved:   false,
+		}
+		if err := db.Create(&parent).Error; err != nil {
+			log.Printf("  Failed to create comment: %v", err)
+			continue
+		}
+		total++
+
+		// Reply
+		replyAuthor := authors[(i+1)%len(authors)]
+		reply := models.FlowComment{
+			FlowID:     flow.ID,
+			ParentID:   &parent.ID,
+			AuthorID:   replyAuthor.id,
+			AuthorName: replyAuthor.name,
+			Content:    "Good call. I'll add a `wait` step with a 500ms delay and retry up to 3 times.",
+			Resolved:   false,
+		}
+		if err := db.Create(&reply).Error; err != nil {
+			log.Printf("  Failed to create reply: %v", err)
+			continue
+		}
+		total++
+
+		// Resolved comment on a specific step
+		resolver := authors[(i+2)%len(authors)]
+		resolved := models.FlowComment{
+			FlowID:     flow.ID,
+			StepID:     "step1",
+			AuthorID:   resolver.id,
+			AuthorName: resolver.name,
+			Content:    "The base URL should come from the environment variable, not be hardcoded.",
+			Resolved:   true,
+		}
+		if err := db.Create(&resolved).Error; err != nil {
+			log.Printf("  Failed to create resolved comment: %v", err)
+			continue
+		}
+		total++
+	}
+	log.Printf("  Created %d flow comments", total)
+}
+
 func printSummary() {
 	summary := `
 ╔════════════════════════════════════════════════════════════╗
@@ -2345,6 +2600,9 @@ func printSummary() {
 ║  Suites:              3                                    ║
 ║  Suite Runs:          12 (3 suites × 4 runs)               ║
 ║  Test Environments:   5 (warm/running/cooling/destroyed)   ║
+║  Webhook Deliveries:  7 (success/failed/rejected samples)  ║
+║  Flow Versions:       9 (3 flows × 3 versions)             ║
+║  Flow Comments:       6 (2 flows × 3 comments each)        ║
 ╚════════════════════════════════════════════════════════════╝
 `
 	fmt.Println(summary)

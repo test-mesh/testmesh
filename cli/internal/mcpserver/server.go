@@ -97,6 +97,20 @@ func dispatchTool(name string, args map[string]any, cfg Config) (*mcp.CallToolRe
 		return toolGenerateFlow(args)
 	case "run_suite":
 		return toolRunSuite(args)
+
+	// ── Debug ──
+	case "start_debug_session":
+		return toolStartDebugSession(args, cfg)
+	case "get_debug_state":
+		return toolGetDebugState(args, cfg)
+	case "debug_step_over":
+		return toolDebugStepOver(args, cfg)
+	case "debug_resume":
+		return toolDebugResume(args, cfg)
+	case "debug_stop":
+		return toolDebugStop(args, cfg)
+	case "list_debug_sessions":
+		return toolListDebugSessions(cfg)
 	default:
 		return toolError("unknown tool: " + name), nil
 	}
@@ -467,6 +481,95 @@ Returns the step status, error details with actual values if assertions fail, an
 						"description": "Workspace ID (uses --workspace-id default if omitted)",
 					},
 				},
+			},
+		},
+
+		// ── Debug ─────────────────────────────────────────────────────────────
+		{
+			"name": "start_debug_session",
+			"description": `Start a debug session for a flow. The flow runs in the API's background, starting paused at the
+first step (or at initial_breakpoint if set). Returns execution_id used for all subsequent debug calls.
+Provide either flow_yaml (inline YAML) or file_path (path to a YAML file).`,
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"flow_yaml": map[string]any{
+						"type":        "string",
+						"description": "Inline flow YAML content",
+					},
+					"file_path": map[string]any{
+						"type":        "string",
+						"description": "Path to a flow YAML file (read from disk if provided)",
+					},
+					"initial_breakpoint": map[string]any{
+						"type":        "string",
+						"description": "Step ID to pause at first (optional; defaults to the first step)",
+					},
+				},
+			},
+		},
+		{
+			"name":        "get_debug_state",
+			"description": "Get the current state of a debug session: state (paused/running/completed), current step, all captured variables with values, and step outputs for completed steps.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"execution_id": map[string]any{
+						"type":        "string",
+						"description": "Execution ID from start_debug_session",
+					},
+				},
+				"required": []string{"execution_id"},
+			},
+		},
+		{
+			"name":        "debug_step_over",
+			"description": "Execute the current paused step and pause at the next one. Call get_debug_state afterward to inspect the new state and any captured variables.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"execution_id": map[string]any{
+						"type":        "string",
+						"description": "Execution ID from start_debug_session",
+					},
+				},
+				"required": []string{"execution_id"},
+			},
+		},
+		{
+			"name":        "debug_resume",
+			"description": "Continue execution from the current paused step until the next breakpoint is hit or the flow completes. Poll get_debug_state or list_debug_sessions to check when it pauses.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"execution_id": map[string]any{
+						"type":        "string",
+						"description": "Execution ID from start_debug_session",
+					},
+				},
+				"required": []string{"execution_id"},
+			},
+		},
+		{
+			"name":        "debug_stop",
+			"description": "Terminate a debug session and clean up its resources.",
+			"inputSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"execution_id": map[string]any{
+						"type":        "string",
+						"description": "Execution ID from start_debug_session",
+					},
+				},
+				"required": []string{"execution_id"},
+			},
+		},
+		{
+			"name":        "list_debug_sessions",
+			"description": "List all active debug sessions with their execution IDs, states, current step, and step counts.",
+			"inputSchema": map[string]any{
+				"type":       "object",
+				"properties": map[string]any{},
 			},
 		},
 	}

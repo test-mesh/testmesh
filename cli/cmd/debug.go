@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -27,56 +27,49 @@ Debug mode allows you to:
 - Set breakpoints on specific steps
 - Step through execution one step at a time
 - Inspect variables and state at each step
-- Modify variables during execution
+- UI actions (step/stop) sync to this console in real-time
 
 Commands available during debug:
-  n, next     - Execute next step
-  c, continue - Continue until next breakpoint
-  s, step     - Step into current step
-  p, print    - Print variable value
-  b, break    - Set breakpoint
-  l, list     - List all breakpoints
-  w, watch    - Watch a variable
-  q, quit     - Stop debugging`,
+  n, next      - Execute next step
+  c, continue  - Continue until next breakpoint
+  v, vars      - Print all variables
+  p, print     - Print variable value (p <var>)
+  b, break     - Set breakpoint (b <step-id>)
+  l, list      - List all breakpoints
+  h, help      - Show this help
+  q, quit      - Stop debugging`,
 	Args: cobra.ExactArgs(1),
 	RunE: debugFlow,
 }
 
 func init() {
 	rootCmd.AddCommand(debugCmd)
-	debugCmd.Flags().StringVarP(&debugBreakpoint, "break", "b", "", "Initial breakpoint (step name or index)")
+	debugCmd.Flags().StringVarP(&debugBreakpoint, "break", "b", "", "Initial breakpoint (step ID)")
 }
 
-type DebugSession struct {
-	SessionID   string                 `json:"session_id"`
+// debugSessionState holds the execution ID and last known state from the API.
+type debugSessionState struct {
+	ID          string                 `json:"id"`
 	ExecutionID string                 `json:"execution_id"`
 	State       string                 `json:"state"`
-	CurrentStep int                    `json:"current_step"`
-	TotalSteps  int                    `json:"total_steps"`
-	StepName    string                 `json:"step_name"`
+	CurrentStep string                 `json:"current_step"`
 	Variables   map[string]interface{} `json:"variables"`
-	Breakpoints []string               `json:"breakpoints"`
+	StepOutputs map[string]interface{} `json:"step_outputs"`
+	StepCount   int                    `json:"step_count"`
 }
 
 func debugFlow(cmd *cobra.Command, args []string) error {
 	flowPath := args[0]
 
-	// Read flow file
 	data, err := os.ReadFile(flowPath)
 	if err != nil {
 		return fmt.Errorf("failed to read flow: %w", err)
-	}
-
-	var flow map[string]interface{}
-	if err := yaml.Unmarshal(data, &flow); err != nil {
-		return fmt.Errorf("failed to parse flow: %w", err)
 	}
 
 	fmt.Println("🔍 Starting debug session...")
 	fmt.Printf("   Flow: %s\n", flowPath)
 	fmt.Println()
 
-	// Start debug session on server
 	reqBody := map[string]interface{}{
 		"flow_yaml": string(data),
 	}
@@ -90,12 +83,12 @@ func debugFlow(cmd *cobra.Command, args []string) error {
 	}
 
 	resp, err := http.Post(
-		apiURL+"/api/v1/debug/sessions",
+		apiURL+"/api/v1/debug/run",
 		"application/json",
 		bytes.NewBuffer(jsonBody),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to connect to server: %w", err)
+		return fmt.Errorf("failed to connect to server at %s — is the API running?\n   %w", apiURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -104,178 +97,295 @@ func debugFlow(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("server error: %s", string(body))
 	}
 
-	var session DebugSession
+	var session debugSessionState
 	if err := json.NewDecoder(resp.Body).Decode(&session); err != nil {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	fmt.Printf("Session: %s\n", session.SessionID[:8])
-	fmt.Printf("Steps: %d total\n", session.TotalSteps)
+	execID := session.ExecutionID
+	fmt.Printf("Session:     %s\n", session.ID)
+	fmt.Printf("Execution:   %s\n", execID)
+	fmt.Printf("State:       %s\n", session.State)
 	fmt.Println()
 	printDebugHelp()
 	fmt.Println()
 
-	// Interactive debug loop
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		// Show current state
-		if session.State == "paused" {
-			fmt.Printf("\n[%d/%d] %s\n", session.CurrentStep+1, session.TotalSteps, session.StepName)
-		}
+	// --- Channels ---
 
-		fmt.Print("(debug) ")
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			break
-		}
-
-		input = strings.TrimSpace(input)
-		if input == "" {
-			continue
-		}
-
-		parts := strings.Fields(input)
-		command := strings.ToLower(parts[0])
-
-		switch command {
-		case "n", "next":
-			session, err = debugCommand(session.SessionID, "step-over", nil)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			}
-
-		case "c", "continue":
-			session, err = debugCommand(session.SessionID, "resume", nil)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			}
-
-		case "p", "print":
-			if len(parts) < 2 {
-				fmt.Println("Usage: print <variable>")
-				continue
-			}
-			varName := parts[1]
-			if val, ok := session.Variables[varName]; ok {
-				printVariable(varName, val)
-			} else {
-				fmt.Printf("Variable '%s' not found\n", varName)
-			}
-
-		case "v", "vars":
-			fmt.Println("Variables:")
-			for name, val := range session.Variables {
-				printVariable(name, val)
-			}
-
-		case "b", "break":
-			if len(parts) < 2 {
-				fmt.Println("Usage: break <step-name>")
-				continue
-			}
-			stepName := parts[1]
-			session, err = debugCommand(session.SessionID, "add-breakpoint", map[string]interface{}{
-				"step_id": stepName,
-			})
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Printf("Breakpoint set at '%s'\n", stepName)
-			}
-
-		case "l", "list":
-			fmt.Println("Breakpoints:")
-			if len(session.Breakpoints) == 0 {
-				fmt.Println("  (none)")
-			}
-			for i, bp := range session.Breakpoints {
-				fmt.Printf("  %d: %s\n", i+1, bp)
-			}
-
-		case "w", "watch":
-			if len(parts) < 2 {
-				fmt.Println("Usage: watch <variable>")
-				continue
-			}
-			varName := parts[1]
-			session, err = debugCommand(session.SessionID, "add-watch", map[string]interface{}{
-				"variable": varName,
-			})
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Printf("Watching '%s'\n", varName)
-			}
-
-		case "r", "restart":
-			session, err = debugCommand(session.SessionID, "restart", nil)
-			if err != nil {
-				fmt.Printf("Error: %v\n", err)
-			} else {
-				fmt.Println("Session restarted")
-			}
-
-		case "h", "help":
-			printDebugHelp()
-
-		case "q", "quit", "exit":
-			fmt.Println("Ending debug session...")
-			debugCommand(session.SessionID, "end", nil)
-			return nil
-
-		default:
-			fmt.Printf("Unknown command: %s (type 'help' for commands)\n", command)
-		}
-
-		// Check if execution completed
-		if session.State == "completed" {
-			fmt.Println("\n✅ Execution completed")
-			break
-		} else if session.State == "failed" {
-			fmt.Println("\n❌ Execution failed")
-			break
-		}
+	type inputLine struct {
+		text string
+		err  error
+	}
+	type stateUpdate struct {
+		state *debugSessionState
 	}
 
+	inputCh := make(chan inputLine)
+	updateCh := make(chan stateUpdate, 1)
+	stopPollCh := make(chan struct{})
+
+	// Goroutine: read stdin lines
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		for {
+			line, err := reader.ReadString('\n')
+			inputCh <- inputLine{strings.TrimSpace(line), err}
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	// Goroutine: poll session state, send only on change
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		var lastStep, lastState string
+		for {
+			select {
+			case <-stopPollCh:
+				return
+			case <-ticker.C:
+				s, err := fetchDebugState(execID)
+				if err != nil {
+					continue
+				}
+				if s.State != lastState || s.CurrentStep != lastStep {
+					lastState = s.State
+					lastStep = s.CurrentStep
+					select {
+					case updateCh <- stateUpdate{s}:
+					default: // drop if consumer is busy
+					}
+				}
+			}
+		}
+	}()
+	defer close(stopPollCh)
+
+	// clearLine overwrites the current terminal line (e.g. "(debug) " prompt) so
+	// background updates print cleanly above it.
+	clearLine := func() { fmt.Print("\r\033[2K") }
+	prompt := func() { fmt.Print("(debug) ") }
+
+	// Print initial state (already paused at first step)
+	if init, err := fetchDebugState(execID); err == nil && init.State == "paused" {
+		fmt.Printf("\n⏸  Paused at step: %s\n", init.CurrentStep)
+	}
+	prompt()
+
+	for {
+		select {
+
+		// --- Background state update from UI or execution progress ---
+		case upd := <-updateCh:
+			clearLine()
+			switch upd.state.State {
+			case "paused":
+				fmt.Printf("⏸  Paused at step: %s\n", upd.state.CurrentStep)
+			case "terminated":
+				fmt.Printf("✅ Execution finished\n")
+				prompt()
+				return nil
+			case "idle":
+				fmt.Printf("✅ Execution idle\n")
+				prompt()
+				return nil
+			case "running", "stepping":
+				fmt.Printf("▶  Running: %s\n", upd.state.CurrentStep)
+			}
+			prompt()
+
+		// --- User input ---
+		case in := <-inputCh:
+			if in.err != nil {
+				return nil
+			}
+			if in.text == "" {
+				prompt()
+				continue
+			}
+
+			parts := strings.Fields(in.text)
+			command := strings.ToLower(parts[0])
+
+			switch command {
+			case "n", "next":
+				if err := debugAction(execID, "step-over"); err != nil {
+					fmt.Printf("Error: %v\n", err)
+				}
+				// Background poller will show the next pause within ~1s.
+				// Brief wait so user doesn't immediately fire another n before state settles.
+				waitForPaused(execID, 3*time.Second)
+
+			case "c", "continue":
+				if err := debugAction(execID, "resume"); err != nil {
+					fmt.Printf("Error: %v\n", err)
+				}
+				fmt.Println("  continuing…")
+
+			case "v", "vars":
+				s, err := fetchDebugState(execID)
+				if err != nil {
+					fmt.Printf("Error: %v\n", err)
+				} else {
+					fmt.Println("Variables:")
+					if len(s.Variables) == 0 {
+						fmt.Println("  (none)")
+					}
+					for name, val := range s.Variables {
+						printVariable(name, val)
+					}
+				}
+
+			case "p", "print":
+				if len(parts) < 2 {
+					fmt.Println("Usage: p <variable>")
+					prompt()
+					continue
+				}
+				s, err := fetchDebugState(execID)
+				if err != nil {
+					fmt.Printf("Error: %v\n", err)
+				} else {
+					varName := parts[1]
+					if val, ok := s.Variables[varName]; ok {
+						printVariable(varName, val)
+					} else {
+						fmt.Printf("Variable '%s' not found\n", varName)
+					}
+				}
+
+			case "b", "break":
+				if len(parts) < 2 {
+					fmt.Println("Usage: b <step-id>")
+					prompt()
+					continue
+				}
+				stepID := parts[1]
+				if err := addBreakpoint(execID, stepID); err != nil {
+					fmt.Printf("Error: %v\n", err)
+				} else {
+					fmt.Printf("Breakpoint set at '%s'\n", stepID)
+				}
+
+			case "l", "list":
+				bps, err := listBreakpoints(execID)
+				if err != nil {
+					fmt.Printf("Error: %v\n", err)
+				} else {
+					fmt.Println("Breakpoints:")
+					if len(bps) == 0 {
+						fmt.Println("  (none)")
+					}
+					for i, bp := range bps {
+						enabled := "enabled"
+						if e, ok := bp["enabled"].(bool); ok && !e {
+							enabled = "disabled"
+						}
+						fmt.Printf("  %d: %v (%s)\n", i+1, bp["step_id"], enabled)
+					}
+				}
+
+			case "h", "help":
+				printDebugHelp()
+
+			case "q", "quit", "exit":
+				fmt.Println("Ending debug session…")
+				debugAction(execID, "stop")
+				return nil
+
+			default:
+				fmt.Printf("Unknown command: %s (type 'h' for help)\n", command)
+			}
+
+			prompt()
+		}
+	}
+}
+
+// waitForPaused polls until the session reaches a stable state or timeout.
+// Used after n/step-over to let the executor settle before the next command.
+func waitForPaused(executionID string, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		time.Sleep(150 * time.Millisecond)
+		state, err := fetchDebugState(executionID)
+		if err != nil {
+			return
+		}
+		switch state.State {
+		case "paused", "terminated", "idle":
+			return
+		}
+	}
+}
+
+func fetchDebugState(executionID string) (*debugSessionState, error) {
+	resp, err := http.Get(apiURL + "/api/v1/debug/sessions/" + executionID + "/state")
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+	}
+	var state debugSessionState
+	if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+func debugAction(executionID, action string) error {
+	resp, err := http.Post(
+		apiURL+"/api/v1/debug/sessions/"+executionID+"/"+action,
+		"application/json",
+		bytes.NewBufferString("{}"),
+	)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("server error (%d): %s", resp.StatusCode, string(body))
+	}
 	return nil
 }
 
-func debugCommand(sessionID, action string, params map[string]interface{}) (DebugSession, error) {
-	reqBody := map[string]interface{}{
-		"action": action,
-	}
-	if params != nil {
-		for k, v := range params {
-			reqBody[k] = v
-		}
-	}
-
-	jsonBody, err := json.Marshal(reqBody)
-	if err != nil {
-		return DebugSession{}, err
-	}
-
+func addBreakpoint(executionID, stepID string) error {
+	body, _ := json.Marshal(map[string]string{"step_id": stepID, "type": "step"})
 	resp, err := http.Post(
-		apiURL+"/api/v1/debug/sessions/"+sessionID+"/command",
+		apiURL+"/api/v1/debug/sessions/"+executionID+"/breakpoints",
 		"application/json",
-		bytes.NewBuffer(jsonBody),
+		bytes.NewBuffer(body),
 	)
 	if err != nil {
-		return DebugSession{}, err
+		return err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return DebugSession{}, fmt.Errorf("server error: %s", string(body))
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("server error (%d): %s", resp.StatusCode, string(b))
 	}
+	return nil
+}
 
-	var session DebugSession
-	if err := json.NewDecoder(resp.Body).Decode(&session); err != nil {
-		return DebugSession{}, err
+func listBreakpoints(executionID string) ([]map[string]interface{}, error) {
+	resp, err := http.Get(apiURL + "/api/v1/debug/sessions/" + executionID + "/breakpoints")
+	if err != nil {
+		return nil, err
 	}
-
-	return session, nil
+	defer resp.Body.Close()
+	var result struct {
+		Breakpoints []map[string]interface{} `json:"breakpoints"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+	return result.Breakpoints, nil
 }
 
 func printVariable(name string, value interface{}) {
@@ -287,12 +397,10 @@ func printDebugHelp() {
 	fmt.Println("Commands:")
 	fmt.Println("  n, next      Execute next step")
 	fmt.Println("  c, continue  Continue to next breakpoint")
-	fmt.Println("  p, print     Print variable (p <var>)")
 	fmt.Println("  v, vars      List all variables")
-	fmt.Println("  b, break     Set breakpoint (b <step>)")
+	fmt.Println("  p, print     Print variable (p <var>)")
+	fmt.Println("  b, break     Set breakpoint (b <step-id>)")
 	fmt.Println("  l, list      List breakpoints")
-	fmt.Println("  w, watch     Watch variable (w <var>)")
-	fmt.Println("  r, restart   Restart session")
 	fmt.Println("  h, help      Show this help")
 	fmt.Println("  q, quit      End debug session")
 }

@@ -286,6 +286,7 @@ func (c *Controller) OnBeforeStep(ctx context.Context, executionID uuid.UUID, st
 	}
 
 	session.SetCurrentStep(stepID)
+	prevState := session.GetState()
 	session.SetState(StateRunning)
 
 	// Check for breakpoints
@@ -323,8 +324,9 @@ func (c *Controller) OnBeforeStep(ctx context.Context, executionID uuid.UUID, st
 	default:
 	}
 
-	// If stepping mode, always pause before step
-	if session.GetState() == StateStepping {
+	// If stepping mode, always pause before step (check prevState — state was already
+	// overwritten to Running above, so we must use the value captured before that)
+	if prevState == StateStepping {
 		shouldPause = true
 	}
 
@@ -364,12 +366,9 @@ func (c *Controller) waitForResume(ctx context.Context, executionID uuid.UUID, s
 		case <-ctx.Done():
 			return false, ctx.Err()
 		case <-pauseChan:
-			// Check if we should step or continue
-			state := session.GetState()
-			if state == StateStepping {
-				// After stepping, pause again at next step
-				session.SetState(StateRunning)
-			}
+			// Leave state as-is: if StepOver set it to StateStepping, OnBeforeStep
+			// will read that and pause at the next step. If Resume set it to
+			// StateRunning, OnBeforeStep will continue freely.
 			c.emitEvent(executionID, "debug.step", map[string]interface{}{
 				"step_id":   stepID,
 				"step_name": stepName,

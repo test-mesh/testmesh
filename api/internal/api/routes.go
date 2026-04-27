@@ -892,6 +892,7 @@ func NewRouter(db *gorm.DB, cfg *sharedconfig.Config, logger *zap.Logger, wsHub 
 		// Debug routes
 		debug := v1.Group("/debug")
 		{
+			debug.POST("/run", debugHandler.RunForDebug)
 			debug.GET("/sessions", debugHandler.ListSessions)
 			debug.POST("/sessions", debugHandler.StartSession)
 			debug.GET("/sessions/:id", debugHandler.GetSession)

@@ -3,10 +3,13 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/test-mesh/testmesh/internal/runner"
 	"github.com/test-mesh/testmesh/internal/runner/debugger"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 )
 
 // DebugHandler handles debug-related HTTP requests
@@ -59,6 +62,61 @@ func (h *DebugHandler) StartSession(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"session": session.ToJSON(),
 	})
+}
+
+// RunDebugRequest is the request body for running a flow in debug mode
+type RunDebugRequest struct {
+	FlowYAML          string `json:"flow_yaml" binding:"required"`
+	InitialBreakpoint string `json:"initial_breakpoint,omitempty"`
+}
+
+// RunForDebug starts a debug session and runs the flow in the background.
+// POST /api/v1/debug/run
+func (h *DebugHandler) RunForDebug(c *gin.Context) {
+	var req RunDebugRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var flowWrapper struct {
+		Flow models.FlowDefinition `yaml:"flow"`
+	}
+	if err := yaml.Unmarshal([]byte(req.FlowYAML), &flowWrapper); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid flow YAML: " + err.Error()})
+		return
+	}
+	definition := &flowWrapper.Flow
+
+	executionID := uuid.New()
+
+	session, err := h.controller.StartSession(executionID, uuid.Nil)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Start in stepping mode so execution pauses at the very first step,
+	// giving the user a chance to interact before anything runs.
+	session.SetState(debugger.StateStepping)
+
+	if req.InitialBreakpoint != "" {
+		if bm, ok := h.controller.GetBreakpointManager(executionID); ok {
+			bm.Add(debugger.NewBreakpoint(req.InitialBreakpoint))
+		}
+	}
+
+	go func() {
+		exec := runner.NewExecutor(nil, h.logger, nil, nil)
+		exec.SetDebugController(h.controller)
+		exec.ExecuteInlineWithID(definition, nil, executionID)
+		// Mark session terminated so the CLI/UI knows execution finished.
+		if s, ok := h.controller.GetSession(executionID); ok {
+			s.SetState(debugger.StateTerminated)
+		}
+	}()
+
+	c.JSON(http.StatusCreated, session.ToJSON())
 }
 
 // EndSession terminates a debug session
