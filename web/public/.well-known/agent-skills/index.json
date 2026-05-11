@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agentskills.io/schema/v0.2.0/index.json",
+  "skills": [
+    {
+      "name": "testmesh-analyze",
+      "type": "skill-md",
+      "description": "Analyze TestMesh workspaces and services: understand endpoints, schemas, dependencies, and coverage gaps",
+      "url": "https://www.testmesh.io/.well-known/agent-skills/analyze.md",
+      "sha256": "4704474ed479500ab94ae722153c041b904bbd1bd9b1bac70ca0d03a175ccacc"
+    },
+    {
+      "name": "testmesh-generate",
+      "type": "skill-md",
+      "description": "Generate YAML test flows for services using AI: L1 endpoint contracts, L2 chains, L3 cross-service E2E, L4 edge cases",
+      "url": "https://www.testmesh.io/.well-known/agent-skills/generate.md",
+      "sha256": "d42b7f81abc266748817185b611ea3ea0b997b3910e0301b1a8be60b8fd61d0f"
+    },
+    {
+      "name": "testmesh-run",
+      "type": "skill-md",
+      "description": "Execute TestMesh flows and suites, stream results, and diagnose failures",
+      "url": "https://www.testmesh.io/.well-known/agent-skills/run.md",
+      "sha256": "83ba9a54fddd2bf77332c0cd4bd5e29a458b62e506489877e36404cc35be979a"
+    }
+  ]
+}

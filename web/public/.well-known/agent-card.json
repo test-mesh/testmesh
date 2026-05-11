@@ -1,0 +1,57 @@
+{
+  "name": "TestMesh",
+  "version": "1.0.0",
+  "description": "TestMesh is an AI-powered integration testing platform that analyzes your services, generates end-to-end test flows in YAML, and executes them across HTTP, Kafka, gRPC, WebSocket, and database protocols.",
+  "url": "https://app.testmesh.io",
+  "provider": {
+    "organization": "TestMesh",
+    "url": "https://www.testmesh.io"
+  },
+  "supportedInterfaces": [
+    {
+      "type": "mcp",
+      "url": "https://app.testmesh.io/mcp",
+      "transport": "http"
+    }
+  ],
+  "capabilities": {
+    "streaming": true,
+    "multiTurn": true,
+    "tools": true
+  },
+  "skills": [
+    {
+      "id": "analyze-service",
+      "name": "Service Analysis",
+      "description": "Analyze a service's endpoints, schemas, and inter-service dependencies to build a complete testing model"
+    },
+    {
+      "id": "generate-flows",
+      "name": "Test Flow Generation",
+      "description": "Generate layered YAML test flows covering happy paths, edge cases, and cross-service scenarios"
+    },
+    {
+      "id": "run-tests",
+      "name": "Test Execution",
+      "description": "Execute test flows against live services and return structured pass/fail results with diffs"
+    },
+    {
+      "id": "coverage-gaps",
+      "name": "Coverage Gap Detection",
+      "description": "Identify untested endpoints and suggest flows to fill coverage gaps"
+    },
+    {
+      "id": "failure-diagnosis",
+      "name": "Failure Diagnosis",
+      "description": "Analyze failed executions and explain root causes with suggested fixes"
+    }
+  ],
+  "authentication": {
+    "type": "bearer",
+    "tokenEndpoint": "https://app.testmesh.io/api/v1/auth/token"
+  },
+  "links": {
+    "documentation": "https://www.testmesh.io/docs",
+    "mcpServerCard": "https://www.testmesh.io/.well-known/mcp/server-card.json"
+  }
+}

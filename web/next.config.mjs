@@ -14,6 +14,34 @@ const config = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        source: '/',
+        headers: [
+          {
+            key: 'Link',
+            value: [
+              '</.well-known/api-catalog>; rel="api-catalog"',
+              '</docs>; rel="service-doc"',
+              '</.well-known/mcp/server-card.json>; rel="mcp-server-card"',
+              '</.well-known/agent-card.json>; rel="agent-card"',
+              '</llms.txt>; rel="describedby"; type="text/plain"',
+            ].join(', '),
+          },
+        ],
+      },
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Robots-Tag',
+            value: 'index, follow',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default withMDX(config);

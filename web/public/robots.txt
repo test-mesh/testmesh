@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+
+# AI Crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+# AI content usage preferences
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+
+Sitemap: https://www.testmesh.io/sitemap.xml

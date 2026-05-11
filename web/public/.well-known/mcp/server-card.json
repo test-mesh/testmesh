@@ -1,0 +1,65 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/server-card.json",
+  "serverInfo": {
+    "name": "testmesh",
+    "version": "1.0.0",
+    "description": "TestMesh MCP server — analyze services, generate test flows, run E2E tests, and get coverage insights across HTTP, Kafka, gRPC, WebSocket, and database protocols."
+  },
+  "transport": {
+    "type": "http",
+    "endpoint": "https://app.testmesh.io/mcp"
+  },
+  "authentication": {
+    "type": "bearer",
+    "tokenEndpoint": "https://app.testmesh.io/api/v1/auth/token"
+  },
+  "capabilities": {
+    "tools": true,
+    "resources": false,
+    "prompts": false,
+    "sampling": false
+  },
+  "tools": [
+    {
+      "name": "analyze_workspace",
+      "description": "Analyze an entire TestMesh workspace to understand its services and test coverage"
+    },
+    {
+      "name": "analyze_service",
+      "description": "Deep-analyze a specific service including endpoints, schemas, and dependencies"
+    },
+    {
+      "name": "generate_flow",
+      "description": "Generate a YAML test flow for a service or scenario using AI"
+    },
+    {
+      "name": "generate_test_plan",
+      "description": "Generate a comprehensive test plan with layered coverage strategy"
+    },
+    {
+      "name": "run_flow",
+      "description": "Execute a test flow and return results"
+    },
+    {
+      "name": "run_suite",
+      "description": "Execute all flows in a collection"
+    },
+    {
+      "name": "get_coverage_gaps",
+      "description": "Identify untested endpoints and coverage gaps"
+    },
+    {
+      "name": "list_flows",
+      "description": "List all flows in a workspace"
+    },
+    {
+      "name": "get_execution",
+      "description": "Get details of a specific test execution"
+    }
+  ],
+  "links": {
+    "homepage": "https://www.testmesh.io",
+    "documentation": "https://www.testmesh.io/docs",
+    "github": "https://github.com/testmesh/testmesh"
+  }
+}
