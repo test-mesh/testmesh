@@ -1,0 +1,26 @@
+# Exclude everything except plugin files during installation/update.
+# The plugin only needs .claude-plugin/ — the rest is source code.
+
+agent/
+api/
+cli/
+dashboard/
+demo-services/
+deploy/
+docs/
+e2e/
+examples/
+generated-flows/
+infra/
+npm/
+plugins/
+skills-lock.json
+web/
+
+Makefile
+*.md
+*.sh
+*.yml
+*.yaml
+install.sh
+infra.sh
