@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Outfit } from "next/font/google";
+import { Space_Grotesk, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/providers/query-provider";
 import { ThemeProvider } from "@/lib/providers/theme-provider";
@@ -9,12 +9,7 @@ import { WorkspaceProvider } from "@/components/workspaces/WorkspaceProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { CloudAuthGuard } from "@/components/auth/CloudAuthGuard";
 
-const outfit = Outfit({subsets:['latin'],variable:'--font-sans'});
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-sans' });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -32,9 +27,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={outfit.variable} suppressHydrationWarning>
+    <html lang="en" className={spaceGrotesk.variable} suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
         <ThemeProvider
@@ -52,7 +47,7 @@ export default function RootLayout({
               </CloudAuthGuard>
             </AuthProvider>
           </QueryProvider>
-          <Toaster />
+          <Toaster richColors theme="dark" />
         </ThemeProvider>
       </body>
     </html>
