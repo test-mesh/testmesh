@@ -1,19 +1,19 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useFlow, useDeleteFlow } from '@/lib/hooks/useFlows';
+import { useFlow, useUpdateFlow, useDeleteFlow } from '@/lib/hooks/useFlows';
 import { useExecutions, useCreateExecution } from '@/lib/hooks/useExecutions';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import {
   Table,
   TableBody,
@@ -22,12 +22,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PresenceIndicator, CommentThread, VersionHistory } from '@/components/collaboration';
-import { useRestoreFlowVersion } from '@/lib/hooks/useCollaboration';
-import type { FlowVersion } from '@/lib/api/collaboration';
-import { Play, Trash2, Edit, ArrowLeft, Clock, MessageSquare, FileCode } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { FlowEditor } from '@/components/flow-editor';
+import { PresenceIndicator } from '@/components/collaboration';
+import {
+  ArrowLeft,
+  Play,
+  Trash2,
+  Clock,
+  History,
+} from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import type { FlowDefinition } from '@/lib/api/types';
 
 export default function FlowDetailPage({
   params,
@@ -39,50 +45,54 @@ export default function FlowDetailPage({
 
   const { data: flow, isLoading, error } = useFlow(id);
   const { data: executionsData } = useExecutions({ flow_id: id });
-  const deleteFlow = useDeleteFlow();
+  const updateFlow = useUpdateFlow();
   const createExecution = useCreateExecution();
-  const restoreVersion = useRestoreFlowVersion(id);
+  const deleteFlow = useDeleteFlow();
+
+  const [executionsOpen, setExecutionsOpen] = useState(false);
+
+  const handleSave = async (yaml: string, _definition: FlowDefinition) => {
+    try {
+      await updateFlow.mutateAsync({ id, data: { yaml } });
+    } catch (err) {
+      console.error('Failed to save flow:', err);
+    }
+  };
+
+  const handleRun = async (definition: FlowDefinition) => {
+    try {
+      const execution = await createExecution.mutateAsync({
+        flow_id: id,
+        environment: 'development',
+      });
+      router.push(`/executions/${execution.id}`);
+    } catch (err) {
+      console.error('Failed to run flow:', err);
+    }
+  };
 
   const handleDelete = async () => {
     if (confirm('Are you sure you want to delete this flow?')) {
       deleteFlow.mutate(id, {
-        onSuccess: () => {
-          router.push('/flows');
-        },
+        onSuccess: () => router.push('/flows'),
       });
     }
   };
 
-  const handleRun = async () => {
-    createExecution.mutate({
-      flow_id: id,
-      environment: 'development',
-    });
-  };
-
   if (error) {
     return (
-      <div className="container mx-auto py-8">
-        <Card>
+      <div className="flex items-center justify-center h-full">
+        <Card className="w-96">
           <CardHeader>
-            <CardTitle>Error Loading Flow</CardTitle>
-            <CardDescription>
-              {error instanceof Error ? error.message : 'An error occurred'}
-            </CardDescription>
+            <CardTitle className="text-destructive">Error Loading Flow</CardTitle>
           </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
-  if (isLoading || !flow) {
-    return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center text-muted-foreground">
-              Loading flow...
-            </div>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {error instanceof Error ? error.message : 'An unexpected error occurred'}
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" asChild>
+              <Link href="/flows">Back to Flows</Link>
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -92,151 +102,89 @@ export default function FlowDetailPage({
   const executions = executionsData?.executions || [];
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="mb-6">
-        <Link href="/flows">
-          <Button variant="ghost" size="sm" className="mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Flows
-          </Button>
-        </Link>
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b bg-background shrink-0">
+        <Button variant="ghost" size="sm" className="h-8 px-2" asChild>
+          <Link href="/flows">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+        </Button>
 
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex items-center gap-4">
-              <h1 className="text-3xl font-bold">{flow.name}</h1>
+        <div className="flex-1 min-w-0">
+          {isLoading ? (
+            <Skeleton className="h-5 w-48" />
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="font-semibold truncate">{flow?.name}</span>
+              {flow?.suite && <Badge variant="outline" className="text-xs shrink-0">{flow.suite}</Badge>}
+              {flow?.tags?.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs shrink-0">{tag}</Badge>
+              ))}
               <PresenceIndicator resourceType="flow" resourceId={id} size="sm" />
             </div>
-            {flow.description && (
-              <p className="text-muted-foreground mt-2">{flow.description}</p>
-            )}
-            <div className="flex gap-2 mt-4">
-              {flow.suite && <Badge variant="outline">{flow.suite}</Badge>}
-              {flow.tags?.map((tag) => (
-                <Badge key={tag} variant="secondary">
-                  {tag}
-                </Badge>
-              ))}
-              <Badge variant="outline">{flow.environment}</Badge>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <VersionHistory
-                flowId={id}
-                onRestore={(version: FlowVersion) => restoreVersion.mutate(version.version)}
-              />
-            <Button onClick={handleRun} disabled={createExecution.isPending}>
-              <Play className="w-4 h-4 mr-2" />
-              Run Flow
-            </Button>
-            <Link href={`/flows/${id}/edit`}>
-              <Button variant="outline">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-            </Link>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={deleteFlow.isPending}
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
-            </Button>
-          </div>
+          )}
         </div>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 text-xs gap-1.5"
+          onClick={() => setExecutionsOpen(true)}
+        >
+          <History className="w-3.5 h-3.5" />
+          Runs
+          {executions.length > 0 && (
+            <Badge variant="secondary" className="h-4 text-[10px] px-1">{executions.length}</Badge>
+          )}
+        </Button>
+
+        <Button
+          variant="destructive"
+          size="sm"
+          className="h-8"
+          onClick={handleDelete}
+          disabled={deleteFlow.isPending}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
       </div>
 
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Flow Definition</CardTitle>
-            <CardDescription>
-              {flow.definition.steps?.length || 0} steps
-              {flow.definition.setup && `, ${flow.definition.setup.length} setup steps`}
-              {flow.definition.teardown && `, ${flow.definition.teardown.length} teardown steps`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {flow.definition.setup && flow.definition.setup.length > 0 && (
-                <div>
-                  <h3 className="font-medium mb-2">Setup Steps</h3>
-                  <div className="space-y-2">
-                    {flow.definition.setup.map((step, i) => (
-                      <div
-                        key={step.id || i}
-                        className="p-3 border rounded-lg"
-                      >
-                        <div className="font-medium">{step.name || step.id}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {step.action}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+      {/* Canvas — primary view */}
+      <div className="flex-1 overflow-hidden">
+        {isLoading || !flow ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-sm text-muted-foreground">Loading flow...</div>
+          </div>
+        ) : (
+          <FlowEditor
+            initialDefinition={flow.definition}
+            onSave={handleSave}
+            onRun={handleRun}
+            isSaving={updateFlow.isPending}
+            isRunning={createExecution.isPending}
+          />
+        )}
+      </div>
 
-              <div>
-                <h3 className="font-medium mb-2">Main Steps</h3>
-                <div className="space-y-2">
-                  {flow.definition.steps?.map((step, i) => (
-                    <div key={step.id || i} className="p-3 border rounded-lg">
-                      <div className="font-medium">{step.name || step.id}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {step.action}
-                      </div>
-                      {step.assert && step.assert.length > 0 && (
-                        <div className="mt-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {step.assert.length} assertions
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+      {/* Executions Sheet */}
+      <Sheet open={executionsOpen} onOpenChange={setExecutionsOpen}>
+        <SheetContent side="right" className="w-[560px] sm:max-w-[560px] flex flex-col p-0">
+          <SheetHeader className="px-6 py-4 border-b">
+            <SheetTitle>Recent Runs</SheetTitle>
+          </SheetHeader>
 
-              {flow.definition.teardown && flow.definition.teardown.length > 0 && (
-                <div>
-                  <h3 className="font-medium mb-2">Teardown Steps</h3>
-                  <div className="space-y-2">
-                    {flow.definition.teardown.map((step, i) => (
-                      <div
-                        key={step.id || i}
-                        className="p-3 border rounded-lg"
-                      >
-                        <div className="font-medium">{step.name || step.id}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {step.action}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Executions</CardTitle>
-            <CardDescription>Last 10 executions of this flow</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <div className="flex-1 overflow-auto">
             {executions.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No executions yet. Run this flow to see results here.
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+                <Play className="w-8 h-8 opacity-30" />
+                <p className="text-sm">No executions yet</p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Status</TableHead>
-                    <TableHead>Environment</TableHead>
                     <TableHead>Steps</TableHead>
                     <TableHead>Duration</TableHead>
                     <TableHead>Started</TableHead>
@@ -244,7 +192,7 @@ export default function FlowDetailPage({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {executions.slice(0, 10).map((execution) => (
+                  {executions.slice(0, 20).map((execution) => (
                     <TableRow key={execution.id}>
                       <TableCell>
                         <Badge
@@ -255,74 +203,42 @@ export default function FlowDetailPage({
                               ? 'destructive'
                               : 'secondary'
                           }
+                          className="text-xs"
                         >
                           {execution.status}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{execution.environment}</Badge>
+                      <TableCell className="text-sm">
+                        <span className="text-green-600">{execution.passed_steps}</span>
+                        <span className="text-muted-foreground mx-0.5">/</span>
+                        <span className="text-red-600">{execution.failed_steps}</span>
                       </TableCell>
-                      <TableCell>
-                        <span className="text-green-600">
-                          {execution.passed_steps}
-                        </span>
-                        /
-                        <span className="text-red-600">
-                          {execution.failed_steps}
-                        </span>
-                      </TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
                         {execution.duration_ms ? (
                           <div className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {execution.duration_ms}ms
                           </div>
-                        ) : (
-                          '-'
-                        )}
+                        ) : '—'}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
                         {execution.started_at
-                          ? formatDistanceToNow(new Date(execution.started_at), {
-                              addSuffix: true,
-                            })
-                          : '-'}
+                          ? formatDistanceToNow(new Date(execution.started_at), { addSuffix: true })
+                          : '—'}
                       </TableCell>
                       <TableCell>
-                        <Link href={`/executions/${execution.id}`}>
-                          <Button variant="ghost" size="sm">
-                            View
-                          </Button>
-                        </Link>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" asChild>
+                          <Link href={`/executions/${execution.id}`}>View</Link>
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Comments Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5" />
-              Discussion
-            </CardTitle>
-            <CardDescription>
-              Collaborate with your team on this flow
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CommentThread
-              flowId={id}
-              currentUserId="current-user"
-              currentUserName="Current User"
-            />
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
