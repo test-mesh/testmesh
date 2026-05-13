@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -69,6 +70,8 @@ func validateFlow(cmd *cobra.Command, args []string) error {
 			Name        string                   `yaml:"name"`
 			Description string                   `yaml:"description"`
 			Suite       string                   `yaml:"suite"`
+			EnvFile     string                   `yaml:"env_file"`
+			Env         map[string]string        `yaml:"env"`
 			Setup       []map[string]interface{} `yaml:"setup"`
 			Steps       []map[string]interface{} `yaml:"steps"`
 			Teardown    []map[string]interface{} `yaml:"teardown"`
@@ -96,8 +99,36 @@ func validateFlow(cmd *cobra.Command, args []string) error {
 		errs = append(errs, "flow.steps must have at least one step")
 	}
 
-	// Track output variables defined so far for reference checking
+	// Track output variables defined so far for reference checking.
+	// Pre-seed with variables from env: and env_file: so they don't
+	// produce false-positive "not defined in any prior output" errors.
 	definedVars := map[string]bool{}
+
+	// Seed from inline env: block
+	for k := range flow.Env {
+		definedVars[k] = true
+	}
+
+	// Seed from env_file: — parse KEY=VALUE lines, ignore comments/blanks
+	if flow.EnvFile != "" {
+		envPath := flow.EnvFile
+		if !filepath.IsAbs(envPath) {
+			envPath = filepath.Join(filepath.Dir(filePath), envPath)
+		}
+		if envData, err := os.ReadFile(envPath); err == nil {
+			for _, line := range strings.Split(string(envData), "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" || strings.HasPrefix(line, "#") {
+					continue
+				}
+				if idx := strings.IndexByte(line, '='); idx > 0 {
+					definedVars[strings.TrimSpace(line[:idx])] = true
+				}
+			}
+		}
+		// If the file can't be read, skip silently — the flow may run fine
+		// in an environment where the file exists even if it's absent locally.
+	}
 
 	validateSteps := func(steps []map[string]interface{}, phase string) {
 		for i, step := range steps {
