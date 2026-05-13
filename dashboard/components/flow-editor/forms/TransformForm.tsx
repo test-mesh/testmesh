@@ -140,8 +140,8 @@ export default function TransformForm({
         <span className="text-sm font-medium">Transform Data</span>
       </div>
 
-      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
-        <p className="text-sm text-blue-900 dark:text-blue-300">
+      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+        <p className="text-sm text-foreground">
           Transform, extract, or manipulate data using various operations and expressions.
         </p>
       </div>

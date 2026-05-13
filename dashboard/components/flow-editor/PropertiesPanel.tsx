@@ -216,7 +216,7 @@ export default function PropertiesPanel({
               <MessageSquare className="w-3 h-3" />
               Comments
               {localData.comments && localData.comments.length > 0 && (
-                <span className="ml-1 px-1 py-0.5 text-[10px] bg-blue-500 text-white rounded">
+                <span className="ml-1 px-1 py-0.5 text-[10px] bg-primary text-primary-foreground rounded">
                   {localData.comments.length}
                 </span>
               )}

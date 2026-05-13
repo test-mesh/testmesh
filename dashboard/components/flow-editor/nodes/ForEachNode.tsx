@@ -10,7 +10,7 @@ import type { ForEachNodeData } from '../types';
 function StatusIcon({ status }: { status?: ForEachNodeData['status'] }) {
   switch (status) {
     case 'running':
-      return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      return <Loader2 className="w-4 h-4 text-primary animate-spin" />;
     case 'completed':
       return <CheckCircle2 className="w-4 h-4 text-green-500" />;
     case 'failed':
@@ -48,7 +48,7 @@ function ForEachNode({ data, selected }: NodeProps<ForEachNodeData>) {
         'border-indigo-200 dark:border-indigo-800',
         selected && 'ring-2 ring-primary ring-offset-2',
         data.status === 'failed' && 'border-red-500',
-        data.status === 'running' && 'border-blue-500 animate-pulse'
+        data.status === 'running' && 'border-primary animate-pulse'
       )}
     >
       {/* Input Handle */}

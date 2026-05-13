@@ -109,7 +109,7 @@ export default function AIHistoryPage() {
         <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setActiveTab('imports')}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileUp className="h-4 w-4 text-blue-500" />
+              <FileUp className="h-4 w-4 text-primary" />
               Imports
             </CardTitle>
           </CardHeader>

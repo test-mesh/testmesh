@@ -68,7 +68,7 @@ export default function AuthBuilder({
             </SelectItem>
             <SelectItem value="basic">
               <div className="flex items-center gap-2">
-                <Lock className="h-4 w-4 text-blue-500" />
+                <Lock className="h-4 w-4 text-primary" />
                 <span>Basic Auth</span>
               </div>
             </SelectItem>

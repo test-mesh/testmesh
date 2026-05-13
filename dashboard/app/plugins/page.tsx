@@ -300,7 +300,7 @@ export default function PluginsPage() {
 
   const getTypeBadge = (type: string) => {
     const colors: Record<string, string> = {
-      action: 'bg-blue-500',
+      action: 'bg-primary',
       auth: 'bg-green-500',
       exporter: 'bg-purple-500',
       importer: 'bg-orange-500',

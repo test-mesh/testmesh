@@ -84,7 +84,7 @@ function HttpResponseOutput({ output }: { output: Record<string, unknown> }) {
           <div className="p-3 font-mono text-xs space-y-0.5 bg-background">
             {Object.entries(headers).map(([k, v]) => (
               <div key={k}>
-                <span className="text-blue-600">{k}</span>
+                <span className="text-primary">{k}</span>
                 <span className="text-muted-foreground">: </span>
                 <span>{Array.isArray(v) ? v.join(', ') : String(v)}</span>
               </div>

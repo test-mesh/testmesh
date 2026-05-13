@@ -36,8 +36,8 @@ export default function SubFlowForm({
         <span className="text-sm font-medium">Sub-flow Execution</span>
       </div>
 
-      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
-        <p className="text-sm text-blue-900 dark:text-blue-300">
+      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+        <p className="text-sm text-foreground">
           Execute another flow as a step. Useful for reusable test components and modular test design.
         </p>
       </div>
@@ -81,7 +81,7 @@ export default function SubFlowForm({
           href={`/flows/${config.flow}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+          className="flex items-center gap-2 text-sm text-primary hover:text-primary/80"
         >
           <ExternalLink className="h-3.5 w-3.5" />
           View flow in new tab

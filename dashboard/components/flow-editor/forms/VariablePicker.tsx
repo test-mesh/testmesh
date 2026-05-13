@@ -119,7 +119,7 @@ export default function VariablePicker({
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'builtin':
-        return <Clock className="w-3 h-3 text-blue-500" />;
+        return <Clock className="w-3 h-3 text-primary" />;
       case 'env':
         return <Hash className="w-3 h-3 text-green-500" />;
       case 'step':

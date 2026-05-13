@@ -188,7 +188,7 @@ export default function SchedulePage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <ListOrdered className="h-5 w-5 text-blue-500" />
+                  <ListOrdered className="h-5 w-5 text-primary" />
                   Flow Priorities
                 </CardTitle>
                 <CardDescription>

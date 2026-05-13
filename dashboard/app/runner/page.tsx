@@ -484,7 +484,7 @@ export default function RunnerPage() {
                       {ds.file_type === 'csv' ? (
                         <FileSpreadsheet className="w-4 h-4 text-green-600 shrink-0" />
                       ) : (
-                        <FileJson className="w-4 h-4 text-blue-600 shrink-0" />
+                        <FileJson className="w-4 h-4 text-primary shrink-0" />
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{ds.name}</div>

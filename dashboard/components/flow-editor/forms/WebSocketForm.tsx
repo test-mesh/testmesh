@@ -41,12 +41,12 @@ export default function WebSocketForm({
   return (
     <div className={cn('space-y-4', className)}>
       <div className="flex items-center gap-2 pb-2 border-b">
-        <Radio className="h-4 w-4 text-blue-500" />
+        <Radio className="h-4 w-4 text-primary" />
         <span className="text-sm font-medium">WebSocket</span>
       </div>
 
-      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
-        <p className="text-sm text-blue-900 dark:text-blue-300">
+      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+        <p className="text-sm text-foreground">
           Establish WebSocket connections, send messages, and validate received data.
         </p>
       </div>

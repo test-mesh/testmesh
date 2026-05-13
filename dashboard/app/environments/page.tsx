@@ -383,7 +383,7 @@ export default function EnvironmentsPage() {
                           !v.enabled && 'opacity-50'
                         )}
                       >
-                        <span className="text-blue-600 dark:text-blue-400 truncate">
+                        <span className="text-primary truncate">
                           {v.key}
                         </span>
                         <span className="text-muted-foreground">=</span>

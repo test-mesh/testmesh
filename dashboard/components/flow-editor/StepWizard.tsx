@@ -66,7 +66,7 @@ const STEP_TYPES: StepTypeOption[] = [
     description: 'Make REST API calls with full control over method, headers, and body',
     icon: Globe,
     category: 'protocol',
-    color: 'text-blue-500',
+    color: 'text-primary',
   },
   {
     type: 'database_query',

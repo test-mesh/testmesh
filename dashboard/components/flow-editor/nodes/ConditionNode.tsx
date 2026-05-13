@@ -10,7 +10,7 @@ import type { ConditionNodeData } from '../types';
 function StatusIcon({ status }: { status?: ConditionNodeData['status'] }) {
   switch (status) {
     case 'running':
-      return <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      return <Loader2 className="w-4 h-4 text-primary animate-spin" />;
     case 'completed':
       return <CheckCircle2 className="w-4 h-4 text-green-500" />;
     case 'failed':
@@ -61,7 +61,7 @@ function ConditionNode({ data, selected }: NodeProps<ConditionNodeData>) {
           'border-cyan-300 dark:border-cyan-700',
           selected && 'ring-2 ring-primary ring-offset-2 shadow-lg',
           data.status === 'failed' && 'border-red-500 bg-red-50 dark:bg-red-950',
-          data.status === 'running' && 'border-blue-500 bg-blue-50 dark:bg-blue-950 animate-pulse',
+          data.status === 'running' && 'border-primary animate-pulse',
           data.status === 'completed' && 'border-green-500',
           hoveredBranch && 'shadow-xl'
         )}

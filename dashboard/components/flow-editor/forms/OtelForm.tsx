@@ -23,7 +23,7 @@ export default function OtelForm({
   return (
     <div className={cn('space-y-4', className)}>
       <div className="flex items-center gap-2 pb-2 border-b">
-        <Activity className="h-4 w-4 text-blue-500" />
+        <Activity className="h-4 w-4 text-primary" />
         <span className="text-sm font-medium">OpenTelemetry</span>
         {action && (
           <span className="text-xs text-muted-foreground font-mono">({action})</span>

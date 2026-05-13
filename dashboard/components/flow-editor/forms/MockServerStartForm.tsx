@@ -37,10 +37,10 @@ export default function MockServerStartForm({
         <span className="text-sm font-medium">Start Mock Server</span>
       </div>
 
-      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
+      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
         <div className="flex items-start gap-2">
-          <Info className="w-4 h-4 text-blue-500 mt-0.5" />
-          <div className="text-sm text-blue-900 dark:text-blue-300">
+          <Info className="w-4 h-4 text-primary mt-0.5" />
+          <div className="text-sm text-foreground">
             <p className="font-medium mb-1">Mock Server Features:</p>
             <ul className="text-xs space-y-0.5 ml-4 list-disc">
               <li>Define multiple REST API endpoints</li>

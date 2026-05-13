@@ -105,7 +105,7 @@ export default function ScheduleDetailPage({
       case 'completed':
         return <Badge variant="outline" className="text-green-600">Completed</Badge>;
       case 'running':
-        return <Badge className="bg-blue-100 text-blue-800">Running</Badge>;
+        return <Badge className="bg-primary/10 text-primary">Running</Badge>;
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>;
       case 'pending':
@@ -289,7 +289,7 @@ export default function ScheduleDetailPage({
               <dt className="text-sm font-medium text-muted-foreground">Flow</dt>
               <dd>
                 {schedule.flow ? (
-                  <Link href={`/flows/${schedule.flow.id}`} className="text-blue-500 hover:underline">
+                  <Link href={`/flows/${schedule.flow.id}`} className="text-primary hover:underline">
                     {schedule.flow.name}
                   </Link>
                 ) : (

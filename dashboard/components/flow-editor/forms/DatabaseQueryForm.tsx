@@ -35,8 +35,8 @@ export default function DatabaseQueryForm({
         <span className="text-sm font-medium">Database Query</span>
       </div>
 
-      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
-        <p className="text-sm text-blue-900 dark:text-blue-300">
+      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+        <p className="text-sm text-foreground">
           Execute SQL queries against a PostgreSQL database with parameterized query support.
         </p>
       </div>

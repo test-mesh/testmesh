@@ -161,7 +161,7 @@ export default function CommentPanel({
     <div className={cn('flex flex-col h-full', className)}>
       {/* Header */}
       <div className="flex items-center gap-2 pb-3 border-b">
-        <MessageSquare className="h-4 w-4 text-blue-500" />
+        <MessageSquare className="h-4 w-4 text-primary" />
         <div className="flex-1">
           <div className="text-sm font-medium">Comments</div>
           <div className="text-xs text-muted-foreground">{nodeName}</div>
@@ -391,7 +391,7 @@ export function CommentDialog({
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-blue-500" />
+            <MessageSquare className="h-5 w-5 text-primary" />
             Comments: {nodeName}
           </DialogTitle>
           <DialogDescription>

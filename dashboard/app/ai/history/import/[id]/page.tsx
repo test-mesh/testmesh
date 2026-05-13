@@ -109,7 +109,7 @@ export default function ImportDetailPage({ params }: PageProps) {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <FileUp className="h-8 w-8 text-blue-500" />
+            <FileUp className="h-8 w-8 text-primary" />
             Import Details
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -154,7 +154,7 @@ export default function ImportDetailPage({ params }: PageProps) {
               ) : importData.status === 'failed' ? (
                 <AlertCircle className="h-5 w-5 text-red-500" />
               ) : (
-                <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />
+                <RefreshCw className="h-5 w-5 text-primary animate-spin" />
               )}
               <span className="capitalize">{importData.status}</span>
             </div>

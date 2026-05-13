@@ -101,7 +101,7 @@ export default function SuitesPage() {
         );
       case 'running':
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100 gap-1">
+          <Badge className="bg-primary/10 text-primary gap-1">
             <RefreshCw className="h-3 w-3 animate-spin" />
             Running
           </Badge>

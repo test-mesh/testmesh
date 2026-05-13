@@ -162,7 +162,7 @@ export default function WatchPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <GitBranch className="h-5 w-5 text-blue-500" />
+                  <GitBranch className="h-5 w-5 text-primary" />
                   Graph Changes
                 </CardTitle>
                 <CardDescription>

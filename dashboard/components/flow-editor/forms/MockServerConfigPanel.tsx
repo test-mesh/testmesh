@@ -489,7 +489,7 @@ export default function MockServerConfigPanel({
                             State Management
                           </CollapsibleTrigger>
                           <CollapsibleContent className="mt-2 space-y-2">
-                            <div className="p-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded text-xs text-blue-900 dark:text-blue-300">
+                            <div className="p-2 bg-primary/5 border border-primary/20 rounded text-xs text-foreground">
                               Track state across requests (e.g., call counter, user sessions)
                             </div>
 
@@ -547,7 +547,7 @@ export default function MockServerConfigPanel({
                                   endpoint.method === 'GET' &&
                                     'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
                                   endpoint.method === 'POST' &&
-                                    'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+                                    'bg-primary/10 text-primary',
                                   endpoint.method === 'PUT' &&
                                     'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
                                   endpoint.method === 'DELETE' &&
@@ -726,8 +726,8 @@ export default function MockServerConfigPanel({
 
         {/* State Tab */}
         <TabsContent value="state" className="space-y-3 mt-4">
-          <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
-            <p className="text-sm text-blue-900 dark:text-blue-300">
+          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <p className="text-sm text-foreground">
               Define initial state values that endpoints can read and modify across requests.
             </p>
           </div>

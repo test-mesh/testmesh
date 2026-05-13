@@ -285,8 +285,8 @@ export default function FlowConfigDialog({
 
             {/* Environment Tab */}
             <TabsContent value="environment" className="space-y-4 mt-0">
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
-                <p className="text-sm text-blue-900 dark:text-blue-300">
+              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                <p className="text-sm text-foreground">
                   Environment variables are available to all steps in this flow using{' '}
                   <code className="font-mono">{'${ENV_VAR_NAME}'}</code> syntax.
                 </p>

@@ -470,7 +470,7 @@ const iconMap: Record<string, React.ElementType> = {
 
 // Category configuration
 const categories = [
-  { id: 'http', label: 'HTTP & API', color: 'text-blue-500' },
+  { id: 'http', label: 'HTTP & API', color: 'text-primary' },
   { id: 'database', label: 'Database', color: 'text-purple-500' },
   { id: 'messaging', label: 'Messaging', color: 'text-violet-500' },
   { id: 'browser', label: 'Browser', color: 'text-amber-500' },

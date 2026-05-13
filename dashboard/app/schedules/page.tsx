@@ -218,7 +218,7 @@ export default function SchedulesPage() {
                         {schedule.flow && (
                           <Link
                             href={`/flows/${schedule.flow.id}`}
-                            className="text-xs text-blue-500 hover:underline"
+                            className="text-xs text-primary hover:underline"
                           >
                             {schedule.flow.name}
                           </Link>

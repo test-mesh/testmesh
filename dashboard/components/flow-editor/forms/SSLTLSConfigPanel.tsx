@@ -79,12 +79,12 @@ export default function SSLTLSConfigPanel({
   return (
     <div className={cn('space-y-4', className)}>
       <div className="flex items-center gap-2 pb-2 border-b">
-        <Shield className="h-4 w-4 text-blue-500" />
+        <Shield className="h-4 w-4 text-primary" />
         <span className="text-sm font-medium">SSL/TLS Configuration</span>
       </div>
 
-      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
-        <p className="text-sm text-blue-900 dark:text-blue-300">
+      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+        <p className="text-sm text-foreground">
           Configure SSL/TLS settings for secure HTTPS communication with client certificates,
           custom CA bundles, and TLS version controls.
         </p>
@@ -483,7 +483,7 @@ export default function SSLTLSConfigPanel({
           )}
           {value.ca_cert && (
             <div className="flex items-center gap-2">
-              <Shield className="w-3 h-3 text-blue-500" />
+              <Shield className="w-3 h-3 text-primary" />
               <span>Custom CA certificate set</span>
             </div>
           )}
