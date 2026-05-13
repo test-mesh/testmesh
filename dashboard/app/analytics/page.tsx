@@ -10,12 +10,22 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
 import { TrendChart } from '@/components/analytics/TrendChart';
 import { FlakinessTable } from '@/components/analytics/FlakinessTable';
 import { MetricsSummary } from '@/components/analytics/MetricsCard';
 import { DiscoveredFlowsTable } from '@/components/analytics/DiscoveredFlowsTable';
 import { DriftAlerts } from '@/components/analytics/DriftAlerts';
-import { useMetrics, useTrends, useFlakiness, useTriggerAggregation, useGenerateReport, useDownloadReport, useReports, useReport } from '@/lib/hooks/useReports';
+import {
+  useMetrics,
+  useTrends,
+  useFlakiness,
+  useTriggerAggregation,
+  useGenerateReport,
+  useDownloadReport,
+  useReports,
+  useReport,
+} from '@/lib/hooks/useReports';
 import { useAnalyzeCoverage, useCoverageAnalyses } from '@/lib/hooks/useAI';
 import { getActiveWorkspaceId } from '@/lib/hooks/useWorkspaces';
 import {
@@ -23,15 +33,9 @@ import {
   AlertTriangle,
   RefreshCw,
   Calendar,
-  ArrowRight,
   Clock,
   Target,
   Loader2,
-  Shield,
-  Stethoscope,
-  Eye,
-  Workflow,
-  Zap,
   CheckCircle2,
   XCircle,
   AlertCircle,
@@ -40,6 +44,9 @@ import {
   History,
   Download,
   FileDown,
+  BarChart3,
+  Activity,
+  Wifi,
 } from 'lucide-react';
 import {
   Dialog,
@@ -50,7 +57,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import type { GetFlakinessResponse, AnalyzeCoverageResponse, EndpointCoverage, ReportFormat } from '@/lib/api/types';
+import type {
+  GetFlakinessResponse,
+  AnalyzeCoverageResponse,
+  EndpointCoverage,
+  ReportFormat,
+} from '@/lib/api/types';
 
 // ── Coverage sub-components ───────────────────────────────────────────────────
 
@@ -69,14 +81,23 @@ function MethodBadge({ method }: { method: string }) {
   );
 }
 
-function EndpointRow({ endpoint, status }: { endpoint: EndpointCoverage; status: 'covered' | 'uncovered' | 'partial' }) {
+function EndpointRow({
+  endpoint,
+  status,
+}: {
+  endpoint: EndpointCoverage;
+  status: 'covered' | 'uncovered' | 'partial';
+}) {
   const [expanded, setExpanded] = useState(false);
   const icons = {
     covered: <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />,
     uncovered: <XCircle className="h-4 w-4 text-red-500 shrink-0" />,
     partial: <AlertCircle className="h-4 w-4 text-yellow-500 shrink-0" />,
   };
-  const hasMeta = endpoint.description || ((endpoint.flow_ids?.length ?? 0) > 0) || ((endpoint.missing_tests?.length ?? 0) > 0);
+  const hasMeta =
+    endpoint.description ||
+    (endpoint.flow_ids?.length ?? 0) > 0 ||
+    (endpoint.missing_tests?.length ?? 0) > 0;
   return (
     <div className="border rounded-lg">
       <button
@@ -89,18 +110,26 @@ function EndpointRow({ endpoint, status }: { endpoint: EndpointCoverage; status:
         {status === 'partial' && (
           <Badge variant="outline" className="text-xs">{Math.round(endpoint.coverage * 100)}%</Badge>
         )}
-        {hasMeta && (expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />)}
+        {hasMeta && (
+          expanded
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+        )}
       </button>
       {expanded && hasMeta && (
         <div className="px-4 pb-3 space-y-2 border-t">
-          {endpoint.description && <p className="text-sm text-muted-foreground pt-2">{endpoint.description}</p>}
+          {endpoint.description && (
+            <p className="text-sm text-muted-foreground pt-2">{endpoint.description}</p>
+          )}
           {(endpoint.flow_ids?.length ?? 0) > 0 && (
             <div>
               <p className="text-xs font-medium mb-1">Covered by flows:</p>
               <div className="flex flex-wrap gap-1">
                 {(endpoint.flow_ids ?? []).map((id) => (
                   <Link key={id} href={`/flows/${id}`}>
-                    <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">{id.slice(0, 8)}...</Badge>
+                    <Badge variant="secondary" className="text-xs cursor-pointer hover:bg-secondary/80">
+                      {id.slice(0, 8)}…
+                    </Badge>
                   </Link>
                 ))}
               </div>
@@ -120,8 +149,19 @@ function EndpointRow({ endpoint, status }: { endpoint: EndpointCoverage; status:
   );
 }
 
-function CoverageResults({ result, onReset }: { result: AnalyzeCoverageResponse; onReset: () => void }) {
-  const coverageColor = result.coverage_percent >= 80 ? 'text-green-600' : result.coverage_percent >= 50 ? 'text-yellow-600' : 'text-red-600';
+function CoverageResults({
+  result,
+  onReset,
+}: {
+  result: AnalyzeCoverageResponse;
+  onReset: () => void;
+}) {
+  const coverageColor =
+    result.coverage_percent >= 80
+      ? 'text-green-600'
+      : result.coverage_percent >= 50
+      ? 'text-yellow-600'
+      : 'text-red-600';
   return (
     <div className="space-y-6">
       <Button variant="outline" size="sm" onClick={onReset}>
@@ -132,35 +172,63 @@ function CoverageResults({ result, onReset }: { result: AnalyzeCoverageResponse;
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <span>{result.spec_name || 'Coverage Analysis'}</span>
-            <span className={`text-3xl font-bold ${coverageColor}`}>{Math.round(result.coverage_percent)}%</span>
+            <span className={`text-3xl font-bold ${coverageColor}`}>
+              {Math.round(result.coverage_percent)}%
+            </span>
           </CardTitle>
-          <CardDescription>{result.covered_endpoints} of {result.total_endpoints} endpoints covered</CardDescription>
+          <CardDescription>
+            {result.covered_endpoints} of {result.total_endpoints} endpoints covered
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Progress value={result.coverage_percent} className="h-3" />
           <div className="grid grid-cols-3 gap-4 text-center">
-            <div><div className="text-2xl font-bold text-green-600">{result.covered?.length ?? 0}</div><div className="text-xs text-muted-foreground">Covered</div></div>
-            <div><div className="text-2xl font-bold text-yellow-600">{result.partial?.length ?? 0}</div><div className="text-xs text-muted-foreground">Partial</div></div>
-            <div><div className="text-2xl font-bold text-red-600">{result.uncovered?.length ?? 0}</div><div className="text-xs text-muted-foreground">Uncovered</div></div>
+            <div>
+              <div className="text-2xl font-bold text-green-600">{result.covered?.length ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Covered</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-yellow-600">{result.partial?.length ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Partial</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-red-600">{result.uncovered?.length ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Uncovered</div>
+            </div>
           </div>
         </CardContent>
       </Card>
       {(result.uncovered?.length ?? 0) > 0 && (
         <div>
-          <h3 className="font-medium mb-3 flex items-center gap-2"><XCircle className="h-4 w-4 text-red-500" />Uncovered Endpoints ({result.uncovered.length})</h3>
-          <div className="space-y-2">{result.uncovered.map((ep, i) => <EndpointRow key={i} endpoint={ep} status="uncovered" />)}</div>
+          <h3 className="font-medium mb-3 flex items-center gap-2">
+            <XCircle className="h-4 w-4 text-red-500" />
+            Uncovered Endpoints ({result.uncovered.length})
+          </h3>
+          <div className="space-y-2">
+            {result.uncovered.map((ep, i) => <EndpointRow key={i} endpoint={ep} status="uncovered" />)}
+          </div>
         </div>
       )}
       {(result.partial?.length ?? 0) > 0 && (
         <div>
-          <h3 className="font-medium mb-3 flex items-center gap-2"><AlertCircle className="h-4 w-4 text-yellow-500" />Partially Covered ({result.partial.length})</h3>
-          <div className="space-y-2">{result.partial.map((ep, i) => <EndpointRow key={i} endpoint={ep} status="partial" />)}</div>
+          <h3 className="font-medium mb-3 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-yellow-500" />
+            Partially Covered ({result.partial.length})
+          </h3>
+          <div className="space-y-2">
+            {result.partial.map((ep, i) => <EndpointRow key={i} endpoint={ep} status="partial" />)}
+          </div>
         </div>
       )}
       {(result.covered?.length ?? 0) > 0 && (
         <div>
-          <h3 className="font-medium mb-3 flex items-center gap-2"><CheckCircle2 className="h-4 w-4 text-green-500" />Covered Endpoints ({result.covered.length})</h3>
-          <div className="space-y-2">{result.covered.map((ep, i) => <EndpointRow key={i} endpoint={ep} status="covered" />)}</div>
+          <h3 className="font-medium mb-3 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+            Covered Endpoints ({result.covered.length})
+          </h3>
+          <div className="space-y-2">
+            {result.covered.map((ep, i) => <EndpointRow key={i} endpoint={ep} status="covered" />)}
+          </div>
         </div>
       )}
     </div>
@@ -182,10 +250,16 @@ export default function AnalyticsPage() {
   const recentAnalyses = coverageHistoryData?.analyses || [];
 
   const endDate = new Date().toISOString().split('T')[0];
-  const startDate = new Date(Date.now() - parseInt(dateRange) * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const startDate = new Date(Date.now() - parseInt(dateRange) * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0];
 
   const { data: metricsData } = useMetrics({ start_date: startDate, end_date: endDate });
-  const { data: trendsData, isLoading: trendsLoading } = useTrends({ start_date: startDate, end_date: endDate, group_by: groupBy });
+  const { data: trendsData, isLoading: trendsLoading } = useTrends({
+    start_date: startDate,
+    end_date: endDate,
+    group_by: groupBy,
+  });
   const { data: flakinessData, isLoading: flakinessLoading } = useFlakiness({ limit: 10 });
   const triggerAggregation = useTriggerAggregation();
 
@@ -198,7 +272,6 @@ export default function AnalyticsPage() {
   const downloadReport = useDownloadReport();
   const { data: recentReportsData } = useReports({ limit: 5 });
   const recentReports = recentReportsData?.reports || [];
-
   const { data: generatingReport } = useReport(generatingId ?? '');
 
   const handleExport = () => {
@@ -210,9 +283,7 @@ export default function AnalyticsPage() {
         end_date: endDate,
       },
       {
-        onSuccess: (report) => {
-          setGeneratingId(report.id);
-        },
+        onSuccess: (report) => setGeneratingId(report.id),
       }
     );
   };
@@ -243,17 +314,19 @@ export default function AnalyticsPage() {
   };
 
   const flakyFlows = (flakinessData as GetFlakinessResponse)?.flaky_flows || [];
+  const summary = metricsData?.summary;
 
   return (
     <div className="container mx-auto py-8">
-      <div className="flex items-center justify-between mb-8">
+      {/* Page header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Analytics</h1>
-          <p className="text-muted-foreground mt-1">Execution metrics, trends, and test health insights</p>
+          <h1 className="text-2xl font-bold">Analytics</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Execution metrics, trends, and test health insights</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <Select value={dateRange} onValueChange={setDateRange}>
-            <SelectTrigger className="w-36">
+            <SelectTrigger className="w-36 h-8 text-sm">
               <SelectValue placeholder="Date range" />
             </SelectTrigger>
             <SelectContent>
@@ -264,16 +337,17 @@ export default function AnalyticsPage() {
               <SelectItem value="90">Last 90 days</SelectItem>
             </SelectContent>
           </Select>
-          <Dialog open={exportDialogOpen} onOpenChange={(open) => {
-            if (!open) {
-              setGeneratingId(null);
-              setExportFormat('html');
-            }
-            setExportDialogOpen(open);
-          }}>
+
+          <Dialog
+            open={exportDialogOpen}
+            onOpenChange={(open) => {
+              if (!open) { setGeneratingId(null); setExportFormat('html'); }
+              setExportDialogOpen(open);
+            }}
+          >
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <FileDown className="h-4 w-4 mr-2" />
+              <Button variant="outline" size="sm" className="h-8">
+                <FileDown className="h-3.5 w-3.5 mr-1.5" />
                 Export
               </Button>
             </DialogTrigger>
@@ -281,17 +355,13 @@ export default function AnalyticsPage() {
               <DialogHeader>
                 <DialogTitle>Export Report</DialogTitle>
                 <DialogDescription>
-                  Generate a report for the currently selected date range ({startDate} to {endDate}).
+                  Generate a report for {startDate} to {endDate}.
                 </DialogDescription>
               </DialogHeader>
-
-              {/* Format selector */}
               <div className="space-y-2">
                 <Label>Format</Label>
                 <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as ReportFormat)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="html">HTML (with charts)</SelectItem>
                     <SelectItem value="json">JSON (raw data)</SelectItem>
@@ -299,25 +369,20 @@ export default function AnalyticsPage() {
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Generation status */}
               {generatingId && generatingReport && (
                 <div className="rounded-md border p-3 space-y-2">
                   {generatingReport.status === 'completed' ? (
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-green-600 flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4" />
-                        Report ready
+                        <CheckCircle2 className="h-4 w-4" /> Report ready
                       </span>
                       <Button size="sm" onClick={handleDownloadGenerated}>
-                        <Download className="h-4 w-4 mr-2" />
-                        Download
+                        <Download className="h-4 w-4 mr-2" /> Download
                       </Button>
                     </div>
                   ) : generatingReport.status === 'failed' ? (
                     <p className="text-sm text-red-600 flex items-center gap-2">
-                      <XCircle className="h-4 w-4" />
-                      {generatingReport.error || 'Generation failed'}
+                      <XCircle className="h-4 w-4" />{generatingReport.error || 'Generation failed'}
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -327,8 +392,6 @@ export default function AnalyticsPage() {
                   )}
                 </div>
               )}
-
-              {/* Recent exports */}
               {recentReports.length > 0 && (
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">Recent Exports</Label>
@@ -356,14 +419,16 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
               )}
-
               <DialogFooter>
-                <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
-                  Cancel
-                </Button>
+                <Button variant="outline" onClick={() => setExportDialogOpen(false)}>Cancel</Button>
                 <Button
                   onClick={handleExport}
-                  disabled={generateReport.isPending || (!!generatingId && generatingReport?.status !== 'completed' && generatingReport?.status !== 'failed')}
+                  disabled={
+                    generateReport.isPending ||
+                    (!!generatingId &&
+                      generatingReport?.status !== 'completed' &&
+                      generatingReport?.status !== 'failed')
+                  }
                 >
                   {generateReport.isPending ? (
                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating…</>
@@ -374,162 +439,91 @@ export default function AnalyticsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" onClick={handleRefreshData} disabled={triggerAggregation.isPending}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${triggerAggregation.isPending ? 'animate-spin' : ''}`} />
-            Refresh Data
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8"
+            onClick={handleRefreshData}
+            disabled={triggerAggregation.isPending}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${triggerAggregation.isPending ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         </div>
       </div>
 
-      {metricsData?.summary && (
-        <MetricsSummary
-          totalExecutions={metricsData.summary.total_executions}
-          passedExecutions={metricsData.summary.passed_executions}
-          failedExecutions={metricsData.summary.failed_executions}
-          passRate={metricsData.summary.pass_rate}
-          avgDurationMs={metricsData.summary.avg_duration_ms}
-          flakyCount={flakyFlows.length}
-        />
-      )}
-
-      {/* Quick Navigation Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-6 mb-8">
-        <Link href="/analytics/trends">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Trends</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Detailed execution trends and performance analysis</p>
-              <div className="flex items-center text-sm text-primary mt-2">View Details <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/analytics/flakiness">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Flaky Tests</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Identify and track unreliable tests</p>
-              <div className="flex items-center text-sm text-primary mt-2">View Details <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/analytics/steps">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Step Performance</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Analyze individual step execution times and success rates</p>
-              <div className="flex items-center text-sm text-primary mt-2">View Details <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-
-      {/* Graph Agent Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
-        <Link href="/analytics/coverage">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Graph Coverage</CardTitle>
-              <Shield className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Analyze test coverage gaps using the dependency graph</p>
-              <div className="flex items-center text-sm text-primary mt-2">Run Analysis <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/analytics/diagnosis">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Diagnosis</CardTitle>
-              <Stethoscope className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Root cause analysis for test failures using graph context</p>
-              <div className="flex items-center text-sm text-primary mt-2">Diagnose <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/analytics/impact">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Impact Analysis</CardTitle>
-              <Zap className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Analyze code change impact on test flows</p>
-              <div className="flex items-center text-sm text-primary mt-2">Analyze <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/analytics/watch">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Watch Monitor</CardTitle>
-              <Eye className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Detect regressions and performance degradation</p>
-              <div className="flex items-center text-sm text-primary mt-2">Monitor <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/analytics/schedule">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Schedule Optimizer</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Optimize test scheduling and detect redundancy</p>
-              <div className="flex items-center text-sm text-primary mt-2">Optimize <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/analytics/orchestrator">
-          <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Orchestrator</CardTitle>
-              <Workflow className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">Coordinate multiple AI agents for comprehensive analysis</p>
-              <div className="flex items-center text-sm text-primary mt-2">Orchestrate <ArrowRight className="h-4 w-4 ml-1" /></div>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="trends" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="trends">
-            <TrendingUp className="h-4 w-4 mr-2" />
+      {/* 5-tab layout */}
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="h-9">
+          <TabsTrigger value="overview" className="text-sm gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="trends" className="text-sm gap-1.5">
+            <TrendingUp className="h-3.5 w-3.5" />
             Trends
           </TabsTrigger>
-          <TabsTrigger value="flakiness">
-            <AlertTriangle className="h-4 w-4 mr-2" />
-            Flaky Tests
+          <TabsTrigger value="flakiness" className="text-sm gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Flakiness
           </TabsTrigger>
-          <TabsTrigger value="coverage">
-            <Target className="h-4 w-4 mr-2" />
+          <TabsTrigger value="coverage" className="text-sm gap-1.5">
+            <Target className="h-3.5 w-3.5" />
             Coverage
           </TabsTrigger>
-          <TabsTrigger value="telemetry">Telemetry</TabsTrigger>
+          <TabsTrigger value="telemetry" className="text-sm gap-1.5">
+            <Wifi className="h-3.5 w-3.5" />
+            Telemetry
+          </TabsTrigger>
         </TabsList>
 
+        {/* ── Overview ── */}
+        <TabsContent value="overview" className="space-y-6">
+          {summary ? (
+            <MetricsSummary
+              totalExecutions={summary.total_executions}
+              passedExecutions={summary.passed_executions}
+              failedExecutions={summary.failed_executions}
+              passRate={summary.pass_rate}
+              avgDurationMs={summary.avg_duration_ms}
+              flakyCount={flakyFlows.length}
+            />
+          ) : (
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+            </div>
+          )}
+          {trendsLoading ? (
+            <Skeleton className="h-64 rounded-xl" />
+          ) : trendsData?.trends && trendsData.trends.length > 0 ? (
+            <TrendChart
+              data={trendsData.trends}
+              title="Execution Trends"
+              showExecutions
+              showPassRate
+              height={260}
+            />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                <Activity className="h-10 w-10 mb-3 opacity-30" />
+                <p className="text-sm">No trend data for the selected period</p>
+                <Button variant="outline" size="sm" className="mt-3" onClick={handleRefreshData}>
+                  Aggregate Data
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ── Trends ── */}
         <TabsContent value="trends" className="space-y-4">
           <div className="flex justify-end">
-            <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
-              <SelectTrigger className="w-32"><SelectValue placeholder="Group by" /></SelectTrigger>
+            <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'day' | 'week' | 'month')}>
+              <SelectTrigger className="w-32 h-8 text-sm">
+                <SelectValue placeholder="Group by" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="day">Daily</SelectItem>
                 <SelectItem value="week">Weekly</SelectItem>
@@ -538,29 +532,42 @@ export default function AnalyticsPage() {
             </Select>
           </div>
           {trendsLoading ? (
-            <Card><CardContent className="flex items-center justify-center py-12"><RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" /></CardContent></Card>
+            <Skeleton className="h-80 rounded-xl" />
           ) : trendsData?.trends && trendsData.trends.length > 0 ? (
-            <TrendChart data={trendsData.trends} title="Execution Trends" showExecutions showPassRate height={350} />
+            <TrendChart
+              data={trendsData.trends}
+              title="Execution Trends"
+              showExecutions
+              showPassRate
+              height={350}
+            />
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <Calendar className="h-12 w-12 mb-4" />
+                <Calendar className="h-12 w-12 mb-4 opacity-30" />
                 <p>No trend data available for the selected period</p>
-                <Button variant="outline" className="mt-4" onClick={handleRefreshData}>Aggregate Data</Button>
+                <Button variant="outline" className="mt-4" onClick={handleRefreshData}>
+                  Aggregate Data
+                </Button>
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
+        {/* ── Flakiness ── */}
         <TabsContent value="flakiness">
           <Card>
             <CardHeader>
               <CardTitle>Flaky Tests</CardTitle>
-              <CardDescription>Tests with inconsistent pass/fail patterns that may need attention</CardDescription>
+              <CardDescription>
+                Tests with inconsistent pass/fail patterns that may need attention
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {flakinessLoading ? (
-                <div className="flex items-center justify-center py-12"><RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+                <div className="space-y-3">
+                  {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 rounded-lg" />)}
+                </div>
               ) : (
                 <FlakinessTable data={flakyFlows} />
               )}
@@ -568,15 +575,19 @@ export default function AnalyticsPage() {
           </Card>
         </TabsContent>
 
+        {/* ── Coverage ── */}
         <TabsContent value="coverage" className="space-y-4">
           {coverageResult ? (
-            <CoverageResults result={coverageResult} onReset={() => { setCoverageResult(null); setCoverageSpec(''); setCoverageBaseUrl(''); }} />
+            <CoverageResults
+              result={coverageResult}
+              onReset={() => { setCoverageResult(null); setCoverageSpec(''); setCoverageBaseUrl(''); }}
+            />
           ) : (
-            <div className="space-y-4">
+            <>
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-green-500" />
+                    <Target className="h-5 w-5 text-primary" />
                     API Coverage Analysis
                   </CardTitle>
                   <CardDescription>
@@ -607,7 +618,11 @@ export default function AnalyticsPage() {
                       className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                     />
                   </div>
-                  <Button onClick={handleAnalyzeCoverage} disabled={!coverageSpec.trim() || analyzeCoverage.isPending} className="w-full">
+                  <Button
+                    onClick={handleAnalyzeCoverage}
+                    disabled={!coverageSpec.trim() || analyzeCoverage.isPending}
+                    className="w-full"
+                  >
                     {analyzeCoverage.isPending ? (
                       <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Analyzing...</>
                     ) : (
@@ -616,7 +631,9 @@ export default function AnalyticsPage() {
                   </Button>
                   {analyzeCoverage.isError && (
                     <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-sm text-red-700 dark:text-red-400">
-                      {analyzeCoverage.error instanceof Error ? analyzeCoverage.error.message : 'Analysis failed'}
+                      {analyzeCoverage.error instanceof Error
+                        ? analyzeCoverage.error.message
+                        : 'Analysis failed'}
                     </div>
                   )}
                 </CardContent>
@@ -637,13 +654,17 @@ export default function AnalyticsPage() {
                           <Target className="h-4 w-4 text-muted-foreground shrink-0" />
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium truncate">{analysis.spec_name}</div>
-                            <div className="text-xs text-muted-foreground">{new Date(analysis.created_at).toLocaleDateString()}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(analysis.created_at).toLocaleDateString()}
+                            </div>
                           </div>
                           <div className="text-right shrink-0">
                             <div className={`text-sm font-bold ${analysis.coverage_percent >= 80 ? 'text-green-600' : analysis.coverage_percent >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
                               {Math.round(analysis.coverage_percent)}%
                             </div>
-                            <div className="text-xs text-muted-foreground">{analysis.covered_endpoints}/{analysis.total_endpoints} endpoints</div>
+                            <div className="text-xs text-muted-foreground">
+                              {analysis.covered_endpoints}/{analysis.total_endpoints} endpoints
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -651,19 +672,30 @@ export default function AnalyticsPage() {
                   </CardContent>
                 </Card>
               )}
-            </div>
+            </>
           )}
         </TabsContent>
 
+        {/* ── Telemetry ── */}
         <TabsContent value="telemetry" className="space-y-6">
-          <div>
-            <h3 className="text-sm font-semibold mb-3">Discovered Flows</h3>
-            <DiscoveredFlowsTable />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold mb-3">Drift Alerts</h3>
-            <DriftAlerts />
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Discovered Flows</CardTitle>
+              <CardDescription>Flows detected from telemetry data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DiscoveredFlowsTable />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Drift Alerts</CardTitle>
+              <CardDescription>Detected changes in service behavior</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DriftAlerts />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
