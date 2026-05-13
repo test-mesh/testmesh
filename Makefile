@@ -1,4 +1,4 @@
-.PHONY: help dev up down build clean logs test api-test web-test api-shell web-shell db-shell
+.PHONY: help dev up down build clean logs test api-test web-test api-shell web-shell db-shell plugin-release plugin-cache-clear
 
 # Colors for output
 GREEN  := \033[0;32m
@@ -87,3 +87,11 @@ docs-build: ## Build documentation site
 docs-install: ## Install documentation dependencies
 	@echo "$(GREEN)Installing documentation dependencies...$(NC)"
 	cd docs-site && npm install
+
+plugin-cache-clear: ## Clear stale plugin cache (run before bumping plugin version)
+	@echo "$(YELLOW)Clearing stale testmesh plugin cache...$(NC)"
+	@rm -rf ~/.claude/plugins/cache/testmesh
+	@echo "$(GREEN)Done. Run /plugin in Claude Code to reinstall.$(NC)"
+
+plugin-release: plugin-cache-clear ## Bump plugin version, clear cache, ready for /plugin reinstall
+	@echo "$(GREEN)Plugin cache cleared. Commit the version bump in .claude-plugin/plugin.json, then run /plugin.$(NC)"
