@@ -7,8 +7,6 @@ import {
   Redo,
   Play,
   Code,
-  LayoutGrid,
-  Settings2,
   ChevronLeft,
   ChevronRight,
   AlertCircle,
@@ -20,11 +18,11 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import type { FlowDefinition } from '@/lib/api/types';
-import type { FlowNode, FlowNodeData, PaletteItem } from './types';
+import type { FlowNode, FlowNodeData } from './types';
 import { flowDefinitionToYaml, flowDefinitionToNodesAndEdges, nodesAndEdgesToFlowDefinition } from './utils';
 import { applyAutoLayout } from './layout';
 
@@ -224,8 +222,8 @@ export default function FlowEditor({
   isRunning = false,
   className,
 }: FlowEditorProps) {
-  // Editor mode: 'visual' or 'yaml'
-  const [mode, setMode] = useState<'visual' | 'yaml'>('visual');
+  // YAML Sheet drawer
+  const [yamlSheetOpen, setYamlSheetOpen] = useState(false);
 
   // Flow definition state
   const [definition, setDefinition] = useState<FlowDefinition>(
@@ -253,16 +251,20 @@ export default function FlowEditor({
   const [isDirty, setIsDirty] = useState(false);
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
 
+  // Always use visual mode now — YAML is a Sheet drawer
+  const mode = 'visual';
+
   // History for undo/redo
   const [history, setHistory] = useState<FlowDefinition[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
 
-  // Sync YAML when switching modes
+  // Sync YAML when opening the Sheet drawer
   useEffect(() => {
-    if (mode === 'yaml' && definition) {
+    if (yamlSheetOpen && definition) {
       setYaml(flowDefinitionToYaml(definition));
+      setYamlError(null);
     }
-  }, [mode]);
+  }, [yamlSheetOpen]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -279,7 +281,7 @@ export default function FlowEditor({
       }
 
       // Cmd/Ctrl+F: Toggle search
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f' && mode === 'visual' && !isInput) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f' && !isInput) {
         e.preventDefault();
         setShowSearch((prev) => !prev);
       }
@@ -300,38 +302,29 @@ export default function FlowEditor({
 
   // Auto-validate flow when definition changes
   useEffect(() => {
-    if (mode === 'visual' && definition) {
+    if (definition) {
       const { nodes } = flowDefinitionToNodesAndEdges(definition);
       const result = validateFlow(definition, nodes);
       setValidationResult(result);
 
-      // Auto-show validation panel if there are errors
       if (!result.valid && result.errorCount > 0) {
         setShowValidation(true);
       }
     }
-  }, [definition, mode]);
+  }, [definition]);
 
-  // Handle mode switch
-  const handleModeChange = useCallback((newMode: string) => {
+  // Apply YAML edits back to definition when closing the Sheet
+  const handleYamlSheetClose = useCallback(() => {
     setValidationSuccess(null);
-    if (newMode === 'yaml') {
-      // Visual → YAML: Generate YAML from definition
-      setYaml(flowDefinitionToYaml(definition));
+    const parsed = parseYaml(yaml);
+    if (parsed) {
+      setDefinition(parsed);
       setYamlError(null);
     } else {
-      // YAML → Visual: Parse YAML to definition
-      const parsed = parseYaml(yaml);
-      if (parsed) {
-        setDefinition(parsed);
-        setYamlError(null);
-      } else {
-        setYamlError('Invalid YAML syntax. Please fix before switching to visual mode.');
-        return; // Don't switch modes
-      }
+      setYamlError('Invalid YAML syntax — changes not applied.');
     }
-    setMode(newMode as 'visual' | 'yaml');
-  }, [definition, yaml]);
+    setYamlSheetOpen(false);
+  }, [yaml]);
 
   // Handle definition changes (from visual editor)
   const handleDefinitionChange = useCallback((newDefinition: FlowDefinition) => {
@@ -432,41 +425,15 @@ export default function FlowEditor({
 
   // Handle save
   const handleSave = useCallback(() => {
-    let finalYaml = yaml;
-    let finalDefinition = definition;
-
-    if (mode === 'visual') {
-      finalYaml = flowDefinitionToYaml(definition);
-    } else {
-      const parsed = parseYaml(yaml);
-      if (parsed) {
-        finalDefinition = parsed;
-      } else {
-        setYamlError('Cannot save: Invalid YAML syntax');
-        return;
-      }
-    }
-
-    onSave?.(finalYaml, finalDefinition);
+    const finalYaml = flowDefinitionToYaml(definition);
+    onSave?.(finalYaml, definition);
     setIsDirty(false);
-  }, [mode, yaml, definition, onSave]);
+  }, [definition, onSave]);
 
   // Handle run
   const handleRun = useCallback(() => {
-    let finalDefinition = definition;
-
-    if (mode === 'yaml') {
-      const parsed = parseYaml(yaml);
-      if (parsed) {
-        finalDefinition = parsed;
-      } else {
-        setYamlError('Cannot run: Invalid YAML syntax');
-        return;
-      }
-    }
-
-    onRun?.(finalDefinition);
-  }, [mode, yaml, definition, onRun]);
+    onRun?.(definition);
+  }, [definition, onRun]);
 
   // Undo/Redo
   const handleUndo = useCallback(() => {
@@ -498,8 +465,6 @@ export default function FlowEditor({
 
   // Handle auto-layout
   const handleAutoLayout = useCallback(() => {
-    if (mode !== 'visual') return;
-
     // Convert current definition to nodes and edges
     const { nodes, edges } = flowDefinitionToNodesAndEdges(definition);
 
@@ -527,26 +492,23 @@ export default function FlowEditor({
     // Add to history
     setHistory((prev) => [...prev.slice(0, historyIndex + 1), layoutedDefinition]);
     setHistoryIndex((prev) => prev + 1);
-  }, [mode, definition, historyIndex]);
+  }, [definition, historyIndex]);
 
   return (
     <div className={cn('flex flex-col h-full bg-background', className)}>
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
         <div className="flex items-center gap-2">
-          {/* Mode Tabs */}
-          <Tabs value={mode} onValueChange={handleModeChange}>
-            <TabsList className="h-8">
-              <TabsTrigger value="visual" className="text-xs px-3 h-7">
-                <LayoutGrid className="w-3.5 h-3.5 mr-1.5" />
-                Visual
-              </TabsTrigger>
-              <TabsTrigger value="yaml" className="text-xs px-3 h-7">
-                <Code className="w-3.5 h-3.5 mr-1.5" />
-                YAML
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          {/* YAML Drawer button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setYamlSheetOpen(true)}
+            className="h-8 text-xs gap-1.5"
+          >
+            <Code className="w-3.5 h-3.5" />
+            YAML
+          </Button>
 
           <div className="w-px h-6 bg-border mx-2" />
 
@@ -586,103 +548,81 @@ export default function FlowEditor({
             <Redo className="w-4 h-4" />
           </Button>
 
-          {/* Panel toggles (visual mode) */}
-          {mode === 'visual' && (
-            <>
-              <div className="w-px h-6 bg-border mx-2" />
+          {/* Canvas panel toggles */}
+          <div className="w-px h-6 bg-border mx-2" />
 
-              {/* Auto Layout Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAutoLayout}
-                className="h-8 text-xs gap-1.5"
-                title="Automatically arrange nodes"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                Auto Layout
-              </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAutoLayout}
+            className="h-8 text-xs gap-1.5"
+            title="Automatically arrange nodes"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Auto Layout
+          </Button>
 
-              {/* Search Button */}
-              <Button
-                variant={showSearch ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => setShowSearch(!showSearch)}
-                className="h-8 text-xs gap-1.5"
-                title="Search nodes (Cmd/Ctrl+F)"
-              >
-                <Search className="w-3.5 h-3.5" />
-                Search
-              </Button>
+          <Button
+            variant={showSearch ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => setShowSearch(!showSearch)}
+            className="h-8 text-xs gap-1.5"
+            title="Search nodes (Cmd/Ctrl+F)"
+          >
+            <Search className="w-3.5 h-3.5" />
+            Search
+          </Button>
 
-              <div className="w-px h-6 bg-border mx-2" />
+          <div className="w-px h-6 bg-border mx-2" />
 
-              <Button
-                variant={showPalette ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setShowPalette(!showPalette)}
-                className="h-8 text-xs"
-              >
-                <ChevronLeft className={cn('w-4 h-4 mr-1 transition-transform', !showPalette && 'rotate-180')} />
-                Actions
-              </Button>
-              <Button
-                variant={showProperties ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setShowProperties(!showProperties)}
-                className="h-8 text-xs"
-              >
-                Properties
-                <ChevronRight className={cn('w-4 h-4 ml-1 transition-transform', !showProperties && 'rotate-180')} />
-              </Button>
+          <Button
+            variant={showPalette ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setShowPalette(!showPalette)}
+            className="h-8 text-xs"
+          >
+            <ChevronLeft className={cn('w-4 h-4 mr-1 transition-transform', !showPalette && 'rotate-180')} />
+            Actions
+          </Button>
+          <Button
+            variant={showProperties ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setShowProperties(!showProperties)}
+            className="h-8 text-xs"
+          >
+            Properties
+            <ChevronRight className={cn('w-4 h-4 ml-1 transition-transform', !showProperties && 'rotate-180')} />
+          </Button>
 
-              <Button
-                variant={showValidation ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setShowValidation(!showValidation)}
-                className={cn(
-                  'h-8 text-xs gap-1.5',
-                  validationResult && !validationResult.valid && 'text-red-500 hover:text-red-600'
-                )}
-                title={
-                  validationResult
-                    ? `${validationResult.errorCount} errors, ${validationResult.warningCount} warnings`
-                    : 'Show validation'
-                }
+          <Button
+            variant={showValidation ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setShowValidation(!showValidation)}
+            className={cn(
+              'h-8 text-xs gap-1.5',
+              validationResult && !validationResult.valid && 'text-red-500 hover:text-red-600'
+            )}
+            title={
+              validationResult
+                ? `${validationResult.errorCount} errors, ${validationResult.warningCount} warnings`
+                : 'Show validation'
+            }
+          >
+            {validationResult && !validationResult.valid ? (
+              <AlertCircle className="w-3.5 h-3.5" />
+            ) : (
+              <CheckCircle2 className="w-3.5 h-3.5" />
+            )}
+            Validation
+            {validationResult && (validationResult.errorCount > 0 || validationResult.warningCount > 0) && (
+              <Badge
+                variant={validationResult.errorCount > 0 ? 'destructive' : 'secondary'}
+                className="h-4 text-[10px] px-1 ml-0.5"
               >
-                {validationResult && !validationResult.valid ? (
-                  <AlertCircle className="w-3.5 h-3.5" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                )}
-                Validation
-                {validationResult && (validationResult.errorCount > 0 || validationResult.warningCount > 0) && (
-                  <Badge
-                    variant={validationResult.errorCount > 0 ? 'destructive' : 'secondary'}
-                    className="h-4 text-[10px] px-1 ml-0.5"
-                  >
-                    {validationResult.errorCount + validationResult.warningCount}
-                  </Badge>
-                )}
-              </Button>
-            </>
-          )}
-
-          {/* Validate button (yaml mode) */}
-          {mode === 'yaml' && (
-            <>
-              <div className="w-px h-6 bg-border mx-2" />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleValidate}
-                className="h-8 text-xs"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                Validate
-              </Button>
-            </>
-          )}
+                {validationResult.errorCount + validationResult.warningCount}
+              </Badge>
+            )}
+          </Button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -731,110 +671,126 @@ export default function FlowEditor({
         </div>
       </div>
 
-      {/* Error Alert */}
-      {yamlError && (
-        <Alert variant="destructive" className="mx-4 mt-2">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="whitespace-pre-wrap">{yamlError}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Success Alert */}
-      {validationSuccess && !yamlError && (
-        <Alert className="mx-4 mt-2 border-green-500/50 text-green-700 dark:text-green-400">
-          <CheckCircle2 className="h-4 w-4 text-green-600" />
-          <AlertDescription>{validationSuccess}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Main Content */}
+      {/* Main Content — always visual canvas */}
       <div className="flex-1 flex overflow-hidden">
-        {mode === 'visual' ? (
-          <>
-            {/* Node Palette */}
-            {showPalette && <NodePalette />}
+        {/* Node Palette */}
+        {showPalette && <NodePalette />}
 
-            {/* Search Panel */}
-            {showSearch && (
-              <div className="w-80 border-r">
-                <SearchPanel
-                  nodes={(() => {
-                    const { nodes } = flowDefinitionToNodesAndEdges(definition);
-                    return nodes;
-                  })()}
-                  onNodeSelect={(nodeId) => {
-                    const { nodes } = flowDefinitionToNodesAndEdges(definition);
-                    const node = nodes.find((n) => n.id === nodeId);
-                    if (node) {
-                      handleNodeSelect(node);
-                      // Optionally focus the canvas on the selected node
-                    }
-                  }}
-                  onClose={() => setShowSearch(false)}
-                />
+        {/* Search Panel */}
+        {showSearch && (
+          <div className="w-80 border-r">
+            <SearchPanel
+              nodes={(() => {
+                const { nodes } = flowDefinitionToNodesAndEdges(definition);
+                return nodes;
+              })()}
+              onNodeSelect={(nodeId) => {
+                const { nodes } = flowDefinitionToNodesAndEdges(definition);
+                const node = nodes.find((n) => n.id === nodeId);
+                if (node) handleNodeSelect(node);
+              }}
+              onClose={() => setShowSearch(false)}
+            />
+          </div>
+        )}
+
+        {/* Canvas */}
+        <div className="flex-1 relative">
+          <FlowCanvas
+            definition={definition}
+            onDefinitionChange={handleDefinitionChange}
+            onNodeSelect={handleNodeSelect}
+            selectedNodeId={selectedNode?.id}
+          />
+        </div>
+
+        {/* Properties Panel */}
+        {showProperties && (
+          <PropertiesPanel
+            node={selectedNode}
+            onNodeUpdate={handleNodeUpdate}
+            onClose={() => setShowProperties(false)}
+            stepOutputs={(() => {
+              if (!selectedNode || !definition?.steps) return {};
+              const outputs: Record<string, Record<string, unknown>> = {};
+              for (const step of definition.steps) {
+                if (step.id === selectedNode.id) break;
+                if (step.output) {
+                  outputs[step.id ?? step.name ?? ''] = Object.fromEntries(
+                    Object.keys(step.output).map((k) => [k, `\${${step.id}.${k}}`])
+                  );
+                }
+              }
+              return outputs;
+            })()}
+          />
+        )}
+
+        {/* Validation Panel */}
+        {showValidation && validationResult && (
+          <ValidationPanel
+            result={validationResult}
+            onNodeSelect={(nodeId) => {
+              const { nodes } = flowDefinitionToNodesAndEdges(definition);
+              const node = nodes.find((n) => n.id === nodeId);
+              if (node) handleNodeSelect(node);
+            }}
+            onClose={() => setShowValidation(false)}
+            className="w-80"
+          />
+        )}
+      </div>
+
+      {/* YAML Sheet Drawer */}
+      <Sheet open={yamlSheetOpen} onOpenChange={(open) => { if (!open) handleYamlSheetClose(); }}>
+        <SheetContent side="right" className="w-[600px] sm:max-w-[600px] flex flex-col p-0">
+          <SheetHeader className="px-6 py-4 border-b">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-base">YAML Editor</SheetTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleValidate}
+                  className="h-7 text-xs"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                  Validate
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleYamlSheetClose}
+                  className="h-7 text-xs"
+                >
+                  Apply
+                </Button>
               </div>
-            )}
-
-            {/* Canvas */}
-            <div className="flex-1 relative">
-              <FlowCanvas
-                definition={definition}
-                onDefinitionChange={handleDefinitionChange}
-                onNodeSelect={handleNodeSelect}
-                selectedNodeId={selectedNode?.id}
-              />
             </div>
+          </SheetHeader>
 
-            {/* Properties Panel */}
-            {showProperties && (
-              <PropertiesPanel
-                node={selectedNode}
-                onNodeUpdate={handleNodeUpdate}
-                onClose={() => setShowProperties(false)}
-                stepOutputs={(() => {
-                  if (!selectedNode || !definition?.steps) return {};
-                  const outputs: Record<string, Record<string, unknown>> = {};
-                  for (const step of definition.steps) {
-                    if (step.id === selectedNode.id) break;
-                    if (step.output) {
-                      outputs[step.id ?? step.name ?? ''] = Object.fromEntries(
-                        Object.keys(step.output).map((k) => [k, `\${${step.id}.${k}}`])
-                      );
-                    }
-                  }
-                  return outputs;
-                })()}
-              />
-            )}
+          {yamlError && (
+            <Alert variant="destructive" className="mx-4 mt-3">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="whitespace-pre-wrap text-xs">{yamlError}</AlertDescription>
+            </Alert>
+          )}
+          {validationSuccess && !yamlError && (
+            <Alert className="mx-4 mt-3 border-green-500/50">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertDescription className="text-xs text-green-700 dark:text-green-400">{validationSuccess}</AlertDescription>
+            </Alert>
+          )}
 
-            {/* Validation Panel */}
-            {showValidation && validationResult && (
-              <ValidationPanel
-                result={validationResult}
-                onNodeSelect={(nodeId) => {
-                  const { nodes } = flowDefinitionToNodesAndEdges(definition);
-                  const node = nodes.find((n) => n.id === nodeId);
-                  if (node) {
-                    handleNodeSelect(node);
-                  }
-                }}
-                onClose={() => setShowValidation(false)}
-                className="w-80"
-              />
-            )}
-          </>
-        ) : (
-          /* YAML Editor */
-          <div className="flex-1 p-4">
+          <div className="flex-1 p-4 overflow-hidden">
             <Textarea
               value={yaml}
               onChange={(e) => handleYamlChange(e.target.value)}
               placeholder="Enter your flow definition in YAML format..."
-              className="w-full h-full font-mono text-sm resize-none"
+              className="w-full h-full font-mono text-xs resize-none"
             />
           </div>
-        )}
-      </div>
+        </SheetContent>
+      </Sheet>
 
       {/* Keyboard Shortcuts Dialog */}
       <KeyboardShortcutsDialog
