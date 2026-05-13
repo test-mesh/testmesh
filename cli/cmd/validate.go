@@ -156,6 +156,12 @@ func validateFlow(cmd *cobra.Command, args []string) error {
 	validateSteps(flow.Steps, "steps")
 	validateSteps(flow.Teardown, "teardown")
 
+	// Lint for hardcoded infrastructure values (warnings, not errors)
+	var warnings []string
+	lintSteps(flow.Setup, "setup", &warnings)
+	lintSteps(flow.Steps, "steps", &warnings)
+	lintSteps(flow.Teardown, "teardown", &warnings)
+
 	fmt.Println()
 	if len(errs) > 0 {
 		fmt.Printf("❌ Validation failed with %d error(s):\n\n", len(errs))
@@ -167,6 +173,40 @@ func validateFlow(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("✅ Flow is valid")
+
+	if len(warnings) > 0 {
+		fmt.Printf("\n⚠️  %d portability warning(s):\n\n", len(warnings))
+		for _, w := range warnings {
+			fmt.Printf("   • %s\n", w)
+		}
+		fmt.Printf(`
+   Fix: create a shared .env.test at your flows root and reference it with env_file:
+
+     # flows/.env.test
+     # --- Service URLs ---
+     CATALOG_URL=http://localhost:5580
+
+     # --- Database connections ---
+     DB_CATALOG=postgres://root:admin@localhost:5432/catalog?sslmode=disable
+
+     # --- Infrastructure ---
+     KAFKA_BROKERS=localhost:9092
+     REDIS_HOST=localhost
+     REDIS_PORT=6379
+
+     # --- Kafka topics ---
+     TOPIC_UPLOAD=myapp.file.uploaded
+
+   Then in each flow:
+     flow:
+       name: "..."
+       env_file: ../../.env.test   # relative to this file
+
+   Or set routing.overrides in a TestMesh Environment to inject infra config
+   automatically at run time — no infra fields needed in flow YAML at all.
+
+`)
+	}
 	fmt.Println()
 	fmt.Printf("   Name: %s\n", flow.Name)
 	if flow.Description != "" {
@@ -253,6 +293,75 @@ var builtinVars = map[string]bool{
 
 func isBuiltinVar(name string) bool {
 	return builtinVars[strings.ToUpper(name)]
+}
+
+// lintSteps checks for hardcoded infrastructure values that should be env vars.
+// It emits warnings (not errors) so flows still pass validation.
+func lintSteps(steps []map[string]interface{}, phase string, warnings *[]string) {
+	for _, step := range steps {
+		id, _ := step["id"].(string)
+		action, _ := step["action"].(string)
+		config, _ := step["config"].(map[string]interface{})
+		if config == nil {
+			continue
+		}
+		prefix := phase
+		if id != "" {
+			prefix = fmt.Sprintf("%s '%s'", phase, id)
+		}
+		lintConfigValues(config, action, prefix, warnings)
+	}
+}
+
+// lintConfigValues walks a config map and warns about hardcoded infrastructure strings.
+func lintConfigValues(config map[string]interface{}, action, prefix string, warnings *[]string) {
+	for key, val := range config {
+		str, ok := val.(string)
+		if !ok {
+			continue
+		}
+		// Skip values that are already env var references
+		if strings.HasPrefix(str, "${") || strings.HasPrefix(str, "{{") {
+			continue
+		}
+		switch key {
+		case "connection":
+			// Raw DSN: starts with postgres://, mysql://, etc.
+			if looksLikeDSN(str) {
+				*warnings = append(*warnings, fmt.Sprintf(
+					"%s: config.connection has a hardcoded DSN — use ${DB_URL} (or set via routing.overrides.%s.connection in your Environment)",
+					prefix, action))
+			}
+		case "url":
+			if strings.Contains(str, "localhost") || strings.Contains(str, "127.0.0.1") {
+				*warnings = append(*warnings, fmt.Sprintf(
+					"%s: config.url contains a hardcoded host — use ${BASE_URL} or a named env var",
+					prefix))
+			}
+		case "brokers":
+			if strings.Contains(str, "localhost") || strings.Contains(str, "127.0.0.1") {
+				*warnings = append(*warnings, fmt.Sprintf(
+					"%s: config.brokers contains a hardcoded host — use ${KAFKA_BROKERS}",
+					prefix))
+			}
+		case "host":
+			if str == "localhost" || str == "127.0.0.1" {
+				*warnings = append(*warnings, fmt.Sprintf(
+					"%s: config.host is hardcoded to '%s' — use ${REDIS_HOST} or similar",
+					prefix, str))
+			}
+		}
+	}
+}
+
+func looksLikeDSN(s string) bool {
+	schemes := []string{"postgres://", "postgresql://", "mysql://", "mongodb://", "redis://"}
+	for _, scheme := range schemes {
+		if strings.HasPrefix(s, scheme) {
+			return true
+		}
+	}
+	return false
 }
 
 func printStepList(title string, steps []map[string]interface{}) {

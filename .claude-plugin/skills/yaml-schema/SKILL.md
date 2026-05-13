@@ -20,10 +20,9 @@ flow:
   tags:
     - smoke-test
     - e2e
-  env_file: .env.test            # relative to flow file; loaded first
-  env:                           # inline vars; override env_file values
-    USER_SERVICE_URL: "http://localhost:5001"
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+  env_file: .env.test            # relative to flow file; loaded first (preferred for infra vars)
+  env:                           # inline vars; override env_file values (use for flow-specific overrides only)
+    CUSTOM_TIMEOUT: "30s"
   config:
     timeout: "5m"                # global flow timeout
     fail_fast: true              # stop on first step failure (default true)
@@ -189,17 +188,87 @@ assert:
 
 **Functions:** `len()`, `string()`, `int()`, `float()`, `keys()`, `values()`
 
+### Assertion Quality Rules
+
+Write assertions that catch real bugs — shallow ones give false confidence.
+
+**No permissive OR assertions** — `status == 200 || status == 404` is nearly always true. Encode the exact expectation:
+```yaml
+# WRONG
+assert:
+  - status == 200 || status == 201
+# CORRECT
+assert:
+  - status == 201
+```
+
+**Kafka: verify message content, not just delivery** — `len(messages) > 0` proves arrival but not correctness:
+```yaml
+# WRONG
+assert:
+  - len(messages) > 0
+# CORRECT
+assert:
+  - len(messages) == 1
+  - messages[0].value.user_id == user_id
+  - messages[0].value.email == email
+  - messages[0].value.status == "active"
+```
+
+**Cross-step comparisons** — capture a baseline before the action, assert the delta after:
+```yaml
+- id: get_before
+  output:
+    count_before: $.body.total
+# ... perform action ...
+- id: verify
+  assert:
+    - body.total == count_before + 1
+    - first_row.inventory == initial_inventory - 2
+```
+
+**Verify entity fields, not just existence** — confirm fields match what was sent:
+```yaml
+# WRONG
+assert:
+  - status == 201
+  - body.id != nil
+# CORRECT
+assert:
+  - status == 201
+  - body.id != nil
+  - body.name == "Widget Alpha"
+  - body.email == email        # bare variable, not {{email}}
+  - body.is_active == true
+  - body.owner_id == user_id
+```
+
 ---
 
 ## Environment Variables in Flows
+
+**Rule: never hardcode hostnames, ports, or credentials in flow YAML.** Use `env_file:` for all infra config.
 
 Two sources, merged at runtime (`env:` overrides `env_file:`):
 
 ```yaml
 flow:
-  env_file: .env.test          # shared file for all flows in a suite
+  env_file: .env.test          # PRIMARY — shared .env.test at flows root; all infra vars go here
   env:
-    USER_SERVICE_URL: "http://localhost:5001"   # inline override
+    CUSTOM_TIMEOUT: "30s"      # SECONDARY — flow-specific overrides only, not infra config
+```
+
+`.env.test` template:
+```ini
+# Service URLs
+USER_SERVICE_URL=http://localhost:5001
+ORDER_SERVICE_URL=http://localhost:5003
+# Database connections
+DB_URL=postgres://root:admin@localhost:5432/postgres?sslmode=disable
+# Infrastructure
+KAFKA_BROKERS=localhost:9092
+REDIS_HOST=localhost
+REDIS_PORT=6379
 ```
 
 Reference with `${VAR}` or `{{VAR}}` in config values. In Docker Compose, use container names instead of `localhost`:

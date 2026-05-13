@@ -43,9 +43,12 @@ flow:
         - "body.id != nil"
         - "body.name != nil"
         - "body.email != nil"
+        - "body.name == create_user.config.body.name"   # field matches what was sent
+        - "body.email == create_user.config.body.email"
         - "duration_ms < 500"
       output:
         user_id: "$.body.id"
+        user_email: "$.body.email"
 ```
 
 **L1 checklist:**
@@ -65,10 +68,7 @@ Multi-step flow scoped to one service. Verify that each action persists correctl
 ```yaml
 flow:
   name: "L2 — Product lifecycle (create → verify DB, Redis, Kafka)"
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    KAFKA_BROKERS: "localhost:9092"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
+  env_file: ../../.env.test   # PRODUCT_SERVICE_URL, DB_URL, KAFKA_BROKERS, REDIS_HOST, REDIS_PORT
 
   steps:
     - id: create_product
@@ -100,8 +100,8 @@ flow:
     - id: verify_redis
       action: redis.get
       config:
-        host: localhost
-        port: "6379"
+        host: "${REDIS_HOST}"
+        port: "${REDIS_PORT}"
         key: "product:{{product_id}}"
       assert:
         - "value != nil"
@@ -116,7 +116,9 @@ flow:
         timeout: "10s"
         count: 1
       assert:
-        - "len(messages) > 0"
+        - "len(messages) == 1"
+        - "messages[0].value.product_id == product_id"
+        - "messages[0].value.inventory == 20"
 ```
 
 **L2 checklist:**
@@ -136,12 +138,7 @@ Full user journey across multiple services. Use `db_poll` for async side-effects
 ```yaml
 flow:
   name: "L3 — Full order journey (user → product → order → notification)"
-  env:
-    DB_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
-    KAFKA_BROKERS: "localhost:9092"
-    USER_SERVICE_URL: "http://localhost:5001"
-    PRODUCT_SERVICE_URL: "http://localhost:5002"
-    ORDER_SERVICE_URL: "http://localhost:5003"
+  env_file: ../../.env.test   # USER_SERVICE_URL, PRODUCT_SERVICE_URL, ORDER_SERVICE_URL, DB_URL, KAFKA_BROKERS
 
   setup:
     - id: cleanup_test_users
@@ -375,6 +372,30 @@ query: "SELECT * FROM user_service.users WHERE id = $1"
     timeout: "15s"
 ```
 
+**Assertion quality — four rules:**
+
+1. **No OR assertions** — `status == 200 || status == 404` catches nothing; use exact expectations
+2. **Kafka: verify content** — `len(messages) > 0` only proves delivery; assert payload fields:
+   ```yaml
+   assert:
+     - len(messages) == 1
+     - messages[0].value.user_id == user_id
+     - messages[0].value.status == "active"
+   ```
+3. **Cross-step delta** — capture baseline, assert change:
+   ```yaml
+   # capture: output: { count_before: "$.body.total" }
+   # assert:  body.total == count_before + 1
+   #          first_row.inventory == initial_inventory - 2
+   ```
+4. **Entity field verification** — don't just check `body.id != nil`; verify the fields match what was sent:
+   ```yaml
+   assert:
+     - body.name == name
+     - body.email == email
+     - body.owner_id == user_id
+   ```
+
 ---
 
 ## Layer Decision Guide
@@ -389,16 +410,17 @@ L3 passes?             → Write L4 (validation errors, duplicates, boundary val
 **Recommended file layout:**
 ```
 flows/
+├── .env.test                        ← single source of truth for all infra config
 ├── user-service/
-│   ├── l1-create-user.yaml
-│   ├── l1-get-user.yaml
-│   ├── l2-user-lifecycle.yaml
-│   ├── l4-duplicate-email.yaml
-│   └── l4-missing-fields.yaml
+│   ├── l1-create-user.yaml          env_file: ../.env.test
+│   ├── l1-get-user.yaml             env_file: ../.env.test
+│   ├── l2-user-lifecycle.yaml       env_file: ../.env.test
+│   ├── l4-duplicate-email.yaml      env_file: ../.env.test
+│   └── l4-missing-fields.yaml       env_file: ../.env.test
 ├── order-service/
-│   ├── l1-create-order.yaml
-│   ├── l2-order-chain.yaml
+│   ├── l1-create-order.yaml         env_file: ../.env.test
+│   ├── l2-order-chain.yaml          env_file: ../.env.test
 │   └── l4-insufficient-inventory.yaml
 └── e2e/
-    └── l3-full-order-journey.yaml
+    └── l3-full-order-journey.yaml   env_file: ../.env.test
 ```

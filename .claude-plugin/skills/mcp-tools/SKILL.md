@@ -137,7 +137,7 @@ Run a single action without a full flow. Useful for confirming a SQL query, chec
 ```
 action: database_query
 config:
-  connection: "postgres://root:admin@localhost:5432/postgres"
+  connection: "${DB_URL}"
   query: "SELECT * FROM user_service.users WHERE email = $1"
   params: ["test@example.com"]
 assert:

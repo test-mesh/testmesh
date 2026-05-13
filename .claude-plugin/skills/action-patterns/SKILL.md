@@ -146,20 +146,22 @@ Complete reference for every action type: required config, output variables, and
 - Set `from_beginning: true` when the consumer group has never seen the topic
 
 ```yaml
-- id: consume_notification
+- id: verify_order_event
   action: kafka_consumer
   config:
     brokers: "${KAFKA_BROKERS}"
-    topic: notification.sent
-    group_id: testmesh-e2e
+    topic: order.created
+    group_id: "testmesh-e2e-{{RANDOM_ID}}"
     timeout: 15s
     count: 1
     from_beginning: true
   assert:
-    - success == true
-    - count >= 1
+    - len(messages) == 1
+    - messages[0].value.order_id == order_id
+    - messages[0].value.user_id == user_id
+    - messages[0].value.status == "pending"
   output:
-    notification_payload: $.messages[0].value
+    event_order_id: $.messages[0].value.order_id
 ```
 
 ---
@@ -625,6 +627,97 @@ Requires Docker CLI on the host running the TestMesh API.
 | `contract_generate` | `contract_path` |
 | `contract_verify` | `verified`, `passed`, `failed` |
 | `docker_run` | `container_id`, `dsn`, `ports` |
+
+---
+
+## Assertion Quality Rules
+
+Write assertions that catch real bugs — shallow assertions give false confidence.
+
+### Rule 1 — No permissive OR assertions
+
+`status == 200 || status == 404` is almost always true and catches nothing. Encode the exact expectation.
+
+```yaml
+# WRONG — passes whether the operation succeeded or not
+assert:
+  - status == 200 || status == 201
+
+# CORRECT — exact expectation for this scenario
+assert:
+  - status == 201
+```
+
+### Rule 2 — Kafka consumers must verify message content
+
+`len(messages) > 0` only proves delivery. Always verify payload fields.
+
+```yaml
+# WRONG — proves a message arrived, not what it says
+assert:
+  - len(messages) > 0
+
+# CORRECT — verify payload fields match the triggering action
+assert:
+  - len(messages) == 1
+  - messages[0].value.user_id == user_id
+  - messages[0].value.email == email
+  - messages[0].value.status == "active"
+```
+
+### Rule 3 — Cross-step comparisons: capture before, assert delta after
+
+For operations that change a count or value, capture a baseline first.
+
+```yaml
+- id: get_before
+  action: http_request
+  config:
+    method: GET
+    url: "${SERVICE_URL}/api/v1/items"
+  output:
+    count_before: $.body.total
+
+- id: create_item
+  action: http_request
+  config:
+    method: POST
+    url: "${SERVICE_URL}/api/v1/items"
+    body: { name: "New Item" }
+  assert:
+    - status == 201
+
+- id: verify_count
+  action: http_request
+  config:
+    method: GET
+    url: "${SERVICE_URL}/api/v1/items"
+  assert:
+    - body.total == count_before + 1
+```
+
+For DB inventory: `assert: [first_row.inventory == initial_inventory - 2]`
+
+### Rule 4 — Verify created entity fields, not just existence
+
+Check that the fields you sent were stored and returned correctly.
+
+```yaml
+# WRONG — only proves something was created
+assert:
+  - status == 201
+  - body.id != nil
+
+# CORRECT — verify the entity matches what was sent
+assert:
+  - status == 201
+  - body.id != nil
+  - body.name == "Widget Alpha"
+  - body.email == email          # bare variable name, not {{email}}
+  - body.format == "gtfs-realtime"
+  - body.is_active == true
+  - body.owner_id == user_id
+```
 
 ---
 

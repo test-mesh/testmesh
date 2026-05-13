@@ -247,7 +247,7 @@ func GenerateE2EAnalysisReport(workspace *WorkspaceAnalysis, opts AnalysisReport
 	// ── SECTION 5: TestMesh YAML Quick Reference ───────────────────────────
 	b.WriteString("\n## TESTMESH YAML QUICK REFERENCE\n\n")
 
-	b.WriteString("### Flow structure:\n```yaml\nflow:\n  name: \"My E2E Test\"\n  steps:\n    - id: step_id\n      action: http_request\n      config:\n        method: POST\n        url: http://localhost:5001/api/v1/users\n        headers:\n          Content-Type: application/json\n        body:\n          name: \"Test User {{RANDOM_ID}}\"\n          email: \"test-{{RANDOM_ID}}@example.com\"\n      assert:\n        - \"status == 201\"\n        - \"body.id != nil\"\n      output:\n        user_id: \"$.body.id\"\n```\n\n")
+	b.WriteString("### Flow structure:\n```yaml\nflow:\n  name: \"My E2E Test\"\n  env_file: ../../.env.test   # USER_SERVICE_URL, DB_URL, KAFKA_BROKERS, REDIS_HOST, REDIS_PORT\n  steps:\n    - id: step_id\n      action: http_request\n      config:\n        method: POST\n        url: ${USER_SERVICE_URL}/api/v1/users\n        headers:\n          Content-Type: application/json\n        body:\n          name: \"Test User {{RANDOM_ID}}\"\n          email: \"test-{{RANDOM_ID}}@example.com\"\n      assert:\n        - \"status == 201\"\n        - \"body.id != nil\"\n      output:\n        user_id: \"$.body.id\"\n```\n\n")
 
 	b.WriteString("### Available actions:\n")
 	b.WriteString("- `http_request`: method, url, headers, body, timeout\n")

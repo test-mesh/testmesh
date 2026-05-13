@@ -12,6 +12,7 @@ Organize flows by service and category under a ` + "`flows/`" + ` directory:
 
 ` + "```" + `
 flows/
+├── .env.test                         ← shared infra config for all flows
 ├── user-service/
 │   ├── happy-path/
 │   │   ├── user-service-create-user-happy.yaml
@@ -30,6 +31,9 @@ flows/
     └── cross-service/
         └── e2e-full-purchase-flow.yaml
 ` + "```" + `
+
+Every flow references ` + "`.env.test`" + ` via ` + "`env_file: ../.env.test`" + ` (path relative to the flow file).
+Never hardcode hostnames, ports, credentials, or DSNs directly in flow YAML.
 
 **Naming convention:** ` + "`{service}-{operation}-{variant}.yaml`" + `
 
@@ -52,11 +56,14 @@ assert:
 ### Kafka Assertions
 ` + "```yaml" + `
 assert:
-  - "len(messages) > 0"       # At least one message received
-  - "len(messages) == 1"      # Exactly one message
+  - "len(messages) == 1"                          # Exactly one message
+  - "messages[0].value.user_id == user_id"        # Verify payload content
+  - "messages[0].value.email == email"            # Fields match what triggered the event
+  - "messages[0].value.status == 'active'"        # Verify state field
 ` + "```" + `
 Always use a unique ` + "`group_id`" + ` per test run (e.g., ` + "`testmesh-e2e-{{RANDOM_ID}}`" + `) to prevent
 reading stale messages from prior executions.
+` + "`len(messages) > 0`" + ` only proves delivery — always verify payload fields match what triggered the event.
 
 ### Database Assertions
 ` + "```yaml" + `
@@ -75,6 +82,82 @@ assert:
   - "value == 'expected'"     # Exact value match
 ` + "```" + `
 
+### Assertion Quality Rules
+
+Write assertions that catch real bugs — shallow assertions give false confidence.
+
+**Rule 1 — No permissive OR assertions.** ` + "`status == 200 || status == 404`" + ` is almost always true and catches nothing.
+` + "```yaml" + `
+# WRONG — passes whether the operation succeeded or not
+assert:
+  - status == 200 || status == 201
+
+# CORRECT — encode the exact expectation for this scenario
+assert:
+  - status == 201   # POST create always returns 201
+` + "```" + `
+
+**Rule 2 — Kafka consumers must verify message content.** ` + "`len(messages) > 0`" + ` only proves delivery.
+` + "```yaml" + `
+# WRONG
+assert:
+  - len(messages) > 0
+
+# CORRECT — verify payload fields match what triggered the event
+assert:
+  - len(messages) == 1
+  - messages[0].value.user_id == user_id
+  - messages[0].value.email == email
+  - messages[0].value.status == "active"
+` + "```" + `
+
+**Rule 3 — Cross-step comparisons: capture before, assert delta after.**
+` + "```yaml" + `
+- id: get_before
+  action: http_request
+  config:
+    method: GET
+    url: "${SERVICE_URL}/api/v1/items"
+  output:
+    count_before: $.body.total
+
+- id: create_item
+  action: http_request
+  config:
+    method: POST
+    url: "${SERVICE_URL}/api/v1/items"
+    body: { name: "New Item" }
+  assert:
+    - status == 201
+
+- id: verify_count
+  action: http_request
+  config:
+    method: GET
+    url: "${SERVICE_URL}/api/v1/items"
+  assert:
+    - body.total == count_before + 1
+` + "```" + `
+Also applies to inventory: ` + "`first_row.inventory == initial_inventory - 2`" + `
+
+**Rule 4 — Verify created entity fields, not just existence.**
+` + "```yaml" + `
+# WRONG — only proves something was created
+assert:
+  - status == 201
+  - body.id != nil
+
+# CORRECT — verify the entity matches what was sent
+assert:
+  - status == 201
+  - body.id != nil
+  - body.name == "Widget Alpha"
+  - body.email == email          # bare variable name, not {{email}}
+  - body.format == "gtfs-realtime"
+  - body.is_active == true
+  - body.owner_id == user_id
+` + "```" + `
+
 ## 3. Setup/Teardown for Idempotency
 
 Every flow should be **idempotent** — safe to run repeatedly without prior cleanup.
@@ -87,11 +170,15 @@ Delete in **reverse dependency order** to avoid foreign key violations:
 
 ### Example Setup Block
 ` + "```yaml" + `
+flow:
+  name: "..."
+  env_file: ../../.env.test   # DB_URL defined here — never hardcode the DSN
+
 setup:
   - id: cleanup_notifications
     action: database_query
     config:
-      connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+      connection: "${DB_URL}"
       query: >
         DELETE FROM notification_service.notifications
         WHERE user_id IN (
@@ -101,7 +188,7 @@ setup:
   - id: cleanup_orders
     action: database_query
     config:
-      connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+      connection: "${DB_URL}"
       query: >
         DELETE FROM order_service.order_items
         WHERE order_id IN (
@@ -113,7 +200,7 @@ setup:
   - id: cleanup_order_records
     action: database_query
     config:
-      connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+      connection: "${DB_URL}"
       query: >
         DELETE FROM order_service.orders
         WHERE user_id IN (
@@ -123,7 +210,7 @@ setup:
   - id: cleanup_user
     action: database_query
     config:
-      connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+      connection: "${DB_URL}"
       query: "DELETE FROM user_service.users WHERE email = 'test-{{RANDOM_ID}}@example.com'"
 ` + "```" + `
 
@@ -137,7 +224,7 @@ teardown:
   - id: restore_inventory
     action: database_query
     config:
-      connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+      connection: "${DB_URL}"
       query: "UPDATE product_service.products SET inventory = 100 WHERE id = '{{product_id}}'"
 ` + "```" + `
 
@@ -162,7 +249,7 @@ Polls a database query until a condition is met. Much more reliable than fixed d
 - id: wait_for_notification
   action: db_poll
   config:
-    connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    connection: "${DB_URL}"
     query: "SELECT id FROM notification_service.notifications WHERE user_id = '{{user_id}}' LIMIT 1"
     interval: "1s"
     timeout: "15s"
@@ -176,7 +263,7 @@ When you need to verify that a specific event was published:
   action: kafka_consumer
   config:
     brokers:
-      - "localhost:9092"
+      - "${KAFKA_BROKERS}"
     topic: "order.placed"
     group_id: "testmesh-verify-{{RANDOM_ID}}"
     auto_offset_reset: "earliest"
@@ -199,7 +286,7 @@ Capture IDs and values from one step and use them in subsequent steps.
   action: http_request
   config:
     method: POST
-    url: "http://localhost:5001/api/v1/users"
+    url: "${USER_SERVICE_URL}/api/v1/users"
     body:
       name: "Test User"
       email: "test@example.com"
@@ -216,7 +303,7 @@ Capture IDs and values from one step and use them in subsequent steps.
   action: http_request
   config:
     method: POST
-    url: "http://localhost:5003/api/v1/orders"
+    url: "${ORDER_SERVICE_URL}/api/v1/orders"
     body:
       user_id: "{{user_id}}"   # Uses captured value from create_user step
       items:
@@ -243,7 +330,7 @@ Verify that sending the same POST twice doesn't create duplicate resources:
   action: http_request
   config:
     method: POST
-    url: "http://localhost:5001/api/v1/users"
+    url: "${USER_SERVICE_URL}/api/v1/users"
     body:
       name: "Idempotent User"
       email: "idem@example.com"
@@ -254,7 +341,7 @@ Verify that sending the same POST twice doesn't create duplicate resources:
   action: http_request
   config:
     method: POST
-    url: "http://localhost:5001/api/v1/users"
+    url: "${USER_SERVICE_URL}/api/v1/users"
     body:
       name: "Idempotent User"
       email: "idem@example.com"
@@ -269,7 +356,7 @@ Use the zero UUID to test 404 responses:
   action: http_request
   config:
     method: GET
-    url: "http://localhost:5001/api/v1/users/00000000-0000-0000-0000-000000000000"
+    url: "${USER_SERVICE_URL}/api/v1/users/00000000-0000-0000-0000-000000000000"
   assert:
     - "status == 404"
 ` + "```" + `
@@ -281,7 +368,7 @@ Test that the service rejects requests missing required fields with 400:
   action: http_request
   config:
     method: POST
-    url: "http://localhost:5001/api/v1/users"
+    url: "${USER_SERVICE_URL}/api/v1/users"
     headers:
       Content-Type: application/json
     body:
@@ -298,7 +385,7 @@ doesn't go negative under concurrent orders):
   action: http_request
   config:
     method: POST
-    url: "http://localhost:5003/api/v1/orders"
+    url: "${ORDER_SERVICE_URL}/api/v1/orders"
     body:
       user_id: "{{user_id}}"
       items:
@@ -309,7 +396,7 @@ doesn't go negative under concurrent orders):
   action: http_request
   config:
     method: POST
-    url: "http://localhost:5003/api/v1/orders"
+    url: "${ORDER_SERVICE_URL}/api/v1/orders"
     body:
       user_id: "{{user_id}}"
       items:
@@ -320,7 +407,7 @@ doesn't go negative under concurrent orders):
 - id: verify_no_oversell
   action: database_query
   config:
-    connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    connection: "${DB_URL}"
     query: "SELECT inventory FROM product_service.products WHERE id = '{{product_id}}'"
   assert:
     - "rows[0].inventory >= 0"

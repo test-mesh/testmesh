@@ -28,13 +28,15 @@ Use `mcp__testmesh__run_step` to run a single action in isolation before debuggi
 ```
 action: database_query
 config:
-  connection: "postgres://root:admin@localhost:5432/postgres"
+  connection: "${DB_URL}"
   query: "SELECT * FROM user_service.users WHERE email = $1"
   params: ["test@example.com"]
 assert:
   - row_count == 1
   - rows[0].status == "active"
 ```
+
+`${DB_URL}` is resolved from your `.env.test` file or the shell environment when running via CLI.
 
 ## 3. Run the Full Flow
 
@@ -71,6 +73,14 @@ assert:
   - len(body.items) == 1
   - duration_ms < 500
 ```
+
+**Assertion quality — four common weaknesses:**
+
+1. **OR assertions** — `status == 200 || status == 404` always passes; use exact codes
+2. **Kafka shallow** — `len(messages) > 0` only proves delivery; verify payload:
+   `messages[0].value.user_id == user_id` and `messages[0].value.status == "active"`
+3. **Missing delta** — for mutations, capture baseline first: `output: { count_before: "$.body.total" }` then assert `body.total == count_before + 1`
+4. **Shallow entity check** — `body.id != nil` proves creation, not correctness; also assert `body.name == name`, `body.email == email`, `body.owner_id == user_id`
 
 ## 5. Variable Interpolation
 
@@ -121,7 +131,7 @@ config:
   action: wait_for
   config:
     type: http
-    url: "http://localhost:5001/health"
+    url: "${USER_SERVICE_URL}/health"
     status_code: 200
     timeout: 30s
     interval: 2s
@@ -143,10 +153,16 @@ config:
 
 ## 7. Environment Variables
 
-Define defaults in `flow.env:`, override via system env or `env_file:`:
+**Preferred:** use `env_file:` pointing to a shared `.env.test` at your flows root — never hardcode infra values in flow YAML:
 ```yaml
 flow:
   name: "E2E"
+  env_file: ../../.env.test   # DB_URL, KAFKA_BROKERS, *_SERVICE_URL defined here
+```
+
+**Fallback** (standalone flow only): inline `env:` block:
+```yaml
+flow:
   env:
     DB_URL: "postgresql://root:admin@localhost:5432/postgres"
     KAFKA_BROKERS: "localhost:9092"

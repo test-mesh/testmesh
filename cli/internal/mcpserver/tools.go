@@ -305,15 +305,6 @@ func toolValidateFlow(args map[string]any) (*mcp.CallToolResult, error) {
 					if strings.Contains(expr, "{{") {
 						errs = append(errs, fmt.Sprintf("%s step %d (%s): assert[%d] uses '{{...}}' template syntax which is never substituted in assertions — use bare variable name (e.g. body.id == user_id, not body.id == '{{user_id}}')", phase, i+1, id, j))
 					}
-					// Warn if kafka_consumer step uses field-level message assertions (type mismatch risk).
-					if action == "kafka_consumer" {
-						if strings.Contains(expr, "messages[") && strings.Contains(expr, ".value.") {
-							errs = append(errs, fmt.Sprintf(
-								"%s step %d (%s): assert[%d] WARNING: field-level Kafka message assertions (messages[N].value.field) fail with type mismatch errors at runtime — use 'len(messages) > 0' to verify delivery and db_poll to verify downstream effects",
-								phase, i+1, id, j,
-							))
-						}
-					}
 				}
 			}
 
@@ -773,7 +764,7 @@ flow:
   action: http_request
   config:
     method: POST                       # GET POST PUT PATCH DELETE
-    url: "http://localhost:5001/api/v1/users"
+    url: "${USER_SERVICE_URL}/api/v1/users"
     headers:
       Content-Type: "application/json"
       Authorization: "Bearer {{token}}"
@@ -796,7 +787,7 @@ Assert variables: status (int), body (object), headers (map)
 - id: verify_user
   action: database_query
   config:
-    connection: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    connection: "${DB_URL}"           # NEVER hardcode — use env var from .env.test
     query: "SELECT id, name, email FROM user_service.users WHERE id = '{{user_id}}' LIMIT 1"
     # NOTE: Do NOT use COUNT(*) — use SELECT * so row_count reflects actual row existence
   assert:
@@ -810,7 +801,7 @@ Assert variables: row_count (int), rows (array), first_row (map), query_type
 - id: wait_notification
   action: db_poll
   config:
-    connection: "postgres://..."
+    connection: "${DB_URL}"           # NEVER hardcode — use env var from .env.test
     query: "SELECT id FROM notification_service.notifications WHERE user_id = '{{user_id}}' LIMIT 1"
     # Query returns rows only when condition is satisfied
     # Polling stops when len(rows) > 0 (no condition field needed)
@@ -824,7 +815,7 @@ Assert variables: row_count (int), rows (array), first_row (map), query_type
   action: kafka_consumer
   config:
     brokers:
-      - "localhost:9092"               # list of brokers
+      - "${KAFKA_BROKERS}"            # NEVER hardcode — use env var from .env.test
     topic: "user.created"
     group_id: "testmesh-e2e-{{RANDOM_ID}}"  # unique per run — prevents reading old messages
     auto_offset_reset: "earliest"
@@ -841,8 +832,8 @@ Assert variables: messages (array of {value, key, topic, offset})
 - id: check_cache
   action: redis.get
   config:
-    host: "localhost"
-    port: "6379"
+    host: "${REDIS_HOST}"             # NEVER hardcode — use env var from .env.test
+    port: "${REDIS_PORT}"
     key: "user:{{user_id}}"
   assert:
     - "value != nil"

@@ -605,7 +605,7 @@ config:
 
 ### database_query
 config:
-  connection: string (required, PostgreSQL DSN e.g. "postgres://user:pass@host:5432/db")
+  connection: string (required, PostgreSQL DSN — MUST use env var reference e.g. "${DB_URL}", never hardcode)
   query: string (required, SQL query)
   params: list of values (optional, for parameterized queries)
 
@@ -660,6 +660,37 @@ config:
 3. action names are EXACTLY as listed above (e.g. http_request, NOT http; delay, NOT wait)
 4. database connection is a DSN string, NOT an object
 5. kafka message field is "payload", NOT "value"
+6. NEVER hardcode hostnames, ports, credentials, or connection strings — ALWAYS use env var references
+   - HTTP URLs: use "${SERVICE_URL}/path" not "http://localhost:5001/path"
+   - DB connections: use "${DB_URL}" not "postgres://user:pass@localhost:5432/db"
+   - Kafka brokers: use "${KAFKA_BROKERS}" not "localhost:9092"
+   - Redis host/port: use "${REDIS_HOST}" / "${REDIS_PORT}" not "localhost"
+   Preferred: use env_file: .env.test and keep infra vars in that file.
+   Fallback (single flow): emit an env: block with default values for every variable used.
+   env_file example:
+7. Write precise assertions — shallow assertions give false confidence:
+   - NEVER use permissive OR assertions: "status == 200 || status == 404" catches nothing
+   - kafka_consumer: verify payload fields, not just delivery:
+       WRONG:   assert: [len(messages) > 0]
+       CORRECT: assert: [len(messages) == 1, messages[0].value.user_id == user_id, messages[0].value.status == "active"]
+   - Cross-step comparisons: capture baseline before action, assert delta after:
+       output: { count_before: "$.body.total" }  → assert: body.total == count_before + 1
+   - Verify created entity fields match what was sent:
+       WRONG:   assert: [status == 201, body.id != nil]
+       CORRECT: assert: [status == 201, body.id != nil, body.name == name, body.email == email, body.owner_id == user_id]
+     flow:
+       env_file: .env.test
+   .env.test template (output as a comment or separate block when generating a suite):
+     # --- Service URLs ---
+     CATALOG_URL=http://localhost:5580
+     # --- Database connections ---
+     DB_CATALOG=postgres://root:admin@localhost:5432/catalog?sslmode=disable
+     # --- Infrastructure ---
+     KAFKA_BROKERS=localhost:9092
+     REDIS_HOST=localhost
+     REDIS_PORT=6379
+     # --- Kafka topics ---
+     TOPIC_UPLOAD=myapp.file.uploaded
 
 ## Output variable references
 Steps can reference previous step outputs using {{step_id.variable_name}} syntax.
@@ -677,5 +708,21 @@ Output the flow as valid YAML with these requirements:
    output:
      user_id: "$.body.id"
 5. Use template syntax {{var}} for dynamic values from previous steps
-6. Wrap the YAML in a code block with triple backticks and 'yaml' language identifier
+6. NEVER hardcode hosts, ports, credentials, or DSNs — reference ${VAR} or {{VAR}} in config values.
+   Preferred: use env_file: .env.test (shared across the suite). Fallback for standalone flows:
+   include an env: block with default values for every infra variable.
+   Example with env_file:
+     flow:
+       name: "My Flow"
+       env_file: .env.test
+   Example with inline env: (single flow only):
+     flow:
+       name: "My Flow"
+       env:
+         BASE_URL: "http://localhost:5001"
+         DB_URL: "postgres://root:admin@localhost:5432/mydb?sslmode=disable"
+         KAFKA_BROKERS: "localhost:9092"
+         REDIS_HOST: "localhost"
+         REDIS_PORT: "6379"
+7. Wrap the YAML in a code block with triple backticks and 'yaml' language identifier
 `
