@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Clock, CheckCircle2, XCircle, Loader2, AlertCircle, Sparkles, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 import type { StepStatus } from '@/lib/api/types';
 import { ErrorHero } from '@/components/traces/ErrorHero';
 import { ValidationSummary } from '@/components/traces/ValidationSummary';
@@ -159,11 +160,11 @@ export default function ExecutionDetailPage({
       case 'failed':
         return <XCircle className="w-5 h-5 text-red-600" />;
       case 'running':
-        return <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />;
+        return <Loader2 className="w-5 h-5 text-primary animate-spin" />;
       case 'skipped':
         return <AlertCircle className="w-5 h-5 text-yellow-600" />;
       default:
-        return <div className="w-5 h-5 rounded-full bg-gray-300" />;
+        return <div className="w-5 h-5 rounded-full bg-muted-foreground/30" />;
     }
   };
 
@@ -339,46 +340,67 @@ export default function ExecutionDetailPage({
 
             <Card>
               <CardHeader>
-                <CardTitle>Step Execution</CardTitle>
-                <CardDescription>
-                  {steps.length} steps executed
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Step Timeline</CardTitle>
+                    <CardDescription>{steps.length} steps</CardDescription>
+                  </div>
+                  {/* Mini progress bar */}
+                  {steps.length > 0 && (
+                    <div className="flex gap-0.5 items-center">
+                      {steps.map((step) => (
+                        <div
+                          key={step.id}
+                          title={step.step_name || step.step_id}
+                          className={cn(
+                            'h-2 rounded-full',
+                            steps.length <= 20 ? 'w-4' : 'w-2',
+                            step.status === 'completed' && 'bg-green-500',
+                            step.status === 'failed' && 'bg-destructive',
+                            step.status === 'running' && 'bg-primary animate-pulse',
+                            step.status === 'skipped' && 'bg-yellow-400',
+                            !['completed', 'failed', 'running', 'skipped'].includes(step.status) && 'bg-muted-foreground/30',
+                          )}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {steps.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No steps found
-                    </div>
-                  ) : (
-                    steps.map((step, index) => (
-                      <div
-                        key={step.id}
-                        className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex items-start gap-4">
-                          <div className="flex-shrink-0 pt-1">
+                {steps.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    No steps found
+                  </div>
+                ) : (
+                  <div className="relative">
+                    {/* Vertical timeline line */}
+                    <div className="absolute left-[18px] top-6 bottom-6 w-px bg-border" />
+
+                    <div className="space-y-0">
+                      {steps.map((step, index) => (
+                        <div key={step.id} className="relative flex gap-4 pb-4 last:pb-0">
+                          {/* Step icon on timeline */}
+                          <div className="relative z-10 flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full bg-background border-2 border-border mt-0.5">
                             {getStatusIcon(step.status)}
                           </div>
 
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-medium">
+                          {/* Step content */}
+                          <div className="flex-1 min-w-0 pt-1 pb-4 last:pb-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">
                                 {step.step_name || step.step_id}
                               </span>
-                              <Badge variant="outline" className="text-xs">
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                                 {step.action}
                               </Badge>
                               {step.attempt > 1 && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Attempt {step.attempt}
+                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                  Retry {step.attempt}
                                 </Badge>
                               )}
-                            </div>
-
-                            <div className="text-sm text-muted-foreground mb-2">
                               {step.duration_ms ? (
-                                <span className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground flex items-center gap-0.5 ml-auto">
                                   <Clock className="w-3 h-3" />
                                   {step.duration_ms}ms
                                 </span>
@@ -386,17 +408,17 @@ export default function ExecutionDetailPage({
                             </div>
 
                             {step.error_message && (
-                              <div className="mt-2 p-3 bg-destructive/10 border border-destructive rounded text-sm font-mono text-destructive">
+                              <div className="mt-2 p-2.5 bg-destructive/10 border border-destructive/30 rounded text-xs font-mono text-destructive">
                                 {step.error_message}
                               </div>
                             )}
 
                             {step.output && Object.keys(step.output).length > 0 && (
-                              <details className="mt-3" open={step.status === 'failed'}>
-                                <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">
+                              <details className="mt-2" open={step.status === 'failed'}>
+                                <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
                                   View Response
                                 </summary>
-                                <div className="mt-2 space-y-2">
+                                <div className="mt-2">
                                   {step.action === 'http_request' ? (
                                     <HttpResponseOutput output={step.output} />
                                   ) : (
@@ -409,14 +431,14 @@ export default function ExecutionDetailPage({
                             )}
                           </div>
 
-                          <div className="flex-shrink-0 text-sm text-muted-foreground">
-                            Step {index + 1}
+                          <div className="flex-shrink-0 text-xs text-muted-foreground pt-2">
+                            #{index + 1}
                           </div>
                         </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
