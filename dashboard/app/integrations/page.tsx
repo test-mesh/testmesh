@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plug, Bot, GitBranch, Bell, History } from 'lucide-react';
+import { Plug, Bot, GitBranch, Bell, History, Workflow } from 'lucide-react';
 import { AIProviderSection } from '@/components/integrations/AIProviderSection';
 import { GitIntegrationSection } from '@/components/integrations/GitIntegrationSection';
 import { GiteaIntegrationSection } from '@/components/integrations/GiteaIntegrationSection';
 import { GitLabIntegrationSection } from '@/components/integrations/GitLabIntegrationSection';
 import { SlackIntegrationSection } from '@/components/integrations/SlackIntegrationSection';
 import { ArgoCDIntegrationSection } from '@/components/integrations/ArgoCDIntegrationSection';
+import { CICDIntegrationSection } from '@/components/integrations/CICDIntegrationSection';
 import { useAIUsage } from '@/lib/hooks/useAI';
 
 export default function IntegrationsPage() {
@@ -31,7 +32,7 @@ export default function IntegrationsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full max-w-3xl grid-cols-6">
+        <TabsList className="grid w-full max-w-4xl grid-cols-7">
           <TabsTrigger value="ai-providers" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             AI Providers
@@ -55,6 +56,10 @@ export default function IntegrationsPage() {
           <TabsTrigger value="slack" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             Slack
+          </TabsTrigger>
+          <TabsTrigger value="cicd" className="flex items-center gap-2">
+            <Workflow className="h-4 w-4" />
+            CI/CD
           </TabsTrigger>
         </TabsList>
 
@@ -187,6 +192,10 @@ export default function IntegrationsPage() {
               <SlackIntegrationSection />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="cicd" className="space-y-6">
+          <CICDIntegrationSection />
         </TabsContent>
       </Tabs>
     </div>
