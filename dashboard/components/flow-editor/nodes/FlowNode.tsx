@@ -352,7 +352,7 @@ function StatusIcon({ status, error, duration }: {
 
   switch (status) {
     case 'running':
-      icon = <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />;
+      icon = <Loader2 className="w-4 h-4 text-primary animate-spin" />;
       tooltip = 'Running...';
       break;
     case 'completed':
@@ -522,7 +522,7 @@ function FlowNode({ data, selected }: NodeProps<FlowNodeData>) {
         colors.border,
         selected && 'ring-2 ring-primary ring-offset-2 shadow-lg',
         data.status === 'failed' && 'border-red-500 shadow-red-200 dark:shadow-red-900',
-        data.status === 'running' && 'border-blue-500 shadow-blue-200 dark:shadow-blue-900 animate-pulse',
+        data.status === 'running' && 'border-primary shadow-primary/20 animate-pulse',
         data.status === 'completed' && 'border-green-400 dark:border-green-600'
       )}
     >
@@ -535,8 +535,8 @@ function FlowNode({ data, selected }: NodeProps<FlowNodeData>) {
 
       {/* Execution progress bar (for running status) */}
       {data.status === 'running' && (
-        <div className="absolute top-0 left-0 right-0 h-1 bg-blue-200 dark:bg-blue-900 rounded-t-lg overflow-hidden">
-          <div className="h-full bg-blue-500 animate-pulse w-full"></div>
+        <div className="absolute top-0 left-0 right-0 h-1 bg-primary/20 rounded-t-lg overflow-hidden">
+          <div className="h-full bg-primary animate-pulse w-full"></div>
         </div>
       )}
 
@@ -586,7 +586,7 @@ function FlowNode({ data, selected }: NodeProps<FlowNodeData>) {
             </span>
           )}
           {data.output && Object.keys(data.output).length > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
               {Object.keys(data.output).length} output{Object.keys(data.output).length > 1 ? 's' : ''}
             </span>
           )}
