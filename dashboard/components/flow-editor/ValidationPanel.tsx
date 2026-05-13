@@ -49,10 +49,10 @@ const severityColors: Record<ValidationSeverity, { bg: string; border: string; t
     icon: 'text-yellow-500',
   },
   info: {
-    bg: 'bg-blue-50 dark:bg-blue-950/30',
-    border: 'border-blue-200 dark:border-blue-800',
-    text: 'text-blue-900 dark:text-blue-300',
-    icon: 'text-blue-500',
+    bg: 'bg-primary/5',
+    border: 'border-primary/20',
+    text: 'text-foreground',
+    icon: 'text-primary',
   },
 };
 

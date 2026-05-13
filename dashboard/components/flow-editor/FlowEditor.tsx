@@ -286,19 +286,27 @@ export default function FlowEditor({
         setShowSearch((prev) => !prev);
       }
 
-      // Escape: Close search or shortcuts
+      // Cmd/Ctrl+Shift+V: Toggle validation panel
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'v' && !isInput) {
+        e.preventDefault();
+        setShowValidation((prev) => !prev);
+      }
+
+      // Escape: Close panels or shortcuts
       if (e.key === 'Escape') {
         if (showShortcuts) {
           setShowShortcuts(false);
         } else if (showSearch) {
           setShowSearch(false);
+        } else if (showValidation) {
+          setShowValidation(false);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [mode, showSearch, showShortcuts]);
+  }, [showSearch, showShortcuts, showValidation]);
 
   // Auto-validate flow when definition changes
   useEffect(() => {
