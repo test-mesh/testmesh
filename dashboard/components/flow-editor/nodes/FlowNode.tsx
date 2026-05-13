@@ -33,7 +33,6 @@ import {
 import { cn } from '@/lib/utils';
 import type { FlowNodeData, ActionType } from '../types';
 
-// Icon mapping for action types
 const actionIcons: Record<ActionType, React.ElementType> = {
   http_request: Globe,
   grpc_call: Network,
@@ -87,418 +86,295 @@ const actionIcons: Record<ActionType, React.ElementType> = {
   mock_server_configure: Settings,
 };
 
-// Color mapping for action types
-const actionColors: Record<ActionType, { bg: string; border: string; icon: string }> = {
-  http_request: {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-500',
-  },
-  database_query: {
-    bg: 'bg-purple-50 dark:bg-purple-950',
-    border: 'border-purple-200 dark:border-purple-800',
-    icon: 'text-purple-500',
-  },
-  db_poll: {
-    bg: 'bg-purple-50 dark:bg-purple-950',
-    border: 'border-purple-200 dark:border-purple-800',
-    icon: 'text-purple-500',
-  },
-  log: {
-    bg: 'bg-gray-50 dark:bg-gray-900',
-    border: 'border-gray-200 dark:border-gray-700',
-    icon: 'text-gray-500',
-  },
-  delay: {
-    bg: 'bg-yellow-50 dark:bg-yellow-950',
-    border: 'border-yellow-200 dark:border-yellow-800',
-    icon: 'text-yellow-500',
-  },
-  assert: {
-    bg: 'bg-green-50 dark:bg-green-950',
-    border: 'border-green-200 dark:border-green-800',
-    icon: 'text-green-500',
-  },
-  transform: {
-    bg: 'bg-orange-50 dark:bg-orange-950',
-    border: 'border-orange-200 dark:border-orange-800',
-    icon: 'text-orange-500',
-  },
-  condition: {
-    bg: 'bg-cyan-50 dark:bg-cyan-950',
-    border: 'border-cyan-200 dark:border-cyan-800',
-    icon: 'text-cyan-500',
-  },
-  for_each: {
-    bg: 'bg-indigo-50 dark:bg-indigo-950',
-    border: 'border-indigo-200 dark:border-indigo-800',
-    icon: 'text-indigo-500',
-  },
-  mock_server_start: {
-    bg: 'bg-pink-50 dark:bg-pink-950',
-    border: 'border-pink-200 dark:border-pink-800',
-    icon: 'text-pink-500',
-  },
-  mock_server_stop: {
-    bg: 'bg-pink-50 dark:bg-pink-950',
-    border: 'border-pink-200 dark:border-pink-800',
-    icon: 'text-pink-500',
-  },
-  contract_generate: {
-    bg: 'bg-teal-50 dark:bg-teal-950',
-    border: 'border-teal-200 dark:border-teal-800',
-    icon: 'text-teal-500',
-  },
-  contract_verify: {
-    bg: 'bg-teal-50 dark:bg-teal-950',
-    border: 'border-teal-200 dark:border-teal-800',
-    icon: 'text-teal-500',
-  },
-  grpc_call: {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-500',
-  },
-  grpc_stream: {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-500',
-  },
-  websocket: {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-500',
-  },
-  kafka_producer: {
-    bg: 'bg-violet-50 dark:bg-violet-950',
-    border: 'border-violet-200 dark:border-violet-800',
-    icon: 'text-violet-500',
-  },
-  kafka_consumer: {
-    bg: 'bg-violet-50 dark:bg-violet-950',
-    border: 'border-violet-200 dark:border-violet-800',
-    icon: 'text-violet-500',
-  },
-  browser: {
-    bg: 'bg-amber-50 dark:bg-amber-950',
-    border: 'border-amber-200 dark:border-amber-800',
-    icon: 'text-amber-500',
-  },
-  parallel: {
-    bg: 'bg-cyan-50 dark:bg-cyan-950',
-    border: 'border-cyan-200 dark:border-cyan-800',
-    icon: 'text-cyan-500',
-  },
-  wait_for: {
-    bg: 'bg-fuchsia-50 dark:bg-fuchsia-950',
-    border: 'border-fuchsia-200 dark:border-fuchsia-800',
-    icon: 'text-fuchsia-500',
-  },
-  wait_until: {
-    bg: 'bg-fuchsia-50 dark:bg-fuchsia-950',
-    border: 'border-fuchsia-200 dark:border-fuchsia-800',
-    icon: 'text-fuchsia-500',
-  },
-  run_flow: {
-    bg: 'bg-teal-50 dark:bg-teal-950',
-    border: 'border-teal-200 dark:border-teal-800',
-    icon: 'text-teal-500',
-  },
-  mock_server_verify: {
-    bg: 'bg-pink-50 dark:bg-pink-950',
-    border: 'border-pink-200 dark:border-pink-800',
-    icon: 'text-pink-500',
-  },
-  mock_server_update: {
-    bg: 'bg-pink-50 dark:bg-pink-950',
-    border: 'border-pink-200 dark:border-pink-800',
-    icon: 'text-pink-500',
-  },
-  mock_server_reset_state: {
-    bg: 'bg-pink-50 dark:bg-pink-950',
-    border: 'border-pink-200 dark:border-pink-800',
-    icon: 'text-pink-500',
-  },
-  docker_run: {
-    bg: 'bg-slate-50 dark:bg-slate-900',
-    border: 'border-slate-200 dark:border-slate-700',
-    icon: 'text-slate-500',
-  },
-  docker_stop: {
-    bg: 'bg-slate-50 dark:bg-slate-900',
-    border: 'border-slate-200 dark:border-slate-700',
-    icon: 'text-slate-500',
-  },
-  'redis.get': {
-    bg: 'bg-red-50 dark:bg-red-950',
-    border: 'border-red-200 dark:border-red-800',
-    icon: 'text-red-500',
-  },
-  'redis.set': {
-    bg: 'bg-red-50 dark:bg-red-950',
-    border: 'border-red-200 dark:border-red-800',
-    icon: 'text-red-500',
-  },
-  'redis.del': {
-    bg: 'bg-red-50 dark:bg-red-950',
-    border: 'border-red-200 dark:border-red-800',
-    icon: 'text-red-500',
-  },
-  'redis.exists': {
-    bg: 'bg-red-50 dark:bg-red-950',
-    border: 'border-red-200 dark:border-red-800',
-    icon: 'text-red-500',
-  },
-  'minio.put': {
-    bg: 'bg-amber-50 dark:bg-amber-950',
-    border: 'border-amber-200 dark:border-amber-800',
-    icon: 'text-amber-500',
-  },
-  'minio.get': {
-    bg: 'bg-amber-50 dark:bg-amber-950',
-    border: 'border-amber-200 dark:border-amber-800',
-    icon: 'text-amber-500',
-  },
-  'minio.delete': {
-    bg: 'bg-amber-50 dark:bg-amber-950',
-    border: 'border-amber-200 dark:border-amber-800',
-    icon: 'text-amber-500',
-  },
-  'minio.assert': {
-    bg: 'bg-amber-50 dark:bg-amber-950',
-    border: 'border-amber-200 dark:border-amber-800',
-    icon: 'text-amber-500',
-  },
-  'neo4j.query': {
-    bg: 'bg-sky-50 dark:bg-sky-950',
-    border: 'border-sky-200 dark:border-sky-800',
-    icon: 'text-sky-500',
-  },
-  'neo4j.assert': {
-    bg: 'bg-sky-50 dark:bg-sky-950',
-    border: 'border-sky-200 dark:border-sky-800',
-    icon: 'text-sky-500',
-  },
-  'otel.inject': {
-    bg: 'bg-indigo-50 dark:bg-indigo-950',
-    border: 'border-indigo-200 dark:border-indigo-800',
-    icon: 'text-indigo-500',
-  },
-  'otel.assert': {
-    bg: 'bg-indigo-50 dark:bg-indigo-950',
-    border: 'border-indigo-200 dark:border-indigo-800',
-    icon: 'text-indigo-500',
-  },
-  'postgresql.query': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  'postgresql.insert': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  'postgresql.update': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  'postgresql.delete': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  'postgresql.assert': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  'postgresql.execute': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  'postgresql.transaction': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  'postgresql.tables': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  'postgresql.columns': {
-    bg: 'bg-blue-50 dark:bg-blue-950',
-    border: 'border-blue-200 dark:border-blue-800',
-    icon: 'text-blue-600',
-  },
-  mock_server_configure: {
-    bg: 'bg-pink-50 dark:bg-pink-950',
-    border: 'border-pink-200 dark:border-pink-800',
-    icon: 'text-pink-500',
-  },
+// Short label shown in the action type badge
+const actionLabels: Record<ActionType, string> = {
+  http_request: 'HTTP',
+  grpc_call: 'gRPC',
+  grpc_stream: 'gRPC',
+  websocket: 'WS',
+  database_query: 'DB',
+  db_poll: 'DB',
+  kafka_producer: 'KAFKA',
+  kafka_consumer: 'KAFKA',
+  browser: 'BROWSER',
+  log: 'LOG',
+  delay: 'DELAY',
+  assert: 'ASSERT',
+  transform: 'XFORM',
+  condition: 'IF',
+  for_each: 'EACH',
+  parallel: 'PARALLEL',
+  wait_for: 'WAIT',
+  wait_until: 'WAIT',
+  run_flow: 'FLOW',
+  mock_server_start: 'MOCK',
+  mock_server_stop: 'MOCK',
+  mock_server_verify: 'MOCK',
+  mock_server_update: 'MOCK',
+  mock_server_reset_state: 'MOCK',
+  mock_server_configure: 'MOCK',
+  contract_generate: 'CONTRACT',
+  contract_verify: 'CONTRACT',
+  docker_run: 'DOCKER',
+  docker_stop: 'DOCKER',
+  'redis.get': 'REDIS',
+  'redis.set': 'REDIS',
+  'redis.del': 'REDIS',
+  'redis.exists': 'REDIS',
+  'minio.put': 'MINIO',
+  'minio.get': 'MINIO',
+  'minio.delete': 'MINIO',
+  'minio.assert': 'MINIO',
+  'neo4j.query': 'NEO4J',
+  'neo4j.assert': 'NEO4J',
+  'otel.inject': 'OTEL',
+  'otel.assert': 'OTEL',
+  'postgresql.query': 'SQL',
+  'postgresql.insert': 'SQL',
+  'postgresql.update': 'SQL',
+  'postgresql.delete': 'SQL',
+  'postgresql.assert': 'SQL',
+  'postgresql.execute': 'SQL',
+  'postgresql.transaction': 'SQL',
+  'postgresql.tables': 'SQL',
+  'postgresql.columns': 'SQL',
 };
 
-// Status icon component with tooltip
+// Badge color classes (dark-mode native)
+const actionBadgeColors: Record<ActionType, string> = {
+  http_request: 'bg-teal-500/15 text-teal-300 border-teal-500/25',
+  grpc_call: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
+  grpc_stream: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
+  websocket: 'bg-blue-500/15 text-blue-300 border-blue-500/25',
+  database_query: 'bg-purple-500/15 text-purple-300 border-purple-500/25',
+  db_poll: 'bg-purple-500/15 text-purple-300 border-purple-500/25',
+  kafka_producer: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  kafka_consumer: 'bg-violet-500/15 text-violet-300 border-violet-500/25',
+  browser: 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  log: 'bg-slate-500/15 text-slate-300 border-slate-500/25',
+  delay: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/25',
+  assert: 'bg-green-500/15 text-green-300 border-green-500/25',
+  transform: 'bg-orange-500/15 text-orange-300 border-orange-500/25',
+  condition: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25',
+  for_each: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+  parallel: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/25',
+  wait_for: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/25',
+  wait_until: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/25',
+  run_flow: 'bg-teal-500/15 text-teal-300 border-teal-500/25',
+  mock_server_start: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
+  mock_server_stop: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
+  mock_server_verify: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
+  mock_server_update: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
+  mock_server_reset_state: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
+  mock_server_configure: 'bg-pink-500/15 text-pink-300 border-pink-500/25',
+  contract_generate: 'bg-teal-600/15 text-teal-200 border-teal-600/25',
+  contract_verify: 'bg-teal-600/15 text-teal-200 border-teal-600/25',
+  docker_run: 'bg-slate-600/15 text-slate-300 border-slate-600/25',
+  docker_stop: 'bg-slate-600/15 text-slate-300 border-slate-600/25',
+  'redis.get': 'bg-red-500/15 text-red-300 border-red-500/25',
+  'redis.set': 'bg-red-500/15 text-red-300 border-red-500/25',
+  'redis.del': 'bg-red-500/15 text-red-300 border-red-500/25',
+  'redis.exists': 'bg-red-500/15 text-red-300 border-red-500/25',
+  'minio.put': 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  'minio.get': 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  'minio.delete': 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  'minio.assert': 'bg-amber-500/15 text-amber-300 border-amber-500/25',
+  'neo4j.query': 'bg-sky-500/15 text-sky-300 border-sky-500/25',
+  'neo4j.assert': 'bg-sky-500/15 text-sky-300 border-sky-500/25',
+  'otel.inject': 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+  'otel.assert': 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25',
+  'postgresql.query': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+  'postgresql.insert': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+  'postgresql.update': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+  'postgresql.delete': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+  'postgresql.assert': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+  'postgresql.execute': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+  'postgresql.transaction': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+  'postgresql.tables': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+  'postgresql.columns': 'bg-blue-600/15 text-blue-200 border-blue-600/25',
+};
+
+// Icon color matching the badge
+const actionIconColors: Record<ActionType, string> = {
+  http_request: 'text-teal-400',
+  grpc_call: 'text-blue-400',
+  grpc_stream: 'text-blue-400',
+  websocket: 'text-blue-400',
+  database_query: 'text-purple-400',
+  db_poll: 'text-purple-400',
+  kafka_producer: 'text-violet-400',
+  kafka_consumer: 'text-violet-400',
+  browser: 'text-amber-400',
+  log: 'text-slate-400',
+  delay: 'text-yellow-400',
+  assert: 'text-green-400',
+  transform: 'text-orange-400',
+  condition: 'text-cyan-400',
+  for_each: 'text-indigo-400',
+  parallel: 'text-cyan-400',
+  wait_for: 'text-fuchsia-400',
+  wait_until: 'text-fuchsia-400',
+  run_flow: 'text-teal-400',
+  mock_server_start: 'text-pink-400',
+  mock_server_stop: 'text-pink-400',
+  mock_server_verify: 'text-pink-400',
+  mock_server_update: 'text-pink-400',
+  mock_server_reset_state: 'text-pink-400',
+  mock_server_configure: 'text-pink-400',
+  contract_generate: 'text-teal-300',
+  contract_verify: 'text-teal-300',
+  docker_run: 'text-slate-300',
+  docker_stop: 'text-slate-300',
+  'redis.get': 'text-red-400',
+  'redis.set': 'text-red-400',
+  'redis.del': 'text-red-400',
+  'redis.exists': 'text-red-400',
+  'minio.put': 'text-amber-400',
+  'minio.get': 'text-amber-400',
+  'minio.delete': 'text-amber-400',
+  'minio.assert': 'text-amber-400',
+  'neo4j.query': 'text-sky-400',
+  'neo4j.assert': 'text-sky-400',
+  'otel.inject': 'text-indigo-400',
+  'otel.assert': 'text-indigo-400',
+  'postgresql.query': 'text-blue-300',
+  'postgresql.insert': 'text-blue-300',
+  'postgresql.update': 'text-blue-300',
+  'postgresql.delete': 'text-blue-300',
+  'postgresql.assert': 'text-blue-300',
+  'postgresql.execute': 'text-blue-300',
+  'postgresql.transaction': 'text-blue-300',
+  'postgresql.tables': 'text-blue-300',
+  'postgresql.columns': 'text-blue-300',
+};
+
 function StatusIcon({ status, error, duration }: {
   status?: FlowNodeData['status'];
   error?: string;
   duration?: number;
 }) {
-  let icon = null;
-  let tooltip = '';
-
   switch (status) {
     case 'running':
-      icon = <Loader2 className="w-4 h-4 text-primary animate-spin" />;
-      tooltip = 'Running...';
-      break;
+      return <Loader2 className="w-3.5 h-3.5 text-teal-400 animate-spin shrink-0" />;
     case 'completed':
-      icon = <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      tooltip = duration ? `Completed in ${duration}ms` : 'Completed';
-      break;
+      return (
+        <div className="relative group/status shrink-0">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+          {duration && (
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 opacity-0 group-hover/status:opacity-100 transition-opacity pointer-events-none z-50">
+              <div className="bg-[#0d1117] text-[#8ba8c0] border border-[#1e2d3d] px-2 py-1 rounded text-[10px] whitespace-nowrap shadow-lg">
+                {duration}ms
+              </div>
+            </div>
+          )}
+        </div>
+      );
     case 'failed':
-      icon = <XCircle className="w-4 h-4 text-red-500" />;
-      tooltip = error || 'Failed';
-      break;
+      return (
+        <div className="relative group/status shrink-0">
+          <XCircle className="w-3.5 h-3.5 text-red-400" />
+          {error && (
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 opacity-0 group-hover/status:opacity-100 transition-opacity pointer-events-none z-50">
+              <div className="bg-[#0d1117] text-[#8ba8c0] border border-[#1e2d3d] px-2 py-1 rounded text-[10px] whitespace-nowrap shadow-lg max-w-[200px] truncate">
+                {error}
+              </div>
+            </div>
+          )}
+        </div>
+      );
     case 'skipped':
-      icon = <AlertCircle className="w-4 h-4 text-gray-400" />;
-      tooltip = 'Skipped';
-      break;
+      return <AlertCircle className="w-3.5 h-3.5 text-[#3a4f62] shrink-0" />;
     default:
       return null;
   }
+}
 
+// HTTP method pill colors on dark
+function HttpMethodBadge({ method }: { method: string }) {
+  const colors: Record<string, string> = {
+    GET: 'text-green-400',
+    POST: 'text-teal-400',
+    PUT: 'text-yellow-400',
+    DELETE: 'text-red-400',
+    PATCH: 'text-purple-400',
+    HEAD: 'text-slate-400',
+    OPTIONS: 'text-slate-400',
+  };
   return (
-    <div className="relative group/status">
-      {icon}
-      {tooltip && (
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 opacity-0 group-hover/status:opacity-100 transition-opacity pointer-events-none z-50">
-          <div className="bg-popover text-popover-foreground px-2 py-1 rounded text-[10px] whitespace-nowrap shadow-lg border">
-            {tooltip}
-          </div>
-          <div className="w-1.5 h-1.5 bg-popover border-r border-b transform rotate-45 mx-auto -mt-0.5"></div>
-        </div>
-      )}
-    </div>
+    <span className={cn('font-mono font-semibold text-[10px]', colors[method] ?? colors.GET)}>
+      {method}
+    </span>
   );
 }
 
-// Get display info for HTTP method
-function getHttpMethodBadge(method: string) {
-  const colors: Record<string, string> = {
-    GET: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-    POST: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-    PUT: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-    DELETE: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
-    PATCH: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
-    HEAD: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-    OPTIONS: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-  };
-
-  return colors[method] || colors.GET;
-}
-
-// Node content based on action type
 function NodeContent({ data }: { data: FlowNodeData }) {
   const { action, config } = data;
 
   switch (action) {
     case 'http_request':
       return (
-        <div className="flex items-center gap-2 text-xs truncate">
-          <span
-            className={cn(
-              'px-1.5 py-0.5 rounded font-mono font-medium',
-              getHttpMethodBadge(config.method)
-            )}
-          >
-            {config.method}
-          </span>
-          <span className="truncate text-muted-foreground font-mono">
-            {config.url || 'No URL'}
+        <div className="flex items-center gap-1.5 text-[11px] truncate mt-1">
+          <HttpMethodBadge method={config.method || 'GET'} />
+          <span className="truncate text-[#4a6480] font-mono">
+            {config.url || 'no url'}
           </span>
         </div>
       );
 
     case 'database_query':
       return (
-        <div className="text-xs text-muted-foreground truncate font-mono">
-          {config.query?.substring(0, 40) || 'No query'}
-          {config.query?.length > 40 ? '...' : ''}
-        </div>
-      );
-
-    case 'log':
-      return (
-        <div className="text-xs text-muted-foreground truncate">
-          {config.message || 'No message'}
-        </div>
-      );
-
-    case 'delay':
-      return (
-        <div className="text-xs text-muted-foreground">
-          Wait {config.duration || '0s'}
+        <div className="text-[11px] text-[#4a6480] truncate font-mono mt-1">
+          {config.query?.substring(0, 36) || 'no query'}
+          {(config.query?.length ?? 0) > 36 ? '…' : ''}
         </div>
       );
 
     case 'assert':
       return (
-        <div className="text-xs text-muted-foreground font-mono truncate">
-          {config.expression || 'No expression'}
+        <div className="text-[11px] text-[#4a6480] font-mono truncate mt-1">
+          {config.expression || 'no expression'}
+        </div>
+      );
+
+    case 'log':
+      return (
+        <div className="text-[11px] text-[#4a6480] truncate mt-1">
+          {config.message || 'no message'}
+        </div>
+      );
+
+    case 'delay':
+      return (
+        <div className="text-[11px] text-[#4a6480] mt-1">
+          wait {config.duration || '0s'}
         </div>
       );
 
     case 'transform':
       return (
-        <div className="text-xs text-muted-foreground truncate">
+        <div className="text-[11px] text-[#4a6480] truncate mt-1">
           → {config.output_var || 'output'}
         </div>
       );
 
     case 'condition':
       return (
-        <div className="text-xs text-muted-foreground font-mono truncate">
-          if {config.expression || '...'}
+        <div className="text-[11px] text-[#4a6480] font-mono truncate mt-1">
+          if {config.expression || '…'}
         </div>
       );
 
     case 'for_each':
       return (
-        <div className="text-xs text-muted-foreground truncate">
-          foreach {config.item_var || 'item'} in {config.items || '[]'}
+        <div className="text-[11px] text-[#4a6480] truncate mt-1">
+          {config.item_var || 'item'} in {config.items || '[]'}
         </div>
       );
 
     case 'mock_server_start':
       return (
-        <div className="text-xs text-muted-foreground truncate">
-          Start: {config.name || 'unnamed'}
-          {config.port && ` :${config.port}`}
-        </div>
-      );
-
-    case 'mock_server_stop':
-      return (
-        <div className="text-xs text-muted-foreground truncate">
-          Stop: {config.name || 'unnamed'}
-        </div>
-      );
-
-    case 'contract_generate':
-      return (
-        <div className="text-xs text-muted-foreground truncate">
-          {config.consumer || '?'} → {config.provider || '?'}
-        </div>
-      );
-
-    case 'contract_verify':
-      return (
-        <div className="text-xs text-muted-foreground truncate">
-          Verify: {config.contract_id?.substring(0, 8) || 'no contract'}
+        <div className="text-[11px] text-[#4a6480] truncate mt-1">
+          {config.name || 'unnamed'}{config.port ? ` :${config.port}` : ''}
         </div>
       );
 
@@ -507,50 +383,52 @@ function NodeContent({ data }: { data: FlowNodeData }) {
   }
 }
 
-// Main FlowNode component
 function FlowNode({ data, selected }: NodeProps<FlowNodeData>) {
   const Icon = actionIcons[data.action] || Box;
-  const colors = actionColors[data.action] || actionColors.log;
-  const executionData = (data as any).execution; // Execution metadata: { startTime, endTime, duration, error }
+  const label = actionLabels[data.action] || data.action;
+  const badgeColor = actionBadgeColors[data.action] || 'bg-slate-500/15 text-slate-300 border-slate-500/25';
+  const iconColor = actionIconColors[data.action] || 'text-slate-400';
+  const executionData = (data as any).execution;
 
   return (
     <div
       className={cn(
-        'rounded-lg border-2 shadow-md transition-all group/node',
-        'min-w-[240px] max-w-[320px]',
-        colors.bg,
-        colors.border,
-        selected && 'ring-2 ring-primary ring-offset-2 shadow-lg',
-        data.status === 'failed' && 'border-red-500 shadow-red-200 dark:shadow-red-900',
-        data.status === 'running' && 'border-primary shadow-primary/20 animate-pulse',
-        data.status === 'completed' && 'border-green-400 dark:border-green-600'
+        'rounded-xl border transition-all duration-150',
+        'min-w-[200px] max-w-[280px]',
+        'bg-[#131b26] border-[#1e2d3d]',
+        'shadow-[0_4px_24px_rgba(0,0,0,0.4)]',
+        selected && 'border-teal-500/60 shadow-[0_0_0_1px_rgba(45,212,191,0.3),0_4px_24px_rgba(0,0,0,0.5)]',
+        data.status === 'running' && 'border-teal-500/50 shadow-[0_0_0_1px_rgba(45,212,191,0.2)]',
+        data.status === 'completed' && 'border-green-500/40',
+        data.status === 'failed' && 'border-red-500/40',
       )}
     >
-      {/* Input Handle */}
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!w-3 !h-3 !bg-muted-foreground !border-2 !border-background hover:!w-4 hover:!h-4 transition-all"
-      />
-
-      {/* Execution progress bar (for running status) */}
+      {/* Running progress bar */}
       {data.status === 'running' && (
-        <div className="absolute top-0 left-0 right-0 h-1 bg-primary/20 rounded-t-lg overflow-hidden">
-          <div className="h-full bg-primary animate-pulse w-full"></div>
+        <div className="absolute top-0 left-0 right-0 h-px bg-teal-500/20 rounded-t-xl overflow-hidden">
+          <div className="h-full bg-teal-400 animate-pulse w-full" />
         </div>
       )}
 
-      <div className="p-3">
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-1">
-          <div className={cn('p-1 rounded', colors.icon)}>
-            <Icon className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm truncate">
-              {data.name || data.label}
-            </div>
-          </div>
+      {/* Input handle */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        className="!w-2 !h-2 !bg-teal-400/70 !border-0 !top-[-4px] hover:!bg-teal-300 transition-colors"
+      />
+
+      <div className="px-3 pt-2.5 pb-2.5">
+        {/* Action type badge + status icon row */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-mono font-semibold uppercase tracking-wider',
+              badgeColor
+            )}
+          >
+            <Icon className={cn('w-2.5 h-2.5', iconColor)} />
+            {label}
+          </span>
           <StatusIcon
             status={data.status}
             error={executionData?.error}
@@ -558,57 +436,50 @@ function FlowNode({ data, selected }: NodeProps<FlowNodeData>) {
           />
         </div>
 
-        {/* Action-specific content */}
+        {/* Node name */}
+        <div className="text-[13px] font-medium text-[#c8dce8] truncate leading-snug">
+          {data.name || data.label}
+        </div>
+
+        {/* Action-specific subtitle */}
         <NodeContent data={data} />
 
-        {/* Execution duration (for completed/failed steps) */}
-        {executionData?.duration && (data.status === 'completed' || data.status === 'failed') && (
-          <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
-            <Timer className="w-3 h-3" />
-            <span>{executionData.duration}ms</span>
-          </div>
-        )}
-
-        {/* Error message (for failed steps) */}
+        {/* Error box */}
         {data.status === 'failed' && executionData?.error && (
-          <div className="mt-2 p-2 rounded bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800">
-            <div className="text-[10px] text-red-700 dark:text-red-300 font-mono line-clamp-2">
+          <div className="mt-2 px-2 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
+            <div className="text-[10px] text-red-300 font-mono line-clamp-2">
               {executionData.error}
             </div>
           </div>
         )}
 
-        {/* Badges */}
-        <div className="flex items-center gap-1 mt-2 flex-wrap">
-          {data.assert && data.assert.length > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
-              {data.assert.length} assertion{data.assert.length > 1 ? 's' : ''}
-            </span>
-          )}
-          {data.output && Object.keys(data.output).length > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-              {Object.keys(data.output).length} output{Object.keys(data.output).length > 1 ? 's' : ''}
-            </span>
-          )}
-          {data.retry && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">
-              retry ×{data.retry.max_attempts}
-            </span>
-          )}
-          {data.comments && data.comments.length > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 flex items-center gap-1">
-              <MessageSquare className="w-2.5 h-2.5" />
-              {data.comments.length}
-            </span>
-          )}
-        </div>
+        {/* Meta badges */}
+        {(data.assert?.length || data.output || data.retry) && (
+          <div className="flex items-center gap-1 mt-2 flex-wrap">
+            {data.assert && data.assert.length > 0 && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 border border-green-500/20">
+                {data.assert.length} assert{data.assert.length > 1 ? 's' : ''}
+              </span>
+            )}
+            {data.output && Object.keys(data.output).length > 0 && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                {Object.keys(data.output).length} out
+              </span>
+            )}
+            {data.retry && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
+                ×{data.retry.max_attempts}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Output Handle */}
+      {/* Output handle */}
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-3 !h-3 !bg-muted-foreground !border-2 !border-background hover:!w-4 hover:!h-4 transition-all"
+        className="!w-2 !h-2 !bg-teal-400/70 !border-0 !bottom-[-4px] hover:!bg-teal-300 transition-colors"
       />
     </div>
   );

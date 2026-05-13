@@ -503,9 +503,9 @@ export default function FlowEditor({
   }, [definition, historyIndex]);
 
   return (
-    <div className={cn('flex flex-col h-full bg-background', className)}>
+    <div className={cn('flex flex-col h-full bg-[#0d1117]', className)}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[#1e2d3d] bg-[#0f1923]">
         <div className="flex items-center gap-2">
           {/* YAML Drawer button */}
           <Button

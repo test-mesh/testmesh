@@ -8,6 +8,9 @@ import { usePathname } from 'next/navigation';
 // Pages that should NOT show the sidebar/header (e.g., login)
 const noLayoutPaths = ['/login', '/login/callback'];
 
+// Pages that need edge-to-edge layout (no padding, overflow-hidden)
+const fullBleedPaths = ['/flows/'];
+
 interface MainLayoutProps {
   children: React.ReactNode;
 }
@@ -15,6 +18,7 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const pathname = usePathname();
   const showLayout = !noLayoutPaths.some(path => pathname.startsWith(path));
+  const isFullBleed = fullBleedPaths.some(path => pathname.startsWith(path));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (!showLayout) {
@@ -29,7 +33,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           mobileMenuOpen={mobileMenuOpen}
           onMobileMenuClose={() => setMobileMenuOpen(false)}
         />
-        <main className="flex-1 overflow-auto px-4">
+        <main className={isFullBleed ? 'flex-1 overflow-hidden' : 'flex-1 overflow-auto px-4'}>
           {children}
         </main>
       </div>

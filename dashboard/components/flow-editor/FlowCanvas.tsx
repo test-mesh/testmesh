@@ -204,7 +204,7 @@ function FlowCanvasInner({
   );
 
   return (
-    <div ref={reactFlowWrapper} className={cn('w-full h-full', className)}>
+    <div ref={reactFlowWrapper} className={cn('w-full h-full bg-[#0d1117]', className)}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -233,29 +233,45 @@ function FlowCanvasInner({
         defaultEdgeOptions={{
           type: 'smoothstep',
           animated: false,
+          style: { stroke: '#2dd4bf', strokeWidth: 1.5, opacity: 0.6 },
         }}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={15} size={1} />
-        <Controls showInteractive={!readOnly} />
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1.2}
+          color="#1a2d3d"
+        />
+        <Controls
+          showInteractive={!readOnly}
+          style={{
+            background: '#131b26',
+            border: '1px solid #1e2d3d',
+            borderRadius: '8px',
+          }}
+        />
         <MiniMap
-          nodeStrokeWidth={3}
+          nodeStrokeWidth={2}
+          nodeColor="#1e2d3d"
+          maskColor="rgba(13,17,23,0.7)"
           zoomable
           pannable
-          className="!bg-background !border-border"
+          style={{
+            background: '#131b26',
+            border: '1px solid #1e2d3d',
+            borderRadius: '8px',
+          }}
         />
 
         {/* Empty state panel */}
         {nodes.filter((n) => n.type === 'flowNode').length === 0 && (
           <Panel position="top-center" className="mt-20">
-            <div className="text-center p-8 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/50">
-              <h3 className="font-semibold text-lg mb-2">No steps yet</h3>
-              <p className="text-muted-foreground text-sm mb-4">
-                Drag actions from the palette on the left to add steps to your flow
+            <div className="text-center p-8 rounded-xl border border-dashed border-[#1e2d3d] bg-[#131b26]/80">
+              <h3 className="font-semibold text-[#c8dce8] text-base mb-2">No steps yet</h3>
+              <p className="text-[#4a6480] text-sm">
+                Drag actions from the palette on the left to add steps
               </p>
-              <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-                <span>Tip: Steps will automatically connect in sequence</span>
-              </div>
             </div>
           </Panel>
         )}
