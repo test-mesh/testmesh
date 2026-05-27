@@ -15,11 +15,8 @@ import {
   MoreVertical,
   Trash2,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -36,14 +33,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
@@ -53,7 +42,7 @@ import {
   useDeleteWorkspace,
   useUserRole,
 } from '@/lib/hooks/useWorkspaces';
-import type { Workspace, WorkspaceType, WorkspaceRole } from '@/lib/api/workspaces';
+import type { Workspace, WorkspaceRole } from '@/lib/api/workspaces';
 
 const ROLE_ICONS: Record<WorkspaceRole, React.ReactNode> = {
   owner: <Crown className="w-3 h-3" />,
@@ -63,10 +52,10 @@ const ROLE_ICONS: Record<WorkspaceRole, React.ReactNode> = {
 };
 
 const ROLE_COLORS: Record<WorkspaceRole, string> = {
-  owner: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  admin: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-  editor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  viewer: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+  owner:  'bg-yellow-400/10 text-yellow-400',
+  admin:  'bg-purple-400/10 text-purple-400',
+  editor: 'bg-blue-400/10 text-blue-400',
+  viewer: 'bg-[#1a2d3d] text-[#4a6480]',
 };
 
 export default function WorkspacesPage() {
@@ -85,13 +74,11 @@ export default function WorkspacesPage() {
 
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) return;
-
     await createWorkspace.mutateAsync({
       name: newWorkspaceName,
       description: newWorkspaceDescription,
       type: 'team',
     });
-
     setNewWorkspaceName('');
     setNewWorkspaceDescription('');
     setCreateDialogOpen(false);
@@ -105,148 +92,124 @@ export default function WorkspacesPage() {
 
   const isLoading = isLoadingPersonal || isLoadingWorkspaces;
 
+  const TABS = [
+    { value: 'all', label: 'All Workspaces' },
+    { value: 'personal', label: 'Personal' },
+    { value: 'team', label: 'Team' },
+  ] as const;
+
   return (
-    <div className="container max-w-6xl py-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="px-6 py-6">
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-primary" />
+          <h1 className="text-xl font-semibold text-[#c8dce8] flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-[#3d5670]" />
             Workspaces
           </h1>
-          <p className="text-muted-foreground">
-            Organize your work and collaborate with team members
-          </p>
+          <p className="text-xs text-[#3d5670] mt-0.5">Organize your work and collaborate with team members</p>
         </div>
 
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
+            <button className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors">
+              <Plus className="w-3 h-3" />
               New Workspace
-            </Button>
+            </button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create Workspace</DialogTitle>
-              <DialogDescription>
-                Create a new team workspace to collaborate with others
-              </DialogDescription>
+              <DialogDescription>Create a new team workspace to collaborate with others</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  value={newWorkspaceName}
-                  onChange={(e) => setNewWorkspaceName(e.target.value)}
-                  placeholder="My Team Workspace"
-                />
+                <Label htmlFor="ws-name">Name</Label>
+                <Input id="ws-name" value={newWorkspaceName} onChange={(e) => setNewWorkspaceName(e.target.value)} placeholder="My Team Workspace" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={newWorkspaceDescription}
-                  onChange={(e) => setNewWorkspaceDescription(e.target.value)}
-                  placeholder="Optional description..."
-                  rows={3}
-                />
+                <Label htmlFor="ws-desc">Description</Label>
+                <Textarea id="ws-desc" value={newWorkspaceDescription} onChange={(e) => setNewWorkspaceDescription(e.target.value)} placeholder="Optional description..." rows={3} />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+              <button
+                onClick={() => setCreateDialogOpen(false)}
+                className="h-8 px-4 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors"
+              >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 onClick={handleCreateWorkspace}
                 disabled={!newWorkspaceName.trim() || createWorkspace.isPending}
+                className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
               >
-                {createWorkspace.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {createWorkspace.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin inline" />}
                 Create
-              </Button>
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList>
-          <TabsTrigger value="all">All Workspaces</TabsTrigger>
-          <TabsTrigger value="personal">Personal</TabsTrigger>
-          <TabsTrigger value="team">Team</TabsTrigger>
-        </TabsList>
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4">
+        {TABS.map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setActiveTab(tab.value)}
+            className={cn(
+              'h-8 px-3 rounded-lg text-xs transition-colors',
+              activeTab === tab.value
+                ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+                : 'text-[#4a6480] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#7fa8c8]'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value={activeTab} className="mt-6">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* Personal workspace */}
-              {(activeTab === 'all' || activeTab === 'personal') && personalWorkspace && (
-                <WorkspaceCard
-                  workspace={personalWorkspace}
-                  role="owner"
-                  isPersonal
-                />
-              )}
-
-              {/* Team workspaces */}
-              {workspacesData?.workspaces
-                .filter((w) => w.type === 'team')
-                .map((workspace) => (
-                  <WorkspaceCardWithRole
-                    key={workspace.id}
-                    workspace={workspace}
-                    onDelete={() => handleDeleteWorkspace(workspace.id)}
-                  />
-                ))}
-
-              {/* Empty state */}
-              {!personalWorkspace &&
-                (!workspacesData?.workspaces || workspacesData.workspaces.length === 0) && (
-                  <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
-                    <Building2 className="w-12 h-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium">No workspaces yet</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Create a workspace to start organizing your work
-                    </p>
-                    <Button onClick={() => setCreateDialogOpen(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Workspace
-                    </Button>
-                  </div>
-                )}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-5 h-5 animate-spin text-[#3d5670]" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {(activeTab === 'all' || activeTab === 'personal') && personalWorkspace && (
+            <WorkspaceCard workspace={personalWorkspace} role="owner" isPersonal />
+          )}
+          {workspacesData?.workspaces
+            .filter((w) => w.type === 'team')
+            .map((workspace) => (
+              <WorkspaceCardWithRole
+                key={workspace.id}
+                workspace={workspace}
+                onDelete={() => handleDeleteWorkspace(workspace.id)}
+              />
+            ))}
+          {!personalWorkspace && (!workspacesData?.workspaces || workspacesData.workspaces.length === 0) && (
+            <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+              <Building2 className="w-10 h-10 mb-3 text-[#1e2d3d]" />
+              <p className="text-sm text-[#3d5670] mb-1">No workspaces yet</p>
+              <p className="text-[11px] text-[#2a3d52] mb-4">Create a workspace to start organizing your work</p>
+              <button
+                onClick={() => setCreateDialogOpen(true)}
+                className="flex items-center gap-1.5 h-7 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+              >
+                <Plus className="w-3 h-3" />Create Workspace
+              </button>
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
 }
 
-// Wrapper component that fetches the user's role for a workspace
-function WorkspaceCardWithRole({
-  workspace,
-  onDelete,
-}: {
-  workspace: Workspace;
-  onDelete?: () => void;
-}) {
+function WorkspaceCardWithRole({ workspace, onDelete }: { workspace: Workspace; onDelete?: () => void }) {
   const { data: roleData, isLoading } = useUserRole(workspace.id);
-
-  // Default to viewer while loading, or if the API call fails
   const role = roleData?.role ?? 'viewer';
-
-  return (
-    <WorkspaceCard
-      workspace={workspace}
-      role={role}
-      onDelete={onDelete}
-      isLoadingRole={isLoading}
-    />
-  );
+  return <WorkspaceCard workspace={workspace} role={role} onDelete={onDelete} isLoadingRole={isLoading} />;
 }
 
 interface WorkspaceCardProps {
@@ -259,95 +222,61 @@ interface WorkspaceCardProps {
 
 function WorkspaceCard({ workspace, role, isPersonal, onDelete, isLoadingRole }: WorkspaceCardProps) {
   return (
-    <Card className="group hover:shadow-md transition-shadow">
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <div
-              className={cn(
-                'w-10 h-10 rounded-lg flex items-center justify-center',
-                isPersonal
-                  ? 'bg-gradient-to-br from-blue-500 to-purple-500'
-                  : 'bg-gradient-to-br from-green-500 to-teal-500'
-              )}
-            >
-              {isPersonal ? (
-                <Users className="w-5 h-5 text-white" />
-              ) : (
-                <Building2 className="w-5 h-5 text-white" />
-              )}
-            </div>
-            <div>
-              <CardTitle className="text-base">{workspace.name}</CardTitle>
-              <CardDescription className="text-xs">/{workspace.slug}</CardDescription>
-            </div>
+    <div className="group rounded-xl bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] p-4 flex flex-col gap-3 transition-colors">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className={cn(
+            'w-9 h-9 rounded-lg flex items-center justify-center shrink-0',
+            isPersonal ? 'bg-gradient-to-br from-blue-500/30 to-purple-500/30 border border-blue-500/20' : 'bg-gradient-to-br from-teal-500/20 to-emerald-500/20 border border-teal-500/20'
+          )}>
+            {isPersonal ? <Users className="w-4 h-4 text-blue-400" /> : <Building2 className="w-4 h-4 text-teal-400" />}
           </div>
-
-          {!isPersonal && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href={`/workspaces/${workspace.id}/settings`}>
-                    <Settings className="w-4 h-4 mr-2" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Invite Members
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-red-600"
-                  onClick={onDelete}
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium text-[#c8dce8] truncate">{workspace.name}</p>
+            <p className="text-[10px] text-[#4a6480] font-mono">/{workspace.slug}</p>
+          </div>
         </div>
-      </CardHeader>
-      <CardContent>
-        {workspace.description && (
-          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-            {workspace.description}
-          </p>
+
+        {!isPersonal && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center justify-center h-6 w-6 rounded text-[#3d5670] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] opacity-0 group-hover:opacity-100 transition-all">
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/workspaces/${workspace.id}/settings`}>
+                  <Settings className="w-4 h-4 mr-2" />Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem>
+                <UserPlus className="w-4 h-4 mr-2" />Invite Members
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive" onClick={onDelete}>
+                <Trash2 className="w-4 h-4 mr-2" />Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
+      </div>
 
-        <div className="flex items-center justify-between">
-          <Badge
-            variant="outline"
-            className={cn('flex items-center gap-1', isLoadingRole ? 'opacity-50' : ROLE_COLORS[role])}
-          >
-            {isLoadingRole ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <>
-                {ROLE_ICONS[role]}
-                {role}
-              </>
-            )}
-          </Badge>
+      {workspace.description && (
+        <p className="text-[11px] text-[#4a6480] line-clamp-2">{workspace.description}</p>
+      )}
 
-          <Link href={`/workspaces/${workspace.id}/settings`}>
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
-              <Settings className="w-3 h-3 mr-1" />
-              Settings
-            </Button>
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="flex items-center justify-between mt-auto">
+        <span className={cn('flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded capitalize', isLoadingRole ? 'bg-[#1a2d3d] text-[#3d5670]' : ROLE_COLORS[role])}>
+          {isLoadingRole ? <Loader2 className="w-3 h-3 animate-spin" /> : <>{ROLE_ICONS[role]}{role}</>}
+        </span>
+        <Link
+          href={`/workspaces/${workspace.id}/settings`}
+          className="flex items-center gap-1 text-[10px] text-[#4a6480] hover:text-[#7fa8c8] transition-colors"
+        >
+          <Settings className="w-3 h-3" />Settings
+        </Link>
+      </div>
+    </div>
   );
 }

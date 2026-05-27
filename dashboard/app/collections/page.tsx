@@ -3,9 +3,6 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, FolderTree, Search, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,64 +27,28 @@ import {
 } from '@/lib/hooks/useCollections';
 import type { CollectionTreeNode, CreateCollectionRequest, UpdateCollectionRequest } from '@/lib/api/types';
 
-// Recursive tree filter that preserves parent structure when a child matches
-function filterTree(
-  nodes: CollectionTreeNode[],
-  query: string
-): CollectionTreeNode[] {
+function filterTree(nodes: CollectionTreeNode[], query: string): CollectionTreeNode[] {
   if (!query.trim()) return nodes;
-
   const lowerQuery = query.toLowerCase();
-
   return nodes.reduce<CollectionTreeNode[]>((acc, node) => {
-    // Check if this node matches
-    const nameMatches = node.name.toLowerCase().includes(lowerQuery);
-    const descMatches = node.description?.toLowerCase().includes(lowerQuery);
-    const nodeMatches = nameMatches || descMatches;
-
-    // Recursively filter children
-    const filteredChildren = node.children
-      ? filterTree(node.children, query)
-      : undefined;
-
+    const nodeMatches = node.name.toLowerCase().includes(lowerQuery) || node.description?.toLowerCase().includes(lowerQuery);
+    const filteredChildren = node.children ? filterTree(node.children, query) : undefined;
     const hasMatchingChildren = filteredChildren && filteredChildren.length > 0;
-
-    // Include node if it matches or has matching descendants
-    if (nodeMatches || hasMatchingChildren) {
-      acc.push({
-        ...node,
-        children: filteredChildren,
-      });
-    }
-
+    if (nodeMatches || hasMatchingChildren) acc.push({ ...node, children: filteredChildren });
     return acc;
   }, []);
 }
 
-// Collect all flow IDs from a collection node
 function collectFlowIds(node: CollectionTreeNode): string[] {
   const flowIds: string[] = [];
-  if (node.type === 'flow' && node.flow_id) {
-    flowIds.push(node.flow_id);
-  }
-  if (node.children) {
-    for (const child of node.children) {
-      flowIds.push(...collectFlowIds(child));
-    }
-  }
+  if (node.type === 'flow' && node.flow_id) flowIds.push(node.flow_id);
+  if (node.children) for (const child of node.children) flowIds.push(...collectFlowIds(child));
   return flowIds;
 }
 
-// Find parent collection ID for a flow
-function findParentCollectionId(
-  nodes: CollectionTreeNode[],
-  flowId: string,
-  parentId?: string
-): string | null {
+function findParentCollectionId(nodes: CollectionTreeNode[], flowId: string, parentId?: string): string | null {
   for (const node of nodes) {
-    if (node.type === 'flow' && node.flow_id === flowId) {
-      return parentId || null;
-    }
+    if (node.type === 'flow' && node.flow_id === flowId) return parentId || null;
     if (node.children) {
       const found = findParentCollectionId(node.children, flowId, node.id);
       if (found) return found;
@@ -104,27 +65,22 @@ export default function CollectionsPage() {
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(null);
   const [parentIdForCreate, setParentIdForCreate] = useState<string | undefined>();
 
-  // Move dialog state
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveCollectionId, setMoveCollectionId] = useState<string | null>(null);
   const [moveCollectionName, setMoveCollectionName] = useState('');
 
-  // Add flow dialog state
   const [addFlowDialogOpen, setAddFlowDialogOpen] = useState(false);
   const [addFlowCollectionId, setAddFlowCollectionId] = useState<string | null>(null);
   const [addFlowCollectionName, setAddFlowCollectionName] = useState('');
   const [existingFlowIds, setExistingFlowIds] = useState<string[]>([]);
 
-  // Remove flow confirmation state
   const [removeFlowDialogOpen, setRemoveFlowDialogOpen] = useState(false);
   const [removeFlowId, setRemoveFlowId] = useState<string | null>(null);
   const [removeFlowCollectionId, setRemoveFlowCollectionId] = useState<string | null>(null);
 
-  // Queries
   const { data: treeData, isLoading } = useCollectionTree();
   const { data: editingCollection } = useCollection(editingCollectionId || '');
 
-  // Mutations
   const createCollection = useCreateCollection();
   const updateCollection = useUpdateCollection();
   const deleteCollection = useDeleteCollection();
@@ -133,9 +89,7 @@ export default function CollectionsPage() {
   const removeFlowFromCollection = useRemoveFlowFromCollection();
   const addFlowToCollection = useAddFlowToCollection();
 
-  const handleSelect = (node: CollectionTreeNode) => {
-    setSelectedNodeId(node.id);
-  };
+  const handleSelect = (node: CollectionTreeNode) => setSelectedNodeId(node.id);
 
   const handleCreateCollection = (parentId?: string) => {
     setEditingCollectionId(null);
@@ -157,50 +111,30 @@ export default function CollectionsPage() {
 
   const handleDuplicateCollection = async (id: string) => {
     const name = prompt('Enter name for the duplicate:');
-    if (name) {
-      await duplicateCollection.mutateAsync({ id, name });
-    }
+    if (name) await duplicateCollection.mutateAsync({ id, name });
   };
 
   const handleMoveCollection = (id: string) => {
-    // Find the collection name from tree
     const findNode = (nodes: CollectionTreeNode[]): CollectionTreeNode | null => {
       for (const node of nodes) {
         if (node.id === id) return node;
-        if (node.children) {
-          const found = findNode(node.children);
-          if (found) return found;
-        }
+        if (node.children) { const found = findNode(node.children); if (found) return found; }
       }
       return null;
     };
-
     const node = findNode(treeData?.tree || []);
-    if (node) {
-      setMoveCollectionId(id);
-      setMoveCollectionName(node.name);
-      setMoveDialogOpen(true);
-    }
+    if (node) { setMoveCollectionId(id); setMoveCollectionName(node.name); setMoveDialogOpen(true); }
   };
 
   const handleMoveSubmit = async (targetParentId: string | null) => {
     if (!moveCollectionId) return;
-    await moveCollection.mutateAsync({
-      id: moveCollectionId,
-      data: { parent_id: targetParentId },
-    });
+    await moveCollection.mutateAsync({ id: moveCollectionId, data: { parent_id: targetParentId } });
   };
 
-  const handleRunFlow = (flowId: string) => {
-    router.push(`/flows/${flowId}/run`);
-  };
-
-  const handleEditFlow = (flowId: string) => {
-    router.push(`/flows/${flowId}/edit`);
-  };
+  const handleRunFlow = (flowId: string) => router.push(`/flows/${flowId}/run`);
+  const handleEditFlow = (flowId: string) => router.push(`/flows/${flowId}/edit`);
 
   const handleDeleteFlow = async (flowId: string) => {
-    // Find the parent collection for this flow
     const collectionId = findParentCollectionId(treeData?.tree || [], flowId);
     if (collectionId) {
       setRemoveFlowId(flowId);
@@ -211,10 +145,7 @@ export default function CollectionsPage() {
 
   const handleConfirmRemoveFlow = async () => {
     if (removeFlowId && removeFlowCollectionId) {
-      await removeFlowFromCollection.mutateAsync({
-        collectionId: removeFlowCollectionId,
-        flowId: removeFlowId,
-      });
+      await removeFlowFromCollection.mutateAsync({ collectionId: removeFlowCollectionId, flowId: removeFlowId });
       setRemoveFlowDialogOpen(false);
       setRemoveFlowId(null);
       setRemoveFlowCollectionId(null);
@@ -222,57 +153,47 @@ export default function CollectionsPage() {
   };
 
   const handleAddFlow = (collectionId: string, collectionName: string, node: CollectionTreeNode) => {
-    const flowIds = collectFlowIds(node);
     setAddFlowCollectionId(collectionId);
     setAddFlowCollectionName(collectionName);
-    setExistingFlowIds(flowIds);
+    setExistingFlowIds(collectFlowIds(node));
     setAddFlowDialogOpen(true);
   };
 
   const handleAddFlowSubmit = async (flowId: string) => {
     if (!addFlowCollectionId) return;
-    await addFlowToCollection.mutateAsync({
-      collectionId: addFlowCollectionId,
-      data: { flow_id: flowId },
-    });
+    await addFlowToCollection.mutateAsync({ collectionId: addFlowCollectionId, data: { flow_id: flowId } });
   };
 
   const handleDialogSubmit = async (data: CreateCollectionRequest | UpdateCollectionRequest) => {
-    if (editingCollectionId) {
-      await updateCollection.mutateAsync({ id: editingCollectionId, data });
-    } else {
-      await createCollection.mutateAsync(data as CreateCollectionRequest);
-    }
+    if (editingCollectionId) await updateCollection.mutateAsync({ id: editingCollectionId, data });
+    else await createCollection.mutateAsync(data as CreateCollectionRequest);
   };
 
-  // Filter tree by search query
-  const filteredTree = useMemo(() => {
-    return filterTree(treeData?.tree || [], searchQuery);
-  }, [treeData?.tree, searchQuery]);
+  const filteredTree = useMemo(() => filterTree(treeData?.tree || [], searchQuery), [treeData?.tree, searchQuery]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)]">
-      {/* Sidebar with tree */}
-      <div className="w-72 border-r flex flex-col bg-muted/30">
-        <div className="p-3 border-b space-y-2">
+      {/* Sidebar */}
+      <div className="w-72 border-r border-[#1e2d3d] flex flex-col bg-[#0b0f18]">
+        <div className="p-3 border-b border-[#1e2d3d] space-y-2">
           <div className="flex items-center gap-2">
-            <FolderTree className="w-5 h-5 text-primary" />
-            <h2 className="font-semibold">Collections</h2>
+            <FolderTree className="w-4 h-4 text-[#3d5670]" />
+            <h2 className="text-[13px] font-semibold text-[#c8dce8]">Collections</h2>
           </div>
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#3d5670]" />
+            <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search collections..."
-              className="pl-8 h-8 text-sm"
+              className="w-full h-7 pl-7 pr-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-xs text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50 transition-colors"
             />
           </div>
         </div>
 
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <Loader2 className="w-5 h-5 animate-spin text-[#3d5670]" />
           </div>
         ) : (
           <CollectionTree
@@ -292,8 +213,8 @@ export default function CollectionsPage() {
         )}
       </div>
 
-      {/* Main content area */}
-      <div className="flex-1 p-6 overflow-auto">
+      {/* Main content */}
+      <div className="flex-1 p-6 overflow-auto bg-[#0b0f18]">
         {selectedNodeId ? (
           <SelectedNodeDetails
             nodeId={selectedNodeId}
@@ -304,22 +225,23 @@ export default function CollectionsPage() {
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <FolderTree className="w-16 h-16 text-muted-foreground/30 mb-4" />
-            <h3 className="text-lg font-medium mb-2">Organize Your Flows</h3>
-            <p className="text-muted-foreground mb-6 max-w-md">
+            <FolderTree className="w-12 h-12 text-[#1e2d3d] mb-4" />
+            <h3 className="text-[13px] font-semibold text-[#c8dce8] mb-1">Organize Your Flows</h3>
+            <p className="text-[11px] text-[#4a6480] mb-5 max-w-md">
               Collections help you organize your test flows into logical groups.
               Create nested folders, set collection-level variables, and manage authentication
               settings that apply to all flows within.
             </p>
-            <Button onClick={() => handleCreateCollection()}>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Collection
-            </Button>
+            <button
+              onClick={() => handleCreateCollection()}
+              className="flex items-center gap-1.5 h-7 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+            >
+              <Plus className="w-3 h-3" />Create Collection
+            </button>
           </div>
         )}
       </div>
 
-      {/* Collection dialog */}
       <CollectionDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -329,7 +251,6 @@ export default function CollectionsPage() {
         isLoading={createCollection.isPending || updateCollection.isPending}
       />
 
-      {/* Move collection dialog */}
       <MoveCollectionDialog
         open={moveDialogOpen}
         onOpenChange={setMoveDialogOpen}
@@ -340,7 +261,6 @@ export default function CollectionsPage() {
         isLoading={moveCollection.isPending}
       />
 
-      {/* Add flow dialog */}
       <AddFlowDialog
         open={addFlowDialogOpen}
         onOpenChange={setAddFlowDialogOpen}
@@ -351,22 +271,17 @@ export default function CollectionsPage() {
         isLoading={addFlowToCollection.isPending}
       />
 
-      {/* Remove flow confirmation dialog */}
       <AlertDialog open={removeFlowDialogOpen} onOpenChange={setRemoveFlowDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Flow from Collection</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove this flow from the collection?
-              The flow itself will not be deleted.
+              Are you sure you want to remove this flow from the collection? The flow itself will not be deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmRemoveFlow}
-              disabled={removeFlowFromCollection.isPending}
-            >
+            <AlertDialogAction onClick={handleConfirmRemoveFlow} disabled={removeFlowFromCollection.isPending}>
               {removeFlowFromCollection.isPending ? 'Removing...' : 'Remove'}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -376,13 +291,8 @@ export default function CollectionsPage() {
   );
 }
 
-// Helper component to display selected node details
 function SelectedNodeDetails({
-  nodeId,
-  tree,
-  onEdit,
-  onDelete,
-  onAddFlow,
+  nodeId, tree, onEdit, onDelete, onAddFlow,
 }: {
   nodeId: string;
   tree: CollectionTreeNode[];
@@ -390,14 +300,10 @@ function SelectedNodeDetails({
   onDelete: (id: string) => void;
   onAddFlow: (collectionId: string, collectionName: string, node: CollectionTreeNode) => void;
 }) {
-  // Find node in tree
   const findNode = (nodes: CollectionTreeNode[], id: string): CollectionTreeNode | null => {
     for (const node of nodes) {
       if (node.id === id) return node;
-      if (node.children) {
-        const found = findNode(node.children, id);
-        if (found) return found;
-      }
+      if (node.children) { const found = findNode(node.children, id); if (found) return found; }
     }
     return null;
   };
@@ -405,30 +311,15 @@ function SelectedNodeDetails({
   const node = findNode(tree, nodeId);
 
   if (!node) {
-    return (
-      <div className="text-center text-muted-foreground">
-        Collection not found
-      </div>
-    );
+    return <div className="text-xs text-[#4a6480]">Collection not found</div>;
   }
 
   if (node.type === 'flow') {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {node.name}
-          </CardTitle>
-          <CardDescription>
-            Test Flow
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Click "Edit Flow" to view and modify this flow.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-4">
+        <p className="text-[13px] font-semibold text-[#c8dce8] mb-0.5">{node.name}</p>
+        <p className="text-[10px] text-[#4a6480]">Test Flow — click &ldquo;Edit Flow&rdquo; in the tree to view and modify.</p>
+      </div>
     );
   }
 
@@ -436,61 +327,56 @@ function SelectedNodeDetails({
   const childFlows = node.children?.filter((c) => c.type === 'flow') || [];
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {node.icon && <span className="text-2xl">{node.icon}</span>}
-              <div>
-                <CardTitle>{node.name}</CardTitle>
-                {node.description && (
-                  <CardDescription>{node.description}</CardDescription>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => onEdit(node.id)}>
-                Edit
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => onAddFlow(node.id, node.name, node)}>
-                Add Flow
-              </Button>
+    <div className="space-y-4">
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a2332]">
+          <div className="flex items-center gap-2">
+            {node.icon && <span className="text-xl">{node.icon}</span>}
+            <div>
+              <p className="text-[13px] font-semibold text-[#c8dce8]">{node.name}</p>
+              {node.description && <p className="text-[11px] text-[#4a6480]">{node.description}</p>}
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Sub-collections:</span>
-              <span className="ml-2 font-medium">{childCollections.length}</span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Flows:</span>
-              <span className="ml-2 font-medium">{childFlows.length}</span>
-            </div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={() => onEdit(node.id)}
+              className="h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onAddFlow(node.id, node.name, node)}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+            >
+              <Plus className="h-3 w-3" />Add Flow
+            </button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="grid grid-cols-2 px-4 py-3 gap-4">
+          <div>
+            <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Sub-collections</span>
+            <p className="text-[13px] font-semibold text-[#c8dce8] mt-0.5">{childCollections.length}</p>
+          </div>
+          <div>
+            <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Flows</span>
+            <p className="text-[13px] font-semibold text-[#c8dce8] mt-0.5">{childFlows.length}</p>
+          </div>
+        </div>
+      </div>
 
       {childFlows.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Flows in this Collection</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {childFlows.map((flow) => (
-                <div
-                  key={flow.id}
-                  className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50"
-                >
-                  <span className="text-sm">{flow.name}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332]">
+            <span className="text-[11px] font-semibold text-[#c8dce8]">Flows in this Collection</span>
+          </div>
+          <div className="divide-y divide-[#1a2332]">
+            {childFlows.map((flow) => (
+              <div key={flow.id} className="flex items-center px-4 py-2.5 hover:bg-[#131b26] transition-colors">
+                <span className="text-[12px] text-[#c8dce8]">{flow.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
