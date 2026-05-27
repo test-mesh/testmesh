@@ -2,94 +2,37 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   LayoutDashboard,
   FileText,
-  FolderTree,
-  Calendar,
   Play,
-  Layers,
-  ShieldCheck,
   Globe,
   Server,
   Network,
-  Plug,
   BarChart3,
   Settings,
-  Container,
-  Puzzle,
-  HeartPulse,
-  ChevronDown,
   ExternalLink,
+  HelpCircle,
 } from 'lucide-react';
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
-interface NavItem {
-  title: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-}
+const primaryNav = [
+  { title: 'Dashboard', href: '/', icon: LayoutDashboard, exact: true },
+  { title: 'Flows', href: '/flows', icon: FileText },
+  { title: 'Executions', href: '/executions', icon: Play },
+];
 
-interface NavGroup {
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  href?: string;
-  items?: NavItem[];
-}
+const infraNav = [
+  { title: 'Environments', href: '/environments', icon: Globe },
+  { title: 'Mocks', href: '/mocks', icon: Server },
+  { title: 'Graph', href: '/graph', icon: Network },
+];
 
-const navGroups: NavGroup[] = [
-  {
-    title: 'Dashboard',
-    href: '/',
-    icon: LayoutDashboard,
-  },
-  {
-    title: 'Flows',
-    icon: FileText,
-    items: [
-      { title: 'All Flows', href: '/flows', icon: FileText },
-      { title: 'Collections', href: '/collections', icon: FolderTree },
-      { title: 'Schedules', href: '/schedules', icon: Calendar },
-    ],
-  },
-  {
-    title: 'Executions',
-    icon: Play,
-    items: [
-      { title: 'History', href: '/executions', icon: Play },
-      { title: 'Suites', href: '/suites', icon: Layers },
-      { title: 'Coverage', href: '/coverage', icon: ShieldCheck },
-    ],
-  },
-  {
-    title: 'Infrastructure',
-    icon: Server,
-    items: [
-      { title: 'Environments', href: '/environments', icon: Globe },
-      { title: 'Mock Servers', href: '/mocks', icon: Server },
-      { title: 'System Graph', href: '/graph', icon: Network },
-      { title: 'Integrations', href: '/integrations', icon: Plug },
-    ],
-  },
-  {
-    title: 'Analytics',
-    href: '/analytics',
-    icon: BarChart3,
-  },
-  {
-    title: 'Settings',
-    icon: Settings,
-    items: [
-      { title: 'Test Environments', href: '/test-environments', icon: Container },
-      { title: 'Plugins', href: '/plugins', icon: Puzzle },
-      { title: 'Health', href: '/health', icon: HeartPulse },
-    ],
-  },
+const bottomNav = [
+  { title: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { title: 'Settings', href: '/test-environments', icon: Settings },
 ];
 
 interface SidebarProps {
@@ -97,7 +40,13 @@ interface SidebarProps {
   onMobileMenuClose?: () => void;
 }
 
-function NavLink({ href, icon: Icon, title, active, onClick }: {
+function NavItem({
+  href,
+  icon: Icon,
+  title,
+  active,
+  onClick,
+}: {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   title: string;
@@ -108,127 +57,135 @@ function NavLink({ href, icon: Icon, title, active, onClick }: {
     <Link
       href={href}
       onClick={onClick}
+      title={title}
       className={cn(
-        'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+        'group relative flex flex-col items-center gap-1 py-2.5 rounded-lg transition-colors w-full',
         active
-          ? 'bg-primary/10 text-primary'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          ? 'text-teal-400'
+          : 'text-[#3d5670] hover:text-[#7fa8c8]'
       )}
     >
-      <Icon className="h-4 w-4 shrink-0" />
-      {title}
+      {/* Active left accent */}
+      {active && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-teal-400 rounded-r-full" />
+      )}
+      <Icon
+        className={cn(
+          'w-[18px] h-[18px] shrink-0 transition-colors',
+          active ? 'text-teal-400' : 'group-hover:text-[#7fa8c8]'
+        )}
+      />
+      <span
+        className={cn(
+          'text-[9px] font-medium tracking-wide leading-none',
+          active ? 'text-teal-400' : 'text-[#3d5670] group-hover:text-[#7fa8c8]'
+        )}
+      >
+        {title}
+      </span>
     </Link>
   );
+}
+
+function Divider() {
+  return <div className="h-px bg-[#1a2332] mx-3 my-1" />;
 }
 
 export function Sidebar({ mobileMenuOpen, onMobileMenuClose }: SidebarProps) {
   const pathname = usePathname();
 
-  const isActive = (href: string) =>
-    href === '/' ? pathname === '/' : pathname.startsWith(href);
-
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    navGroups.forEach(g => {
-      if (g.items) {
-        initial[g.title] = g.items.some(i => pathname.startsWith(i.href));
-      }
-    });
-    return initial;
-  });
-
-  const toggleGroup = (title: string) =>
-    setOpenGroups(prev => ({ ...prev, [title]: !prev[title] }));
+  const isActive = (href: string, exact = false) =>
+    exact ? pathname === href : pathname === href || pathname.startsWith(href + '/') || (href !== '/' && pathname.startsWith(href));
 
   return (
     <>
-      {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/60 z-40 md:hidden"
           onClick={onMobileMenuClose}
         />
       )}
 
-      {/* Sidebar */}
       <div
         className={cn(
-          'flex flex-col h-full border-r bg-sidebar w-[220px] shrink-0',
+          'flex flex-col h-full shrink-0 w-[68px]',
+          'bg-[#0b0f18] border-r border-[#1a2332]',
           'md:relative fixed inset-y-0 left-0 z-50',
           mobileMenuOpen ? 'flex' : 'hidden md:flex'
         )}
       >
-        <ScrollArea className="flex-1 py-3">
-          <nav className="px-3 space-y-0.5">
-            {navGroups.map((group) => {
-              if (!group.items) {
-                return (
-                  <NavLink
-                    key={group.title}
-                    href={group.href!}
-                    icon={group.icon}
-                    title={group.title}
-                    active={isActive(group.href!)}
-                    onClick={onMobileMenuClose}
-                  />
-                );
-              }
+        {/* Primary nav */}
+        <nav className="flex flex-col gap-0.5 px-2 pt-3">
+          {primaryNav.map((item) => (
+            <NavItem
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              title={item.title}
+              active={isActive(item.href, item.exact)}
+              onClick={onMobileMenuClose}
+            />
+          ))}
+        </nav>
 
-              const isGroupActive = group.items.some(i => isActive(i.href));
-              const isOpen = openGroups[group.title] ?? isGroupActive;
-              const GroupIcon = group.icon;
+        <Divider />
 
-              return (
-                <Collapsible
-                  key={group.title}
-                  open={isOpen}
-                  onOpenChange={() => toggleGroup(group.title)}
-                >
-                  <CollapsibleTrigger className={cn(
-                    'flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                    isGroupActive
-                      ? 'text-primary'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}>
-                    <GroupIcon className="h-4 w-4 shrink-0" />
-                    <span className="flex-1 text-left">{group.title}</span>
-                    <ChevronDown className={cn(
-                      'h-3.5 w-3.5 transition-transform duration-200',
-                      isOpen && 'rotate-180'
-                    )} />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-0.5 ml-3 pl-3 border-l border-border space-y-0.5">
-                    {group.items.map(item => (
-                      <NavLink
-                        key={item.href}
-                        href={item.href}
-                        icon={item.icon}
-                        title={item.title}
-                        active={isActive(item.href)}
-                        onClick={onMobileMenuClose}
-                      />
-                    ))}
-                  </CollapsibleContent>
-                </Collapsible>
-              );
-            })}
-          </nav>
-        </ScrollArea>
+        {/* Infrastructure nav */}
+        <nav className="flex flex-col gap-0.5 px-2">
+          {infraNav.map((item) => (
+            <NavItem
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              title={item.title}
+              active={isActive(item.href)}
+              onClick={onMobileMenuClose}
+            />
+          ))}
+        </nav>
 
-        {/* Bottom section */}
-        <div className="border-t border-sidebar-border px-3 py-3">
+        {/* Push bottom nav to bottom */}
+        <div className="flex-1" />
+
+        <Divider />
+
+        {/* Bottom nav */}
+        <nav className="flex flex-col gap-0.5 px-2 pb-3">
+          {bottomNav.map((item) => (
+            <NavItem
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              title={item.title}
+              active={isActive(item.href)}
+              onClick={onMobileMenuClose}
+            />
+          ))}
+
           {CLOUD_URL && (
             <a
               href={CLOUD_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              title="Cloud Dashboard"
+              className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-[#3d5670] hover:text-[#7fa8c8] transition-colors"
             >
-              <ExternalLink className="h-4 w-4 shrink-0" />
-              Cloud Dashboard
+              <ExternalLink className="w-[18px] h-[18px] shrink-0" />
+              <span className="text-[9px] font-medium tracking-wide">Cloud</span>
             </a>
           )}
-        </div>
+
+          <a
+            href="https://docs.testmesh.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Documentation"
+            className="flex flex-col items-center gap-1 py-2.5 rounded-lg text-[#3d5670] hover:text-[#7fa8c8] transition-colors"
+          >
+            <HelpCircle className="w-[18px] h-[18px] shrink-0" />
+            <span className="text-[9px] font-medium tracking-wide">Docs</span>
+          </a>
+        </nav>
       </div>
     </>
   );
