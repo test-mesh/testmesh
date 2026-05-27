@@ -21,7 +21,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -234,16 +233,16 @@ function KVEditor({
     <div className="space-y-2">
       {pairs.map((pair, i) => (
         <div key={i} className="flex gap-2">
-          <Input placeholder={keyPlaceholder} value={pair.key} onChange={(e) => update(i, 'key', e.target.value)} className="flex-1" />
-          <Input placeholder={valuePlaceholder} value={pair.value} onChange={(e) => update(i, 'value', e.target.value)} className="flex-1" />
-          <Button variant="ghost" size="icon" onClick={() => remove(i)}>
-            <X className="w-4 h-4" />
-          </Button>
+          <Input placeholder={keyPlaceholder} value={pair.key} onChange={(e) => update(i, 'key', e.target.value)} className="flex-1 h-7 text-xs bg-[#0b0f18] border-[#1a2332] text-[#c8dce8] placeholder-[#3d5670]" />
+          <Input placeholder={valuePlaceholder} value={pair.value} onChange={(e) => update(i, 'value', e.target.value)} className="flex-1 h-7 text-xs bg-[#0b0f18] border-[#1a2332] text-[#c8dce8] placeholder-[#3d5670]" />
+          <button onClick={() => remove(i)} className="flex items-center justify-center h-7 w-7 rounded text-[#3d5670] hover:text-red-400 hover:bg-red-400/10 transition-colors">
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       ))}
-      <Button variant="outline" size="sm" onClick={add} type="button">
-        <Plus className="w-3 h-3 mr-1" /> Add
-      </Button>
+      <button onClick={add} type="button" className="flex items-center gap-1 h-6 px-2.5 rounded text-[10px] font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#4a6480] hover:border-[#2a3d52] hover:text-[#7fa8c8] transition-colors">
+        <Plus className="w-3 h-3" /> Add
+      </button>
     </div>
   );
 }
@@ -410,10 +409,10 @@ function EndpointDialog({ open, onClose, serverId, endpoint }: {
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={isPending}>
+          <button onClick={onClose} className="h-8 px-4 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">Cancel</button>
+          <button onClick={handleSubmit} disabled={isPending} className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors">
             {isPending ? 'Saving…' : isEditing ? 'Save Changes' : 'Add Endpoint'}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -467,10 +466,10 @@ function StateDialog({ open, onClose, serverId, stateKey, initialValue }: {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={isPending || (!isEditing && !key.trim())}>
+          <button onClick={onClose} className="h-8 px-4 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">Cancel</button>
+          <button onClick={handleSubmit} disabled={isPending || (!isEditing && !key.trim())} className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors">
             {isPending ? 'Saving…' : isEditing ? 'Save' : 'Add'}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

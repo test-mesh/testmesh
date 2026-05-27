@@ -18,7 +18,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Eye, Trash2, X, Search, Server, Plus, Copy, Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -138,10 +137,10 @@ export default function MockServersPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-              <Button onClick={handleCreate} disabled={!newServerName.trim() || createMockServer.isPending}>
+              <button onClick={() => setCreateOpen(false)} className="h-8 px-4 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">Cancel</button>
+              <button onClick={handleCreate} disabled={!newServerName.trim() || createMockServer.isPending} className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors">
                 {createMockServer.isPending ? 'Creating…' : 'Create'}
-              </Button>
+              </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
