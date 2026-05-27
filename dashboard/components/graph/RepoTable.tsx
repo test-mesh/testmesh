@@ -75,109 +75,94 @@ export function RepoTable() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-medium">Repositories</h2>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-1" />
-          Register Repo
-        </Button>
+        <p className="text-[13px] font-semibold text-[#c8dce8]">Repositories</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => triggerMerge.mutate()}
+            disabled={isMerging || triggerMerge.isPending || !workspaceId}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw className={`h-3 w-3 ${isMerging ? 'animate-spin' : ''}`} />
+            Rebuild graph
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Register Repo
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      {latestJob && (
+        <p className="text-[11px] text-[#3d5670]">
           {isMerging ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Rebuilding cross-repo graph…</span>
-            </>
-          ) : latestJob?.status === 'completed' ? (
-            <span>
-              Cross-repo graph updated{' '}
-              {latestJob.completed_at ? formatDistanceToNow(new Date(latestJob.completed_at), { addSuffix: true }) : ''}
-            </span>
-          ) : latestJob?.status === 'failed' ? (
-            <span className="text-destructive">Graph merge failed: {latestJob.error}</span>
+            <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" />Rebuilding cross-repo graph…</span>
+          ) : latestJob.status === 'completed' ? (
+            <>Cross-repo graph updated {latestJob.completed_at ? formatDistanceToNow(new Date(latestJob.completed_at), { addSuffix: true }) : ''}</>
+          ) : latestJob.status === 'failed' ? (
+            <span className="text-red-400">Graph merge failed: {latestJob.error}</span>
           ) : null}
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => triggerMerge.mutate()}
-          disabled={isMerging || triggerMerge.isPending || !workspaceId}
-        >
-          <RefreshCw className="h-3 w-3 mr-1" />
-          Rebuild graph
-        </Button>
-      </div>
+        </p>
+      )}
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <div className="h-24 rounded-xl bg-[#0f1923] border border-[#1e2d3d] animate-pulse" />
       ) : repos.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm text-muted-foreground">No repositories registered yet.</p>
-          <Button variant="outline" size="sm" className="mt-3" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-1" />
+        <div className="rounded-xl bg-[#0f1923] border border-dashed border-[#1e2d3d] p-10 text-center">
+          <p className="text-sm text-[#3d5670] mb-3">No repositories registered yet.</p>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-1.5 h-7 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors mx-auto"
+          >
+            <Plus className="h-3 w-3" />
             Register your first repo
-          </Button>
+          </button>
         </div>
       ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>URL</TableHead>
-                <TableHead>Branch</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {repos.map((repo) => (
-                <TableRow key={repo.id}>
-                  <TableCell className="font-medium">{repo.name}</TableCell>
-                  <TableCell className="max-w-[240px] truncate text-muted-foreground text-sm">
-                    {repo.url || <span className="italic">local</span>}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{repo.branch}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {repo.created_at ? formatDistanceToNow(new Date(repo.created_at), { addSuffix: true }) : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleScan(repo.id)}
-                          disabled={scanningId === repo.id}
-                        >
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          {scanningId === repo.id ? 'Scanning…' : 'Trigger Scan'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openEdit(repo)}>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => setDeleteId(repo.id)}
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="grid grid-cols-[1fr_2fr_1fr_1fr_auto] gap-4 px-4 py-2.5 border-b border-[#1a2332]">
+            {['Name', 'URL', 'Branch', 'Created', ''].map((h) => (
+              <span key={h} className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</span>
+            ))}
+          </div>
+          <div className="divide-y divide-[#1a2332]">
+            {repos.map((repo) => (
+              <div key={repo.id} className="grid grid-cols-[1fr_2fr_1fr_1fr_auto] gap-4 px-4 py-3 items-center hover:bg-[#131b26] transition-colors group">
+                <span className="text-[13px] font-medium text-[#c8dce8] truncate">{repo.name}</span>
+                <span className="text-[11px] font-mono text-[#4a6480] truncate">
+                  {repo.url || <span className="italic">local</span>}
+                </span>
+                <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#4a7a96] w-fit">
+                  {repo.branch}
+                </span>
+                <span className="text-[11px] text-[#4a6480]">
+                  {repo.created_at ? formatDistanceToNow(new Date(repo.created_at), { addSuffix: true }) : '—'}
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center justify-center h-6 w-6 rounded text-[#3d5670] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors opacity-0 group-hover:opacity-100">
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleScan(repo.id)} disabled={scanningId === repo.id}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      {scanningId === repo.id ? 'Scanning…' : 'Trigger Scan'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openEdit(repo)}>
+                      <Edit className="h-4 w-4 mr-2" />Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(repo.id)}>
+                      <Trash2 className="h-4 w-4 mr-2" />Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
