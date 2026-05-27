@@ -11,10 +11,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -47,21 +45,21 @@ import { useImportFlows } from '@/lib/hooks/useImportExport';
 import type { RequestHistory, RequestHistoryData, HistoryFilter } from '@/lib/api/history';
 
 const METHOD_COLORS: Record<string, string> = {
-  GET: 'bg-green-500',
-  POST: 'bg-blue-500',
-  PUT: 'bg-orange-500',
-  PATCH: 'bg-yellow-500',
-  DELETE: 'bg-red-500',
-  HEAD: 'bg-gray-500',
-  OPTIONS: 'bg-purple-500',
+  GET: 'bg-teal-400/15 text-teal-400',
+  POST: 'bg-blue-400/15 text-blue-400',
+  PUT: 'bg-orange-400/15 text-orange-400',
+  PATCH: 'bg-yellow-400/15 text-yellow-400',
+  DELETE: 'bg-red-400/15 text-red-400',
+  HEAD: 'bg-[#1a2d3d] text-[#4a6480]',
+  OPTIONS: 'bg-purple-400/15 text-purple-400',
 };
 
 function getStatusColor(status: number): string {
-  if (status >= 200 && status < 300) return 'text-green-600';
-  if (status >= 300 && status < 400) return 'text-blue-600';
-  if (status >= 400 && status < 500) return 'text-orange-600';
-  if (status >= 500) return 'text-red-600';
-  return 'text-gray-600';
+  if (status >= 200 && status < 300) return 'text-teal-400';
+  if (status >= 300 && status < 400) return 'text-blue-400';
+  if (status >= 400 && status < 500) return 'text-orange-400';
+  if (status >= 500) return 'text-red-400';
+  return 'text-[#4a6480]';
 }
 
 export default function RequestBuilderPage() {
@@ -73,7 +71,6 @@ export default function RequestBuilderPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
 
-  // History filters
   const [searchQuery, setSearchQuery] = useState('');
   const [methodFilter, setMethodFilter] = useState<string>('all');
   const [savedFilter, setSavedFilter] = useState<'all' | 'saved' | 'unsaved'>('all');
@@ -306,31 +303,34 @@ export default function RequestBuilderPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)]">
       {/* History sidebar */}
-      <div className="w-72 border-r flex flex-col bg-muted/30 shrink-0">
-        <div className="p-3 border-b space-y-2">
+      <div className="w-72 border-r border-[#1e2d3d] flex flex-col bg-[#0b0f18] shrink-0">
+        <div className="p-3 border-b border-[#1e2d3d] space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <History className="w-4 h-4 text-primary" />
-              <span className="font-medium text-sm">History</span>
+              <History className="w-4 h-4 text-[#4a7a96]" />
+              <span className="text-sm font-medium text-[#c8dce8]">History</span>
             </div>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={handleClearAll}>
+            <button
+              onClick={handleClearAll}
+              className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+            >
               <Trash2 className="w-3.5 h-3.5" />
-            </Button>
+            </button>
           </div>
 
           <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#3d5670]" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search URL..."
-              className="pl-7 h-7 text-xs"
+              className="pl-7 h-7 text-xs bg-[#0f1923] border-[#1e2d3d] text-[#c8dce8] placeholder-[#3d5670] focus:border-teal-400/50"
             />
           </div>
 
           <div className="flex gap-1.5">
             <Select value={methodFilter} onValueChange={setMethodFilter}>
-              <SelectTrigger className="w-20 h-7 text-xs">
+              <SelectTrigger className="w-20 h-7 text-xs bg-[#0f1923] border-[#1e2d3d] text-[#c8dce8]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -343,7 +343,7 @@ export default function RequestBuilderPage() {
               </SelectContent>
             </Select>
             <Select value={savedFilter} onValueChange={(v: any) => setSavedFilter(v)}>
-              <SelectTrigger className="flex-1 h-7 text-xs">
+              <SelectTrigger className="flex-1 h-7 text-xs bg-[#0f1923] border-[#1e2d3d] text-[#c8dce8]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -355,7 +355,7 @@ export default function RequestBuilderPage() {
           </div>
 
           {stats && (
-            <div className="flex gap-3 text-xs text-muted-foreground">
+            <div className="flex gap-3 text-[10px] text-[#3d5670]">
               <span>{stats.total_requests} total</span>
               <span>{stats.saved_requests} saved</span>
             </div>
@@ -365,36 +365,34 @@ export default function RequestBuilderPage() {
         <div className="flex-1 overflow-auto">
           {historyLoading ? (
             <div className="flex items-center justify-center h-16">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+              <Loader2 className="w-4 h-4 animate-spin text-[#4a6480]" />
             </div>
           ) : displayedEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-24 text-muted-foreground">
+            <div className="flex flex-col items-center justify-center h-24 text-[#4a6480]">
               <History className="w-6 h-6 mb-1 opacity-40" />
               <p className="text-xs">No history yet</p>
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="divide-y divide-[#1a2332]">
               {displayedEntries.map((entry) => (
                 <div
                   key={entry.id}
                   className={cn(
-                    'p-2.5 cursor-pointer hover:bg-muted/50 transition-colors group',
-                    activeHistoryId === entry.id && 'bg-primary/5 border-l-2 border-l-primary'
+                    'p-2.5 cursor-pointer hover:bg-[#131b26] transition-colors group',
+                    activeHistoryId === entry.id && 'bg-teal-400/5 border-l-2 border-l-teal-400'
                   )}
                   onClick={() => loadHistoryEntry(entry)}
                 >
                   <div className="flex items-start gap-1.5">
-                    <Badge
-                      className={cn(
-                        'text-[9px] px-1 py-0 text-white shrink-0 mt-0.5',
-                        METHOD_COLORS[entry.method] || 'bg-gray-500'
-                      )}
-                    >
+                    <span className={cn(
+                      'text-[9px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 mt-0.5',
+                      METHOD_COLORS[entry.method] || 'bg-[#1a2d3d] text-[#4a6480]'
+                    )}>
                       {entry.method}
-                    </Badge>
+                    </span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-mono truncate">{entry.url}</div>
-                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground">
+                      <div className="text-xs font-mono truncate text-[#7fa8c8]">{entry.url}</div>
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-[#4a6480]">
                         <span className={getStatusColor(entry.status_code)}>
                           {entry.status_code || 'Error'}
                         </span>
@@ -406,15 +404,15 @@ export default function RequestBuilderPage() {
                     </div>
                     <div className="flex shrink-0 opacity-0 group-hover:opacity-100 transition-opacity gap-0.5">
                       <button
-                        className="p-0.5 hover:text-primary"
+                        className="p-0.5 text-[#4a6480] hover:text-teal-400 transition-colors"
                         onClick={(e) => handleToggleSave(e, entry)}
                       >
                         {entry.saved_at
-                          ? <BookmarkCheck className="w-3 h-3 text-primary" />
+                          ? <BookmarkCheck className="w-3 h-3 text-teal-400" />
                           : <Bookmark className="w-3 h-3" />}
                       </button>
                       <button
-                        className="p-0.5 hover:text-destructive"
+                        className="p-0.5 text-[#4a6480] hover:text-red-400 transition-colors"
                         onClick={(e) => handleDelete(e, entry.id)}
                       >
                         <Trash2 className="w-3 h-3" />
@@ -422,7 +420,7 @@ export default function RequestBuilderPage() {
                     </div>
                   </div>
                   {entry.error && (
-                    <div className="flex items-center gap-1 mt-1 text-[10px] text-destructive">
+                    <div className="flex items-center gap-1 mt-1 text-[10px] text-red-400">
                       <AlertCircle className="w-2.5 h-2.5" />
                       <span className="truncate">{entry.error}</span>
                     </div>
@@ -458,7 +456,7 @@ export default function RequestBuilderPage() {
             <DialogTitle>Save as Flow</DialogTitle>
           </DialogHeader>
           {saveSuccess ? (
-            <p className="text-sm text-green-600 py-2">Flow saved successfully.</p>
+            <p className="text-sm text-teal-400 py-2">Flow saved successfully.</p>
           ) : (
             <>
               <div className="space-y-2 py-2">
@@ -472,10 +470,19 @@ export default function RequestBuilderPage() {
                 />
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSaveAsFlow} disabled={!flowName.trim() || importFlows.isPending}>
+                <button
+                  onClick={() => setSaveDialogOpen(false)}
+                  className="h-8 px-4 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveAsFlow}
+                  disabled={!flowName.trim() || importFlows.isPending}
+                  className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+                >
                   Save
-                </Button>
+                </button>
               </DialogFooter>
             </>
           )}
