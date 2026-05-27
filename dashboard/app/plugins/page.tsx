@@ -3,87 +3,36 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
-  usePlugins,
-  useNativePlugins,
-  useEnablePlugin,
-  useDisablePlugin,
-  useLoadPlugin,
-  useUnloadPlugin,
-  useDiscoverPlugins,
-  useInstallPlugin,
-  useUninstallPlugin,
+  usePlugins, useNativePlugins, useEnablePlugin, useDisablePlugin,
+  useLoadPlugin, useUnloadPlugin, useDiscoverPlugins, useInstallPlugin, useUninstallPlugin,
 } from '@/lib/hooks/usePlugins';
 import type { Plugin } from '@/lib/api/plugins';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Eye,
-  Trash2,
-  X,
-  Search,
-  Puzzle,
-  RefreshCw,
-  Download,
-  FolderSearch,
-  Package,
-  Database,
-  MessageSquare,
-  Globe,
-  Mail,
-  Cloud,
-  CheckCircle2,
-  Share2,
-  HardDrive,
-  Activity,
-  FileText,
-  BarChart2,
+  Eye, Trash2, X, Search, Puzzle, RefreshCw, Download, FolderSearch, Package,
+  Database, MessageSquare, Globe, Mail, Cloud, CheckCircle2, Share2, HardDrive,
+  Activity, FileText, BarChart2,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-// Available plugins in the marketplace
-// This could be fetched from an API in production
 interface MarketplacePlugin {
   id: string;
   name: string;
   description: string;
   version: string;
   author: string;
-  type: 'action' | 'auth' | 'exporter' | 'importer' | 'reporter';
+  type: string;
   icon: React.ComponentType<{ className?: string }>;
-  source: string; // Installation path/URL
+  source: string;
   tags: string[];
   downloads?: number;
   comingSoon?: boolean;
 }
 
-// Display metadata for known native plugins. The list of which plugins to show
-// comes from GET /api/v1/plugins/native — this map is only for icons/labels.
 interface NativePluginMeta {
   name: string;
   description: string;
@@ -92,123 +41,65 @@ interface NativePluginMeta {
 }
 
 const nativePluginMeta: Record<string, NativePluginMeta> = {
-  kafka: {
-    name: 'Apache Kafka',
-    description: 'Produce and consume messages, manage topics, and test event-driven architectures',
-    icon: MessageSquare,
-    actions: ['kafka.produce', 'kafka.consume', 'kafka.admin.topics', 'kafka.admin.createTopic', 'kafka.admin.deleteTopic'],
-  },
-  postgresql: {
-    name: 'PostgreSQL',
-    description: 'Execute SQL queries, manage transactions, and validate database state',
-    icon: Database,
-    actions: ['postgresql.query', 'postgresql.insert', 'postgresql.update', 'postgresql.delete', 'postgresql.assert', 'postgresql.transaction'],
-  },
-  redis: {
-    name: 'Redis',
-    description: 'Get, set, delete and check keys in Redis — built-in cache validation for test flows',
-    icon: Database,
-    actions: ['redis.get', 'redis.set', 'redis.del', 'redis.exists'],
-  },
-  neo4j: {
-    name: 'Neo4j',
-    description: 'Run Cypher queries and assert on graph data — query nodes, relationships, and paths',
-    icon: Share2,
-    actions: ['neo4j.query', 'neo4j.assert'],
-  },
-  minio: {
-    name: 'MinIO / S3',
-    description: 'Upload, download, delete, and assert on objects in MinIO or any S3-compatible store',
-    icon: HardDrive,
-    actions: ['minio.put', 'minio.get', 'minio.delete', 'minio.assert'],
-  },
-  otel: {
-    name: 'OTel / Tempo',
-    description: 'Inject W3C trace context and assert on spans in Grafana Tempo',
-    icon: Activity,
-    actions: ['otel.inject', 'otel.assert'],
-  },
-  loki: {
-    name: 'Grafana Loki',
-    description: 'Query and assert on log lines using LogQL — verify your services log what they should',
-    icon: FileText,
-    actions: ['loki.query', 'loki.assert'],
-  },
-  prometheus: {
-    name: 'Prometheus',
-    description: 'Run PromQL queries and assert on metric values — capture baselines and verify deltas',
-    icon: BarChart2,
-    actions: ['prometheus.query', 'prometheus.assert'],
-  },
+  kafka:      { name: 'Apache Kafka',  description: 'Produce and consume messages, manage topics, and test event-driven architectures',                 icon: MessageSquare, actions: ['kafka.produce', 'kafka.consume', 'kafka.admin.topics', 'kafka.admin.createTopic', 'kafka.admin.deleteTopic'] },
+  postgresql: { name: 'PostgreSQL',   description: 'Execute SQL queries, manage transactions, and validate database state',                              icon: Database,      actions: ['postgresql.query', 'postgresql.insert', 'postgresql.update', 'postgresql.delete', 'postgresql.assert', 'postgresql.transaction'] },
+  redis:      { name: 'Redis',        description: 'Get, set, delete and check keys in Redis — built-in cache validation for test flows',                icon: Database,      actions: ['redis.get', 'redis.set', 'redis.del', 'redis.exists'] },
+  neo4j:      { name: 'Neo4j',        description: 'Run Cypher queries and assert on graph data — query nodes, relationships, and paths',                icon: Share2,        actions: ['neo4j.query', 'neo4j.assert'] },
+  minio:      { name: 'MinIO / S3',   description: 'Upload, download, delete, and assert on objects in MinIO or any S3-compatible store',               icon: HardDrive,     actions: ['minio.put', 'minio.get', 'minio.delete', 'minio.assert'] },
+  otel:       { name: 'OTel / Tempo', description: 'Inject W3C trace context and assert on spans in Grafana Tempo',                                     icon: Activity,      actions: ['otel.inject', 'otel.assert'] },
+  loki:       { name: 'Grafana Loki', description: 'Query and assert on log lines using LogQL — verify your services log what they should',             icon: FileText,      actions: ['loki.query', 'loki.assert'] },
+  prometheus: { name: 'Prometheus',   description: 'Run PromQL queries and assert on metric values — capture baselines and verify deltas',              icon: BarChart2,     actions: ['prometheus.query', 'prometheus.assert'] },
 };
 
-// External plugins - available in marketplace
 const marketplacePlugins: MarketplacePlugin[] = [
-  {
-    id: 'scraper',
-    name: 'Web Scraper',
-    description: 'HTML parsing and data extraction using cheerio - example Node.js plugin',
-    version: '1.0.0',
-    author: 'TestMesh',
-    type: 'action',
-    icon: Globe,
-    source: '../plugins/scraper',
-    tags: ['html', 'parsing', 'nodejs', 'example'],
-    downloads: 756,
-  },
-  {
-    id: 'testmesh-plugin-mongodb',
-    name: 'MongoDB',
-    description: 'Document operations, aggregation pipelines, and NoSQL testing',
-    version: '1.0.0',
-    author: 'TestMesh',
-    type: 'action',
-    icon: Database,
-    source: '../plugins/mongodb',
-    tags: ['database', 'nosql', 'documents'],
-    downloads: 743,
-    comingSoon: true,
-  },
-  {
-    id: 'testmesh-plugin-smtp',
-    name: 'SMTP Email',
-    description: 'Send test emails and verify email delivery in your test flows',
-    version: '1.0.0',
-    author: 'TestMesh',
-    type: 'action',
-    icon: Mail,
-    source: '../plugins/smtp',
-    tags: ['email', 'notifications'],
-    downloads: 512,
-    comingSoon: true,
-  },
-  {
-    id: 'testmesh-plugin-s3',
-    name: 'AWS S3',
-    description: 'Upload, download, and manage files in S3-compatible storage',
-    version: '1.0.0',
-    author: 'TestMesh',
-    type: 'action',
-    icon: Cloud,
-    source: '../plugins/s3',
-    tags: ['storage', 'aws', 'files'],
-    downloads: 634,
-    comingSoon: true,
-  },
+  { id: 'scraper',               name: 'Web Scraper', description: 'HTML parsing and data extraction using cheerio - example Node.js plugin', version: '1.0.0', author: 'TestMesh', type: 'action', icon: Globe,     source: '../plugins/scraper',  tags: ['html', 'parsing', 'nodejs', 'example'], downloads: 756 },
+  { id: 'testmesh-plugin-mongodb', name: 'MongoDB',  description: 'Document operations, aggregation pipelines, and NoSQL testing',            version: '1.0.0', author: 'TestMesh', type: 'action', icon: Database, source: '../plugins/mongodb', tags: ['database', 'nosql', 'documents'], downloads: 743, comingSoon: true },
+  { id: 'testmesh-plugin-smtp',  name: 'SMTP Email', description: 'Send test emails and verify email delivery in your test flows',             version: '1.0.0', author: 'TestMesh', type: 'action', icon: Mail,     source: '../plugins/smtp',    tags: ['email', 'notifications'], downloads: 512, comingSoon: true },
+  { id: 'testmesh-plugin-s3',    name: 'AWS S3',     description: 'Upload, download, and manage files in S3-compatible storage',               version: '1.0.0', author: 'TestMesh', type: 'action', icon: Cloud,    source: '../plugins/s3',      tags: ['storage', 'aws', 'files'], downloads: 634, comingSoon: true },
 ];
+
+const TYPE_COLORS: Record<string, string> = {
+  action:   'bg-teal-400/10 text-teal-400',
+  auth:     'bg-teal-400/10 text-teal-400',
+  exporter: 'bg-purple-400/10 text-purple-400',
+  importer: 'bg-orange-400/10 text-orange-400',
+  reporter: 'bg-pink-400/10 text-pink-400',
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  running: 'bg-teal-400/10 text-teal-400 border-teal-400/30',
+  stopped: 'bg-[#1a2d3d] text-[#4a7a96] border-[#2a3d52]',
+  error:   'bg-red-400/10 text-red-400 border-red-400/30',
+};
+
+function getStatusStyle(plugin: Plugin) {
+  if (plugin.error) return STATUS_STYLES.error;
+  if (plugin.loaded) return STATUS_STYLES.running;
+  return STATUS_STYLES.stopped;
+}
+
+function getStatusLabel(plugin: Plugin) {
+  if (plugin.error) return 'Error';
+  if (plugin.loaded) return 'Running';
+  return 'Stopped';
+}
+
+const pillBtn = (active: boolean) => cn(
+  'h-7 px-3 rounded-lg text-xs font-medium border transition-colors',
+  active
+    ? 'bg-teal-400/15 text-teal-400 border-teal-400/30'
+    : 'text-[#4a6480] bg-[#0f1923] border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#7fa8c8]'
+);
 
 export default function PluginsPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
   const [installSource, setInstallSource] = useState('');
   const [activeTab, setActiveTab] = useState<'installed' | 'marketplace'>('installed');
   const [installingPlugin, setInstallingPlugin] = useState<string | null>(null);
 
-  const { data, isLoading, error, refetch } = usePlugins({
-    type: typeFilter || undefined,
-  });
-
+  const { data, isLoading, error, refetch } = usePlugins({ type: typeFilter || undefined });
   const { data: nativeData } = useNativePlugins();
   const nativePluginIds = nativeData?.plugins ?? [];
 
@@ -222,20 +113,15 @@ export default function PluginsPage() {
 
   const handleToggleEnabled = async (plugin: Plugin) => {
     if (plugin.enabled) {
-      // Disable: first unload, then disable
       await unloadPlugin.mutateAsync(plugin.manifest.id);
       disablePlugin.mutate(plugin.manifest.id);
     } else {
-      // Enable: first enable, then load
       await enablePlugin.mutateAsync(plugin.manifest.id);
       loadPlugin.mutate(plugin.manifest.id);
     }
   };
 
-  const handleDiscover = async () => {
-    await discoverPlugins.mutateAsync();
-    refetch();
-  };
+  const handleDiscover = async () => { await discoverPlugins.mutateAsync(); refetch(); };
 
   const handleInstall = async () => {
     if (!installSource.trim()) return;
@@ -243,372 +129,211 @@ export default function PluginsPage() {
       await installPlugin.mutateAsync({ source: installSource.trim() });
       setInstallDialogOpen(false);
       setInstallSource('');
-    } catch (err) {
-      // Error is handled by React Query
-    }
+    } catch {}
   };
 
   const handleUninstall = async (id: string) => {
-    if (confirm('Are you sure you want to uninstall this plugin?')) {
-      uninstallPlugin.mutate(id);
-    }
+    if (confirm('Are you sure you want to uninstall this plugin?')) uninstallPlugin.mutate(id);
   };
 
   const handleMarketplaceInstall = async (plugin: MarketplacePlugin) => {
     setInstallingPlugin(plugin.id);
-    try {
-      await installPlugin.mutateAsync({ source: plugin.source });
-      refetch();
-    } catch (err) {
-      // Error handled by React Query
-    } finally {
-      setInstallingPlugin(null);
-    }
+    try { await installPlugin.mutateAsync({ source: plugin.source }); refetch(); } catch {} finally { setInstallingPlugin(null); }
   };
 
   const plugins = data?.plugins || [];
-
-  // Check which marketplace plugins are already installed
   const installedPluginIds = new Set(plugins.map(p => p.manifest.id));
 
-  // Filter marketplace plugins by search
-  const filteredMarketplacePlugins = marketplacePlugins.filter((plugin) => {
-    const matchesSearch =
-      plugin.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesType = !typeFilter || plugin.type === typeFilter;
-
-    return matchesSearch && matchesType;
-  });
-  const filteredPlugins = plugins.filter((plugin) => {
-    const matchesSearch =
-      plugin.manifest.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.manifest.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      plugin.manifest.description?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    return matchesSearch;
+  const filteredPlugins = plugins.filter((p) => {
+    const q = searchQuery.toLowerCase();
+    return !q || p.manifest.name.toLowerCase().includes(q) || p.manifest.id.toLowerCase().includes(q) || p.manifest.description?.toLowerCase().includes(q);
   });
 
-  const hasActiveFilters = searchQuery || typeFilter;
-  const clearFilters = () => {
-    setSearchQuery('');
-    setTypeFilter('');
-  };
-
-  const getTypeBadge = (type: string) => {
-    const colors: Record<string, string> = {
-      action: 'bg-primary',
-      auth: 'bg-green-500',
-      exporter: 'bg-purple-500',
-      importer: 'bg-orange-500',
-      reporter: 'bg-pink-500',
-    };
-
-    return (
-      <Badge variant="secondary" className="capitalize">
-        <span className={`w-2 h-2 rounded-full ${colors[type] || 'bg-gray-500'} mr-2`} />
-        {type}
-      </Badge>
-    );
-  };
-
-  const getStatusBadge = (plugin: Plugin) => {
-    if (plugin.error) {
-      return (
-        <Badge variant="destructive" title={plugin.error}>
-          Error
-        </Badge>
-      );
-    }
-    if (plugin.loaded) {
-      return (
-        <Badge variant="default" className="bg-green-500">
-          Running
-        </Badge>
-      );
-    }
-    return <Badge variant="secondary">Stopped</Badge>;
-  };
+  const filteredMarketplace = marketplacePlugins.filter((p) => {
+    const q = searchQuery.toLowerCase();
+    const matchSearch = !q || p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.tags.some(t => t.toLowerCase().includes(q));
+    const matchType = !typeFilter || p.type === typeFilter;
+    return matchSearch && matchType;
+  });
 
   if (error) {
     return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Error Loading Plugins</CardTitle>
-            <CardDescription>
-              {error instanceof Error ? error.message : 'An error occurred'}
-            </CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="px-6 py-6">
+        <div className="rounded-xl bg-red-400/5 border border-red-400/20 p-4 text-xs text-red-400">
+          {error instanceof Error ? error.message : 'An error occurred loading plugins'}
+        </div>
       </div>
     );
   }
 
+  const TYPE_OPTIONS = ['', 'action', 'auth', 'exporter', 'importer', 'reporter'];
+
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Puzzle className="w-8 h-8" />
-            Plugins
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Extend TestMesh with custom actions, integrations, and more
-          </p>
+    <div className="px-6 py-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Puzzle className="h-4 w-4 text-[#3d5670]" />
+          <h1 className="text-xl font-semibold text-[#c8dce8]">Plugins</h1>
+          <p className="text-xs text-[#3d5670] mt-0.5">Extend TestMesh with custom actions, integrations, and more</p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
+        <div className="flex items-center gap-2">
+          <button
             onClick={handleDiscover}
             disabled={discoverPlugins.isPending}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-[#0f1923] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
           >
-            <FolderSearch className="w-4 h-4 mr-2" />
-            {discoverPlugins.isPending ? 'Scanning...' : 'Discover'}
-          </Button>
-
+            <FolderSearch className="w-3 h-3" />
+            {discoverPlugins.isPending ? 'Scanning…' : 'Discover'}
+          </button>
           <Dialog open={installDialogOpen} onOpenChange={setInstallDialogOpen}>
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <Download className="w-4 h-4 mr-2" />
+              <button className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-[#0f1923] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">
+                <Download className="w-3 h-3" />
                 Install from Path
-              </Button>
+              </button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Install Plugin</DialogTitle>
-                <DialogDescription>
-                  Enter the path to a plugin directory to install it.
-                </DialogDescription>
+                <DialogDescription>Enter the path to a plugin directory to install it.</DialogDescription>
               </DialogHeader>
-              <div className="py-4">
-                <Input
-                  placeholder="/path/to/plugin or https://..."
-                  value={installSource}
-                  onChange={(e) => setInstallSource(e.target.value)}
-                />
-                <p className="text-sm text-muted-foreground mt-2">
-                  The plugin directory must contain a valid manifest.json file.
-                </p>
+              <div className="py-4 space-y-2">
+                <Input placeholder="/path/to/plugin or https://..." value={installSource} onChange={(e) => setInstallSource(e.target.value)} className="bg-[#0b0f18] border-[#1a2332] text-[#c8dce8] placeholder-[#3d5670]" />
+                <p className="text-xs text-[#4a6480]">The plugin directory must contain a valid manifest.json file.</p>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setInstallDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleInstall}
-                  disabled={!installSource.trim() || installPlugin.isPending}
-                >
-                  {installPlugin.isPending ? 'Installing...' : 'Install'}
-                </Button>
+                <button onClick={() => setInstallDialogOpen(false)} className="h-8 px-4 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">Cancel</button>
+                <button onClick={handleInstall} disabled={!installSource.trim() || installPlugin.isPending} className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors">
+                  {installPlugin.isPending ? 'Installing…' : 'Install'}
+                </button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'installed' | 'marketplace')}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="installed" className="gap-2">
-            <Package className="w-4 h-4" />
-            Installed ({plugins.length})
-          </TabsTrigger>
-          <TabsTrigger value="marketplace" className="gap-2">
-            <Download className="w-4 h-4" />
-            Marketplace
-          </TabsTrigger>
-        </TabsList>
+      {/* Mode tabs */}
+      <div className="flex gap-1">
+        <button onClick={() => setActiveTab('installed')} className={cn(pillBtn(activeTab === 'installed'), 'flex items-center gap-1.5')}>
+          <Package className="w-3 h-3" />
+          Installed ({plugins.length})
+        </button>
+        <button onClick={() => setActiveTab('marketplace')} className={cn(pillBtn(activeTab === 'marketplace'), 'flex items-center gap-1.5')}>
+          <Download className="w-3 h-3" />
+          Marketplace
+        </button>
+      </div>
 
-        <TabsContent value="installed">
-          <Card className="mb-6">
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search plugins by name, ID, or description..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    className="px-3 py-2 border rounded-md bg-background"
-                  >
-                    <option value="">All Types</option>
-                    <option value="action">Action</option>
-                    <option value="auth">Auth</option>
-                    <option value="exporter">Exporter</option>
-                    <option value="importer">Importer</option>
-                    <option value="reporter">Reporter</option>
-                  </select>
-                  {hasActiveFilters && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={clearFilters}
-                      title="Clear filters"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-
-                {hasActiveFilters && (
-                  <div className="flex gap-2 items-center text-sm text-muted-foreground">
-                    <span>Active filters:</span>
-                    {searchQuery && (
-                      <Badge variant="secondary" className="gap-1">
-                        Search: {searchQuery}
-                        <button
-                          onClick={() => setSearchQuery('')}
-                          className="ml-1 hover:text-foreground"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    )}
-                    {typeFilter && (
-                      <Badge variant="secondary" className="gap-1">
-                        Type: {typeFilter}
-                        <button
-                          onClick={() => setTypeFilter('')}
-                          className="ml-1 hover:text-foreground"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    )}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+      {/* ── Installed tab ── */}
+      {activeTab === 'installed' && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex gap-2">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[#3d5670]" />
+              <input
+                placeholder="Search plugins by name, ID, or description..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-7 pl-7 pr-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-xs text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50 transition-colors"
+              />
+            </div>
+            <div className="flex gap-1">
+              {TYPE_OPTIONS.map((type) => (
+                <button key={type || 'all'} onClick={() => setTypeFilter(type)} className={pillBtn(typeFilter === type)}>
+                  {type ? type.charAt(0).toUpperCase() + type.slice(1) : 'All'}
+                </button>
+              ))}
+            </div>
+            {(searchQuery || typeFilter) && (
+              <button onClick={() => { setSearchQuery(''); setTypeFilter(''); }} className="flex items-center justify-center h-7 w-7 rounded-lg text-[#4a6480] hover:text-[#c8dce8] hover:bg-[#1a2d3d] transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
 
           {isLoading ? (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center text-muted-foreground">
-                  Loading plugins...
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] flex items-center justify-center py-12">
+              <p className="text-xs text-[#4a6480]">Loading plugins…</p>
+            </div>
           ) : filteredPlugins.length === 0 ? (
-            <Card>
-              <CardContent className="py-12">
-                <div className="text-center">
-                  <Puzzle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground mb-4">
-                    {plugins.length === 0
-                      ? 'No plugins installed'
-                      : 'No plugins match your search'}
-                  </p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Browse the <Button variant="link" className="p-0 h-auto" onClick={() => setActiveTab('marketplace')}>Marketplace</Button> to discover plugins, or click &quot;Discover&quot; to scan your local plugin directory.
-                  </p>
-                  <div className="flex justify-center gap-2">
-                    <Button onClick={() => setActiveTab('marketplace')}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Browse Marketplace
-                    </Button>
-                    <Button variant="outline" onClick={handleDiscover}>
-                      <FolderSearch className="w-4 h-4 mr-2" />
-                      Discover Local
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] flex flex-col items-center justify-center py-16 text-center">
+              <Puzzle className="w-10 h-10 mb-3 text-[#1e2d3d]" />
+              <p className="text-[13px] font-semibold text-[#c8dce8] mb-1">{plugins.length === 0 ? 'No plugins installed' : 'No plugins match your search'}</p>
+              <p className="text-xs text-[#4a6480] mb-4">Browse the Marketplace to discover plugins, or click &quot;Discover&quot; to scan your local directory.</p>
+              <div className="flex gap-2">
+                <button onClick={() => setActiveTab('marketplace')} className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors">
+                  <Download className="w-3 h-3" />
+                  Browse Marketplace
+                </button>
+                <button onClick={handleDiscover} className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-[#0f1923] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] transition-colors">
+                  <FolderSearch className="w-3 h-3" />
+                  Discover Local
+                </button>
+              </div>
+            </div>
           ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Plugin</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Enabled</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPlugins.map((plugin) => (
-                    <TableRow key={plugin.manifest.id}>
-                      <TableCell>
-                        <Link
-                          href={`/plugins/${plugin.manifest.id}`}
-                          className="font-medium hover:underline"
-                        >
-                          {plugin.manifest.name}
-                        </Link>
-                        {plugin.manifest.description && (
-                          <p className="text-sm text-muted-foreground line-clamp-1">
-                            {plugin.manifest.description}
-                          </p>
-                        )}
-                      </TableCell>
-                      <TableCell>{getTypeBadge(plugin.manifest.type)}</TableCell>
-                      <TableCell>
-                        <code className="text-sm">{plugin.manifest.version}</code>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(plugin)}</TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={plugin.enabled}
-                          onCheckedChange={() => handleToggleEnabled(plugin)}
-                          disabled={enablePlugin.isPending || disablePlugin.isPending || loadPlugin.isPending || unloadPlugin.isPending}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-2">
-                          <Link href={`/plugins/${plugin.manifest.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                          </Link>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleUninstall(plugin.manifest.id)}
-                            disabled={uninstallPlugin.isPending}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+            <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+              <div className="grid grid-cols-[2fr_1fr_auto_auto_auto_auto] gap-4 px-4 py-2.5 border-b border-[#1a2332]">
+                {['Plugin', 'Type', 'Version', 'Status', 'Enabled', ''].map((h) => (
+                  <span key={h} className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</span>
+                ))}
+              </div>
+              <div className="divide-y divide-[#1a2332]">
+                {filteredPlugins.map((plugin) => (
+                  <div key={plugin.manifest.id} className="grid grid-cols-[2fr_1fr_auto_auto_auto_auto] gap-4 px-4 py-3 items-center hover:bg-[#131b26] transition-colors group">
+                    <div>
+                      <Link href={`/plugins/${plugin.manifest.id}`} className="text-xs font-medium text-[#c8dce8] hover:text-teal-400 transition-colors">
+                        {plugin.manifest.name}
+                      </Link>
+                      {plugin.manifest.description && (
+                        <p className="text-[10px] text-[#4a6480] truncate">{plugin.manifest.description}</p>
+                      )}
+                    </div>
+                    <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded capitalize', TYPE_COLORS[plugin.manifest.type] ?? 'bg-[#1a2d3d] text-[#4a7a96]')}>
+                      {plugin.manifest.type}
+                    </span>
+                    <code className="text-[10px] text-[#4a6480]">v{plugin.manifest.version}</code>
+                    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border', getStatusStyle(plugin))}>
+                      {getStatusLabel(plugin)}
+                    </span>
+                    <Switch
+                      checked={plugin.enabled}
+                      onCheckedChange={() => handleToggleEnabled(plugin)}
+                      disabled={enablePlugin.isPending || disablePlugin.isPending || loadPlugin.isPending || unloadPlugin.isPending}
+                    />
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Link href={`/plugins/${plugin.manifest.id}`} className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-teal-400 hover:bg-[#1a2d3d] transition-colors">
+                        <Eye className="w-3.5 h-3.5" />
+                      </Link>
+                      <button onClick={() => handleUninstall(plugin.manifest.id)} disabled={uninstallPlugin.isPending} className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-red-400 hover:bg-red-400/10 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {data && data.total > 0 && (
-            <div className="mt-4 text-sm text-muted-foreground text-center">
-              Showing {filteredPlugins.length} of {data.total} plugins
-            </div>
+            <p className="text-xs text-[#3d5670] text-center">Showing {filteredPlugins.length} of {data.total} plugins</p>
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="marketplace">
-          {/* Built-in Native Plugins Section */}
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Package className="w-5 h-5" />
-              Built-in Integrations
-              <Badge variant="secondary" className="ml-2">Native</Badge>
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              These integrations are built into the API - no installation needed, better performance.
-            </p>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+      {/* ── Marketplace tab ── */}
+      {activeTab === 'marketplace' && (
+        <div className="space-y-6">
+          {/* Built-in Native Plugins */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Package className="h-4 w-4 text-[#3d5670]" />
+              <h2 className="text-sm font-semibold text-[#c8dce8]">Built-in Integrations</h2>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-teal-400/10 text-teal-400 border border-teal-400/30">Native</span>
+            </div>
+            <p className="text-xs text-[#4a6480] mb-3">These integrations are built into the API — no installation needed, better performance.</p>
+            <div className="grid grid-cols-3 gap-3">
               {nativePluginIds.map((id) => {
                 const meta = nativePluginMeta[id];
                 const Icon = meta?.icon ?? Package;
@@ -616,185 +341,140 @@ export default function PluginsPage() {
                 const description = meta?.description ?? `Native plugin: ${id}`;
                 const actions = meta?.actions ?? [`${id}.*`];
                 return (
-                  <Card key={id} className="border-green-500/20 bg-green-500/5">
-                    <CardHeader>
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                          <Icon className="h-5 w-5 text-green-600" />
-                        </div>
-                        <div className="flex-1">
-                          <CardTitle className="text-lg flex items-center gap-2">
-                            {name}
-                            <Badge variant="outline" className="text-green-600 border-green-500">
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Built-in
-                            </Badge>
-                          </CardTitle>
-                          <CardDescription className="mt-1">
-                            {description}
-                          </CardDescription>
-                        </div>
+                  <div key={id} className="rounded-xl bg-teal-400/5 border border-teal-400/20 p-3">
+                    <div className="flex items-start gap-2.5 mb-2">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-400/10 shrink-0">
+                        <Icon className="h-4 w-4 text-teal-400" />
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-sm text-muted-foreground">
-                        <span className="font-medium">Actions:</span>{' '}
-                        {actions.slice(0, 3).join(', ')}
-                        {actions.length > 3 && ` +${actions.length - 3} more`}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-xs font-semibold text-[#c8dce8]">{name}</p>
+                          <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400 border border-teal-400/30">
+                            <CheckCircle2 className="h-2.5 w-2.5" />Built-in
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-[#4a6480] mt-0.5 line-clamp-2">{description}</p>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                    <p className="text-[10px] text-[#3d5670]">
+                      <span className="font-medium">Actions: </span>
+                      {actions.slice(0, 3).join(', ')}{actions.length > 3 && ` +${actions.length - 3} more`}
+                    </p>
+                  </div>
                 );
               })}
             </div>
           </div>
 
-          {/* External Plugins Section */}
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Download className="w-5 h-5" />
-              Marketplace Plugins
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Installable plugins written in Go or Node.js. Use these as examples for creating your own plugins.
-            </p>
-          </div>
+          {/* Marketplace Plugins */}
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Download className="h-4 w-4 text-[#3d5670]" />
+              <h2 className="text-sm font-semibold text-[#c8dce8]">Marketplace Plugins</h2>
+            </div>
+            <p className="text-xs text-[#4a6480] mb-3">Installable plugins written in Go or Node.js. Use these as examples for creating your own.</p>
 
-          <Card className="mb-6">
-            <CardContent className="pt-6">
-              <div className="flex gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search available plugins..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="px-3 py-2 border rounded-md bg-background"
-                >
-                  <option value="">All Types</option>
-                  <option value="action">Action</option>
-                  <option value="auth">Auth</option>
-                  <option value="exporter">Exporter</option>
-                  <option value="importer">Importer</option>
-                  <option value="reporter">Reporter</option>
-                </select>
+            {/* Search */}
+            <div className="flex gap-2 mb-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[#3d5670]" />
+                <input
+                  placeholder="Search available plugins..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-7 pl-7 pr-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-xs text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50 transition-colors"
+                />
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex gap-1">
+                {TYPE_OPTIONS.map((type) => (
+                  <button key={type || 'all'} onClick={() => setTypeFilter(type)} className={pillBtn(typeFilter === type)}>
+                    {type ? type.charAt(0).toUpperCase() + type.slice(1) : 'All'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredMarketplacePlugins.map((plugin) => {
-              const Icon = plugin.icon;
-              const isInstalled = installedPluginIds.has(plugin.id);
-
-              return (
-                <Card key={plugin.id} className="flex flex-col">
-                  <CardHeader>
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                        <Icon className="h-5 w-5 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          {plugin.name}
-                          {isInstalled && (
-                            <Badge variant="secondary" className="gap-1">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Installed
-                            </Badge>
-                          )}
-                          {plugin.comingSoon && !isInstalled && (
-                            <Badge variant="outline" className="text-muted-foreground">
-                              Soon
-                            </Badge>
-                          )}
-                        </CardTitle>
-                        <CardDescription className="mt-1">
-                          {plugin.description}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="flex-1">
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {plugin.tags.map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <span>v{plugin.version}</span>
-                      <span>by {plugin.author}</span>
-                    </div>
-                    {plugin.downloads && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {plugin.downloads.toLocaleString()} installs
-                      </div>
-                    )}
-                  </CardContent>
-                  <div className="p-4 pt-0">
-                    {isInstalled ? (
-                      <Button variant="outline" className="w-full" asChild>
-                        <Link href={`/plugins/${plugin.id}`}>
-                          <Eye className="w-4 h-4 mr-2" />
-                          View Plugin
-                        </Link>
-                      </Button>
-                    ) : plugin.comingSoon ? (
-                      <Button variant="outline" className="w-full" disabled>
-                        Coming Soon
-                      </Button>
-                    ) : (
-                      <Button
-                        className="w-full"
-                        onClick={() => handleMarketplaceInstall(plugin)}
-                        disabled={installingPlugin === plugin.id}
-                      >
-                        {installingPlugin === plugin.id ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                            Installing...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-4 h-4 mr-2" />
-                            Install
-                          </>
+            {filteredMarketplace.length === 0 ? (
+              <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] flex flex-col items-center justify-center py-12 text-center">
+                <Package className="w-10 h-10 mb-3 text-[#1e2d3d]" />
+                <p className="text-xs text-[#4a6480]">No plugins match your search criteria</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                {filteredMarketplace.map((plugin) => {
+                  const Icon = plugin.icon;
+                  const isInstalled = installedPluginIds.has(plugin.id);
+                  return (
+                    <div key={plugin.id} className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] flex flex-col">
+                      <div className="p-3 flex-1">
+                        <div className="flex items-start gap-2.5 mb-2">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1a2d3d] shrink-0">
+                            <Icon className="h-4 w-4 text-[#4a7a96]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-xs font-semibold text-[#c8dce8]">{plugin.name}</p>
+                              {isInstalled && (
+                                <span className="flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400 border border-teal-400/30">
+                                  <CheckCircle2 className="h-2.5 w-2.5" />Installed
+                                </span>
+                              )}
+                              {plugin.comingSoon && !isInstalled && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#4a7a96] border border-[#2a3d52]">Soon</span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-[#4a6480] mt-0.5 line-clamp-2">{plugin.description}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {plugin.tags.map((tag) => (
+                            <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#3d5670] border border-[#2a3d52]">{tag}</span>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-[#3d5670]">
+                          <span>v{plugin.version}</span>
+                          <span>by {plugin.author}</span>
+                        </div>
+                        {plugin.downloads && (
+                          <p className="text-[10px] text-[#3d5670] mt-0.5">{plugin.downloads.toLocaleString()} installs</p>
                         )}
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
+                      </div>
+                      <div className="px-3 pb-3">
+                        {isInstalled ? (
+                          <Link href={`/plugins/${plugin.id}`} className="w-full h-7 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors flex items-center justify-center gap-1.5">
+                            <Eye className="w-3 h-3" />View Plugin
+                          </Link>
+                        ) : plugin.comingSoon ? (
+                          <button disabled className="w-full h-7 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#3d5670] opacity-50 cursor-not-allowed">
+                            Coming Soon
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleMarketplaceInstall(plugin)}
+                            disabled={installingPlugin === plugin.id}
+                            className="w-full h-7 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                          >
+                            {installingPlugin === plugin.id
+                              ? <><RefreshCw className="w-3 h-3 animate-spin" />Installing…</>
+                              : <><Download className="w-3 h-3" />Install</>}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {filteredMarketplacePlugins.length === 0 && (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">
-                  No plugins match your search criteria
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="mt-6 text-center text-sm text-muted-foreground">
+          <div className="text-center text-xs text-[#3d5670]">
             Looking for a specific plugin?{' '}
-            <Button variant="link" className="p-0 h-auto" onClick={() => setInstallDialogOpen(true)}>
+            <button onClick={() => setInstallDialogOpen(true)} className="text-teal-400 hover:text-teal-300 transition-colors">
               Install from path or URL
-            </Button>
+            </button>
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
 }
