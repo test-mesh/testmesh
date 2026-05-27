@@ -10,7 +10,6 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface TrendData {
   date: string;
@@ -43,78 +42,79 @@ export function TrendChart({
   }));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
-          <LineChart data={formattedData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis
-              dataKey="date"
-              className="text-xs"
-              tick={{ fill: 'currentColor' }}
-            />
+    <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-4">
+      <p className="text-[13px] font-semibold text-[#c8dce8] mb-4">{title}</p>
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={formattedData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1a2332" />
+          <XAxis
+            dataKey="date"
+            tick={{ fill: '#4a6480', fontSize: 11 }}
+            axisLine={{ stroke: '#1e2d3d' }}
+            tickLine={false}
+          />
+          <YAxis
+            yAxisId="left"
+            tick={{ fill: '#4a6480', fontSize: 11 }}
+            axisLine={false}
+            tickLine={false}
+          />
+          {showPassRate && (
             <YAxis
+              yAxisId="right"
+              orientation="right"
+              domain={[0, 100]}
+              tick={{ fill: '#4a6480', fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
+          )}
+          <Tooltip
+            contentStyle={{
+              backgroundColor: '#0f1923',
+              border: '1px solid #1e2d3d',
+              borderRadius: '8px',
+              fontSize: '12px',
+              color: '#c8dce8',
+            }}
+            labelStyle={{ color: '#7fa8c8', marginBottom: 4 }}
+          />
+          <Legend wrapperStyle={{ fontSize: '11px', color: '#4a6480' }} />
+          {showExecutions && (
+            <Line
               yAxisId="left"
-              className="text-xs"
-              tick={{ fill: 'currentColor' }}
+              type="monotone"
+              dataKey="executions"
+              stroke="#2dd4bf"
+              strokeWidth={2}
+              dot={{ r: 3, fill: '#2dd4bf' }}
+              name="Executions"
             />
-            {showPassRate && (
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                domain={[0, 100]}
-                className="text-xs"
-                tick={{ fill: 'currentColor' }}
-              />
-            )}
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'hsl(var(--card))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '6px',
-              }}
-              labelStyle={{ color: 'hsl(var(--foreground))' }}
+          )}
+          {showPassRate && (
+            <Line
+              yAxisId="right"
+              type="monotone"
+              dataKey="pass_rate"
+              stroke="#34d399"
+              strokeWidth={2}
+              dot={{ r: 3, fill: '#34d399' }}
+              name="Pass Rate (%)"
             />
-            <Legend />
-            {showExecutions && (
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="executions"
-                stroke="hsl(var(--primary))"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                name="Executions"
-              />
-            )}
-            {showPassRate && (
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="pass_rate"
-                stroke="hsl(142.1 76.2% 36.3%)"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                name="Pass Rate (%)"
-              />
-            )}
-            {showDuration && (
-              <Line
-                yAxisId="left"
-                type="monotone"
-                dataKey="duration_sec"
-                stroke="hsl(var(--warning))"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                name="Avg Duration (s)"
-              />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
+          )}
+          {showDuration && (
+            <Line
+              yAxisId="left"
+              type="monotone"
+              dataKey="duration_sec"
+              stroke="#fbbf24"
+              strokeWidth={2}
+              dot={{ r: 3, fill: '#fbbf24' }}
+              name="Avg Duration (s)"
+            />
+          )}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

@@ -6,18 +6,9 @@ import {
   useCreateTestEnvironment,
   useDestroyTestEnvironment,
 } from '@/lib/hooks/useTestEnvironments';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -36,29 +27,26 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Plus, RefreshCw, Trash2, Server } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { TestEnvState, CreateTestEnvRequest } from '@/lib/api/test_environments';
 import { TEST_ENV_STATE_COLORS } from '@/lib/api/test_environments';
 
-const STATE_BADGE_CLASS: Record<string, string> = {
-  gray: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
-  blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-  green: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-  yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-  orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-  red: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+const STATE_COLORS: Record<string, string> = {
+  gray:   'bg-[#1a2d3d] text-[#4a6480]',
+  blue:   'bg-blue-400/10 text-blue-400',
+  green:  'bg-teal-400/10 text-teal-400',
+  yellow: 'bg-yellow-400/10 text-yellow-400',
+  orange: 'bg-orange-400/10 text-orange-400',
+  red:    'bg-red-400/10 text-red-400',
 };
 
 function StateBadge({ state }: { state: TestEnvState }) {
   const color = TEST_ENV_STATE_COLORS[state] ?? 'gray';
-  const cls = STATE_BADGE_CLASS[color] ?? STATE_BADGE_CLASS.gray;
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}
-    >
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded capitalize', STATE_COLORS[color] ?? STATE_COLORS.gray)}>
       {state}
     </span>
   );
@@ -108,168 +96,112 @@ export default function TestEnvironmentsPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto py-8">
-        <Card className="border-destructive">
-          <CardHeader className="text-destructive font-semibold">Error</CardHeader>
-          <CardContent>
-            <p>Failed to load test environments. Please try again.</p>
-          </CardContent>
-        </Card>
+      <div className="px-6 py-6">
+        <div className="rounded-xl bg-red-400/5 border border-red-400/20 p-6 text-red-400 text-sm">
+          Failed to load test environments. Please try again.
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="px-6 py-6">
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Test Environments</h1>
-          <p className="text-muted-foreground">
-            Manage ephemeral environments for GitOps-triggered test runs
-          </p>
+          <h1 className="text-xl font-semibold text-[#c8dce8]">Test Environments</h1>
+          <p className="text-xs text-[#3d5670] mt-0.5">Manage ephemeral environments for GitOps-triggered test runs</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+        >
+          <Plus className="h-3 w-3" />
           New Environment
-        </Button>
+        </button>
       </div>
 
-      <Card>
-        <CardContent className="pt-4">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" />
+          </div>
+        ) : environments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Server className="h-10 w-10 mb-3 text-[#1e2d3d]" />
+            <p className="text-sm text-[#3d5670] mb-1">No test environments</p>
+            <p className="text-[11px] text-[#2a3d52] mb-4">Create an environment to spin up ephemeral test infrastructure.</p>
+            <button
+              onClick={() => setCreateOpen(true)}
+              className="flex items-center gap-1.5 h-7 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+              New Environment
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-2.5 border-b border-[#1a2332]">
+              {['Name', 'Context', 'Namespace', 'Provider', 'State', 'TTL', 'Last Used', ''].map((h) => (
+                <span key={h} className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</span>
+              ))}
             </div>
-          ) : environments.length === 0 ? (
-            <div className="text-center py-8">
-              <Server className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-4 text-lg font-semibold">No test environments</h3>
-              <p className="text-muted-foreground">
-                Create an environment to spin up ephemeral test infrastructure.
-              </p>
-              <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Environment
-              </Button>
+            <div className="divide-y divide-[#1a2332]">
+              {environments.map((env) => (
+                <div key={env.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 items-center hover:bg-[#131b26] transition-colors group">
+                  <span className="text-[13px] font-medium text-[#c8dce8] truncate">{env.name}</span>
+                  <code className="text-[10px] font-mono text-[#4a6480] bg-[#0b0f18] px-1.5 py-0.5 rounded w-fit">{env.context}</code>
+                  <span>
+                    {env.namespace
+                      ? <code className="text-[10px] font-mono text-[#4a6480] bg-[#0b0f18] px-1.5 py-0.5 rounded">{env.namespace}</code>
+                      : <span className="text-[#3d5670] text-[11px]">—</span>
+                    }
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#4a7a96] w-fit">{env.provider}</span>
+                  <StateBadge state={env.state} />
+                  <span className="text-[11px] text-[#7fa8c8]">{env.ttl_minutes}m</span>
+                  <span className="text-[11px] text-[#4a6480]">
+                    {env.last_used_at
+                      ? formatDistanceToNow(new Date(env.last_used_at), { addSuffix: true })
+                      : 'never'}
+                  </span>
+                  <button
+                    onClick={() => setDestroyId(env.id)}
+                    disabled={env.state === 'destroyed' || destroyMutation.isPending}
+                    className="flex items-center justify-center h-6 w-6 rounded text-[#3d5670] hover:text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-30 opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Context</TableHead>
-                  <TableHead>Namespace</TableHead>
-                  <TableHead>Provider</TableHead>
-                  <TableHead>State</TableHead>
-                  <TableHead>TTL (min)</TableHead>
-                  <TableHead>Last Used</TableHead>
-                  <TableHead className="w-[70px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {environments.map((env) => (
-                  <TableRow key={env.id}>
-                    <TableCell className="font-medium">{env.name}</TableCell>
-                    <TableCell>
-                      <code className="text-xs bg-muted px-1 py-0.5 rounded">{env.context}</code>
-                    </TableCell>
-                    <TableCell>
-                      {env.namespace ? (
-                        <code className="text-xs bg-muted px-1 py-0.5 rounded">{env.namespace}</code>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{env.provider}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <StateBadge state={env.state} />
-                    </TableCell>
-                    <TableCell>{env.ttl_minutes}</TableCell>
-                    <TableCell>
-                      {env.last_used_at ? (
-                        <span className="text-sm text-muted-foreground">
-                          {formatDistanceToNow(new Date(env.last_used_at), { addSuffix: true })}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">never</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => setDestroyId(env.id)}
-                        disabled={env.state === 'destroyed' || destroyMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        )}
+      </div>
 
-      {/* Create Environment Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New Test Environment</DialogTitle>
-            <DialogDescription>
-              Provision an ephemeral environment for GitOps-driven test execution.
-            </DialogDescription>
+            <DialogDescription>Provision an ephemeral environment for GitOps-driven test execution.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1">
-              <Label htmlFor="env-name">Name</Label>
-              <Input
-                id="env-name"
-                placeholder="e.g. pr-1234"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="env-context">Context</Label>
-              <Input
-                id="env-context"
-                placeholder="e.g. staging"
-                value={form.context}
-                onChange={(e) => setForm({ ...form, context: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="env-namespace">Namespace (optional)</Label>
-              <Input
-                id="env-namespace"
-                placeholder="e.g. pr-1234"
-                value={form.namespace ?? ''}
-                onChange={(e) => setForm({ ...form, namespace: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="env-provider">Provider</Label>
-              <Input
-                id="env-provider"
-                placeholder="argocd"
-                value={form.provider ?? ''}
-                onChange={(e) => setForm({ ...form, provider: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="env-app-name">Provider App Name (optional)</Label>
-              <Input
-                id="env-app-name"
-                placeholder="e.g. my-app-pr-1234"
-                value={form.provider_app_name ?? ''}
-                onChange={(e) => setForm({ ...form, provider_app_name: e.target.value })}
-              />
-            </div>
+            {[
+              { id: 'env-name', label: 'Name', placeholder: 'e.g. pr-1234', key: 'name' as const },
+              { id: 'env-context', label: 'Context', placeholder: 'e.g. staging', key: 'context' as const },
+              { id: 'env-namespace', label: 'Namespace (optional)', placeholder: 'e.g. pr-1234', key: 'namespace' as const },
+              { id: 'env-provider', label: 'Provider', placeholder: 'argocd', key: 'provider' as const },
+              { id: 'env-app-name', label: 'Provider App Name (optional)', placeholder: 'e.g. my-app-pr-1234', key: 'provider_app_name' as const },
+            ].map(({ id, label, placeholder, key }) => (
+              <div key={id} className="space-y-1">
+                <Label htmlFor={id}>{label}</Label>
+                <Input
+                  id={id}
+                  placeholder={placeholder}
+                  value={(form[key] as string) ?? ''}
+                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                />
+              </div>
+            ))}
             <div className="space-y-1">
               <Label htmlFor="env-ttl">TTL (minutes)</Label>
               <Input
@@ -278,39 +210,29 @@ export default function TestEnvironmentsPage() {
                 min={1}
                 placeholder="60"
                 value={form.ttl_minutes ?? 60}
-                onChange={(e) =>
-                  setForm({ ...form, ttl_minutes: parseInt(e.target.value, 10) || 60 })
-                }
+                onChange={(e) => setForm({ ...form, ttl_minutes: parseInt(e.target.value, 10) || 60 })}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
             <Button
               onClick={handleCreate}
               disabled={!form.name || !form.context || createMutation.isPending}
             >
-              {createMutation.isPending ? (
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 h-4 w-4" />
-              )}
+              {createMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
               Create
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Destroy Confirm Dialog */}
       <AlertDialog open={!!destroyId} onOpenChange={() => setDestroyId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Destroy Environment</AlertDialogTitle>
+            <AlertDialogTitle>Destroy Environment?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will tear down the environment and all associated resources. This action cannot
-              be undone.
+              This will tear down the environment and all associated resources. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

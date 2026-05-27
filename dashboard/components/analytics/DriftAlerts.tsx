@@ -9,19 +9,13 @@ export function DriftAlerts() {
   const alerts = data?.alerts ?? [];
 
   if (isLoading) {
-    return <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />;
+    return <div className="flex justify-center py-4"><Loader2 className="w-4 h-4 animate-spin text-[#3d5670]" /></div>;
   }
-
   if (error) {
-    return <p className="text-sm text-red-600">Failed to load drift alerts.</p>;
+    return <p className="text-xs text-red-400">Failed to load drift alerts.</p>;
   }
-
   if (alerts.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No drift alerts. All observed flows match their baselines.
-      </p>
-    );
+    return <p className="text-xs text-[#4a6480]">No drift alerts. All observed flows match their baselines.</p>;
   }
 
   return (
@@ -29,23 +23,19 @@ export function DriftAlerts() {
       {alerts.map((alert) => (
         <div
           key={alert.id}
-          className="flex items-start gap-3 px-3 py-2.5 rounded-md bg-yellow-50/20 border border-yellow-200 text-sm"
+          className="flex items-start gap-3 px-3 py-2.5 rounded-lg bg-yellow-400/5 border border-yellow-400/20"
         >
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-yellow-600" />
+          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-yellow-400" />
           <div className="flex-1 min-w-0">
-            <span className="font-semibold font-mono text-xs">{alert.name}</span>
-            <p className="text-muted-foreground text-xs mt-0.5">
-              {JSON.stringify(alert.drift_details)}
-            </p>
-            <p className="text-muted-foreground text-xs">
-              Last seen: {new Date(alert.last_seen_at).toLocaleDateString()}
-            </p>
+            <span className="font-semibold font-mono text-[11px] text-[#c8dce8]">{alert.name}</span>
+            <p className="text-[10px] text-[#4a6480] mt-0.5">{JSON.stringify(alert.drift_details)}</p>
+            <p className="text-[10px] text-[#4a6480]">Last seen: {new Date(alert.last_seen_at).toLocaleDateString()}</p>
           </div>
           <Link
             href={`/traces?service=${alert.entry_service}`}
-            className="text-muted-foreground hover:text-foreground shrink-0"
+            className="text-[#3d5670] hover:text-[#7fa8c8] shrink-0 transition-colors"
           >
-            <ExternalLink className="w-4 h-4" />
+            <ExternalLink className="w-3.5 h-3.5" />
           </Link>
         </div>
       ))}
