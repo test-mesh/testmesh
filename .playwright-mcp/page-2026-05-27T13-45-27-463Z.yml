@@ -1,0 +1,102 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button "Select Workspace" [ref=e9]:
+            - img
+          - button [disabled]:
+            - img
+        - generic [ref=e10]:
+          - button "Search... ⌘ K" [ref=e11]:
+            - img
+            - generic [ref=e12]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e13]:
+            - heading "Command Palette" [level=2] [ref=e14]
+            - paragraph [ref=e15]: Search for a command to run...
+        - button [ref=e17]:
+          - img
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - navigation [ref=e20]:
+          - link "Dashboard" [ref=e21] [cursor=pointer]:
+            - /url: /
+            - img [ref=e22]
+            - generic [ref=e27]: Dashboard
+          - link "Flows" [ref=e28] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e29]
+            - generic [ref=e32]: Flows
+          - link "Executions" [ref=e33] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e34]
+            - generic [ref=e36]: Executions
+        - navigation [ref=e38]:
+          - link "Environments" [ref=e39] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e40]
+            - generic [ref=e43]: Environments
+          - link "Mocks" [ref=e44] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e45]
+            - generic [ref=e48]: Mocks
+          - link "Graph" [ref=e49] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e50]
+            - generic [ref=e55]: Graph
+        - navigation [ref=e58]:
+          - link "Analytics" [ref=e59] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e61]
+            - generic [ref=e63]: Analytics
+          - link "Settings" [ref=e64] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e65]
+            - generic [ref=e68]: Settings
+          - link "Docs" [ref=e69] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e70]
+            - generic [ref=e73]: Docs
+      - main [ref=e74]:
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - generic [ref=e77]:
+              - heading "Analytics" [level=1] [ref=e78]
+              - paragraph [ref=e79]: Execution metrics, trends, and test health insights
+            - generic [ref=e80]:
+              - combobox [ref=e81]:
+                - generic: Last 30 days
+                - img
+              - button "Export" [ref=e82]:
+                - img
+                - text: Export
+              - button "Refresh" [ref=e83]:
+                - img
+                - text: Refresh
+          - generic [ref=e84]:
+            - tablist [ref=e85]:
+              - tab "Overview" [selected] [ref=e86]:
+                - img
+                - text: Overview
+              - tab "Trends" [ref=e87]:
+                - img
+                - text: Trends
+              - tab "Flakiness" [ref=e88]:
+                - img
+                - text: Flakiness
+              - tab "Coverage" [ref=e89]:
+                - img
+                - text: Coverage
+              - tab "Telemetry" [ref=e90]:
+                - img
+                - text: Telemetry
+            - tabpanel "Overview" [ref=e91]
+  - region "Notifications alt+T"
+  - alert [ref=e98]

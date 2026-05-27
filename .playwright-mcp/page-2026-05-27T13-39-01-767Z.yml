@@ -1,0 +1,88 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button "Microservices Demo" [ref=e9]:
+            - img
+          - button [ref=e10]:
+            - img
+        - generic [ref=e13]:
+          - button "Search... ⌘ K" [ref=e14]:
+            - img
+            - generic [ref=e15]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e16]:
+            - heading "Command Palette" [level=2] [ref=e17]
+            - paragraph [ref=e18]: Search for a command to run...
+        - button "4" [ref=e20]:
+          - img
+          - generic [ref=e21]: "4"
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - navigation [ref=e24]:
+          - link "Dashboard" [ref=e25] [cursor=pointer]:
+            - /url: /
+            - img [ref=e26]
+            - generic [ref=e31]: Dashboard
+          - link "Flows" [ref=e32] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e33]
+            - generic [ref=e36]: Flows
+          - link "Executions" [ref=e37] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e39]
+            - generic [ref=e41]: Executions
+        - navigation [ref=e43]:
+          - link "Environments" [ref=e44] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e45]
+            - generic [ref=e48]: Environments
+          - link "Mocks" [ref=e49] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e50]
+            - generic [ref=e53]: Mocks
+          - link "Graph" [ref=e54] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e55]
+            - generic [ref=e60]: Graph
+        - navigation [ref=e63]:
+          - link "Analytics" [ref=e64] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e65]
+            - generic [ref=e67]: Analytics
+          - link "Settings" [ref=e68] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e69]
+            - generic [ref=e72]: Settings
+          - link "Docs" [ref=e73] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e74]
+            - generic [ref=e77]: Docs
+      - main [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - heading "Execution History" [level=1] [ref=e81]
+            - paragraph [ref=e82]: View all test flow executions and their results
+          - generic [ref=e84]:
+            - button "All statuses" [ref=e85]
+            - button "Completed" [ref=e86]
+            - button "Failed" [ref=e87]
+            - button "Running" [ref=e88]
+            - button "Cancelled" [ref=e89]
+          - generic [ref=e91]:
+            - generic [ref=e92]: Flow
+            - generic [ref=e93]: Status
+            - generic [ref=e94]: Environment
+            - generic [ref=e95]: Triggered By
+            - generic [ref=e96]: Steps
+            - generic [ref=e97]: Duration
+            - generic [ref=e98]: Started
+  - region "Notifications alt+T"
+  - alert [ref=e110]

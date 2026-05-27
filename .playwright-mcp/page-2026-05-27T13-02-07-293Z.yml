@@ -1,0 +1,98 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button "Microservices Demo" [ref=e9]:
+            - img
+          - button [disabled]:
+            - img
+        - generic [ref=e10]:
+          - button "Search... ⌘ K" [ref=e11]:
+            - img
+            - generic [ref=e12]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e13]:
+            - heading "Command Palette" [level=2] [ref=e14]
+            - paragraph [ref=e15]: Search for a command to run...
+        - button "4" [ref=e17]:
+          - img
+          - generic [ref=e18]: "4"
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - navigation [ref=e21]:
+          - link "Dashboard" [ref=e22] [cursor=pointer]:
+            - /url: /
+            - img [ref=e23]
+            - generic [ref=e28]: Dashboard
+          - link "Flows" [ref=e29] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e31]
+            - generic [ref=e34]: Flows
+          - link "Executions" [ref=e35] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e36]
+            - generic [ref=e38]: Executions
+        - navigation [ref=e40]:
+          - link "Environments" [ref=e41] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e42]
+            - generic [ref=e45]: Environments
+          - link "Mocks" [ref=e46] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e47]
+            - generic [ref=e50]: Mocks
+          - link "Graph" [ref=e51] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e52]
+            - generic [ref=e57]: Graph
+        - navigation [ref=e60]:
+          - link "Analytics" [ref=e61] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e62]
+            - generic [ref=e64]: Analytics
+          - link "Settings" [ref=e65] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e66]
+            - generic [ref=e69]: Settings
+          - link "Docs" [ref=e70] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e71]
+            - generic [ref=e74]: Docs
+      - main [ref=e75]:
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - generic [ref=e78]:
+              - heading "Test Flows" [level=1] [ref=e79]
+              - paragraph [ref=e80]: Manage and execute your test flows
+            - generic [ref=e81]:
+              - link "Run with Data" [ref=e82] [cursor=pointer]:
+                - /url: /runner
+                - img [ref=e83]
+                - text: Run with Data
+              - link "Import" [ref=e85] [cursor=pointer]:
+                - /url: /import
+                - img [ref=e86]
+                - text: Import
+              - link "Generate" [ref=e89] [cursor=pointer]:
+                - /url: /ai/generate
+                - img [ref=e90]
+                - text: Generate
+              - link "Create Flow" [ref=e93] [cursor=pointer]:
+                - /url: /flows/new
+                - img [ref=e94]
+                - text: Create Flow
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - img [ref=e97]
+              - textbox "Search flows..." [ref=e100]
+            - textbox "Suite..." [ref=e101]
+            - textbox "Tag..." [ref=e102]
+  - region "Notifications alt+T"
+  - alert [ref=e112]

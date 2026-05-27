@@ -1,0 +1,230 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e7]: TM
+          - generic [ref=e8]: TestMesh
+        - generic [ref=e9]:
+          - combobox [ref=e93]:
+            - generic [ref=e94]:
+              - img
+              - generic [ref=e95]: Microservices Demo
+            - img
+          - button "Local Dev" [ref=e96]:
+            - generic [ref=e99]: Local Dev
+            - img
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - button "Search... ⌘ K" [ref=e12]:
+              - img
+              - generic [ref=e13]: Search...
+              - generic:
+                - generic: ⌘
+                - text: K
+            - generic [ref=e14]:
+              - heading "Command Palette" [level=2] [ref=e15]
+              - paragraph [ref=e16]: Search for a command to run...
+          - button "4" [ref=e100]:
+            - img
+            - generic [ref=e101]: "4"
+          - button "Toggle theme" [ref=e18]:
+            - img
+            - generic [ref=e19]: Toggle theme
+    - generic [ref=e20]:
+      - navigation [ref=e25]:
+        - link "Dashboard" [ref=e26] [cursor=pointer]:
+          - /url: /
+          - img [ref=e27]
+          - text: Dashboard
+        - generic [ref=e32]:
+          - button "Flows" [expanded] [ref=e33]:
+            - img [ref=e34]
+            - generic [ref=e37]: Flows
+            - img [ref=e38]
+          - generic [ref=e40]:
+            - link "All Flows" [ref=e41] [cursor=pointer]:
+              - /url: /flows
+              - img [ref=e42]
+              - text: All Flows
+            - link "Collections" [ref=e45] [cursor=pointer]:
+              - /url: /collections
+              - img [ref=e46]
+              - text: Collections
+            - link "Schedules" [ref=e51] [cursor=pointer]:
+              - /url: /schedules
+              - img [ref=e52]
+              - text: Schedules
+        - button "Executions" [ref=e55]:
+          - img [ref=e56]
+          - generic [ref=e58]: Executions
+          - img [ref=e59]
+        - button "Infrastructure" [ref=e62]:
+          - img [ref=e63]
+          - generic [ref=e66]: Infrastructure
+          - img [ref=e67]
+        - link "Analytics" [ref=e69] [cursor=pointer]:
+          - /url: /analytics
+          - img [ref=e70]
+          - text: Analytics
+        - button "Settings" [ref=e73]:
+          - img [ref=e74]
+          - generic [ref=e77]: Settings
+          - img [ref=e78]
+      - main [ref=e81]:
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - link [ref=e84] [cursor=pointer]:
+              - /url: /flows
+              - img
+            - generic [ref=e103]: E2E Order Flow
+            - button "Runs" [ref=e87]:
+              - img
+              - text: Runs
+            - button [ref=e88]:
+              - img
+          - generic [ref=e104]:
+            - generic [ref=e105]:
+              - generic [ref=e106]:
+                - button "YAML" [ref=e107]:
+                  - img
+                  - text: YAML
+                - button "Templates" [ref=e109]:
+                  - img
+                  - text: Templates
+                - button "Flow Settings" [ref=e111]:
+                  - img
+                  - text: Flow Settings
+                - button [disabled]:
+                  - img
+                - button [disabled]:
+                  - img
+                - button "Auto Layout" [ref=e114]:
+                  - img
+                  - text: Auto Layout
+                - button "Search" [ref=e115]:
+                  - img
+                  - text: Search
+                - button "Actions" [active] [ref=e117]:
+                  - img
+                  - text: Actions
+                - button "Properties" [ref=e118]:
+                  - text: Properties
+                  - img
+                - button "Validation 1" [ref=e119]:
+                  - img
+                  - text: Validation
+                  - generic [ref=e120]: "1"
+              - generic [ref=e121]:
+                - generic [ref=e122]: Unsaved changes
+                - button "Export" [ref=e123]:
+                  - img
+                  - text: Export
+                - button "Keyboard shortcuts (?)" [ref=e124]:
+                  - img
+                - button "Save" [ref=e126]:
+                  - img
+                  - text: Save
+                - button "Run" [ref=e127]:
+                  - img
+                  - text: Run
+            - generic [ref=e128]:
+              - generic [ref=e632]:
+                - generic [ref=e634]:
+                  - generic:
+                    - img:
+                      - generic:
+                        - button "Edge from create_user to create_order" [ref=e635] [cursor=pointer]
+                        - button "Edge from create_order to verify_order" [ref=e638] [cursor=pointer]
+                        - button "Edge from verify_order to check_redis"
+                    - generic:
+                      - button "Steps Main test steps" [ref=e641]:
+                        - generic [ref=e642]:
+                          - img [ref=e643]
+                          - generic [ref=e645]:
+                            - generic [ref=e646]: Steps
+                            - generic [ref=e647]: Main test steps
+                      - button "HTTP create_user POST http://localhost:5001/users 1 assert 1 out" [ref=e648]:
+                        - generic [ref=e651]:
+                          - generic [ref=e653]:
+                            - img [ref=e654]
+                            - text: HTTP
+                          - generic [ref=e657]: create_user
+                          - generic [ref=e658]:
+                            - generic [ref=e659]: POST
+                            - generic [ref=e660]: http://localhost:5001/users
+                          - generic [ref=e661]:
+                            - generic [ref=e662]: 1 assert
+                            - generic [ref=e663]: 1 out
+                      - button "HTTP create_order POST http://localhost:5003/orders 1 assert 1 out" [ref=e665]:
+                        - generic [ref=e668]:
+                          - generic [ref=e670]:
+                            - img [ref=e671]
+                            - text: HTTP
+                          - generic [ref=e674]: create_order
+                          - generic [ref=e675]:
+                            - generic [ref=e676]: POST
+                            - generic [ref=e677]: http://localhost:5003/orders
+                          - generic [ref=e678]:
+                            - generic [ref=e679]: 1 assert
+                            - generic [ref=e680]: 1 out
+                      - button "ASSERT verify_order order_id != \"\"" [ref=e682]:
+                        - generic [ref=e685]:
+                          - generic [ref=e687]:
+                            - img [ref=e688]
+                            - text: ASSERT
+                          - generic [ref=e691]: verify_order
+                          - generic [ref=e692]: order_id != ""
+                      - button "REDIS check_redis" [ref=e694]:
+                        - generic [ref=e697]:
+                          - generic [ref=e699]:
+                            - img [ref=e700]
+                            - text: REDIS
+                          - generic [ref=e704]: check_redis
+                - img [ref=e706]
+                - generic [ref=e708]:
+                  - button "zoom in" [ref=e709] [cursor=pointer]:
+                    - img [ref=e710]
+                  - button "zoom out" [ref=e712] [cursor=pointer]:
+                    - img [ref=e713]
+                  - button "fit view" [ref=e715] [cursor=pointer]:
+                    - img [ref=e716]
+                  - button "toggle interactivity" [ref=e718] [cursor=pointer]:
+                    - img [ref=e719]
+                - img "React Flow mini map" [ref=e722]
+              - paragraph [ref=e731]: Select a node to edit its properties
+              - generic [ref=e732]:
+                - generic [ref=e733]:
+                  - generic [ref=e734]:
+                    - generic [ref=e735]:
+                      - img [ref=e736]
+                      - generic [ref=e738]: Validation Issues
+                    - button [ref=e739]:
+                      - img
+                  - generic [ref=e741]:
+                    - img
+                    - text: 1 error
+                  - generic [ref=e742]:
+                    - img [ref=e743]
+                    - combobox [ref=e745]:
+                      - generic: All Issues (1)
+                      - img
+                - generic [ref=e748]:
+                  - generic [ref=e749]:
+                    - generic [ref=e750]: "Node: verify_order"
+                    - generic [ref=e751]: "1"
+                  - 'button "At least one assertion is required Field: assertions Click to navigate" [ref=e753] [cursor=pointer]':
+                    - generic [ref=e754]:
+                      - img [ref=e755]
+                      - generic [ref=e757]:
+                        - generic [ref=e758]: At least one assertion is required
+                        - generic [ref=e759]: "Field: assertions"
+                        - generic [ref=e760]:
+                          - img [ref=e761]
+                          - generic [ref=e763]: Click to navigate
+                - paragraph [ref=e766]:
+                  - img [ref=e767]
+                  - text: Fix errors before running the flow
+  - region "Notifications alt+T"
+  - alert [ref=e92]

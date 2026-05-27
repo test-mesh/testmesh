@@ -1,0 +1,93 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button [disabled]:
+            - img
+          - button [disabled]:
+            - img
+        - generic [ref=e9]:
+          - button "Search... ⌘ K" [ref=e10]:
+            - img
+            - generic [ref=e11]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e12]:
+            - heading "Command Palette" [level=2] [ref=e13]
+            - paragraph [ref=e14]: Search for a command to run...
+        - button [ref=e16]:
+          - img
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - navigation [ref=e19]:
+          - link "Dashboard" [ref=e20] [cursor=pointer]:
+            - /url: /
+            - img [ref=e21]
+            - generic [ref=e26]: Dashboard
+          - link "Flows" [ref=e27] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e28]
+            - generic [ref=e31]: Flows
+          - link "Executions" [ref=e32] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e33]
+            - generic [ref=e35]: Executions
+        - navigation [ref=e37]:
+          - link "Environments" [ref=e38] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e39]
+            - generic [ref=e42]: Environments
+          - link "Mocks" [ref=e43] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e44]
+            - generic [ref=e47]: Mocks
+          - link "Graph" [ref=e48] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e49]
+            - generic [ref=e54]: Graph
+        - navigation [ref=e57]:
+          - link "Analytics" [ref=e58] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e59]
+            - generic [ref=e61]: Analytics
+          - link "Settings" [ref=e62] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e63]
+            - generic [ref=e66]: Settings
+          - link "Docs" [ref=e67] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e68]
+            - generic [ref=e71]: Docs
+      - main [ref=e72]:
+        - generic [ref=e73]:
+          - generic [ref=e74]:
+            - generic [ref=e75]:
+              - heading "Scheduled Tests" [level=1] [ref=e76]
+              - paragraph [ref=e77]: Automate your test runs with cron-based scheduling
+            - link "New Schedule" [ref=e78] [cursor=pointer]:
+              - /url: /schedules/new
+              - img [ref=e79]
+              - text: New Schedule
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - img [ref=e82]
+              - textbox "Search schedules..." [ref=e85]
+            - generic [ref=e86]:
+              - button "All Status" [ref=e87]
+              - button "Active" [ref=e88]
+              - button "Paused" [ref=e89]
+              - button "Disabled" [ref=e90]
+          - generic [ref=e92]:
+            - generic [ref=e93]: Name
+            - generic [ref=e94]: Schedule
+            - generic [ref=e95]: Status
+            - generic [ref=e96]: Last Run
+            - generic [ref=e97]: Next Run
+  - region "Notifications alt+T"
+  - alert [ref=e107]

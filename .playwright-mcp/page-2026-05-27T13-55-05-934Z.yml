@@ -1,0 +1,115 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button "Microservices Demo" [ref=e9]:
+            - img
+          - button [ref=e10]:
+            - img
+        - generic [ref=e13]:
+          - button "Search... ⌘ K" [ref=e14]:
+            - img
+            - generic [ref=e15]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e16]:
+            - heading "Command Palette" [level=2] [ref=e17]
+            - paragraph [ref=e18]: Search for a command to run...
+        - button [ref=e20]:
+          - img
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - navigation [ref=e23]:
+          - link "Dashboard" [ref=e24] [cursor=pointer]:
+            - /url: /
+            - img [ref=e25]
+            - generic [ref=e30]: Dashboard
+          - link "Flows" [ref=e31] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e33]
+            - generic [ref=e36]: Flows
+          - link "Executions" [ref=e37] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e38]
+            - generic [ref=e40]: Executions
+        - navigation [ref=e42]:
+          - link "Environments" [ref=e43] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e44]
+            - generic [ref=e47]: Environments
+          - link "Mocks" [ref=e48] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e49]
+            - generic [ref=e52]: Mocks
+          - link "Graph" [ref=e53] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e54]
+            - generic [ref=e59]: Graph
+        - navigation [ref=e62]:
+          - link "Analytics" [ref=e63] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e64]
+            - generic [ref=e66]: Analytics
+          - link "Settings" [ref=e67] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e68]
+            - generic [ref=e71]: Settings
+          - link "Docs" [ref=e72] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e73]
+            - generic [ref=e76]: Docs
+      - main [ref=e77]:
+        - generic [ref=e78]:
+          - generic [ref=e79]:
+            - generic [ref=e80]:
+              - heading "Test Flows" [level=1] [ref=e81]
+              - paragraph [ref=e82]: Manage and execute your test flows
+            - generic [ref=e83]:
+              - link "Run with Data" [ref=e84] [cursor=pointer]:
+                - /url: /runner
+                - img [ref=e85]
+                - text: Run with Data
+              - link "Import" [ref=e87] [cursor=pointer]:
+                - /url: /import
+                - img [ref=e88]
+                - text: Import
+              - link "Generate" [ref=e91] [cursor=pointer]:
+                - /url: /ai/generate
+                - img [ref=e92]
+                - text: Generate
+              - link "Create Flow" [ref=e95] [cursor=pointer]:
+                - /url: /flows/new
+                - img [ref=e96]
+                - text: Create Flow
+          - generic [ref=e97]:
+            - generic [ref=e98]:
+              - img [ref=e99]
+              - textbox "Search flows..." [ref=e102]
+            - textbox "Suite..." [ref=e103]
+            - textbox "Tag..." [ref=e104]
+          - generic [ref=e106]:
+            - link "E2E Order Flow default 4 steps" [ref=e107] [cursor=pointer]:
+              - /url: /flows/6e3d5d82-a6cc-4f81-ae55-8d9ace944aaa
+              - generic [ref=e108]:
+                - generic [ref=e109]: E2E Order Flow
+                - generic [ref=e110]: default
+              - generic [ref=e111]:
+                - img [ref=e112]
+                - generic [ref=e116]: 4 steps
+            - generic [ref=e117]:
+              - button "Run" [ref=e118]:
+                - img [ref=e119]
+                - text: Run
+              - button "Debug" [ref=e121]:
+                - img [ref=e122]
+              - button "Delete" [ref=e131]:
+                - img [ref=e132]
+          - generic [ref=e136]: Showing 1–1 of 1 flows
+  - region "Notifications alt+T"
+  - alert [ref=e137]

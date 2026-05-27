@@ -1,0 +1,217 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button "Microservices Demo" [ref=e9]:
+            - img
+          - button [ref=e10]:
+            - generic [ref=e11]:
+              - img
+            - img
+        - generic [ref=e12]:
+          - button "Search... ⌘ K" [ref=e13]:
+            - img
+            - generic [ref=e14]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e15]:
+            - heading "Command Palette" [level=2] [ref=e16]
+            - paragraph [ref=e17]: Search for a command to run...
+        - button "4" [ref=e19]:
+          - img
+          - generic [ref=e20]: "4"
+    - generic [ref=e21]:
+      - generic [ref=e22]:
+        - navigation [ref=e23]:
+          - link "Dashboard" [ref=e24] [cursor=pointer]:
+            - /url: /
+            - img [ref=e25]
+            - generic [ref=e30]: Dashboard
+          - link "Flows" [ref=e31] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e32]
+            - generic [ref=e35]: Flows
+          - link "Executions" [ref=e36] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e38]
+            - generic [ref=e40]: Executions
+        - navigation [ref=e42]:
+          - link "Environments" [ref=e43] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e44]
+            - generic [ref=e47]: Environments
+          - link "Mocks" [ref=e48] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e49]
+            - generic [ref=e52]: Mocks
+          - link "Graph" [ref=e53] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e54]
+            - generic [ref=e59]: Graph
+        - navigation [ref=e62]:
+          - link "Analytics" [ref=e63] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e64]
+            - generic [ref=e66]: Analytics
+          - link "Settings" [ref=e67] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e68]
+            - generic [ref=e71]: Settings
+          - link "Docs" [ref=e72] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e73]
+            - generic [ref=e76]: Docs
+      - main [ref=e77]:
+        - generic [ref=e78]:
+          - generic [ref=e79]:
+            - heading "Execution History" [level=1] [ref=e80]
+            - paragraph [ref=e81]: View all test flow executions and their results
+          - generic [ref=e83]:
+            - button "All statuses" [ref=e84]
+            - button "Completed" [ref=e85]
+            - button "Failed" [ref=e86]
+            - button "Running" [ref=e87]
+            - button "Cancelled" [ref=e88]
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - generic [ref=e91]: Flow
+              - generic [ref=e92]: Status
+              - generic [ref=e93]: Environment
+              - generic [ref=e94]: Triggered By
+              - generic [ref=e95]: Steps
+              - generic [ref=e96]: Duration
+              - generic [ref=e97]: Started
+            - generic [ref=e98]:
+              - generic [ref=e99]:
+                - link "User Registration" [ref=e101] [cursor=pointer]:
+                  - /url: /flows/00000000-0000-0000-0002-000000000001
+                - generic [ref=e102]:
+                  - img [ref=e103]
+                  - text: Completed
+                - generic [ref=e106]: Development
+                - generic [ref=e107]: Manual
+                - generic [ref=e108]:
+                  - generic [ref=e109]: "1"
+                  - generic [ref=e110]: /
+                  - generic [ref=e111]: "0"
+                  - generic [ref=e112]: of 1
+                - generic [ref=e113]:
+                  - img [ref=e114]
+                  - text: 1500ms
+                - generic [ref=e117]: about 1 month ago
+                - link "View" [ref=e118] [cursor=pointer]:
+                  - /url: /executions/00000000-0000-0000-0003-000000000001
+                  - img [ref=e119]
+                  - text: View
+              - generic [ref=e122]:
+                - link "User Login" [ref=e124] [cursor=pointer]:
+                  - /url: /flows/00000000-0000-0000-0002-000000000002
+                - generic [ref=e125]:
+                  - img [ref=e126]
+                  - text: Completed
+                - generic [ref=e129]: Development
+                - generic [ref=e130]: Manual
+                - generic [ref=e131]:
+                  - generic [ref=e132]: "1"
+                  - generic [ref=e133]: /
+                  - generic [ref=e134]: "0"
+                  - generic [ref=e135]: of 1
+                - generic [ref=e136]:
+                  - img [ref=e137]
+                  - text: 800ms
+                - generic [ref=e140]: about 1 month ago
+                - link "View" [ref=e141] [cursor=pointer]:
+                  - /url: /executions/00000000-0000-0000-0003-000000000002
+                  - img [ref=e142]
+                  - text: View
+              - generic [ref=e145]:
+                - link "List Products" [ref=e147] [cursor=pointer]:
+                  - /url: /flows/00000000-0000-0000-0002-000000000004
+                - generic [ref=e148]:
+                  - img [ref=e149]
+                  - text: Completed
+                - generic [ref=e152]: Staging
+                - generic [ref=e153]: Manual
+                - generic [ref=e154]:
+                  - generic [ref=e155]: "1"
+                  - generic [ref=e156]: /
+                  - generic [ref=e157]: "0"
+                  - generic [ref=e158]: of 1
+                - generic [ref=e159]:
+                  - img [ref=e160]
+                  - text: 2200ms
+                - generic [ref=e163]: about 1 month ago
+                - link "View" [ref=e164] [cursor=pointer]:
+                  - /url: /executions/00000000-0000-0000-0003-000000000003
+                  - img [ref=e165]
+                  - text: View
+              - generic [ref=e168]:
+                - link "Create Order" [ref=e170] [cursor=pointer]:
+                  - /url: /flows/00000000-0000-0000-0002-000000000005
+                - generic [ref=e171]:
+                  - img [ref=e172]
+                  - text: Failed
+                - generic [ref=e176]: Development
+                - generic [ref=e177]: Manual
+                - generic [ref=e178]:
+                  - generic [ref=e179]: "0"
+                  - generic [ref=e180]: /
+                  - generic [ref=e181]: "1"
+                  - generic [ref=e182]: of 1
+                - generic [ref=e183]:
+                  - img [ref=e184]
+                  - text: 3500ms
+                - generic [ref=e187]: about 1 month ago
+                - link "View" [ref=e188] [cursor=pointer]:
+                  - /url: /executions/00000000-0000-0000-0003-000000000004
+                  - img [ref=e189]
+                  - text: View
+              - generic [ref=e192]:
+                - link "Health Check" [ref=e194] [cursor=pointer]:
+                  - /url: /flows/00000000-0000-0000-0002-000000000007
+                - generic [ref=e195]:
+                  - img [ref=e196]
+                  - text: Completed
+                - generic [ref=e199]: Production
+                - generic [ref=e200]: Manual
+                - generic [ref=e201]:
+                  - generic [ref=e202]: "1"
+                  - generic [ref=e203]: /
+                  - generic [ref=e204]: "0"
+                  - generic [ref=e205]: of 1
+                - generic [ref=e206]:
+                  - img [ref=e207]
+                  - text: 250ms
+                - generic [ref=e210]: about 1 month ago
+                - link "View" [ref=e211] [cursor=pointer]:
+                  - /url: /executions/00000000-0000-0000-0003-000000000005
+                  - img [ref=e212]
+                  - text: View
+              - generic [ref=e215]:
+                - link "User Registration" [ref=e217] [cursor=pointer]:
+                  - /url: /flows/00000000-0000-0000-0002-000000000001
+                - generic [ref=e218]:
+                  - img [ref=e219]
+                  - text: Running
+                - generic [ref=e221]: Development
+                - generic [ref=e222]: Manual
+                - generic [ref=e223]:
+                  - generic [ref=e224]: "0"
+                  - generic [ref=e225]: /
+                  - generic [ref=e226]: "0"
+                  - generic [ref=e227]: of 1
+                - generic [ref=e228]: —
+                - generic [ref=e229]: about 1 month ago
+                - link "View" [ref=e230] [cursor=pointer]:
+                  - /url: /executions/00000000-0000-0000-0003-000000000006
+                  - img [ref=e231]
+                  - text: View
+          - generic [ref=e235]: Showing 1–6 of 6 executions
+  - region "Notifications alt+T"
+  - alert [ref=e236]

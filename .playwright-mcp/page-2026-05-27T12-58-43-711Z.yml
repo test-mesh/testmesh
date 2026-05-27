@@ -1,0 +1,169 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button "Microservices Demo" [ref=e9]:
+            - img
+          - button [ref=e10]:
+            - img
+        - generic [ref=e13]:
+          - button "Search... ⌘ K" [ref=e14]:
+            - img
+            - generic [ref=e15]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e16]:
+            - heading "Command Palette" [level=2] [ref=e17]
+            - paragraph [ref=e18]: Search for a command to run...
+        - button "4" [ref=e20]:
+          - img
+          - generic [ref=e21]: "4"
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - navigation [ref=e24]:
+          - link "Dashboard" [ref=e25] [cursor=pointer]:
+            - /url: /
+            - img [ref=e27]
+            - generic [ref=e32]: Dashboard
+          - link "Flows" [ref=e33] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e34]
+            - generic [ref=e37]: Flows
+          - link "Executions" [ref=e38] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e39]
+            - generic [ref=e41]: Executions
+        - navigation [ref=e43]:
+          - link "Environments" [ref=e44] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e45]
+            - generic [ref=e48]: Environments
+          - link "Mocks" [ref=e49] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e50]
+            - generic [ref=e53]: Mocks
+          - link "Graph" [ref=e54] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e55]
+            - generic [ref=e60]: Graph
+        - navigation [ref=e63]:
+          - link "Analytics" [ref=e64] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e65]
+            - generic [ref=e67]: Analytics
+          - link "Settings" [ref=e68] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e69]
+            - generic [ref=e72]: Settings
+          - link "Docs" [ref=e73] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e74]
+            - generic [ref=e77]: Docs
+      - main [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - heading "Overview" [level=1] [ref=e81]
+            - paragraph [ref=e82]: Monitor your test flows and execution health
+          - generic [ref=e88]:
+            - heading "Quick Actions" [level=2] [ref=e89]
+            - generic [ref=e90]:
+              - link "Create Flow" [ref=e91] [cursor=pointer]:
+                - /url: /flows/new
+                - img
+                - text: Create Flow
+              - link "Browse Flows" [ref=e92] [cursor=pointer]:
+                - /url: /flows
+                - img
+                - text: Browse Flows
+              - link "Executions" [ref=e93] [cursor=pointer]:
+                - /url: /executions
+                - img
+                - text: Executions
+              - link "Analytics" [ref=e94] [cursor=pointer]:
+                - /url: /analytics
+                - img
+                - text: Analytics
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - generic [ref=e97]:
+                - generic [ref=e98]: Recent Executions
+                - generic [ref=e99]: Latest test flow runs
+              - link "View All" [ref=e100] [cursor=pointer]:
+                - /url: /executions
+                - text: View All
+                - img
+            - generic [ref=e102]:
+              - link "User Registration 1/1 steps · 1500ms about 1 month ago Passed" [ref=e103] [cursor=pointer]:
+                - /url: /executions/00000000-0000-0000-0003-000000000001
+                - generic [ref=e104]:
+                  - generic [ref=e105]: User Registration
+                  - generic [ref=e106]: 1/1 steps · 1500ms
+                - generic [ref=e107]:
+                  - generic [ref=e108]: about 1 month ago
+                  - generic [ref=e109]:
+                    - img
+                    - text: Passed
+                  - img [ref=e110]
+              - link "User Login 1/1 steps · 800ms about 1 month ago Passed" [ref=e112] [cursor=pointer]:
+                - /url: /executions/00000000-0000-0000-0003-000000000002
+                - generic [ref=e113]:
+                  - generic [ref=e114]: User Login
+                  - generic [ref=e115]: 1/1 steps · 800ms
+                - generic [ref=e116]:
+                  - generic [ref=e117]: about 1 month ago
+                  - generic [ref=e118]:
+                    - img
+                    - text: Passed
+                  - img [ref=e119]
+              - link "List Products 1/1 steps · 2200ms about 1 month ago Passed" [ref=e121] [cursor=pointer]:
+                - /url: /executions/00000000-0000-0000-0003-000000000003
+                - generic [ref=e122]:
+                  - generic [ref=e123]: List Products
+                  - generic [ref=e124]: 1/1 steps · 2200ms
+                - generic [ref=e125]:
+                  - generic [ref=e126]: about 1 month ago
+                  - generic [ref=e127]:
+                    - img
+                    - text: Passed
+                  - img [ref=e128]
+              - link "Create Order 0/1 steps · 3500ms about 1 month ago Failed" [ref=e130] [cursor=pointer]:
+                - /url: /executions/00000000-0000-0000-0003-000000000004
+                - generic [ref=e131]:
+                  - generic [ref=e132]: Create Order
+                  - generic [ref=e133]: 0/1 steps · 3500ms
+                - generic [ref=e134]:
+                  - generic [ref=e135]: about 1 month ago
+                  - generic [ref=e136]:
+                    - img
+                    - text: Failed
+                  - img [ref=e137]
+              - link "Health Check 1/1 steps · 250ms about 1 month ago Passed" [ref=e139] [cursor=pointer]:
+                - /url: /executions/00000000-0000-0000-0003-000000000005
+                - generic [ref=e140]:
+                  - generic [ref=e141]: Health Check
+                  - generic [ref=e142]: 1/1 steps · 250ms
+                - generic [ref=e143]:
+                  - generic [ref=e144]: about 1 month ago
+                  - generic [ref=e145]:
+                    - img
+                    - text: Passed
+                  - img [ref=e146]
+              - link "User Registration 0/1 steps about 1 month ago Running" [ref=e148] [cursor=pointer]:
+                - /url: /executions/00000000-0000-0000-0003-000000000006
+                - generic [ref=e149]:
+                  - generic [ref=e150]: User Registration
+                  - generic [ref=e151]: 0/1 steps
+                - generic [ref=e152]:
+                  - generic [ref=e153]: about 1 month ago
+                  - generic [ref=e154]:
+                    - img
+                    - text: Running
+                  - img [ref=e155]
+  - region "Notifications alt+T"
+  - alert [ref=e157]

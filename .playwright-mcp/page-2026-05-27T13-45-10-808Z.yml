@@ -1,0 +1,102 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button [disabled]:
+            - img
+          - button [disabled]:
+            - img
+        - generic [ref=e9]:
+          - button "Search... ⌘ K" [ref=e10]:
+            - img
+            - generic [ref=e11]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e12]:
+            - heading "Command Palette" [level=2] [ref=e13]
+            - paragraph [ref=e14]: Search for a command to run...
+        - button [ref=e16]:
+          - img
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - navigation [ref=e19]:
+          - link "Dashboard" [ref=e20] [cursor=pointer]:
+            - /url: /
+            - img [ref=e21]
+            - generic [ref=e26]: Dashboard
+          - link "Flows" [ref=e27] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e28]
+            - generic [ref=e31]: Flows
+          - link "Executions" [ref=e32] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e33]
+            - generic [ref=e35]: Executions
+        - navigation [ref=e37]:
+          - link "Environments" [ref=e38] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e39]
+            - generic [ref=e42]: Environments
+          - link "Mocks" [ref=e43] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e44]
+            - generic [ref=e47]: Mocks
+          - link "Graph" [ref=e48] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e50]
+            - generic [ref=e55]: Graph
+        - navigation [ref=e58]:
+          - link "Analytics" [ref=e59] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e60]
+            - generic [ref=e62]: Analytics
+          - link "Settings" [ref=e63] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e64]
+            - generic [ref=e67]: Settings
+          - link "Docs" [ref=e68] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e69]
+            - generic [ref=e72]: Docs
+      - main [ref=e73]:
+        - generic [ref=e74]:
+          - generic [ref=e75]:
+            - heading "System Graph" [level=1] [ref=e76]
+            - paragraph [ref=e77]: Discover services, APIs, and their dependencies across your codebase.
+          - generic [ref=e78]:
+            - tablist [ref=e79]:
+              - tab "overview" [selected] [ref=e80]
+              - tab "explorer" [ref=e81]
+              - tab "coverage" [ref=e82]
+              - tab "conflicts" [ref=e83]
+            - tabpanel "overview" [ref=e84]:
+              - generic [ref=e85]:
+                - generic [ref=e87]:
+                  - generic [ref=e88]: Total Nodes
+                  - img [ref=e89]
+                - generic [ref=e95]:
+                  - generic [ref=e96]: Total Edges
+                  - img [ref=e97]
+                - generic [ref=e103]:
+                  - generic [ref=e104]: Services
+                  - img [ref=e105]
+                - generic [ref=e110]:
+                  - generic [ref=e111]: Coverage
+                  - img [ref=e112]
+              - generic [ref=e117]:
+                - paragraph [ref=e118]: Repositories
+                - generic [ref=e119]:
+                  - button "Rebuild graph" [ref=e120]:
+                    - img [ref=e121]
+                    - text: Rebuild graph
+                  - button "Register Repo" [ref=e126]:
+                    - img [ref=e127]
+                    - text: Register Repo
+  - region "Notifications alt+T"
+  - alert [ref=e129]

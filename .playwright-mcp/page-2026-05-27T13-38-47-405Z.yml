@@ -1,0 +1,156 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e5] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e6]: TM
+          - generic [ref=e7]: TestMesh
+        - generic [ref=e8]:
+          - button "Select Workspace" [ref=e9]:
+            - img
+          - button [ref=e10]:
+            - img
+        - generic [ref=e13]:
+          - button "Search... ⌘ K" [ref=e14]:
+            - img
+            - generic [ref=e15]: Search...
+            - generic:
+              - generic: ⌘
+              - text: K
+          - generic [ref=e16]:
+            - heading "Command Palette" [level=2] [ref=e17]
+            - paragraph [ref=e18]: Search for a command to run...
+        - button "4" [ref=e20]:
+          - img
+          - generic [ref=e21]: "4"
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - navigation [ref=e24]:
+          - link "Dashboard" [ref=e25] [cursor=pointer]:
+            - /url: /
+            - img [ref=e26]
+            - generic [ref=e31]: Dashboard
+          - link "Flows" [ref=e32] [cursor=pointer]:
+            - /url: /flows
+            - img [ref=e33]
+            - generic [ref=e36]: Flows
+          - link "Executions" [ref=e37] [cursor=pointer]:
+            - /url: /executions
+            - img [ref=e38]
+            - generic [ref=e40]: Executions
+        - navigation [ref=e42]:
+          - link "Environments" [ref=e43] [cursor=pointer]:
+            - /url: /environments
+            - img [ref=e44]
+            - generic [ref=e47]: Environments
+          - link "Mocks" [ref=e48] [cursor=pointer]:
+            - /url: /mocks
+            - img [ref=e50]
+            - generic [ref=e53]: Mocks
+          - link "Graph" [ref=e54] [cursor=pointer]:
+            - /url: /graph
+            - img [ref=e55]
+            - generic [ref=e60]: Graph
+        - navigation [ref=e63]:
+          - link "Analytics" [ref=e64] [cursor=pointer]:
+            - /url: /analytics
+            - img [ref=e65]
+            - generic [ref=e67]: Analytics
+          - link "Settings" [ref=e68] [cursor=pointer]:
+            - /url: /test-environments
+            - img [ref=e69]
+            - generic [ref=e72]: Settings
+          - link "Docs" [ref=e73] [cursor=pointer]:
+            - /url: https://docs.testmesh.io
+            - img [ref=e74]
+            - generic [ref=e77]: Docs
+      - main [ref=e78]:
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - heading "Mock Servers" [level=1] [ref=e82]
+              - paragraph [ref=e83]: Manage mock API servers for isolated testing
+            - button "New Mock Server" [ref=e84]:
+              - img [ref=e85]
+              - text: New Mock Server
+          - generic [ref=e86]:
+            - generic [ref=e87]:
+              - img [ref=e88]
+              - textbox "Search by name or URL…" [ref=e91]
+            - generic [ref=e92]:
+              - button "All statuses" [ref=e93]
+              - button "Running" [ref=e94]
+              - button "Stopped" [ref=e95]
+              - button "Starting" [ref=e96]
+              - button "Failed" [ref=e97]
+          - generic [ref=e98]:
+            - generic [ref=e99]:
+              - generic [ref=e100]: Name
+              - generic [ref=e101]: Base URL
+              - generic [ref=e102]: Status
+              - generic [ref=e103]: Started
+            - generic [ref=e104]:
+              - generic [ref=e105]:
+                - link "User Service Mock" [ref=e106] [cursor=pointer]:
+                  - /url: /mocks/bb000000-0000-0000-0000-000000000001
+                - generic [ref=e107]:
+                  - code [ref=e108]: http://localhost:5016/mocks/bb000000-0000-0000-0000-000000000001
+                  - button "Copy URL" [ref=e109]:
+                    - img [ref=e110]
+                - generic [ref=e113]: Running
+                - generic [ref=e115]: about 1 month ago
+                - generic [ref=e116]:
+                  - link [ref=e117] [cursor=pointer]:
+                    - /url: /mocks/bb000000-0000-0000-0000-000000000001
+                    - img [ref=e118]
+                  - button [ref=e121]:
+                    - img [ref=e122]
+              - generic [ref=e125]:
+                - link "Order Service Mock" [ref=e126] [cursor=pointer]:
+                  - /url: /mocks/bb000000-0000-0000-0000-000000000002
+                - generic [ref=e127]:
+                  - code [ref=e128]: http://localhost:5016/mocks/bb000000-0000-0000-0000-000000000002
+                  - button "Copy URL" [ref=e129]:
+                    - img [ref=e130]
+                - generic [ref=e133]: Running
+                - generic [ref=e135]: about 1 month ago
+                - generic [ref=e136]:
+                  - link [ref=e137] [cursor=pointer]:
+                    - /url: /mocks/bb000000-0000-0000-0000-000000000002
+                    - img [ref=e138]
+                  - button [ref=e141]:
+                    - img [ref=e142]
+              - generic [ref=e145]:
+                - link "Payment Service Mock" [ref=e146] [cursor=pointer]:
+                  - /url: /mocks/bb000000-0000-0000-0000-000000000003
+                - generic [ref=e147]:
+                  - code [ref=e148]: http://localhost:5016/mocks/bb000000-0000-0000-0000-000000000003
+                  - button "Copy URL" [ref=e149]:
+                    - img [ref=e150]
+                - generic [ref=e153]: Running
+                - generic [ref=e155]: about 1 month ago
+                - generic [ref=e156]:
+                  - link [ref=e157] [cursor=pointer]:
+                    - /url: /mocks/bb000000-0000-0000-0000-000000000003
+                    - img [ref=e158]
+                  - button [ref=e161]:
+                    - img [ref=e162]
+              - generic [ref=e165]:
+                - link "Notification Service Mock" [ref=e166] [cursor=pointer]:
+                  - /url: /mocks/bb000000-0000-0000-0000-000000000004
+                - generic [ref=e167]:
+                  - code [ref=e168]: http://localhost:5016/mocks/bb000000-0000-0000-0000-000000000004
+                  - button "Copy URL" [ref=e169]:
+                    - img [ref=e170]
+                - generic [ref=e173]: Running
+                - generic [ref=e175]: about 1 month ago
+                - generic [ref=e176]:
+                  - link [ref=e177] [cursor=pointer]:
+                    - /url: /mocks/bb000000-0000-0000-0000-000000000004
+                    - img [ref=e178]
+                  - button [ref=e181]:
+                    - img [ref=e182]
+          - paragraph [ref=e185]: Showing 4 of 4 mock servers
+  - region "Notifications alt+T"
+  - alert [ref=e186]

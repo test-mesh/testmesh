@@ -1,0 +1,102 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - link "TM TestMesh" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e7]: TM
+          - generic [ref=e8]: TestMesh
+        - generic [ref=e9]:
+          - button "Loading..." [disabled]:
+            - img
+            - generic: Loading...
+          - button "Loading..." [disabled]:
+            - img
+            - text: Loading...
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - button "Search... ⌘ K" [ref=e12]:
+              - img
+              - generic [ref=e13]: Search...
+              - generic:
+                - generic: ⌘
+                - text: K
+            - generic [ref=e14]:
+              - heading "Command Palette" [level=2] [ref=e15]
+              - paragraph [ref=e16]: Search for a command to run...
+          - button [ref=e17]:
+            - img
+          - button "Toggle theme" [ref=e18]:
+            - img
+            - generic [ref=e19]: Toggle theme
+    - generic [ref=e20]:
+      - navigation [ref=e25]:
+        - link "Dashboard" [ref=e26] [cursor=pointer]:
+          - /url: /
+          - img [ref=e27]
+          - text: Dashboard
+        - generic [ref=e32]:
+          - button "Flows" [expanded] [ref=e33]:
+            - img [ref=e34]
+            - generic [ref=e37]: Flows
+            - img [ref=e38]
+          - generic [ref=e40]:
+            - link "All Flows" [ref=e41] [cursor=pointer]:
+              - /url: /flows
+              - img [ref=e42]
+              - text: All Flows
+            - link "Collections" [ref=e45] [cursor=pointer]:
+              - /url: /collections
+              - img [ref=e46]
+              - text: Collections
+            - link "Schedules" [ref=e51] [cursor=pointer]:
+              - /url: /schedules
+              - img [ref=e52]
+              - text: Schedules
+        - button "Executions" [ref=e55]:
+          - img [ref=e56]
+          - generic [ref=e58]: Executions
+          - img [ref=e59]
+        - button "Infrastructure" [ref=e62]:
+          - img [ref=e63]
+          - generic [ref=e66]: Infrastructure
+          - img [ref=e67]
+        - link "Analytics" [ref=e69] [cursor=pointer]:
+          - /url: /analytics
+          - img [ref=e70]
+          - text: Analytics
+        - button "Settings" [ref=e73]:
+          - img [ref=e74]
+          - generic [ref=e77]: Settings
+          - img [ref=e78]
+      - main [ref=e81]:
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - generic [ref=e84]:
+              - heading "Test Flows" [level=1] [ref=e85]
+              - paragraph [ref=e86]: Manage and execute your test flows
+            - generic [ref=e87]:
+              - link "Run with Data" [ref=e88] [cursor=pointer]:
+                - /url: /runner
+                - img
+                - text: Run with Data
+              - link "Import" [ref=e89] [cursor=pointer]:
+                - /url: /import
+                - img
+                - text: Import
+              - link "Generate" [ref=e90] [cursor=pointer]:
+                - /url: /ai/generate
+                - img
+                - text: Generate
+              - link "Create Flow" [ref=e91] [cursor=pointer]:
+                - /url: /flows/new
+                - img
+                - text: Create Flow
+          - generic [ref=e92]:
+            - generic [ref=e93]:
+              - img [ref=e94]
+              - textbox "Search flows..." [ref=e97]
+            - textbox "Suite..." [ref=e98]
+            - textbox "Tag..." [ref=e99]
+  - region "Notifications alt+T"
+  - alert [ref=e157]
