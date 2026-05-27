@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCreateFlow } from '@/lib/hooks/useFlows';
-import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { FlowEditor } from '@/components/flow-editor';
 import { flowDefinitionToYaml } from '@/components/flow-editor/utils';
@@ -47,21 +46,22 @@ export default function NewFlowPage() {
   return (
     <div className="h-screen flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-4 px-4 py-3 border-b bg-background">
-        <Link href="/flows">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Flows
-          </Button>
+      <div className="flex items-center gap-4 px-4 py-3 border-b border-[#1e2d3d] bg-[#0b0f18]">
+        <Link
+          href="/flows"
+          className="flex items-center gap-1.5 h-7 px-2 rounded text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to Flows
         </Link>
         <div className="flex-1">
-          <h1 className="font-semibold">Create New Flow</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-sm font-semibold text-[#c8dce8]">Create New Flow</h1>
+          <p className="text-xs text-[#3d5670]">
             Use the visual editor or YAML to define your test flow
           </p>
         </div>
         {error && (
-          <div className="text-sm text-destructive">{error}</div>
+          <div className="text-xs text-red-400">{error}</div>
         )}
       </div>
 

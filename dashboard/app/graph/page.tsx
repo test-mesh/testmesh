@@ -1,13 +1,19 @@
 'use client';
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useState } from 'react';
+import { cn } from '@/lib/utils';
 import { StatsBar } from '@/components/graph/StatsBar';
 import { RepoTable } from '@/components/graph/RepoTable';
 import { GraphCanvas } from '@/components/graph/GraphCanvas';
 import { CoveragePanel } from '@/components/graph/CoveragePanel';
 import { ConflictsPanel } from '@/components/graph/ConflictsPanel';
 
+const TABS = ['overview', 'explorer', 'coverage', 'conflicts'] as const;
+type Tab = typeof TABS[number];
+
 export default function GraphPage() {
+  const [tab, setTab] = useState<Tab>('overview');
+
   return (
     <div className="px-6 py-6">
       <div className="mb-5">
@@ -15,36 +21,32 @@ export default function GraphPage() {
         <p className="text-xs text-[#3d5670] mt-0.5">Discover services, APIs, and their dependencies across your codebase.</p>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList className="bg-[#0f1923] border border-[#1e2d3d] p-0.5 h-auto rounded-lg mb-4">
-          {['overview', 'explorer', 'coverage', 'conflicts'].map((tab) => (
-            <TabsTrigger
-              key={tab}
-              value={tab}
-              className="text-xs px-3 py-1.5 capitalize data-[state=active]:bg-[#1a2d3d] data-[state=active]:text-[#c8dce8] text-[#4a6480] rounded-md"
-            >
-              {tab}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <div className="flex gap-1 mb-4">
+        {TABS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              'h-7 px-3 rounded-lg text-xs capitalize transition-colors',
+              tab === t
+                ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+                : 'text-[#4a6480] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#7fa8c8]'
+            )}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value="overview" className="flex flex-col gap-4">
+      {tab === 'overview' && (
+        <div className="flex flex-col gap-4">
           <StatsBar />
           <RepoTable />
-        </TabsContent>
-
-        <TabsContent value="explorer">
-          <GraphCanvas />
-        </TabsContent>
-
-        <TabsContent value="coverage">
-          <CoveragePanel />
-        </TabsContent>
-
-        <TabsContent value="conflicts">
-          <ConflictsPanel />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
+      {tab === 'explorer' && <GraphCanvas />}
+      {tab === 'coverage' && <CoveragePanel />}
+      {tab === 'conflicts' && <ConflictsPanel />}
     </div>
   );
 }

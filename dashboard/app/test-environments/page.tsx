@@ -8,7 +8,6 @@ import {
 } from '@/lib/hooks/useTestEnvironments';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -215,14 +214,20 @@ export default function TestEnvironmentsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
-            <Button
+            <button
+              onClick={() => setCreateOpen(false)}
+              className="h-8 px-4 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
               onClick={handleCreate}
               disabled={!form.name || !form.context || createMutation.isPending}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
-              {createMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              {createMutation.isPending ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
               Create
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

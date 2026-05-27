@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useFlows, useDeleteFlow } from '@/lib/hooks/useFlows';
 import { useCreateExecution } from '@/lib/hooks/useExecutions';
 import { useRunFlowForDebug } from '@/lib/hooks/useDebug';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Play,
   Trash2,

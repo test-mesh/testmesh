@@ -7,7 +7,6 @@ import { useExecution, useExecutionSteps } from '@/lib/hooks/useExecutions';
 import { useWebSocket } from '@/lib/hooks/useWebSocket';
 import { useAnalyzeFailure } from '@/lib/hooks/useAI';
 import { getActiveWorkspaceId } from '@/lib/hooks/useWorkspaces';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Clock, CheckCircle2, XCircle, Loader2, AlertCircle, Sparkles, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -87,6 +86,7 @@ export default function ExecutionDetailPage({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'results' | 'trace'>('results');
 
   const { data: execution, isLoading, error, refetch: refetchExecution } = useExecution(id);
   const { data: stepsData, refetch: refetchSteps } = useExecutionSteps(id);
@@ -225,18 +225,36 @@ export default function ExecutionDetailPage({
         </div>
       </div>
 
-      <Tabs defaultValue="results" className="space-y-4">
-        <TabsList className="bg-[#0f1923] border border-[#1e2d3d] p-0.5 h-auto rounded-lg">
-          <TabsTrigger value="results" className="text-xs px-3 py-1.5 data-[state=active]:bg-[#1a2d3d] data-[state=active]:text-[#c8dce8] text-[#4a6480] rounded-md">Results</TabsTrigger>
-          <TabsTrigger value="trace" className="text-xs px-3 py-1.5 data-[state=active]:bg-[#1a2d3d] data-[state=active]:text-[#c8dce8] text-[#4a6480] rounded-md">
+      <div className="space-y-4">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('results')}
+            className={cn(
+              'h-7 px-3 rounded-lg text-xs transition-colors',
+              activeTab === 'results'
+                ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+                : 'text-[#4a6480] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#7fa8c8]'
+            )}
+          >
+            Results
+          </button>
+          <button
+            onClick={() => setActiveTab('trace')}
+            className={cn(
+              'flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs transition-colors',
+              activeTab === 'trace'
+                ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+                : 'text-[#4a6480] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#7fa8c8]'
+            )}
+          >
             Trace
             {traceValidation?.status === 'failed' && (
-              <span className="ml-1.5 w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
             )}
-          </TabsTrigger>
-        </TabsList>
+          </button>
+        </div>
 
-        <TabsContent value="results">
+        {activeTab === 'results' && (
           <div className="grid gap-3">
             {repairSuggestion && workspaceId && (
               <RepairSuggestionCard workspaceId={workspaceId} suggestion={repairSuggestion} />
@@ -368,9 +386,9 @@ export default function ExecutionDetailPage({
               )}
             </div>
           </div>
-        </TabsContent>
+        )}
 
-        <TabsContent value="trace">
+        {activeTab === 'trace' && (
           <div className="space-y-3">
             {spansLoading && (
               <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] py-10 flex justify-center">
@@ -410,8 +428,8 @@ export default function ExecutionDetailPage({
               </div>
             )}
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   );
 }
