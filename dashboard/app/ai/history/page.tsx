@@ -2,18 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   useGenerationHistory,
   useImportHistory,
@@ -25,11 +13,43 @@ import {
   FileUp,
   Target,
   RefreshCw,
-  Clock,
   History,
   ArrowRight,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { GenerationHistory, ImportHistory, CoverageAnalysis } from '@/lib/api/types';
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    completed:  'bg-teal-400/10 text-teal-400',
+    processing: 'bg-blue-400/10 text-blue-400',
+    analyzing:  'bg-blue-400/10 text-blue-400',
+    pending:    'bg-[#1a2d3d] text-[#4a6480]',
+    failed:     'bg-red-400/10 text-red-400',
+  };
+  return (
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded capitalize w-fit', map[status] ?? 'bg-[#1a2d3d] text-[#4a6480]')}>
+      {status}
+    </span>
+  );
+}
+
+function TypeBadge({ type }: { type: string }) {
+  return (
+    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#1a2d3d] text-[#4a7a96] capitalize w-fit">
+      {type}
+    </span>
+  );
+}
+
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleString();
+}
+
+function truncateText(text: string, maxLength: number) {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + '...';
+}
 
 export default function AIHistoryPage() {
   const [activeTab, setActiveTab] = useState('generations');
@@ -42,337 +62,210 @@ export default function AIHistoryPage() {
   const imports = importsData?.history || [];
   const coverageAnalyses = coverageData?.analyses || [];
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString();
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="default">Completed</Badge>;
-      case 'processing':
-      case 'analyzing':
-        return <Badge variant="secondary">Processing</Badge>;
-      case 'pending':
-        return <Badge variant="outline">Pending</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const truncateText = (text: string, maxLength: number) => {
-    if (text.length <= maxLength) return text;
-    return text.slice(0, maxLength) + '...';
-  };
-
-  const isLoading = generationsLoading || importsLoading || coverageLoading;
+  const TABS = [
+    { value: 'generations', label: 'Generations', icon: <Sparkles className="h-3 w-3" /> },
+    { value: 'imports',     label: 'Imports',     icon: <FileUp className="h-3 w-3" /> },
+    { value: 'coverage',    label: 'Coverage',    icon: <Target className="h-3 w-3" /> },
+  ];
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/integrations">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to AI Hub
-          </Button>
+    <div className="px-6 py-6 space-y-5">
+      <div className="flex items-center gap-2">
+        <Link
+          href="/integrations"
+          className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
         </Link>
+        <History className="h-4 w-4 text-[#3d5670]" />
+        <h1 className="text-xl font-semibold text-[#c8dce8]">AI History</h1>
+        <p className="text-xs text-[#3d5670] mt-0.5">Browse history of AI-powered generations, imports, and analyses</p>
       </div>
 
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <History className="h-8 w-8" />
-            AI History
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Browse history of AI-powered generations, imports, and analyses
-          </p>
+      {/* KPI cards */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { tab: 'generations', icon: <Sparkles className="h-3.5 w-3.5 text-purple-400" />, label: 'Generations', count: generations.length, sub: 'AI-generated flows' },
+          { tab: 'imports',     icon: <FileUp className="h-3.5 w-3.5 text-teal-400" />,     label: 'Imports',     count: imports.length,     sub: 'Spec imports (OpenAPI, Postman, Pact)' },
+          { tab: 'coverage',    icon: <Target className="h-3.5 w-3.5 text-emerald-400" />,  label: 'Coverage',    count: coverageAnalyses.length, sub: 'Coverage reports' },
+        ].map((card) => (
+          <button
+            key={card.tab}
+            onClick={() => setActiveTab(card.tab)}
+            className={cn(
+              'flex flex-col gap-2 p-4 rounded-xl border text-left transition-colors',
+              activeTab === card.tab
+                ? 'bg-[#0f1923] border-teal-400/30'
+                : 'bg-[#0f1923] border-[#1e2d3d] hover:border-[#2a3d52]'
+            )}
+          >
+            <div className="flex items-center gap-1.5">
+              {card.icon}
+              <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{card.label}</span>
+            </div>
+            <p className="text-2xl font-bold leading-none text-[#c8dce8] tabular-nums">{card.count}</p>
+            <p className="text-[10px] text-[#4a6480]">{card.sub}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1">
+        {TABS.map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setActiveTab(tab.value)}
+            className={cn(
+              'flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs transition-colors',
+              activeTab === tab.value
+                ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+                : 'text-[#4a6480] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#7fa8c8]'
+            )}
+          >
+            {tab.icon}{tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Generations */}
+      {activeTab === 'generations' && (
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332]">
+            <span className="text-[11px] font-semibold text-[#c8dce8]">Generation History</span>
+            <span className="text-[10px] text-[#4a6480] ml-2">AI-generated flows from natural language prompts</span>
+          </div>
+          {generationsLoading ? (
+            <div className="flex justify-center py-12"><RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" /></div>
+          ) : generations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Sparkles className="h-8 w-8 mb-2 text-[#1e2d3d]" />
+              <p className="text-xs text-[#3d5670] mb-3">No generation history yet</p>
+              <Link href="/ai/generate" className="h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">
+                Generate a Flow
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-2.5 border-b border-[#1a2332]">
+                {['Date', 'Prompt', 'Provider', 'Status', 'Tokens', 'Latency', ''].map((h) => (
+                  <span key={h} className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</span>
+                ))}
+              </div>
+              <div className="divide-y divide-[#1a2332]">
+                {generations.map((gen: GenerationHistory) => (
+                  <div key={gen.id} className="grid grid-cols-[1fr_2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 items-center hover:bg-[#131b26] transition-colors">
+                    <span className="text-[10px] text-[#4a6480]">{formatDate(gen.created_at)}</span>
+                    <span className="text-[11px] text-[#c8dce8] line-clamp-2" title={gen.prompt}>{truncateText(gen.prompt, 100)}</span>
+                    <TypeBadge type={gen.provider} />
+                    <StatusBadge status={gen.status} />
+                    <span className="text-[11px] text-[#7fa8c8]">{gen.tokens_used.toLocaleString()}</span>
+                    <span className="text-[11px] text-[#4a6480]">{(gen.latency_ms / 1000).toFixed(2)}s</span>
+                    <Link href={`/ai/history/generation/${gen.id}`} className="text-[11px] text-teal-400/70 hover:text-teal-400 transition-colors">
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
-      </div>
+      )}
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3 mb-8">
-        <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setActiveTab('generations')}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-purple-500" />
-              Generations
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{generations.length}</div>
-            <p className="text-xs text-muted-foreground">AI-generated flows</p>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setActiveTab('imports')}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <FileUp className="h-4 w-4 text-primary" />
-              Imports
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{imports.length}</div>
-            <p className="text-xs text-muted-foreground">Spec imports (OpenAPI, Postman, Pact)</p>
-          </CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:bg-muted/50" onClick={() => setActiveTab('coverage')}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Target className="h-4 w-4 text-green-500" />
-              Coverage Analyses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{coverageAnalyses.length}</div>
-            <p className="text-xs text-muted-foreground">Coverage reports</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Imports */}
+      {activeTab === 'imports' && (
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332]">
+            <span className="text-[11px] font-semibold text-[#c8dce8]">Import History</span>
+            <span className="text-[10px] text-[#4a6480] ml-2">flows generated from OpenAPI, Postman, and Pact imports</span>
+          </div>
+          {importsLoading ? (
+            <div className="flex justify-center py-12"><RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" /></div>
+          ) : imports.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <FileUp className="h-8 w-8 mb-2 text-[#1e2d3d]" />
+              <p className="text-xs text-[#3d5670] mb-3">No import history yet</p>
+              <Link href="/import?tab=spec" className="h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">
+                Import a Spec
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-[1fr_1.5fr_1fr_1fr_1fr_auto] gap-4 px-4 py-2.5 border-b border-[#1a2332]">
+                {['Date', 'Source', 'Type', 'Status', 'Flows Generated', ''].map((h) => (
+                  <span key={h} className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</span>
+                ))}
+              </div>
+              <div className="divide-y divide-[#1a2332]">
+                {imports.map((imp: ImportHistory) => (
+                  <div key={imp.id} className="grid grid-cols-[1fr_1.5fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 items-center hover:bg-[#131b26] transition-colors">
+                    <span className="text-[10px] text-[#4a6480]">{formatDate(imp.created_at)}</span>
+                    <span className="text-[12px] font-medium text-[#c8dce8]">{imp.source_name}</span>
+                    <TypeBadge type={imp.source_type} />
+                    <StatusBadge status={imp.status} />
+                    <span className="text-[12px] font-medium text-[#c8dce8]">{imp.flows_generated}</span>
+                    <Link href={`/ai/history/import/${imp.id}`} className="text-teal-400/70 hover:text-teal-400 transition-colors">
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-      {/* History Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="generations" className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4" />
-            Generations
-          </TabsTrigger>
-          <TabsTrigger value="imports" className="flex items-center gap-2">
-            <FileUp className="h-4 w-4" />
-            Imports
-          </TabsTrigger>
-          <TabsTrigger value="coverage" className="flex items-center gap-2">
-            <Target className="h-4 w-4" />
-            Coverage
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Generations Tab */}
-        <TabsContent value="generations">
-          <Card>
-            <CardHeader>
-              <CardTitle>Generation History</CardTitle>
-              <CardDescription>
-                AI-generated flows from natural language prompts
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {generationsLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : generations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <Sparkles className="h-12 w-12 mb-4" />
-                  <p>No generation history yet</p>
-                  <Link href="/ai/generate">
-                    <Button variant="outline" className="mt-4">
-                      Generate a Flow
-                    </Button>
-                  </Link>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Prompt</TableHead>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Tokens</TableHead>
-                      <TableHead>Latency</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {generations.map((gen: GenerationHistory) => (
-                      <TableRow key={gen.id}>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(gen.created_at)}
-                        </TableCell>
-                        <TableCell className="max-w-md">
-                          <span className="line-clamp-2" title={gen.prompt}>
-                            {truncateText(gen.prompt, 100)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {gen.provider}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(gen.status)}</TableCell>
-                        <TableCell>{gen.tokens_used.toLocaleString()}</TableCell>
-                        <TableCell>{(gen.latency_ms / 1000).toFixed(2)}s</TableCell>
-                        <TableCell>
-                          <Link href={`/ai/history/generation/${gen.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <ArrowRight className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Imports Tab */}
-        <TabsContent value="imports">
-          <Card>
-            <CardHeader>
-              <CardTitle>Import History</CardTitle>
-              <CardDescription>
-                Flows generated from OpenAPI, Postman, and Pact imports
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {importsLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : imports.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <FileUp className="h-12 w-12 mb-4" />
-                  <p>No import history yet</p>
-                  <Link href="/import?tab=spec">
-                    <Button variant="outline" className="mt-4">
-                      Import a Spec
-                    </Button>
-                  </Link>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Flows Generated</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {imports.map((imp: ImportHistory) => (
-                      <TableRow key={imp.id}>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(imp.created_at)}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {imp.source_name}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {imp.source_type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(imp.status)}</TableCell>
-                        <TableCell>
-                          <span className="font-medium">{imp.flows_generated}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Link href={`/ai/history/import/${imp.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <ArrowRight className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Coverage Tab */}
-        <TabsContent value="coverage">
-          <Card>
-            <CardHeader>
-              <CardTitle>Coverage Analysis History</CardTitle>
-              <CardDescription>
-                API coverage analyses comparing flows against specifications
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {coverageLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : coverageAnalyses.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <Target className="h-12 w-12 mb-4" />
-                  <p>No coverage analyses yet</p>
-                  <Link href="/ai/coverage">
-                    <Button variant="outline" className="mt-4">
-                      Analyze Coverage
-                    </Button>
-                  </Link>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Spec Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Coverage</TableHead>
-                      <TableHead>Endpoints</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {coverageAnalyses.map((analysis: CoverageAnalysis) => (
-                      <TableRow key={analysis.id}>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(analysis.created_at)}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {analysis.spec_name}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {analysis.spec_type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(analysis.status)}</TableCell>
-                        <TableCell>
-                          <span className={`font-medium ${
-                            analysis.coverage_percent >= 80 ? 'text-green-600' :
-                            analysis.coverage_percent >= 50 ? 'text-yellow-600' :
-                            'text-red-600'
-                          }`}>
-                            {analysis.coverage_percent.toFixed(1)}%
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-green-600">{analysis.covered_endpoints}</span>
-                          {' / '}
-                          <span>{analysis.total_endpoints}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Link href={`/ai/history/coverage/${analysis.id}`}>
-                            <Button variant="ghost" size="sm">
-                              <ArrowRight className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Coverage */}
+      {activeTab === 'coverage' && (
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332]">
+            <span className="text-[11px] font-semibold text-[#c8dce8]">Coverage Analysis History</span>
+            <span className="text-[10px] text-[#4a6480] ml-2">API coverage analyses comparing flows against specifications</span>
+          </div>
+          {coverageLoading ? (
+            <div className="flex justify-center py-12"><RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" /></div>
+          ) : coverageAnalyses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <Target className="h-8 w-8 mb-2 text-[#1e2d3d]" />
+              <p className="text-xs text-[#3d5670] mb-3">No coverage analyses yet</p>
+              <Link href="/ai/coverage" className="h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">
+                Analyze Coverage
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-[1fr_1.5fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-2.5 border-b border-[#1a2332]">
+                {['Date', 'Spec Name', 'Type', 'Status', 'Coverage', 'Endpoints', ''].map((h) => (
+                  <span key={h} className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</span>
+                ))}
+              </div>
+              <div className="divide-y divide-[#1a2332]">
+                {coverageAnalyses.map((analysis: CoverageAnalysis) => (
+                  <div key={analysis.id} className="grid grid-cols-[1fr_1.5fr_1fr_1fr_1fr_1fr_auto] gap-4 px-4 py-3 items-center hover:bg-[#131b26] transition-colors">
+                    <span className="text-[10px] text-[#4a6480]">{formatDate(analysis.created_at)}</span>
+                    <span className="text-[12px] font-medium text-[#c8dce8]">{analysis.spec_name}</span>
+                    <TypeBadge type={analysis.spec_type} />
+                    <StatusBadge status={analysis.status} />
+                    <span className={cn('text-[12px] font-semibold',
+                      analysis.coverage_percent >= 80 ? 'text-teal-400' :
+                      analysis.coverage_percent >= 50 ? 'text-yellow-400' : 'text-red-400'
+                    )}>
+                      {analysis.coverage_percent.toFixed(1)}%
+                    </span>
+                    <span className="text-[11px]">
+                      <span className="text-teal-400">{analysis.covered_endpoints}</span>
+                      <span className="text-[#3d5670]"> / </span>
+                      <span className="text-[#7fa8c8]">{analysis.total_endpoints}</span>
+                    </span>
+                    <Link href={`/ai/history/coverage/${analysis.id}`} className="text-teal-400/70 hover:text-teal-400 transition-colors">
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
