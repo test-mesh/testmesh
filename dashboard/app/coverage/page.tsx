@@ -4,59 +4,51 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCoverageGaps, useGenerateFlow } from '@/lib/hooks/useCoverage';
 import { getActiveWorkspaceId } from '@/lib/hooks/useWorkspaces';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { CoverageGap, TraceGenerateFlowResponse } from '@/lib/api/types';
 
 function RiskBar({ score }: { score: number }) {
   const pct = Math.round(score * 100);
-  const color = score > 0.7 ? 'bg-red-500' : score > 0.3 ? 'bg-amber-500' : 'bg-green-500';
+  const color = score > 0.7 ? 'bg-red-500' : score > 0.3 ? 'bg-amber-500' : 'bg-teal-500';
   return (
     <div className="flex items-center gap-2">
-      <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+      <div className="w-20 h-1.5 bg-[#1a2332] rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs text-muted-foreground">{pct}</span>
+      <span className="text-[10px] text-[#4a6480] tabular-nums">{pct}</span>
     </div>
   );
 }
 
-function GenerateFlowModal({
-  result,
-  onClose,
-  onSave,
-}: {
-  result: TraceGenerateFlowResponse;
-  onClose: () => void;
-  onSave: (yaml: string) => void;
-}) {
+function GenerateFlowModal({ result, onClose, onSave }: { result: TraceGenerateFlowResponse; onClose: () => void; onSave: (yaml: string) => void }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-background rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col shadow-xl">
-        <div className="flex items-center justify-between p-4 border-b">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] w-full max-w-2xl max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a2332]">
           <div>
-            <h2 className="font-semibold">Generated Test Flow</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{result.intent}</p>
+            <p className="text-[13px] font-semibold text-[#c8dce8]">Generated Test Flow</p>
+            <p className="text-[11px] text-[#4a6480] mt-0.5">{result.intent}</p>
           </div>
-          <Badge variant="outline">{Math.round(result.confidence * 100)}% confidence</Badge>
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-teal-400/10 text-teal-400">
+            {Math.round(result.confidence * 100)}% confidence
+          </span>
         </div>
         <div className="flex-1 overflow-auto p-4">
-          <pre className="text-xs font-mono bg-muted p-3 rounded overflow-x-auto whitespace-pre-wrap">
+          <pre className="text-[11px] font-mono bg-[#0b0f18] border border-[#1a2332] p-3 rounded-lg overflow-x-auto whitespace-pre-wrap text-[#7fa8c8]">
             {result.yaml}
           </pre>
         </div>
-        <div className="flex justify-end gap-2 p-4 border-t">
-          <Button variant="outline" onClick={onClose}>Close</Button>
-          <Button onClick={() => { navigator.clipboard.writeText(result.yaml); }}>
+        <div className="flex justify-end gap-2 px-4 py-3 border-t border-[#1a2332]">
+          <button onClick={onClose} className="h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">
+            Close
+          </button>
+          <button onClick={() => navigator.clipboard.writeText(result.yaml)} className="h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">
             Copy YAML
-          </Button>
-          <Button onClick={() => onSave(result.yaml)}>
-            <Sparkles className="w-3 h-3 mr-1" />
-            Save as flow
-          </Button>
+          </button>
+          <button onClick={() => onSave(result.yaml)} className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors">
+            <Sparkles className="w-3 h-3" />Save as flow
+          </button>
         </div>
       </div>
     </div>
@@ -70,12 +62,7 @@ export default function CoveragePage() {
   const [generatedFlow, setGeneratedFlow] = useState<TraceGenerateFlowResponse | null>(null);
   const [generatingTraceId, setGeneratingTraceId] = useState<string | null>(null);
 
-  const { data, isLoading } = useCoverageGaps(workspaceId, {
-    uncovered: tab === 'uncovered',
-    sort: 'risk_score',
-    limit: 50,
-  });
-
+  const { data, isLoading } = useCoverageGaps(workspaceId, { uncovered: tab === 'uncovered', sort: 'risk_score', limit: 50 });
   const generateFlow = useGenerateFlow();
 
   const handleGenerate = async (gap: CoverageGap) => {
@@ -90,12 +77,7 @@ export default function CoveragePage() {
   };
 
   const handleSaveFlow = (yaml: string) => {
-    // Persist YAML so /flows/new can pre-populate the editor on mount
-    try {
-      localStorage.setItem('testmesh:new-flow-yaml', yaml);
-    } catch {
-      // localStorage unavailable (SSR, private mode) — navigate anyway
-    }
+    try { localStorage.setItem('testmesh:new-flow-yaml', yaml); } catch { /* ignore */ }
     router.push('/flows/new');
     setGeneratedFlow(null);
   };
@@ -103,136 +85,109 @@ export default function CoveragePage() {
   const gaps = data?.gaps ?? [];
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="px-6 py-6 space-y-5">
       {generatedFlow && (
-        <GenerateFlowModal
-          result={generatedFlow}
-          onClose={() => setGeneratedFlow(null)}
-          onSave={handleSaveFlow}
-        />
+        <GenerateFlowModal result={generatedFlow} onClose={() => setGeneratedFlow(null)} onSave={handleSaveFlow} />
       )}
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Coverage Gaps</h1>
-        <p className="text-muted-foreground mt-1">
-          Real-traffic endpoints that have no test flow, ranked by risk.
-        </p>
+      <div>
+        <h1 className="text-xl font-semibold text-[#c8dce8]">Coverage Gaps</h1>
+        <p className="text-xs text-[#3d5670] mt-0.5">Real-traffic endpoints that have no test flow, ranked by risk.</p>
       </div>
 
       {data && (
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <Card>
-            <CardContent className="pt-4">
-              <div className="text-2xl font-bold text-red-600">{data.uncovered_count}</div>
-              <div className="text-sm text-muted-foreground">Untested endpoints</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-4">
-              <div className="text-2xl font-bold">{data.total}</div>
-              <div className="text-sm text-muted-foreground">Total endpoints seen</div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: 'Untested Endpoints', value: data.uncovered_count, cls: 'text-red-400' },
+            { label: 'Total Endpoints Seen', value: data.total, cls: 'text-[#c8dce8]' },
+          ].map((kpi) => (
+            <div key={kpi.label} className="flex flex-col gap-2 p-4 rounded-xl bg-[#0f1923] border border-[#1e2d3d]">
+              <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{kpi.label}</span>
+              <p className={cn('text-2xl font-bold leading-none tabular-nums', kpi.cls)}>{kpi.value}</p>
+            </div>
+          ))}
         </div>
       )}
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'uncovered' | 'all')}>
-        <TabsList>
-          <TabsTrigger value="uncovered">
-            Uncovered
-            {data?.uncovered_count ? (
-              <span className="ml-1.5 text-xs bg-red-500 text-white rounded-full px-1.5">
+      {/* Tab row */}
+      <div className="flex gap-1">
+        {(['uncovered', 'all'] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={cn(
+              'flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs transition-colors',
+              tab === t
+                ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+                : 'text-[#4a6480] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#7fa8c8]'
+            )}
+          >
+            {t === 'uncovered' ? 'Uncovered' : 'All'}
+            {t === 'uncovered' && data?.uncovered_count ? (
+              <span className="text-[9px] font-bold bg-red-500 text-white rounded-full px-1.5 py-0.5 leading-none">
                 {data.uncovered_count}
               </span>
             ) : null}
-          </TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
-        </TabsList>
+          </button>
+        ))}
+      </div>
 
-        <TabsContent key={tab} value={tab}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Endpoints</CardTitle>
-              <CardDescription>
-                Sorted by risk score — higher means more traffic, errors, or latency.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading && (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[#1a2332]">
+          <span className="text-[11px] font-semibold text-[#c8dce8]">Endpoints</span>
+          <span className="text-[10px] text-[#4a6480] ml-2">Sorted by risk score — higher means more traffic, errors, or latency.</span>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-[#3d5670]" /></div>
+        ) : gaps.length === 0 ? (
+          <div className="text-center py-12 text-[11px] text-[#3d5670]">
+            No endpoints seen yet — send traces to TestMesh to discover your coverage.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-[1.5fr_2fr_1fr_1.5fr_1fr_auto] gap-4 px-4 py-2.5 border-b border-[#1a2332]">
+              {['Service', 'Endpoint', 'Calls', 'Risk', 'Status', ''].map((h) => (
+                <span key={h} className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</span>
+              ))}
+            </div>
+            <div className="divide-y divide-[#1a2332]">
+              {gaps.map((gap) => (
+                <div key={gap.id} className="grid grid-cols-[1.5fr_2fr_1fr_1.5fr_1fr_auto] gap-4 px-4 py-3 items-center hover:bg-[#131b26] transition-colors">
+                  <span className="text-[11px] text-[#4a6480]">{gap.service}</span>
+                  <span className="text-[11px] font-mono text-[#c8dce8]">
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#4a7a96] mr-1.5">{gap.method}</span>
+                    {gap.route}
+                  </span>
+                  <span className="text-[11px] text-[#7fa8c8]">{gap.occurrence_count.toLocaleString()}</span>
+                  <RiskBar score={gap.risk_score} />
+                  <span>
+                    {gap.has_test_flow ? (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-teal-400/10 text-teal-400">Has test</span>
+                    ) : (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-400/10 text-red-400">No test</span>
+                    )}
+                  </span>
+                  <span>
+                    {!gap.has_test_flow && gap.sample_trace_id && (
+                      <button
+                        disabled={generatingTraceId === gap.sample_trace_id}
+                        onClick={() => handleGenerate(gap)}
+                        className="flex items-center gap-1 h-6 px-2.5 rounded text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] disabled:opacity-50 transition-colors"
+                      >
+                        {generatingTraceId === gap.sample_trace_id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Sparkles className="w-3 h-3" />}
+                        Generate
+                      </button>
+                    )}
+                  </span>
                 </div>
-              )}
-
-              {!isLoading && gaps.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground text-sm">
-                  No endpoints seen yet — send traces to TestMesh to discover your coverage.
-                </div>
-              )}
-
-              {gaps.length > 0 && (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-muted-foreground border-b">
-                      <th className="pb-2 font-medium">Service</th>
-                      <th className="pb-2 font-medium">Endpoint</th>
-                      <th className="pb-2 font-medium">Calls</th>
-                      <th className="pb-2 font-medium">Risk</th>
-                      <th className="pb-2 font-medium">Status</th>
-                      <th className="pb-2 font-medium"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {gaps.map((gap) => (
-                      <tr key={gap.id} className="py-2">
-                        <td className="py-3 text-muted-foreground">{gap.service}</td>
-                        <td className="py-3 font-mono">
-                          <span className="text-xs bg-muted px-1.5 py-0.5 rounded mr-1.5">
-                            {gap.method}
-                          </span>
-                          {gap.route}
-                        </td>
-                        <td className="py-3">{gap.occurrence_count.toLocaleString()}</td>
-                        <td className="py-3">
-                          <RiskBar score={gap.risk_score} />
-                        </td>
-                        <td className="py-3">
-                          {gap.has_test_flow ? (
-                            <Badge variant="outline" className="text-green-600 border-green-300">
-                              Has test
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="text-xs">
-                              No test
-                            </Badge>
-                          )}
-                        </td>
-                        <td className="py-3 text-right">
-                          {!gap.has_test_flow && gap.sample_trace_id && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={generatingTraceId === gap.sample_trace_id}
-                              onClick={() => handleGenerate(gap)}
-                            >
-                              {generatingTraceId === gap.sample_trace_id ? (
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                              ) : (
-                                <Sparkles className="w-3 h-3 mr-1" />
-                              )}
-                              Generate test
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

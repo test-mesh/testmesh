@@ -14,12 +14,10 @@ import {
   EyeOff,
   Loader2,
   Variable,
-  Check,
   X,
   Route,
   Server,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -38,14 +36,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
@@ -61,14 +51,14 @@ import {
 import type { Environment, EnvironmentVariable, RoutingPolicy } from '@/lib/api/environments';
 
 const PRESET_COLORS = [
-  '#3B82F6', // Blue
-  '#10B981', // Green
-  '#F59E0B', // Yellow
-  '#EF4444', // Red
-  '#8B5CF6', // Purple
-  '#EC4899', // Pink
-  '#6B7280', // Gray
-  '#14B8A6', // Teal
+  '#3B82F6',
+  '#10B981',
+  '#F59E0B',
+  '#EF4444',
+  '#8B5CF6',
+  '#EC4899',
+  '#6B7280',
+  '#14B8A6',
 ];
 
 export default function EnvironmentsPage() {
@@ -81,7 +71,6 @@ export default function EnvironmentsPage() {
   const [importData, setImportData] = useState('');
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
-  // Form state
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formColor, setFormColor] = useState(PRESET_COLORS[0]);
@@ -133,7 +122,6 @@ export default function EnvironmentsPage() {
 
   const handleSave = async () => {
     if (!formName.trim()) return;
-
     const data = {
       name: formName,
       description: formDescription,
@@ -141,13 +129,8 @@ export default function EnvironmentsPage() {
       variables: formVariables,
       routing: routingFromPairs(formRoutingHeaders, formRoutingServices),
     };
-
-    if (editingEnv) {
-      await updateEnvironment.mutateAsync({ id: editingEnv.id, data });
-    } else {
-      await createEnvironment.mutateAsync(data);
-    }
-
+    if (editingEnv) await updateEnvironment.mutateAsync({ id: editingEnv.id, data });
+    else await createEnvironment.mutateAsync(data);
     setCreateDialogOpen(false);
     resetForm();
     setEditingEnv(null);
@@ -188,19 +171,16 @@ export default function EnvironmentsPage() {
       await importEnvironment.mutateAsync(data);
       setImportDialogOpen(false);
       setImportData('');
-    } catch (e) {
+    } catch {
       alert('Invalid JSON format');
     }
   };
 
   const addVariable = () => {
-    setFormVariables([
-      ...formVariables,
-      { key: '', value: '', description: '', is_secret: false, enabled: true },
-    ]);
+    setFormVariables([...formVariables, { key: '', value: '', description: '', is_secret: false, enabled: true }]);
   };
 
-  const updateVariable = (index: number, field: keyof EnvironmentVariable, value: any) => {
+  const updateVariable = (index: number, field: keyof EnvironmentVariable, value: unknown) => {
     const updated = [...formVariables];
     updated[index] = { ...updated[index], [field]: value };
     setFormVariables(updated);
@@ -217,14 +197,13 @@ export default function EnvironmentsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        <Loader2 className="w-5 h-5 animate-spin text-[#3d5670]" />
       </div>
     );
   }
 
   return (
     <div className="px-6 py-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-xl font-semibold text-[#c8dce8]">Environments</h1>
@@ -235,15 +214,13 @@ export default function EnvironmentsPage() {
             onClick={() => setImportDialogOpen(true)}
             className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
           >
-            <Upload className="w-3 h-3" />
-            Import
+            <Upload className="w-3 h-3" />Import
           </button>
           <button
             onClick={openCreateDialog}
             className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
           >
-            <Plus className="w-3 h-3" />
-            New Environment
+            <Plus className="w-3 h-3" />New Environment
           </button>
         </div>
       </div>
@@ -256,27 +233,20 @@ export default function EnvironmentsPage() {
             onClick={openCreateDialog}
             className="flex items-center gap-1.5 h-7 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
           >
-            <Plus className="w-3 h-3" />
-            Create First Environment
+            <Plus className="w-3 h-3" />Create First Environment
           </button>
         </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {environments.map((env) => (
             <div key={env.id} className="relative bg-[#0f1923] border border-[#1e2d3d] rounded-xl overflow-hidden hover:border-[#2a3d52] transition-colors">
-              {/* Color accent bar */}
-              <div
-                className="h-0.5 w-full"
-                style={{ backgroundColor: env.color || PRESET_COLORS[6] }}
-              />
-              {/* Card header */}
+              <div className="h-0.5 w-full" style={{ backgroundColor: env.color || PRESET_COLORS[6] }} />
               <div className="flex items-start justify-between px-4 pt-4 pb-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-[13px] font-semibold text-[#c8dce8] truncate">{env.name}</span>
                   {env.is_default && (
                     <span className="flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400 shrink-0">
-                      <Star className="w-2.5 h-2.5 fill-current" />
-                      Default
+                      <Star className="w-2.5 h-2.5 fill-current" />Default
                     </span>
                   )}
                 </div>
@@ -319,7 +289,6 @@ export default function EnvironmentsPage() {
                 <p className="px-4 pb-2 text-[11px] text-[#3d5670] line-clamp-1">{env.description}</p>
               )}
 
-              {/* Meta row */}
               <div className="flex items-center justify-between px-4 pb-3">
                 <div className="flex items-center gap-3 text-[11px] text-[#3d5670]">
                   <span className="flex items-center gap-1">
@@ -343,7 +312,6 @@ export default function EnvironmentsPage() {
                 </button>
               </div>
 
-              {/* Variables preview */}
               {env.variables && env.variables.length > 0 && (
                 <div className="mx-4 mb-4 rounded-lg bg-[#0b0f18] border border-[#1a2332] p-2.5 font-mono text-[11px] space-y-1 max-h-28 overflow-y-auto">
                   {env.variables.slice(0, 5).map((v, i) => (
@@ -369,13 +337,9 @@ export default function EnvironmentsPage() {
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
         <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              {editingEnv ? 'Edit Environment' : 'Create Environment'}
-            </DialogTitle>
+            <DialogTitle>{editingEnv ? 'Edit Environment' : 'Create Environment'}</DialogTitle>
             <DialogDescription>
-              {editingEnv
-                ? 'Update environment settings and variables'
-                : 'Create a new environment with variables'}
+              {editingEnv ? 'Update environment settings and variables' : 'Create a new environment with variables'}
             </DialogDescription>
           </DialogHeader>
 
@@ -383,12 +347,7 @@ export default function EnvironmentsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g., Production"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                />
+                <Input id="name" placeholder="e.g., Production" value={formName} onChange={(e) => setFormName(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Color</Label>
@@ -396,12 +355,7 @@ export default function EnvironmentsPage() {
                   {PRESET_COLORS.map((color) => (
                     <button
                       key={color}
-                      className={cn(
-                        'w-6 h-6 rounded-full border-2 transition-transform',
-                        formColor === color
-                          ? 'border-foreground scale-110'
-                          : 'border-transparent'
-                      )}
+                      className={cn('w-6 h-6 rounded-full border-2 transition-transform', formColor === color ? 'border-white scale-110' : 'border-transparent')}
                       style={{ backgroundColor: color }}
                       onClick={() => setFormColor(color)}
                     />
@@ -412,249 +366,177 @@ export default function EnvironmentsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                placeholder="Optional description..."
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                rows={2}
-              />
+              <Textarea id="description" placeholder="Optional description..." value={formDescription} onChange={(e) => setFormDescription(e.target.value)} rows={2} />
             </div>
 
+            {/* Variables */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Variables</Label>
-                <Button variant="outline" size="sm" onClick={addVariable}>
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add Variable
-                </Button>
+                <button
+                  onClick={addVariable}
+                  className="flex items-center gap-1 h-6 px-2.5 rounded text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors"
+                >
+                  <Plus className="w-3 h-3" />Add Variable
+                </button>
               </div>
 
               {formVariables.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">Enabled</TableHead>
-                      <TableHead className="w-[40%]">Key</TableHead>
-                      <TableHead className="w-[40%]">Value</TableHead>
-                      <TableHead className="w-20">Secret</TableHead>
-                      <TableHead className="w-10"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <div className="rounded-lg border border-[#1e2d3d] overflow-hidden">
+                  <div className="grid grid-cols-[auto_1fr_1fr_auto_auto] gap-0 divide-y divide-[#1a2332]">
+                    <div className="contents">
+                      {['', 'Key', 'Value', 'Secret', ''].map((h, i) => (
+                        <div key={i} className="px-3 py-2 bg-[#0b0f18] text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</div>
+                      ))}
+                    </div>
                     {formVariables.map((variable, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <Switch
-                            checked={variable.enabled}
-                            onCheckedChange={(checked) =>
-                              updateVariable(index, 'enabled', checked)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell className="min-w-[200px]">
-                          <Input
+                      <div key={index} className="contents group">
+                        <div className="flex items-center px-3 py-2 bg-[#0f1923]">
+                          <Switch checked={variable.enabled} onCheckedChange={(checked) => updateVariable(index, 'enabled', checked)} />
+                        </div>
+                        <div className="flex items-center px-2 py-1.5 bg-[#0f1923]">
+                          <input
                             placeholder="KEY"
-                            className="font-mono text-sm w-full"
+                            className="w-full h-7 px-2 rounded bg-[#0b0f18] border border-[#1a2332] text-xs font-mono text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50"
                             value={variable.key}
-                            onChange={(e) =>
-                              updateVariable(index, 'key', e.target.value)
-                            }
+                            onChange={(e) => updateVariable(index, 'key', e.target.value)}
                           />
-                        </TableCell>
-                        <TableCell className="min-w-[300px]">
-                          <Input
+                        </div>
+                        <div className="flex items-center px-2 py-1.5 bg-[#0f1923]">
+                          <input
                             placeholder="value"
                             type={variable.is_secret ? 'password' : 'text'}
-                            className="font-mono text-sm w-full"
+                            className="w-full h-7 px-2 rounded bg-[#0b0f18] border border-[#1a2332] text-xs font-mono text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50"
                             value={variable.value}
-                            onChange={(e) =>
-                              updateVariable(index, 'value', e.target.value)
-                            }
+                            onChange={(e) => updateVariable(index, 'value', e.target.value)}
                           />
-                        </TableCell>
-                        <TableCell>
-                          <Switch
-                            checked={variable.is_secret}
-                            onCheckedChange={(checked) =>
-                              updateVariable(index, 'is_secret', checked)
-                            }
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
+                        </div>
+                        <div className="flex items-center px-3 py-2 bg-[#0f1923]">
+                          <Switch checked={variable.is_secret} onCheckedChange={(checked) => updateVariable(index, 'is_secret', checked)} />
+                        </div>
+                        <div className="flex items-center px-2 py-2 bg-[#0f1923]">
+                          <button
                             onClick={() => removeVariable(index)}
+                            className="flex items-center justify-center h-6 w-6 rounded text-[#3d5670] hover:text-red-400 hover:bg-red-400/10 transition-colors"
                           >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
+                  </div>
+                </div>
               ) : (
-                <div className="text-sm text-muted-foreground text-center py-8 border rounded-md">
-                  No variables yet. Click "Add Variable" to get started.
+                <div className="text-xs text-[#3d5670] text-center py-6 rounded-lg border border-[#1e2d3d] bg-[#0b0f18]">
+                  No variables yet. Click &ldquo;Add Variable&rdquo; to get started.
                 </div>
               )}
             </div>
 
             {/* Routing Policy */}
-            <div className="space-y-4 border rounded-md p-4">
+            <div className="space-y-4 rounded-lg border border-[#1e2d3d] p-4 bg-[#0b0f18]">
               <div>
-                <h4 className="text-sm font-medium flex items-center gap-2">
-                  <Route className="w-4 h-4" />
-                  Routing Policy
+                <h4 className="text-[12px] font-semibold text-[#c8dce8] flex items-center gap-2">
+                  <Route className="w-3.5 h-3.5 text-[#4a6480]" />Routing Policy
                 </h4>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-[11px] text-[#3d5670] mt-1">
                   Headers are injected into every HTTP request. Service URLs are accessible as{' '}
-                  <code className="font-mono">{'${service.<name>}'}</code> in flows.
+                  <code className="font-mono text-teal-400/80">{`\${service.<name>}`}</code> in flows.
                 </p>
               </div>
 
               {/* Routing Headers */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                    HTTP Headers
-                  </Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">HTTP Headers</span>
+                  <button
                     onClick={() => setFormRoutingHeaders([...formRoutingHeaders, ['', '']])}
+                    className="flex items-center gap-1 h-6 px-2.5 rounded text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors"
                   >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add Header
-                  </Button>
+                    <Plus className="w-3 h-3" />Add Header
+                  </button>
                 </div>
                 {formRoutingHeaders.length > 0 ? (
                   <div className="space-y-2">
                     {formRoutingHeaders.map(([key, value], i) => (
                       <div key={i} className="flex gap-2 items-center">
-                        <Input
+                        <input
                           placeholder="X-Sandbox-ID"
-                          className="font-mono text-sm"
+                          className="flex-1 h-7 px-2 rounded bg-[#0f1923] border border-[#1a2332] text-xs font-mono text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50"
                           value={key}
-                          onChange={(e) => {
-                            const updated = [...formRoutingHeaders];
-                            updated[i] = [e.target.value, updated[i][1]];
-                            setFormRoutingHeaders(updated);
-                          }}
+                          onChange={(e) => { const u = [...formRoutingHeaders]; u[i] = [e.target.value, u[i][1]]; setFormRoutingHeaders(u); }}
                         />
-                        <Input
+                        <input
                           placeholder="value"
-                          className="font-mono text-sm"
+                          className="flex-1 h-7 px-2 rounded bg-[#0f1923] border border-[#1a2332] text-xs font-mono text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50"
                           value={value}
-                          onChange={(e) => {
-                            const updated = [...formRoutingHeaders];
-                            updated[i] = [updated[i][0], e.target.value];
-                            setFormRoutingHeaders(updated);
-                          }}
+                          onChange={(e) => { const u = [...formRoutingHeaders]; u[i] = [u[i][0], e.target.value]; setFormRoutingHeaders(u); }}
                         />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0 text-destructive"
-                          onClick={() =>
-                            setFormRoutingHeaders(formRoutingHeaders.filter((_, j) => j !== i))
-                          }
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
+                        <button onClick={() => setFormRoutingHeaders(formRoutingHeaders.filter((_, j) => j !== i))} className="flex items-center justify-center h-6 w-6 rounded text-[#3d5670] hover:text-red-400 hover:bg-red-400/10 transition-colors">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground italic">
-                    No routing headers. Add one to inject it into all HTTP steps.
-                  </div>
+                  <p className="text-xs text-[#3d5670] italic">No routing headers. Add one to inject it into all HTTP steps.</p>
                 )}
               </div>
 
               {/* Service URLs */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">
-                    <span className="flex items-center gap-1">
-                      <Server className="w-3 h-3" />
-                      Service URLs
-                    </span>
-                  </Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider flex items-center gap-1">
+                    <Server className="w-3 h-3" />Service URLs
+                  </span>
+                  <button
                     onClick={() => setFormRoutingServices([...formRoutingServices, ['', '']])}
+                    className="flex items-center gap-1 h-6 px-2.5 rounded text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors"
                   >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add Service
-                  </Button>
+                    <Plus className="w-3 h-3" />Add Service
+                  </button>
                 </div>
                 {formRoutingServices.length > 0 ? (
                   <div className="space-y-2">
                     {formRoutingServices.map(([name, url], i) => (
                       <div key={i} className="flex gap-2 items-center">
-                        <Input
+                        <input
                           placeholder="user-service"
-                          className="font-mono text-sm"
+                          className="flex-1 h-7 px-2 rounded bg-[#0f1923] border border-[#1a2332] text-xs font-mono text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50"
                           value={name}
-                          onChange={(e) => {
-                            const updated = [...formRoutingServices];
-                            updated[i] = [e.target.value, updated[i][1]];
-                            setFormRoutingServices(updated);
-                          }}
+                          onChange={(e) => { const u = [...formRoutingServices]; u[i] = [e.target.value, u[i][1]]; setFormRoutingServices(u); }}
                         />
-                        <Input
+                        <input
                           placeholder="http://sandbox.internal:5001"
-                          className="font-mono text-sm"
+                          className="flex-1 h-7 px-2 rounded bg-[#0f1923] border border-[#1a2332] text-xs font-mono text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50"
                           value={url}
-                          onChange={(e) => {
-                            const updated = [...formRoutingServices];
-                            updated[i] = [updated[i][0], e.target.value];
-                            setFormRoutingServices(updated);
-                          }}
+                          onChange={(e) => { const u = [...formRoutingServices]; u[i] = [u[i][0], e.target.value]; setFormRoutingServices(u); }}
                         />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0 text-destructive"
-                          onClick={() =>
-                            setFormRoutingServices(formRoutingServices.filter((_, j) => j !== i))
-                          }
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
+                        <button onClick={() => setFormRoutingServices(formRoutingServices.filter((_, j) => j !== i))} className="flex items-center justify-center h-6 w-6 rounded text-[#3d5670] hover:text-red-400 hover:bg-red-400/10 transition-colors">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground italic">
-                    No service URLs. Add one to override base URLs per environment.
-                  </div>
+                  <p className="text-xs text-[#3d5670] italic">No service URLs. Add one to override base URLs per environment.</p>
                 )}
               </div>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+            <button onClick={() => setCreateDialogOpen(false)} className="h-8 px-4 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleSave}
-              disabled={
-                !formName.trim() ||
-                createEnvironment.isPending ||
-                updateEnvironment.isPending
-              }
+              disabled={!formName.trim() || createEnvironment.isPending || updateEnvironment.isPending}
+              className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
-              {(createEnvironment.isPending || updateEnvironment.isPending) && (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              )}
+              {(createEnvironment.isPending || updateEnvironment.isPending) && <Loader2 className="w-3 h-3 mr-1.5 animate-spin inline" />}
               {editingEnv ? 'Save Changes' : 'Create Environment'}
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -664,33 +546,24 @@ export default function EnvironmentsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Duplicate Environment</DialogTitle>
-            <DialogDescription>
-              Create a copy of this environment with a new name
-            </DialogDescription>
+            <DialogDescription>Create a copy of this environment with a new name</DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-2">
             <Label htmlFor="duplicate-name">New Name</Label>
-            <Input
-              id="duplicate-name"
-              value={duplicateName}
-              onChange={(e) => setDuplicateName(e.target.value)}
-              placeholder="Enter new environment name"
-              className="mt-2"
-            />
+            <Input id="duplicate-name" value={duplicateName} onChange={(e) => setDuplicateName(e.target.value)} placeholder="Enter new environment name" />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
+            <button onClick={() => setDuplicateDialogOpen(false)} className="h-8 px-4 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleDuplicate}
               disabled={!duplicateName.trim() || duplicateEnvironment.isPending}
+              className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
-              {duplicateEnvironment.isPending && (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              )}
+              {duplicateEnvironment.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin inline" />}
               Duplicate
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -700,9 +573,7 @@ export default function EnvironmentsPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Import Environment</DialogTitle>
-            <DialogDescription>
-              Paste the exported environment JSON to import
-            </DialogDescription>
+            <DialogDescription>Paste the exported environment JSON to import</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea
@@ -714,18 +585,17 @@ export default function EnvironmentsPage() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+            <button onClick={() => setImportDialogOpen(false)} className="h-8 px-4 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleImport}
               disabled={!importData.trim() || importEnvironment.isPending}
+              className="h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
-              {importEnvironment.isPending && (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              )}
+              {importEnvironment.isPending && <Loader2 className="w-3 h-3 mr-1.5 animate-spin inline" />}
               Import
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
