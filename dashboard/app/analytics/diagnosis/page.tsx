@@ -2,53 +2,53 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useRunAgent } from '@/lib/hooks/useGraphAgents';
 import type { AgentResult, AgentFinding } from '@/lib/api/graph-agents';
 import { ArrowLeft, Stethoscope, Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-const severityColor: Record<string, string> = {
-  critical: 'border-red-500 text-red-500',
-  high: 'border-orange-500 text-orange-500',
-  medium: 'border-yellow-500 text-yellow-500',
-  low: 'border-green-500 text-green-500',
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: 'bg-red-400/10 text-red-400 border-red-400/30',
+  high:     'bg-orange-400/10 text-orange-400 border-orange-400/30',
+  medium:   'bg-yellow-400/10 text-yellow-400 border-yellow-400/30',
+  low:      'bg-teal-400/10 text-teal-400 border-teal-400/30',
 };
 
-function groupByType(findings: AgentFinding[]): Record<string, AgentFinding[]> {
-  const groups: Record<string, AgentFinding[]> = {};
-  for (const f of findings) {
-    const key = f.type || 'other';
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(f);
-  }
-  return groups;
+function SeverityBadge({ severity }: { severity: string }) {
+  return (
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded border capitalize', SEVERITY_COLORS[severity] ?? 'bg-[#1a2d3d] text-[#4a6480] border-[#2a3d52]')}>
+      {severity}
+    </span>
+  );
 }
 
-function MetadataSection({ metadata }: { metadata: Record<string, any> }) {
+function TypeBadge({ type }: { type: string }) {
+  return (
+    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#1a2d3d] text-[#4a7a96] capitalize">
+      {type}
+    </span>
+  );
+}
+
+function MetadataSection({ metadata }: { metadata: Record<string, unknown> }) {
   const [open, setOpen] = useState(false);
   const keys = Object.keys(metadata);
   if (keys.length === 0) return null;
-
   return (
     <div className="mt-2">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
+      <button onClick={() => setOpen(!open)} className="flex items-center gap-1 text-[11px] text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         Details ({keys.length} fields)
       </button>
       {open && (
-        <div className="mt-2 bg-muted/50 rounded p-3">
+        <div className="mt-2 bg-[#0b0f18] border border-[#1a2332] rounded-lg p-3">
           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
             {Object.entries(metadata).map(([key, value]) => (
-              <div key={key} className="text-xs">
-                <span className="text-muted-foreground">{key}: </span>
-                <span className="font-mono">
+              <div key={key} className="text-[11px]">
+                <span className="text-[#3d5670]">{key}: </span>
+                <span className="font-mono text-[#7fa8c8]">
                   {typeof value === 'object' ? JSON.stringify(value) : String(value)}
                 </span>
               </div>
@@ -60,6 +60,16 @@ function MetadataSection({ metadata }: { metadata: Record<string, any> }) {
   );
 }
 
+function groupByType(findings: AgentFinding[]): Record<string, AgentFinding[]> {
+  const groups: Record<string, AgentFinding[]> = {};
+  for (const f of findings) {
+    const key = f.type || 'other';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(f);
+  }
+  return groups;
+}
+
 export default function DiagnosisPage() {
   const [executionId, setExecutionId] = useState('');
   const [result, setResult] = useState<AgentResult | null>(null);
@@ -69,17 +79,12 @@ export default function DiagnosisPage() {
   const handleDiagnose = async () => {
     setError(null);
     try {
-      const params: Record<string, any> = {};
-      if (executionId.trim()) {
-        params.execution_id = executionId.trim();
-      }
-      const data = await mutateAsync({
-        agent: 'diagnosis',
-        ...(Object.keys(params).length > 0 ? { params } : {}),
-      });
+      const params: Record<string, unknown> = {};
+      if (executionId.trim()) params.execution_id = executionId.trim();
+      const data = await mutateAsync({ agent: 'diagnosis', ...(Object.keys(params).length > 0 ? { params } : {}) });
       setResult(data);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to run diagnosis');
+    } catch (err: unknown) {
+      setError((err as Error)?.message || 'Failed to run diagnosis');
     }
   };
 
@@ -87,167 +92,114 @@ export default function DiagnosisPage() {
   const sortedTypes = Object.keys(grouped).sort();
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/analytics">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+    <div className="px-6 py-6 space-y-5">
+      <div className="flex items-center gap-2">
+        <Link href="/analytics" className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors">
+          <ArrowLeft className="w-4 h-4" />
         </Link>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold">Graph Diagnosis</h1>
-          <p className="text-muted-foreground mt-1">
-            Diagnose test failures and identify root causes
-          </p>
-        </div>
+        <Stethoscope className="h-4 w-4 text-[#3d5670]" />
+        <h1 className="text-xl font-semibold text-[#c8dce8]">Graph Diagnosis</h1>
+        <p className="text-xs text-[#3d5670] mt-0.5">Diagnose test failures and identify root causes</p>
       </div>
 
       {/* Input */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Diagnosis Parameters</CardTitle>
-          <CardDescription>
-            Optionally provide an execution ID to diagnose a specific run
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-4">
-            <div className="flex-1 max-w-md">
-              <Label htmlFor="execution-id" className="mb-2 block">
-                Execution ID (optional)
-              </Label>
-              <Input
-                id="execution-id"
-                placeholder="e.g. exec_abc123..."
-                value={executionId}
-                onChange={(e) => setExecutionId(e.target.value)}
-              />
-            </div>
-            <Button onClick={handleDiagnose} disabled={isPending}>
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Stethoscope className="h-4 w-4 mr-2" />
-              )}
-              Diagnose
-            </Button>
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-4">
+        <p className="text-[11px] font-semibold text-[#c8dce8] mb-0.5">Diagnosis Parameters</p>
+        <p className="text-[11px] text-[#4a6480] mb-4">Optionally provide an execution ID to diagnose a specific run</p>
+        <div className="flex items-end gap-3">
+          <div className="flex-1 max-w-md space-y-1.5">
+            <Label htmlFor="execution-id">Execution ID (optional)</Label>
+            <Input id="execution-id" placeholder="e.g. exec_abc123..." value={executionId} onChange={(e) => setExecutionId(e.target.value)} />
           </div>
-        </CardContent>
-      </Card>
+          <button
+            onClick={handleDiagnose}
+            disabled={isPending}
+            className="flex items-center gap-1.5 h-9 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+          >
+            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Stethoscope className="h-3.5 w-3.5" />}
+            Diagnose
+          </button>
+        </div>
+      </div>
 
       {error && (
-        <Card className="mb-6 border-red-500/50 bg-red-950/20">
-          <CardContent className="flex items-start gap-4 pt-6">
-            <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-medium text-red-400">Diagnosis Failed</h3>
-              <p className="text-sm text-red-300 mt-1">{error}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-red-400/5 border border-red-400/20 p-4 flex items-start gap-3">
+          <AlertCircle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-red-400">Diagnosis Failed</p>
+            <p className="text-[11px] text-red-400/80 mt-0.5">{error}</p>
+          </div>
+        </div>
       )}
 
       {!result && !error && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Stethoscope className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No Diagnosis Run Yet</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-md">
-              Click &quot;Diagnose&quot; to analyze recent test failures and identify
-              patterns, regressions, and root causes.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] flex flex-col items-center justify-center py-16 text-center">
+          <Stethoscope className="h-10 w-10 mb-3 text-[#1e2d3d]" />
+          <p className="text-[13px] font-semibold text-[#c8dce8] mb-1">No Diagnosis Run Yet</p>
+          <p className="text-xs text-[#4a6480] max-w-sm">Click &quot;Diagnose&quot; to analyze recent test failures and identify patterns, regressions, and root causes.</p>
+        </div>
       )}
 
       {result && (
         <>
           {/* Summary */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                Diagnosis Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">{result.summary}</p>
-              <div className="flex gap-4 mt-4">
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Findings: </span>
-                  <span className="font-medium">{(result.findings || []).length}</span>
-                </div>
-                <div className="text-sm">
-                  <span className="text-muted-foreground">Actions: </span>
-                  <span className="font-medium">{(result.actions || []).length}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="h-4 w-4 text-teal-400" />
+              <p className="text-[13px] font-semibold text-[#c8dce8]">Diagnosis Summary</p>
+            </div>
+            <p className="text-xs text-[#4a6480]">{result.summary}</p>
+            <div className="flex gap-4 mt-3">
+              <span className="text-[11px] text-[#4a6480]">Findings: <span className="font-semibold text-[#c8dce8]">{(result.findings || []).length}</span></span>
+              <span className="text-[11px] text-[#4a6480]">Actions: <span className="font-semibold text-[#c8dce8]">{(result.actions || []).length}</span></span>
+            </div>
+          </div>
 
           {/* Findings grouped by type */}
           {sortedTypes.map((type) => (
-            <Card key={type} className="mb-4">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Badge variant="outline">{type}</Badge>
-                  <span>{grouped[type].length} finding{grouped[type].length !== 1 ? 's' : ''}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {grouped[type].map((finding, i) => (
-                    <div key={i} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-medium">{finding.title}</h4>
-                        <Badge
-                          variant="outline"
-                          className={severityColor[finding.severity] || 'border-gray-500 text-gray-500'}
-                        >
-                          {finding.severity}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {finding.description}
-                      </p>
-                      <MetadataSection metadata={finding.metadata || {}} />
+            <div key={type} className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-[#1a2332] flex items-center gap-2">
+                <TypeBadge type={type} />
+                <span className="text-[11px] text-[#4a6480]">{grouped[type].length} finding{grouped[type].length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="p-4 space-y-3">
+                {grouped[type].map((finding, i) => (
+                  <div key={i} className="rounded-lg border border-[#1e2d3d] bg-[#0b0f18] p-3">
+                    <div className="flex items-start justify-between mb-2">
+                      <p className="text-[12px] font-semibold text-[#c8dce8]">{finding.title}</p>
+                      <SeverityBadge severity={finding.severity} />
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    <p className="text-[11px] text-[#4a6480]">{finding.description}</p>
+                    <MetadataSection metadata={finding.metadata || {}} />
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
 
           {/* Actions */}
           {(result.actions || []).length > 0 && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Recommended Actions</CardTitle>
-                <CardDescription>
-                  Suggested steps to resolve diagnosed issues
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {(result.actions || []).map((action, i) => (
-                    <div key={i} className="flex items-start gap-3 border rounded-lg p-4">
-                      <Badge variant="outline" className="shrink-0 mt-0.5">
-                        {action.type}
-                      </Badge>
-                      <div>
-                        <p className="text-sm">{action.description}</p>
-                        {action.metadata && Object.keys(action.metadata).length > 0 && (
-                          <div className="mt-2 text-xs text-muted-foreground font-mono whitespace-pre-wrap">
-                            {JSON.stringify(action.metadata, null, 2)}
-                          </div>
-                        )}
-                      </div>
+            <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-[#1a2332]">
+                <p className="text-[11px] font-semibold text-[#c8dce8]">Recommended Actions</p>
+                <p className="text-[10px] text-[#4a6480]">Suggested steps to resolve diagnosed issues</p>
+              </div>
+              <div className="p-4 space-y-2">
+                {(result.actions || []).map((action, i) => (
+                  <div key={i} className="flex items-start gap-3 rounded-lg border border-[#1e2d3d] bg-[#0b0f18] p-3">
+                    <TypeBadge type={action.type} />
+                    <div>
+                      <p className="text-[11px] text-[#c8dce8]">{action.description}</p>
+                      {action.metadata && Object.keys(action.metadata).length > 0 && (
+                        <pre className="mt-2 text-[10px] font-mono text-[#4a6480] whitespace-pre-wrap">
+                          {JSON.stringify(action.metadata, null, 2)}
+                        </pre>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </>
       )}

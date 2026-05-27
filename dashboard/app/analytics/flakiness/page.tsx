@@ -2,12 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { FlakinessTable } from '@/components/analytics/FlakinessTable';
 import { useFlakiness } from '@/lib/hooks/useReports';
-import { ArrowLeft, Search, AlertTriangle, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Search, AlertTriangle, HelpCircle, Loader2 } from 'lucide-react';
 import type { GetFlakinessResponse, FlakinessMetric } from '@/lib/api/types';
 
 export default function FlakinessPage() {
@@ -15,158 +12,119 @@ export default function FlakinessPage() {
   const [page, setPage] = useState(0);
   const limit = 20;
 
-  const { data, isLoading, error } = useFlakiness({
-    limit,
-    offset: page * limit,
-  });
+  const { data, isLoading, error } = useFlakiness({ limit, offset: page * limit });
 
   const flakyFlows = (data as GetFlakinessResponse)?.flaky_flows || [];
   const total = (data as GetFlakinessResponse)?.total || 0;
 
   const filteredFlows = searchQuery
-    ? flakyFlows.filter(
-        (f: FlakinessMetric) =>
-          f.flow?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          f.flow_id.toLowerCase().includes(searchQuery.toLowerCase())
+    ? flakyFlows.filter((f: FlakinessMetric) =>
+        f.flow?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        f.flow_id.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : flakyFlows;
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/analytics">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
+    <div className="px-6 py-6 space-y-5">
+      <div className="flex items-center gap-2">
+        <Link href="/analytics" className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors">
+          <ArrowLeft className="w-4 h-4" />
         </Link>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold">Flaky Tests</h1>
-          <p className="text-muted-foreground mt-1">
-            Tests with inconsistent pass/fail patterns
+        <AlertTriangle className="h-4 w-4 text-[#3d5670]" />
+        <h1 className="text-xl font-semibold text-[#c8dce8]">Flaky Tests</h1>
+        <p className="text-xs text-[#3d5670] mt-0.5">Tests with inconsistent pass/fail patterns</p>
+      </div>
+
+      {/* Info */}
+      <div className="rounded-xl bg-yellow-400/5 border border-yellow-400/20 p-4 flex items-start gap-3">
+        <HelpCircle className="h-4 w-4 text-yellow-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-[12px] font-semibold text-yellow-400 mb-1">What is a flaky test?</p>
+          <p className="text-[11px] text-yellow-400/80">
+            A flaky test produces inconsistent results without code changes. The flakiness score is based on how often
+            the result changes and how close the pass rate is to 50%. Higher scores indicate more unreliable tests.
           </p>
         </div>
       </div>
 
-      {/* Info Card */}
-      <Card className="mb-6 border-yellow-200 bg-yellow-50/50 dark:bg-yellow-950/20">
-        <CardContent className="flex items-start gap-4 pt-6">
-          <HelpCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-medium text-yellow-800 dark:text-yellow-200">
-              What is a flaky test?
-            </h3>
-            <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-              A flaky test is one that produces inconsistent results (sometimes passing, sometimes
-              failing) without any code changes. The flakiness score is calculated based on how
-              often the test result changes (transitions) and how close the pass rate is to 50%.
-              Higher scores indicate more unreliable tests that need attention.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Search */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[#3d5670]" />
+          <input
             placeholder="Search by flow name..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="w-full h-7 pl-7 pr-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-xs text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50 transition-colors"
           />
         </div>
-        <div className="text-sm text-muted-foreground">
-          {total} flaky tests detected
-        </div>
+        <span className="text-xs text-[#4a6480]">{total} flaky tests detected</span>
       </div>
 
-      {/* Flaky Tests Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-yellow-500" />
-            Flaky Test Results
-          </CardTitle>
-          <CardDescription>
-            Tests ordered by flakiness score (highest first)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
-            </div>
-          ) : error ? (
-            <div className="text-center py-12 text-red-500">
-              Failed to load flakiness data
-            </div>
-          ) : (
-            <>
-              <FlakinessTable data={filteredFlows} />
+      {/* Table */}
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[#1a2332] flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 text-yellow-400" />
+          <span className="text-[11px] font-semibold text-[#c8dce8]">Flaky Test Results</span>
+          <span className="text-[10px] text-[#4a6480] ml-1">Tests ordered by flakiness score (highest first)</span>
+        </div>
 
-              {/* Pagination */}
-              {total > limit && (
-                <div className="flex items-center justify-between mt-6">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {page * limit + 1} - {Math.min((page + 1) * limit, total)} of {total}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page === 0}
-                      onClick={() => setPage(p => p - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={(page + 1) * limit >= total}
-                      onClick={() => setPage(p => p + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-5 w-5 animate-spin text-[#3d5670]" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-12 text-[11px] text-red-400">Failed to load flakiness data</div>
+        ) : (
+          <>
+            <FlakinessTable data={filteredFlows} />
+            {total > limit && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-[#1a2332]">
+                <p className="text-xs text-[#4a6480]">
+                  Showing {page * limit + 1}–{Math.min((page + 1) * limit, total)} of {total}
+                </p>
+                <div className="flex gap-1.5">
+                  <button
+                    disabled={page === 0}
+                    onClick={() => setPage(p => p - 1)}
+                    className="h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] disabled:opacity-40 transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={(page + 1) * limit >= total}
+                    onClick={() => setPage(p => p + 1)}
+                    className="h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] disabled:opacity-40 transition-colors"
+                  >
+                    Next
+                  </button>
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Tips */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Tips for Fixing Flaky Tests</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-start gap-2">
-              <span className="font-medium text-foreground">1.</span>
-              Check for race conditions or timing issues in async operations
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[#1a2332]">
+          <span className="text-[11px] font-semibold text-[#c8dce8]">Tips for Fixing Flaky Tests</span>
+        </div>
+        <ol className="px-4 py-3 space-y-2">
+          {[
+            'Check for race conditions or timing issues in async operations',
+            'Ensure proper test isolation — each test should be independent',
+            'Avoid relying on external services without proper mocking',
+            'Use explicit waits instead of fixed sleep times',
+            'Consider using retry mechanisms for network operations',
+          ].map((tip, i) => (
+            <li key={i} className="flex items-start gap-2 text-[11px] text-[#4a6480]">
+              <span className="font-semibold text-[#7fa8c8] shrink-0">{i + 1}.</span>
+              {tip}
             </li>
-            <li className="flex items-start gap-2">
-              <span className="font-medium text-foreground">2.</span>
-              Ensure proper test isolation - each test should be independent
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-medium text-foreground">3.</span>
-              Avoid relying on external services without proper mocking
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-medium text-foreground">4.</span>
-              Use explicit waits instead of fixed sleep times
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="font-medium text-foreground">5.</span>
-              Consider using retry mechanisms for network operations
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
+          ))}
+        </ol>
+      </div>
     </div>
   );
 }

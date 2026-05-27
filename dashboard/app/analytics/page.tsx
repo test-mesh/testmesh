@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -15,7 +14,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { TrendChart } from '@/components/analytics/TrendChart';
 import { FlakinessTable } from '@/components/analytics/FlakinessTable';
 import { MetricsSummary } from '@/components/analytics/MetricsCard';
@@ -221,6 +219,7 @@ const DATE_RANGES = [
 ];
 
 export default function AnalyticsPage() {
+  const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState('30');
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
 
@@ -333,12 +332,12 @@ export default function AnalyticsPage() {
                 <div className="rounded-lg border border-[#1e2d3d] bg-[#0b0f18] p-3 space-y-2">
                   {generatingReport.status === 'completed' ? (
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-teal-400 flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4" /> Report ready
+                      <span className="text-xs text-teal-400 flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Report ready
                       </span>
-                      <Button size="sm" onClick={handleDownloadGenerated}>
-                        <Download className="h-4 w-4 mr-2" /> Download
-                      </Button>
+                      <button onClick={handleDownloadGenerated} className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors">
+                        <Download className="h-3 w-3" /> Download
+                      </button>
                     </div>
                   ) : generatingReport.status === 'failed' ? (
                     <p className="text-sm text-red-400 flex items-center gap-2">
@@ -379,17 +378,18 @@ export default function AnalyticsPage() {
                 </div>
               )}
               <DialogFooter>
-                <Button variant="outline" onClick={() => setExportDialogOpen(false)}>Cancel</Button>
-                <Button
+                <button onClick={() => setExportDialogOpen(false)} className="h-8 px-4 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors">Cancel</button>
+                <button
                   onClick={handleExport}
                   disabled={generateReport.isPending || (!!generatingId && generatingReport?.status !== 'completed' && generatingReport?.status !== 'failed')}
+                  className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
                 >
                   {generateReport.isPending ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating…</>
+                    <><Loader2 className="h-3 w-3 animate-spin" />Generating…</>
                   ) : (
-                    <><FileDown className="h-4 w-4 mr-2" />Generate</>
+                    <><FileDown className="h-3 w-3" />Generate</>
                   )}
-                </Button>
+                </button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -405,21 +405,26 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList className="bg-[#0f1923] border border-[#1e2d3d] p-0.5 h-auto rounded-lg mb-4">
-          {['overview', 'trends', 'flakiness', 'coverage', 'telemetry'].map((tab) => (
-            <TabsTrigger
-              key={tab}
-              value={tab}
-              className="text-xs px-3 py-1.5 capitalize data-[state=active]:bg-[#1a2d3d] data-[state=active]:text-[#c8dce8] text-[#4a6480] rounded-md"
-            >
-              {tab}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {/* Tabs */}
+      <div className="flex gap-1 mb-4">
+        {['overview', 'trends', 'flakiness', 'coverage', 'telemetry'].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              'flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs capitalize transition-colors',
+              activeTab === tab
+                ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+                : 'text-[#4a6480] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#7fa8c8]'
+            )}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
         {/* ── Overview ── */}
-        <TabsContent value="overview" className="flex flex-col gap-4">
+        {activeTab === 'overview' && <div className="flex flex-col gap-4">
           {summary ? (
             <MetricsSummary
               totalExecutions={summary.total_executions}
@@ -452,10 +457,10 @@ export default function AnalyticsPage() {
               </button>
             </div>
           )}
-        </TabsContent>
+        </div>}
 
         {/* ── Trends ── */}
-        <TabsContent value="trends" className="flex flex-col gap-4">
+        {activeTab === 'trends' && <div className="flex flex-col gap-4">
           <div className="flex justify-end">
             <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'day' | 'week' | 'month')}>
               <SelectTrigger className="h-7 text-xs bg-[#0f1923] border-[#1e2d3d] text-[#7fa8c8] w-28 focus:ring-0 focus:ring-offset-0">
@@ -484,11 +489,10 @@ export default function AnalyticsPage() {
               </button>
             </div>
           )}
-        </TabsContent>
+        </div>}
 
         {/* ── Flakiness ── */}
-        <TabsContent value="flakiness">
-          <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        {activeTab === 'flakiness' && <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
             <div className="px-4 py-3 border-b border-[#1a2332]">
               <p className="text-[13px] font-semibold text-[#c8dce8]">Flaky Tests</p>
               <p className="text-[11px] text-[#4a6480] mt-0.5">Tests with inconsistent pass/fail patterns</p>
@@ -504,11 +508,10 @@ export default function AnalyticsPage() {
             ) : (
               <FlakinessTable data={flakyFlows} />
             )}
-          </div>
-        </TabsContent>
+          </div>}
 
         {/* ── Coverage ── */}
-        <TabsContent value="coverage" className="space-y-4">
+        {activeTab === 'coverage' && <div className="space-y-4">
           {coverageResult ? (
             <CoverageResults
               result={coverageResult}
@@ -594,10 +597,10 @@ export default function AnalyticsPage() {
               )}
             </>
           )}
-        </TabsContent>
+        </div>}
 
         {/* ── Telemetry ── */}
-        <TabsContent value="telemetry" className="flex flex-col gap-4">
+        {activeTab === 'telemetry' && <div className="flex flex-col gap-4">
           <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
             <div className="px-4 py-3 border-b border-[#1a2332]">
               <p className="text-[13px] font-semibold text-[#c8dce8]">Discovered Flows</p>
@@ -616,8 +619,7 @@ export default function AnalyticsPage() {
               <DriftAlerts />
             </div>
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>}
     </div>
   );
 }
