@@ -22,15 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -231,182 +223,144 @@ export default function EnvironmentsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-8">
+    <div className="px-6 py-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Globe className="w-8 h-8" />
-            Environments
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Manage environment variables for different deployment targets
-          </p>
+          <h1 className="text-xl font-semibold text-[#c8dce8]">Environments</h1>
+          <p className="text-xs text-[#3d5670] mt-0.5">Manage environment variables for different deployment targets</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
-            <Upload className="w-4 h-4 mr-2" />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setImportDialogOpen(true)}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+          >
+            <Upload className="w-3 h-3" />
             Import
-          </Button>
-          <Button onClick={openCreateDialog}>
-            <Plus className="w-4 h-4 mr-2" />
+          </button>
+          <button
+            onClick={openCreateDialog}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
             New Environment
-          </Button>
+          </button>
         </div>
       </div>
 
       {environments.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Globe className="w-12 h-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">No environments yet</h3>
-            <p className="text-muted-foreground text-center mb-4">
-              Create environments to manage variables for different deployment targets
-              (Development, Staging, Production)
-            </p>
-            <Button onClick={openCreateDialog}>
-              <Plus className="w-4 h-4 mr-2" />
-              Create First Environment
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Globe className="w-10 h-10 mb-3 text-[#1e2d3d]" />
+          <p className="text-sm text-[#3d5670] mb-4">No environments yet</p>
+          <button
+            onClick={openCreateDialog}
+            className="flex items-center gap-1.5 h-7 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Create First Environment
+          </button>
+        </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {environments.map((env) => (
-            <Card key={env.id} className="relative">
+            <div key={env.id} className="relative bg-[#0f1923] border border-[#1e2d3d] rounded-xl overflow-hidden hover:border-[#2a3d52] transition-colors">
+              {/* Color accent bar */}
               <div
-                className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
+                className="h-0.5 w-full"
                 style={{ backgroundColor: env.color || PRESET_COLORS[6] }}
               />
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-lg">{env.name}</CardTitle>
-                    {env.is_default && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Star className="w-3 h-3 mr-1 fill-current" />
-                        Default
-                      </Badge>
-                    )}
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEditDialog(env)}>
-                        Edit
-                      </DropdownMenuItem>
-                      {!env.is_default && (
-                        <DropdownMenuItem onClick={() => handleSetDefault(env.id)}>
-                          <Star className="w-4 h-4 mr-2" />
-                          Set as Default
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setDuplicateId(env.id);
-                          setDuplicateName(`${env.name} (Copy)`);
-                          setDuplicateDialogOpen(true);
-                        }}
-                      >
-                        <Copy className="w-4 h-4 mr-2" />
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleExport(env.id, false)}>
-                        <Download className="w-4 h-4 mr-2" />
-                        Export (masked)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExport(env.id, true)}>
-                        <Download className="w-4 h-4 mr-2" />
-                        Export (with secrets)
-                      </DropdownMenuItem>
-                      {!env.is_default && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => handleDelete(env.id)}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                {env.description && (
-                  <CardDescription className="mt-1">{env.description}</CardDescription>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1">
-                      <Variable className="w-4 h-4" />
-                      {env.variables?.length || 0} variables
+              {/* Card header */}
+              <div className="flex items-start justify-between px-4 pt-4 pb-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[13px] font-semibold text-[#c8dce8] truncate">{env.name}</span>
+                  {env.is_default && (
+                    <span className="flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400 shrink-0">
+                      <Star className="w-2.5 h-2.5 fill-current" />
+                      Default
                     </span>
-                    {(Object.keys(env.routing?.headers || {}).length > 0 ||
-                      Object.keys(env.routing?.services || {}).length > 0) && (
-                      <span className="flex items-center gap-1">
-                        <Route className="w-4 h-4" />
-                        {Object.keys(env.routing?.headers || {}).length +
-                          Object.keys(env.routing?.services || {}).length}{' '}
-                        routing rules
-                      </span>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2"
-                    onClick={() => toggleSecretVisibility(env.id)}
-                  >
-                    {showSecrets[env.id] ? (
-                      <EyeOff className="w-3 h-3 mr-1" />
-                    ) : (
-                      <Eye className="w-3 h-3 mr-1" />
-                    )}
-                    {showSecrets[env.id] ? 'Hide' : 'Show'}
-                  </Button>
+                  )}
                 </div>
-                {env.variables && env.variables.length > 0 ? (
-                  <div className="space-y-1 text-sm font-mono bg-muted/50 rounded-md p-2 max-h-32 overflow-y-auto">
-                    {env.variables.slice(0, 5).map((v, i) => (
-                      <div
-                        key={i}
-                        className={cn(
-                          'flex items-center gap-2',
-                          !v.enabled && 'opacity-50'
-                        )}
-                      >
-                        <span className="text-primary truncate">
-                          {v.key}
-                        </span>
-                        <span className="text-muted-foreground">=</span>
-                        <span className="truncate text-muted-foreground">
-                          {v.is_secret && !showSecrets[env.id]
-                            ? '••••••••'
-                            : v.value || '(empty)'}
-                        </span>
-                      </div>
-                    ))}
-                    {env.variables.length > 5 && (
-                      <div className="text-muted-foreground">
-                        +{env.variables.length - 5} more...
-                      </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center justify-center h-6 w-6 rounded text-[#3d5670] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors shrink-0">
+                      <MoreVertical className="w-3.5 h-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => openEditDialog(env)}>Edit</DropdownMenuItem>
+                    {!env.is_default && (
+                      <DropdownMenuItem onClick={() => handleSetDefault(env.id)}>
+                        <Star className="w-4 h-4 mr-2" />Set as Default
+                      </DropdownMenuItem>
                     )}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground italic">
-                    No variables defined
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    <DropdownMenuItem onClick={() => { setDuplicateId(env.id); setDuplicateName(`${env.name} (Copy)`); setDuplicateDialogOpen(true); }}>
+                      <Copy className="w-4 h-4 mr-2" />Duplicate
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => handleExport(env.id, false)}>
+                      <Download className="w-4 h-4 mr-2" />Export (masked)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport(env.id, true)}>
+                      <Download className="w-4 h-4 mr-2" />Export (with secrets)
+                    </DropdownMenuItem>
+                    {!env.is_default && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(env.id)}>
+                          <Trash2 className="w-4 h-4 mr-2" />Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {env.description && (
+                <p className="px-4 pb-2 text-[11px] text-[#3d5670] line-clamp-1">{env.description}</p>
+              )}
+
+              {/* Meta row */}
+              <div className="flex items-center justify-between px-4 pb-3">
+                <div className="flex items-center gap-3 text-[11px] text-[#3d5670]">
+                  <span className="flex items-center gap-1">
+                    <Variable className="w-3 h-3" />
+                    {env.variables?.length || 0} variables
+                  </span>
+                  {(Object.keys(env.routing?.headers || {}).length > 0 ||
+                    Object.keys(env.routing?.services || {}).length > 0) && (
+                    <span className="flex items-center gap-1">
+                      <Route className="w-3 h-3" />
+                      {Object.keys(env.routing?.headers || {}).length + Object.keys(env.routing?.services || {}).length} routing
+                    </span>
+                  )}
+                </div>
+                <button
+                  className="flex items-center gap-1 text-[10px] text-[#4a6480] hover:text-teal-400 transition-colors"
+                  onClick={() => toggleSecretVisibility(env.id)}
+                >
+                  {showSecrets[env.id] ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  {showSecrets[env.id] ? 'Hide' : 'Show'}
+                </button>
+              </div>
+
+              {/* Variables preview */}
+              {env.variables && env.variables.length > 0 && (
+                <div className="mx-4 mb-4 rounded-lg bg-[#0b0f18] border border-[#1a2332] p-2.5 font-mono text-[11px] space-y-1 max-h-28 overflow-y-auto">
+                  {env.variables.slice(0, 5).map((v, i) => (
+                    <div key={i} className={cn('flex items-center gap-2', !v.enabled && 'opacity-40')}>
+                      <span className="text-teal-400/80 truncate max-w-[40%]">{v.key}</span>
+                      <span className="text-[#2a3d52]">=</span>
+                      <span className="truncate text-[#4a6480]">
+                        {v.is_secret && !showSecrets[env.id] ? '••••••••' : v.value || '(empty)'}
+                      </span>
+                    </div>
+                  ))}
+                  {env.variables.length > 5 && (
+                    <div className="text-[#3d5670]">+{env.variables.length - 5} more…</div>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
