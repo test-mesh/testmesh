@@ -6,10 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useFlows, useDeleteFlow } from '@/lib/hooks/useFlows';
 import { useCreateExecution } from '@/lib/hooks/useExecutions';
 import { useRunFlowForDebug } from '@/lib/hooks/useDebug';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Play,
@@ -48,76 +44,72 @@ function FlowCard({
   const stepCount = flow.definition.steps?.length ?? 0;
 
   return (
-    <Card className="group flex flex-col hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <Link href={`/flows/${flow.id}`} className="hover:text-primary transition-colors">
-              <CardTitle className="text-sm font-semibold leading-snug truncate">
-                {flow.name}
-              </CardTitle>
-            </Link>
-            {flow.description && (
-              <CardDescription className="text-xs mt-1 line-clamp-2">
-                {flow.description}
-              </CardDescription>
-            )}
-          </div>
-          <Badge variant="outline" className="text-xs shrink-0">{flow.environment}</Badge>
+    <div className="group relative flex flex-col bg-[#0f1923] border border-[#1e2d3d] rounded-xl hover:border-[#2a3d52] transition-colors overflow-hidden">
+      {/* Top section */}
+      <Link href={`/flows/${flow.id}`} className="flex-1 p-4 block">
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <span className="text-[13px] font-semibold text-[#c8dce8] leading-snug line-clamp-2 group-hover:text-teal-400 transition-colors">
+            {flow.name}
+          </span>
+          <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#4a7a96] shrink-0">
+            {flow.environment || 'default'}
+          </span>
         </div>
-      </CardHeader>
 
-      <CardContent className="flex flex-col flex-1 gap-3 pb-3">
+        {flow.description && (
+          <p className="text-[11px] text-[#3d5670] line-clamp-2 mb-3">{flow.description}</p>
+        )}
+
         {/* Tags */}
-        <div className="flex flex-wrap gap-1 min-h-[20px]">
-          {flow.suite && (
-            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{flow.suite}</Badge>
-          )}
-          {flow.tags?.map((tag: string) => (
-            <Badge key={tag} variant="outline" className="text-[10px] px-1.5 py-0">{tag}</Badge>
-          ))}
-        </div>
+        {(flow.suite || flow.tags?.length > 0) && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {flow.suite && (
+              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400/70">
+                {flow.suite}
+              </span>
+            )}
+            {flow.tags?.map((tag: string) => (
+              <span key={tag} className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#4a6480]">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* Step count */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-auto">
-          <Layers className="w-3.5 h-3.5" />
-          {stepCount} step{stepCount !== 1 ? 's' : ''}
+        <div className="flex items-center gap-1.5 text-[11px] text-[#3d5670]">
+          <Layers className="w-3 h-3" />
+          <span>{stepCount} step{stepCount !== 1 ? 's' : ''}</span>
         </div>
+      </Link>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 pt-2 border-t">
-          <Button
-            size="sm"
-            className="h-7 text-xs flex-1"
-            onClick={() => onRun(flow.id)}
-            disabled={isRunning}
-          >
-            <Play className="w-3 h-3 mr-1" />
-            Run
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => onDebug(flow.id)}
-            disabled={isDebugging}
-            title="Debug"
-          >
-            <Bug className="w-3 h-3" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-            onClick={() => onDelete(flow.id)}
-            disabled={isDeleting}
-            title="Delete"
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      {/* Action bar */}
+      <div className="flex items-center gap-1 px-3 py-2.5 border-t border-[#1a2332]">
+        <button
+          className="flex-1 flex items-center justify-center gap-1.5 h-7 rounded-lg text-[11px] font-medium bg-teal-400/10 text-teal-400 hover:bg-teal-400/20 transition-colors disabled:opacity-50"
+          onClick={() => onRun(flow.id)}
+          disabled={isRunning}
+        >
+          <Play className="w-3 h-3" />
+          Run
+        </button>
+        <button
+          className="flex items-center justify-center h-7 w-7 rounded-lg text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors disabled:opacity-50"
+          onClick={() => onDebug(flow.id)}
+          disabled={isDebugging}
+          title="Debug"
+        >
+          <Bug className="w-3.5 h-3.5" />
+        </button>
+        <button
+          className="flex items-center justify-center h-7 w-7 rounded-lg text-[#4a6480] hover:text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
+          onClick={() => onDelete(flow.id)}
+          disabled={isDeleting}
+          title="Delete"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -188,126 +180,133 @@ export default function FlowsPage() {
   }
 
   return (
-    <div className="container mx-auto py-8">
+    <div className="px-6 py-6">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-5">
         <div>
-          <h1 className="text-2xl font-bold">Test Flows</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Manage and execute your test flows</p>
+          <h1 className="text-xl font-semibold text-[#c8dce8]">Test Flows</h1>
+          <p className="text-xs text-[#3d5670] mt-0.5">Manage and execute your test flows</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/runner">
-              <Zap className="w-3.5 h-3.5 mr-1.5" />
-              Run with Data
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/import">
-              <Upload className="w-3.5 h-3.5 mr-1.5" />
-              Import
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/ai/generate">
-              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-              Generate
-            </Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link href="/flows/new">
-              <Plus className="w-3.5 h-3.5 mr-1.5" />
-              Create Flow
-            </Link>
-          </Button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/runner"
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+          >
+            <Zap className="w-3 h-3" />
+            Run with Data
+          </Link>
+          <Link
+            href="/import"
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+          >
+            <Upload className="w-3 h-3" />
+            Import
+          </Link>
+          <Link
+            href="/ai/generate"
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+          >
+            <Sparkles className="w-3 h-3" />
+            Generate
+          </Link>
+          <Link
+            href="/flows/new"
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Create Flow
+          </Link>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-2 mb-5">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <Input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-[#3d5670]" />
+          <input
             placeholder="Search flows..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); resetPage(); }}
-            className="pl-9 h-9"
+            className="w-full h-8 pl-8 pr-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-xs text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50 transition-colors"
           />
         </div>
-        <Input
+        <input
           placeholder="Suite..."
           value={suiteFilter}
           onChange={(e) => { setSuiteFilter(e.target.value); resetPage(); }}
-          className="w-40 h-9"
+          className="w-36 h-8 px-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-xs text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50 transition-colors"
         />
-        <Input
+        <input
           placeholder="Tag..."
           value={tagFilter}
           onChange={(e) => { setTagFilter(e.target.value); resetPage(); }}
-          className="w-40 h-9"
+          className="w-36 h-8 px-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-xs text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50 transition-colors"
         />
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" className="h-9 px-2" onClick={clearFilters} title="Clear filters">
-            <X className="w-4 h-4" />
-          </Button>
+          <button
+            className="flex items-center justify-center h-8 w-8 rounded-lg text-[#4a6480] hover:text-[#c8dce8] hover:bg-[#1a2d3d] transition-colors"
+            onClick={clearFilters}
+            title="Clear filters"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
 
       {/* Active filter pills */}
       {hasActiveFilters && (
-        <div className="flex gap-2 items-center mb-4 text-sm text-muted-foreground">
+        <div className="flex gap-2 items-center mb-4 text-xs text-[#3d5670]">
           <span>Filters:</span>
           {searchQuery && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => { setSearchQuery(''); resetPage(); }}>
-              {searchQuery} <X className="w-3 h-3" />
-            </Badge>
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#1a2d3d] text-[#7fa8c8] hover:text-[#c8dce8] transition-colors"
+              onClick={() => { setSearchQuery(''); resetPage(); }}
+            >
+              {searchQuery} <X className="w-2.5 h-2.5" />
+            </button>
           )}
           {suiteFilter && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => { setSuiteFilter(''); resetPage(); }}>
-              Suite: {suiteFilter} <X className="w-3 h-3" />
-            </Badge>
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#1a2d3d] text-[#7fa8c8] hover:text-[#c8dce8] transition-colors"
+              onClick={() => { setSuiteFilter(''); resetPage(); }}
+            >
+              Suite: {suiteFilter} <X className="w-2.5 h-2.5" />
+            </button>
           )}
           {tagFilter && (
-            <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => { setTagFilter(''); resetPage(); }}>
-              Tag: {tagFilter} <X className="w-3 h-3" />
-            </Badge>
+            <button
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-[#1a2d3d] text-[#7fa8c8] hover:text-[#c8dce8] transition-colors"
+              onClick={() => { setTagFilter(''); resetPage(); }}
+            >
+              Tag: {tagFilter} <X className="w-2.5 h-2.5" />
+            </button>
           )}
         </div>
       )}
 
       {/* Grid */}
       {isLoading ? (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[...Array(8)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="pb-3">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-full mt-2" />
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Skeleton className="h-5 w-1/2" />
-                <Skeleton className="h-8 w-full" />
-              </CardContent>
-            </Card>
+            <div key={i} className="h-36 rounded-xl bg-[#0f1923] border border-[#1e2d3d] animate-pulse" />
           ))}
         </div>
       ) : filteredFlows.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <Layers className="w-10 h-10 mb-3 opacity-30" />
-            <p className="text-sm mb-4">
-              {flows.length === 0 ? 'No flows yet' : 'No flows match your filters'}
-            </p>
-            <Button size="sm" asChild>
-              <Link href="/flows/new">
-                <Plus className="w-3.5 h-3.5 mr-1.5" />
-                Create Your First Flow
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Layers className="w-10 h-10 mb-3 text-[#1e2d3d]" />
+          <p className="text-sm text-[#3d5670] mb-4">
+            {flows.length === 0 ? 'No flows yet' : 'No flows match your filters'}
+          </p>
+          <Link
+            href="/flows/new"
+            className="flex items-center gap-1.5 h-7 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Create Your First Flow
+          </Link>
+        </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredFlows.map((flow) => (
             <FlowCard
               key={flow.id}
@@ -325,31 +324,29 @@ export default function FlowsPage() {
 
       {/* Pagination */}
       {total > 0 && (
-        <div className="mt-6 flex items-center justify-between text-sm text-muted-foreground">
+        <div className="mt-5 flex items-center justify-between text-xs text-[#3d5670]">
           <span>
             Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total} flows
           </span>
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                className="flex items-center gap-1 h-7 px-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-40 transition-colors text-xs"
                 onClick={() => setPage((p) => p - 1)}
                 disabled={page === 0}
               >
-                <ChevronLeft className="w-4 h-4 mr-1" />
+                <ChevronLeft className="w-3.5 h-3.5" />
                 Previous
-              </Button>
-              <span>Page {page + 1} of {totalPages}</span>
-              <Button
-                variant="outline"
-                size="sm"
+              </button>
+              <span className="text-[#4a6480]">Page {page + 1} of {totalPages}</span>
+              <button
+                className="flex items-center gap-1 h-7 px-3 rounded-lg bg-[#0f1923] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-40 transition-colors text-xs"
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page >= totalPages - 1}
               >
                 Next
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </div>
