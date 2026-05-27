@@ -3,11 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Mail, Lock, Github, Chrome } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { apiClient } from '@/lib/api/client';
 
@@ -17,7 +14,6 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
-  // When cloud is configured, redirect to cloud login with a callback to /auth/callback.
   useEffect(() => {
     if (CLOUD_URL) {
       const next = encodeURIComponent(`${window.location.origin}/auth/callback`);
@@ -34,23 +30,14 @@ export default function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-
     try {
-      const response = await apiClient.post('/api/v1/auth/login', {
-        email,
-        password,
-      });
-
+      const response = await apiClient.post('/api/v1/auth/login', { email, password });
       const { access_token, refresh_token, user } = response.data;
-
-      login(
-        { access_token, refresh_token },
-        user
-      );
-
+      login({ access_token, refresh_token }, user);
       router.push('/');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed. Please check your credentials.');
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setError(axiosErr.response?.data?.error || 'Login failed. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }
@@ -59,138 +46,124 @@ export default function LoginPage() {
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setIsLoading(true);
     setError(null);
-
     try {
-      // Get the OAuth authorization URL from the backend
       const response = await apiClient.get(`/api/v1/auth/oauth/${provider}/url`, {
-        params: {
-          redirect_uri: `${window.location.origin}/login/callback`,
-        },
+        params: { redirect_uri: `${window.location.origin}/login/callback` },
       });
-
-      // Redirect to the OAuth provider
       window.location.href = response.data.authorization_url;
-    } catch (err: any) {
-      setError(err.response?.data?.error || `Failed to initiate ${provider} login`);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setError(axiosErr.response?.data?.error || `Failed to initiate ${provider} login`);
       setIsLoading(false);
     }
   };
 
-  // Show a spinner while redirecting to cloud login (avoids form flash).
   if (CLOUD_URL) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0b0f18]">
+        <Loader2 className="w-6 h-6 animate-spin text-[#3d5670]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary/10 flex items-center justify-center">
-            <span className="text-2xl">🧪</span>
-          </div>
-          <CardTitle className="text-2xl">Welcome to TestMesh</CardTitle>
-          <CardDescription>
-            Sign in to manage your test flows and executions
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {/* OAuth Buttons */}
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="outline"
-              onClick={() => handleOAuthLogin('google')}
-              disabled={isLoading}
-            >
-              <Chrome className="w-4 h-4 mr-2" />
-              Google
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleOAuthLogin('github')}
-              disabled={isLoading}
-            >
-              <Github className="w-4 h-4 mr-2" />
-              GitHub
-            </Button>
+    <div className="min-h-screen flex items-center justify-center bg-[#0b0f18] p-4">
+      <div className="w-full max-w-md">
+        <div className="rounded-2xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          {/* Header */}
+          <div className="px-8 pt-8 pb-6 text-center border-b border-[#1a2332]">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-teal-400/10 border border-teal-400/20 flex items-center justify-center">
+              <span className="text-xl">🧪</span>
+            </div>
+            <h1 className="text-xl font-semibold text-[#c8dce8] mb-1">Welcome to TestMesh</h1>
+            <p className="text-xs text-[#4a6480]">Sign in to manage your test flows and executions</p>
           </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Separator />
+          <div className="px-8 py-6 space-y-5">
+            {/* OAuth */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => handleOAuthLogin('google')}
+                disabled={isLoading}
+                className="flex items-center justify-center gap-2 h-8 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
+              >
+                <Chrome className="w-3.5 h-3.5" />
+                Google
+              </button>
+              <button
+                onClick={() => handleOAuthLogin('github')}
+                disabled={isLoading}
+                className="flex items-center justify-center gap-2 h-8 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
+              >
+                <Github className="w-3.5 h-3.5" />
+                GitHub
+              </button>
             </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                Or continue with email
-              </span>
+
+            <div className="relative flex items-center gap-3">
+              <div className="flex-1 h-px bg-[#1a2332]" />
+              <span className="text-[10px] text-[#3d5670] uppercase tracking-wider">or continue with email</span>
+              <div className="flex-1 h-px bg-[#1a2332]" />
             </div>
+
+            {/* Email form */}
+            <form onSubmit={handleEmailLogin} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-[#7fa8c8]">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#3d5670]" />
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-9 h-8 text-xs bg-[#0b0f18] border-[#1a2332] text-[#c8dce8] placeholder-[#3d5670] focus:border-teal-400/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-[#7fa8c8]">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#3d5670]" />
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-9 h-8 text-xs bg-[#0b0f18] border-[#1a2332] text-[#c8dce8] placeholder-[#3d5670] focus:border-teal-400/50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="rounded-lg bg-red-400/5 border border-red-400/20 p-3">
+                  <p className="text-xs text-red-400">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-8 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+              >
+                {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Sign In
+              </button>
+            </form>
           </div>
 
-          {/* Email/Password Form */}
-          <form onSubmit={handleEmailLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-9"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9"
-                  required
-                />
-              </div>
-            </div>
-
-            {error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-                {error}
-              </div>
-            )}
-
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Sign In
-            </Button>
-          </form>
-        </CardContent>
-
-        <CardFooter className="flex flex-col space-y-2 text-center text-sm text-muted-foreground">
-          <p>
-            Don&apos;t have an account?{' '}
-            <a href="/register" className="text-primary hover:underline">
-              Sign up
-            </a>
-          </p>
-          <p>
-            <a href="/forgot-password" className="hover:underline">
-              Forgot your password?
-            </a>
-          </p>
-        </CardFooter>
-      </Card>
+          <div className="px-8 pb-6 flex flex-col gap-1 items-center text-xs text-[#3d5670]">
+            <p>
+              Don&apos;t have an account?{' '}
+              <a href="/register" className="text-[#4a6480] hover:text-teal-400 transition-colors">Sign up</a>
+            </p>
+            <a href="/forgot-password" className="hover:text-[#7fa8c8] transition-colors">Forgot your password?</a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,27 +2,23 @@
 
 import { use } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useImportHistoryDetail } from '@/lib/hooks/useAI';
 import {
-  ArrowLeft,
-  FileUp,
-  RefreshCw,
-  FileCode,
-  ExternalLink,
-  CheckCircle,
-  AlertCircle,
+  ArrowLeft, FileUp, RefreshCw, FileCode, ExternalLink, CheckCircle, AlertCircle,
 } from 'lucide-react';
+
+const STATUS_STYLES: Record<string, string> = {
+  completed:  'bg-teal-400/10 text-teal-400 border-teal-400/30',
+  processing: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/30',
+  pending:    'bg-[#1a2d3d] text-[#4a7a96] border-[#2a3d52]',
+  failed:     'bg-red-400/10 text-red-400 border-red-400/30',
+};
+
+const SOURCE_STYLES: Record<string, string> = {
+  openapi: 'bg-teal-400/10 text-teal-400 border-teal-400/30',
+  postman: 'bg-orange-400/10 text-orange-400 border-orange-400/30',
+  pact:    'bg-purple-400/10 text-purple-400 border-purple-400/30',
+};
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -32,197 +28,114 @@ export default function ImportDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const { data: importData, isLoading, error } = useImportHistoryDetail(id);
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString();
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="default">Completed</Badge>;
-      case 'processing':
-        return <Badge variant="secondary">Processing</Badge>;
-      case 'pending':
-        return <Badge variant="outline">Pending</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getSourceIcon = (sourceType: string) => {
-    switch (sourceType) {
-      case 'openapi':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">OpenAPI</Badge>;
-      case 'postman':
-        return <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">Postman</Badge>;
-      case 'pact':
-        return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Pact</Badge>;
-      default:
-        return <Badge variant="outline">{sourceType}</Badge>;
-    }
-  };
+  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleString();
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex items-center justify-center py-24">
-          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+      <div className="px-6 py-6 flex items-center justify-center py-24">
+        <RefreshCw className="h-6 w-6 animate-spin text-[#3d5670]" />
       </div>
     );
   }
 
   if (error || !importData) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/ai/history">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to History
-            </Button>
-          </Link>
+      <div className="px-6 py-6 space-y-5">
+        <Link href="/ai/history" className="inline-flex items-center gap-1.5 text-xs text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to History
+        </Link>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] flex flex-col items-center justify-center py-16 text-center">
+          <FileUp className="h-10 w-10 mb-3 text-[#1e2d3d]" />
+          <p className="text-xs text-[#4a6480]">Import record not found</p>
         </div>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <FileUp className="h-12 w-12 mb-4" />
-            <p>Import record not found</p>
-          </CardContent>
-        </Card>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/ai/history">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to History
-          </Button>
-        </Link>
-      </div>
-
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <FileUp className="h-8 w-8 text-primary" />
-            Import Details
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Imported on {formatDate(importData.created_at)}
-          </p>
-        </div>
+    <div className="px-6 py-6 space-y-5">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {getStatusBadge(importData.status)}
+          <Link href="/ai/history" className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <FileUp className="h-4 w-4 text-[#3d5670]" />
+          <h1 className="text-xl font-semibold text-[#c8dce8]">Import Details</h1>
+          <p className="text-xs text-[#3d5670] mt-0.5">Imported on {formatDate(importData.created_at)}</p>
         </div>
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border capitalize ${STATUS_STYLES[importData.status] ?? STATUS_STYLES.pending}`}>
+          {importData.status}
+        </span>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <FileCode className="h-4 w-4" />
-              Source
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="font-medium text-lg">{importData.source_name}</div>
-            <div className="mt-2">{getSourceIcon(importData.source_type)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Flows Generated</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{importData.flows_generated}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              {importData.status === 'completed' ? (
-                <CheckCircle className="h-5 w-5 text-green-500" />
-              ) : importData.status === 'failed' ? (
-                <AlertCircle className="h-5 w-5 text-red-500" />
-              ) : (
-                <RefreshCw className="h-5 w-5 text-primary animate-spin" />
-              )}
-              <span className="capitalize">{importData.status}</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-3">
+          <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+            <FileCode className="h-3 w-3" />Source
+          </p>
+          <p className="text-sm font-semibold text-[#c8dce8]">{importData.source_name}</p>
+          <span className={`inline-block mt-1.5 text-[10px] font-semibold px-2 py-0.5 rounded border capitalize ${SOURCE_STYLES[importData.source_type] ?? 'bg-[#1a2d3d] text-[#4a7a96] border-[#2a3d52]'}`}>
+            {importData.source_type}
+          </span>
+        </div>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-3">
+          <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1.5">Flows Generated</p>
+          <p className="text-2xl font-bold text-teal-400">{importData.flows_generated}</p>
+        </div>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-3">
+          <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1.5">Status</p>
+          <div className="flex items-center gap-2">
+            {importData.status === 'completed' ? (
+              <CheckCircle className="h-4 w-4 text-teal-400" />
+            ) : importData.status === 'failed' ? (
+              <AlertCircle className="h-4 w-4 text-red-400" />
+            ) : (
+              <RefreshCw className="h-4 w-4 text-yellow-400 animate-spin" />
+            )}
+            <span className="text-xs font-medium text-[#c8dce8] capitalize">{importData.status}</span>
+          </div>
+        </div>
       </div>
 
       {/* Generated Flows */}
       {importData.flow_ids && importData.flow_ids.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Generated Flows</CardTitle>
-            <CardDescription>
-              {importData.flows_generated} flow(s) were created from this import
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Flow ID</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {importData.flow_ids.map((flowId: string) => (
-                  <TableRow key={flowId}>
-                    <TableCell className="font-mono">{flowId}</TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/flows/${flowId}`}>
-                        <Button variant="ghost" size="sm">
-                          View Flow <ExternalLink className="h-4 w-4 ml-2" />
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332]">
+            <span className="text-[11px] font-semibold text-[#c8dce8]">Generated Flows</span>
+            <span className="text-[10px] text-[#4a6480] ml-2">{importData.flows_generated} flow{importData.flows_generated !== 1 ? 's' : ''} created from this import</span>
+          </div>
+          <div className="divide-y divide-[#1a2332]">
+            {importData.flow_ids.map((flowId: string) => (
+              <div key={flowId} className="flex items-center justify-between px-4 py-2.5 hover:bg-[#131b26] transition-colors">
+                <span className="text-xs font-mono text-[#7fa8c8]">{flowId}</span>
+                <Link href={`/flows/${flowId}`} className="flex items-center gap-1.5 text-[10px] text-[#4a6480] hover:text-teal-400 transition-colors">
+                  View Flow <ExternalLink className="h-3 w-3" />
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* Re-import Action */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="flex gap-4">
-          <Link href="/import?tab=spec">
-            <Button variant="outline">
-              <FileUp className="h-4 w-4 mr-2" />
-              Import Another Spec
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
+      {/* Actions */}
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-4">
+        <p className="text-[11px] font-semibold text-[#c8dce8] mb-3">Actions</p>
+        <Link
+          href="/import?tab=spec"
+          className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+        >
+          <FileUp className="h-3 w-3" />
+          Import Another Spec
+        </Link>
+      </div>
 
       {/* Error */}
       {importData.error && (
-        <Card className="mt-6 border-red-200 bg-red-50/50 dark:bg-red-950/20">
-          <CardHeader>
-            <CardTitle className="text-red-600">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-600">{importData.error}</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-red-400/5 border border-red-400/20 p-4">
+          <p className="text-[11px] font-semibold text-red-400 mb-1">Error</p>
+          <p className="text-xs text-red-400/80">{importData.error}</p>
+        </div>
       )}
     </div>
   );

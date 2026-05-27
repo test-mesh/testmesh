@@ -1,25 +1,18 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { useGenerationHistoryDetail, useGenerateFlow } from '@/lib/hooks/useAI';
 import {
-  ArrowLeft,
-  Sparkles,
-  RefreshCw,
-  Clock,
-  Zap,
-  FileText,
-  Copy,
-  Check,
-  ExternalLink,
-  RotateCcw,
+  ArrowLeft, Sparkles, RefreshCw, Clock, Zap, FileText, Copy, Check, ExternalLink, RotateCcw,
 } from 'lucide-react';
-import { useState } from 'react';
+
+const STATUS_STYLES: Record<string, string> = {
+  completed:  'bg-teal-400/10 text-teal-400 border-teal-400/30',
+  processing: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/30',
+  pending:    'bg-[#1a2d3d] text-[#4a7a96] border-[#2a3d52]',
+  failed:     'bg-red-400/10 text-red-400 border-red-400/30',
+};
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -31,24 +24,7 @@ export default function GenerationDetailPage({ params }: PageProps) {
   const regenerate = useGenerateFlow();
   const [copied, setCopied] = useState(false);
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString();
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="default">Completed</Badge>;
-      case 'processing':
-        return <Badge variant="secondary">Processing</Badge>;
-      case 'pending':
-        return <Badge variant="outline">Pending</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
+  const formatDate = (dateStr: string) => new Date(dateStr).toLocaleString();
 
   const handleCopyYaml = () => {
     if (generation?.generated_yaml) {
@@ -60,192 +36,125 @@ export default function GenerationDetailPage({ params }: PageProps) {
 
   const handleRegenerate = () => {
     if (generation) {
-      regenerate.mutate({
-        prompt: generation.prompt,
-        provider: generation.provider,
-        model: generation.model,
-      });
+      regenerate.mutate({ prompt: generation.prompt, provider: generation.provider, model: generation.model });
     }
   };
 
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex items-center justify-center py-24">
-          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
+      <div className="px-6 py-6 flex items-center justify-center py-24">
+        <RefreshCw className="h-6 w-6 animate-spin text-[#3d5670]" />
       </div>
     );
   }
 
   if (error || !generation) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="flex items-center gap-4 mb-8">
-          <Link href="/ai/history">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to History
-            </Button>
-          </Link>
+      <div className="px-6 py-6 space-y-5">
+        <Link href="/ai/history" className="inline-flex items-center gap-1.5 text-xs text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5" /> Back to History
+        </Link>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] flex flex-col items-center justify-center py-16 text-center">
+          <Sparkles className="h-10 w-10 mb-3 text-[#1e2d3d]" />
+          <p className="text-xs text-[#4a6480]">Generation not found</p>
         </div>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Sparkles className="h-12 w-12 mb-4" />
-            <p>Generation not found</p>
-          </CardContent>
-        </Card>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <Link href="/ai/history">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to History
-          </Button>
-        </Link>
-      </div>
-
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Sparkles className="h-8 w-8 text-purple-500" />
-            Generation Details
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Generated on {formatDate(generation.created_at)}
-          </p>
+    <div className="px-6 py-6 space-y-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Link href="/ai/history" className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <Sparkles className="h-4 w-4 text-[#3d5670]" />
+          <h1 className="text-xl font-semibold text-[#c8dce8]">Generation Details</h1>
+          <p className="text-xs text-[#3d5670] mt-0.5">Generated on {formatDate(generation.created_at)}</p>
         </div>
         <div className="flex items-center gap-2">
-          {getStatusBadge(generation.status)}
-          <Button
-            variant="outline"
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border capitalize ${STATUS_STYLES[generation.status] ?? STATUS_STYLES.pending}`}>
+            {generation.status}
+          </span>
+          <button
             onClick={handleRegenerate}
             disabled={regenerate.isPending}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-[#0f1923] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
           >
-            {regenerate.isPending ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RotateCcw className="h-4 w-4 mr-2" />
-            )}
+            {regenerate.isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
             Regenerate
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4 mb-8">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Provider</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Badge variant="outline" className="capitalize text-lg">
-              {generation.provider}
-            </Badge>
-            <p className="text-xs text-muted-foreground mt-1">{generation.model}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Tokens Used
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{generation.tokens_used.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Latency
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{(generation.latency_ms / 1000).toFixed(2)}s</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Flow Created</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {generation.flow_id ? (
-              <Link href={`/flows/${generation.flow_id}`} className="flex items-center gap-2 text-primary hover:underline">
-                View Flow <ExternalLink className="h-4 w-4" />
-              </Link>
-            ) : (
-              <span className="text-muted-foreground">Not saved</span>
-            )}
-          </CardContent>
-        </Card>
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3">
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-3">
+          <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1.5">Provider</p>
+          <p className="text-sm font-semibold text-[#c8dce8] capitalize">{generation.provider}</p>
+          <p className="text-[10px] text-[#4a6480] mt-0.5">{generation.model}</p>
+        </div>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-3">
+          <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1.5 flex items-center gap-1"><Zap className="h-3 w-3" />Tokens Used</p>
+          <p className="text-2xl font-bold text-[#c8dce8]">{generation.tokens_used.toLocaleString()}</p>
+        </div>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-3">
+          <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1.5 flex items-center gap-1"><Clock className="h-3 w-3" />Latency</p>
+          <p className="text-2xl font-bold text-[#c8dce8]">{(generation.latency_ms / 1000).toFixed(2)}s</p>
+        </div>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-3">
+          <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1.5">Flow Created</p>
+          {generation.flow_id ? (
+            <Link href={`/flows/${generation.flow_id}`} className="flex items-center gap-1.5 text-xs text-teal-400 hover:text-teal-300 transition-colors">
+              View Flow <ExternalLink className="h-3 w-3" />
+            </Link>
+          ) : (
+            <span className="text-xs text-[#4a6480]">Not saved</span>
+          )}
+        </div>
       </div>
 
       {/* Prompt */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Prompt
-          </CardTitle>
-          <CardDescription>The natural language description used to generate this flow</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-muted/50 rounded-lg p-4">
-            <p className="whitespace-pre-wrap">{generation.prompt}</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[#1a2332] flex items-center gap-2">
+          <FileText className="h-3.5 w-3.5 text-[#4a6480]" />
+          <span className="text-[11px] font-semibold text-[#c8dce8]">Prompt</span>
+          <span className="text-[10px] text-[#4a6480]">Natural language description used to generate this flow</span>
+        </div>
+        <div className="p-4">
+          <p className="text-xs text-[#c8dce8] whitespace-pre-wrap">{generation.prompt}</p>
+        </div>
+      </div>
 
       {/* Generated YAML */}
       {generation.generated_yaml && (
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Generated YAML</CardTitle>
-                <CardDescription>The flow definition generated by AI</CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={handleCopyYaml}>
-                {copied ? (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy YAML
-                  </>
-                )}
-              </Button>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-3.5 w-3.5 text-[#4a6480]" />
+              <span className="text-[11px] font-semibold text-[#c8dce8]">Generated YAML</span>
+              <span className="text-[10px] text-[#4a6480]">Flow definition generated by AI</span>
             </div>
-          </CardHeader>
-          <CardContent>
-            <pre className="bg-muted/50 rounded-lg p-4 overflow-x-auto text-sm">
-              <code>{generation.generated_yaml}</code>
-            </pre>
-          </CardContent>
-        </Card>
+            <button
+              onClick={handleCopyYaml}
+              className="flex items-center gap-1.5 h-6 px-2.5 rounded text-[10px] font-medium bg-[#0b0f18] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+            >
+              {copied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy YAML</>}
+            </button>
+          </div>
+          <div className="p-4 overflow-x-auto">
+            <pre className="text-xs font-mono text-[#7fa8c8]"><code>{generation.generated_yaml}</code></pre>
+          </div>
+        </div>
       )}
 
       {/* Error */}
       {generation.error && (
-        <Card className="border-red-200 bg-red-50/50 dark:bg-red-950/20">
-          <CardHeader>
-            <CardTitle className="text-red-600">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-red-600">{generation.error}</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-red-400/5 border border-red-400/20 p-4">
+          <p className="text-[11px] font-semibold text-red-400 mb-1">Error</p>
+          <p className="text-xs text-red-400/80">{generation.error}</p>
+        </div>
       )}
     </div>
   );

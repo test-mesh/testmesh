@@ -2,25 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Activity,
-  Database,
-  Server,
-  Cpu,
-  HardDrive,
-  MemoryStick,
-  Clock,
-  RefreshCw,
-  CheckCircle,
-  AlertCircle,
-  XCircle,
-  ArrowUpRight,
-  ArrowDownRight,
+  Activity, Database, Server, Cpu, HardDrive, MemoryStick,
+  Clock, RefreshCw, CheckCircle, AlertCircle, XCircle,
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
 
 interface ServiceHealth {
   name: string;
@@ -47,6 +31,31 @@ interface DatabaseMetrics {
   slowQueries: number;
 }
 
+const STATUS_STYLES: Record<string, { badge: string; icon: React.ElementType; iconColor: string }> = {
+  healthy:   { badge: 'bg-teal-400/10 text-teal-400 border-teal-400/30',    icon: CheckCircle, iconColor: 'text-teal-400' },
+  degraded:  { badge: 'bg-yellow-400/10 text-yellow-400 border-yellow-400/30', icon: AlertCircle, iconColor: 'text-yellow-400' },
+  unhealthy: { badge: 'bg-red-400/10 text-red-400 border-red-400/30',        icon: XCircle,     iconColor: 'text-red-400' },
+};
+
+function progressColor(v: number) {
+  return v < 60 ? 'bg-teal-400' : v < 80 ? 'bg-yellow-400' : 'bg-red-400';
+}
+
+function MetricBar({ label, value, suffix = '%' }: { label: string; value?: number; suffix?: string }) {
+  const v = value ?? 0;
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-[#4a6480]">{label}</span>
+      <div className="flex items-center gap-2">
+        <div className="w-20 h-1.5 bg-[#1a2332] rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${progressColor(v)}`} style={{ width: `${v}%` }} />
+        </div>
+        <span className="font-mono text-[#c8dce8] w-10 text-right">{v}{suffix}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function HealthPage() {
   const [services, setServices] = useState<ServiceHealth[]>([]);
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
@@ -56,290 +65,156 @@ export default function HealthPage() {
 
   const loadHealth = async () => {
     setLoading(true);
-
-    // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 500));
-
     setServices([
-      {
-        name: 'API Server',
-        status: 'healthy',
-        latency: 12,
-        lastCheck: 'Just now',
-      },
-      {
-        name: 'Database (PostgreSQL)',
-        status: 'healthy',
-        latency: 5,
-        lastCheck: 'Just now',
-      },
-      {
-        name: 'Scheduler',
-        status: 'healthy',
-        message: '12 active schedules',
-        lastCheck: 'Just now',
-      },
-      {
-        name: 'Plugin System',
-        status: 'healthy',
-        message: '5 plugins loaded',
-        lastCheck: 'Just now',
-      },
-      {
-        name: 'WebSocket Hub',
-        status: 'healthy',
-        message: '3 active connections',
-        lastCheck: 'Just now',
-      },
+      { name: 'API Server',           status: 'healthy', latency: 12, lastCheck: 'Just now' },
+      { name: 'Database (PostgreSQL)', status: 'healthy', latency: 5,  lastCheck: 'Just now' },
+      { name: 'Scheduler',            status: 'healthy', message: '12 active schedules', lastCheck: 'Just now' },
+      { name: 'Plugin System',        status: 'healthy', message: '5 plugins loaded',    lastCheck: 'Just now' },
+      { name: 'WebSocket Hub',        status: 'healthy', message: '3 active connections', lastCheck: 'Just now' },
     ]);
-
-    setMetrics({
-      cpu: 23,
-      memory: 45,
-      disk: 62,
-      uptime: '14d 6h 32m',
-      version: '1.0.0',
-      goroutines: 124,
-      connections: 8,
-    });
-
-    setDbMetrics({
-      connections: 5,
-      maxConnections: 100,
-      queryTime: 2.4,
-      slowQueries: 0,
-    });
-
+    setMetrics({ cpu: 23, memory: 45, disk: 62, uptime: '14d 6h 32m', version: '1.0.0', goroutines: 124, connections: 8 });
+    setDbMetrics({ connections: 5, maxConnections: 100, queryTime: 2.4, slowQueries: 0 });
     setLastRefresh(new Date());
     setLoading(false);
   };
 
   useEffect(() => {
     loadHealth();
-
-    // Auto-refresh every 30 seconds
     const interval = setInterval(loadHealth, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'healthy':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      case 'degraded':
-        return <AlertCircle className="w-5 h-5 text-yellow-500" />;
-      case 'unhealthy':
-        return <XCircle className="w-5 h-5 text-red-500" />;
-      default:
-        return null;
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'healthy':
-        return <Badge className="bg-green-100 text-green-700">Healthy</Badge>;
-      case 'degraded':
-        return <Badge className="bg-yellow-100 text-yellow-700">Degraded</Badge>;
-      case 'unhealthy':
-        return <Badge variant="destructive">Unhealthy</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  const getProgressColor = (value: number) => {
-    if (value < 60) return 'bg-green-500';
-    if (value < 80) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
-
-  if (loading && !metrics) {
-    return (
-      <div className="p-6 space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const overallStatus = services.every((s) => s.status === 'healthy')
-    ? 'healthy'
-    : services.some((s) => s.status === 'unhealthy')
-    ? 'unhealthy'
+  const overallStatus = services.length === 0 ? 'healthy'
+    : services.every((s) => s.status === 'healthy') ? 'healthy'
+    : services.some((s) => s.status === 'unhealthy') ? 'unhealthy'
     : 'degraded';
 
+  const overall = STATUS_STYLES[overallStatus];
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
+    <div className="px-6 py-6 space-y-5">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Activity className="w-6 h-6" />
-            System Health
-          </h1>
-          <p className="text-muted-foreground">
-            Monitor services and system resources
-          </p>
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-[#3d5670]" />
+          <h1 className="text-xl font-semibold text-[#c8dce8]">System Health</h1>
+          <p className="text-xs text-[#3d5670] mt-0.5">Monitor services and system resources</p>
         </div>
         <div className="flex items-center gap-2">
-          {getStatusBadge(overallStatus)}
-          <Button variant="outline" onClick={loadHealth} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border capitalize ${overall.badge}`}>
+            {overallStatus}
+          </span>
+          <button
+            onClick={loadHealth}
+            disabled={loading}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-[#0f1923] border border-[#1e2d3d] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
             Refresh
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* System Resources */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
-            <Cpu className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics?.cpu}%</div>
-            <Progress
-              value={metrics?.cpu}
-              className={`mt-2 [&>div]:${getProgressColor(metrics?.cpu || 0)}`}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
-            <MemoryStick className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics?.memory}%</div>
-            <Progress
-              value={metrics?.memory}
-              className={`mt-2 [&>div]:${getProgressColor(metrics?.memory || 0)}`}
-            />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Disk Usage</CardTitle>
-            <HardDrive className="w-4 h-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics?.disk}%</div>
-            <Progress
-              value={metrics?.disk}
-              className={`mt-2 [&>div]:${getProgressColor(metrics?.disk || 0)}`}
-            />
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'CPU Usage', value: metrics?.cpu, icon: Cpu },
+          { label: 'Memory Usage', value: metrics?.memory, icon: MemoryStick },
+          { label: 'Disk Usage', value: metrics?.disk, icon: HardDrive },
+        ].map(({ label, value, icon: Icon }) => (
+          <div key={label} className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-3">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{label}</p>
+              <Icon className="h-3.5 w-3.5 text-[#3d5670]" />
+            </div>
+            <p className="text-2xl font-bold text-[#c8dce8] mb-2">{value}%</p>
+            <div className="w-full h-1.5 bg-[#1a2332] rounded-full overflow-hidden">
+              <div className={`h-full rounded-full ${progressColor(value ?? 0)}`} style={{ width: `${value}%` }} />
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Services */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Services</CardTitle>
-          <CardDescription>Status of all system services</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {services.map((service) => (
-              <div
-                key={service.name}
-                className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
-              >
-                <div className="flex items-center gap-3">
-                  {getStatusIcon(service.status)}
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[#1a2332] flex items-center gap-2">
+          <Server className="h-3.5 w-3.5 text-[#4a6480]" />
+          <span className="text-[11px] font-semibold text-[#c8dce8]">Services</span>
+          <span className="text-[10px] text-[#4a6480]">Status of all system services</span>
+        </div>
+        <div className="divide-y divide-[#1a2332]">
+          {services.map((service) => {
+            const st = STATUS_STYLES[service.status];
+            const Icon = st.icon;
+            return (
+              <div key={service.name} className="flex items-center justify-between px-4 py-2.5 hover:bg-[#131b26] transition-colors">
+                <div className="flex items-center gap-2.5">
+                  <Icon className={`h-4 w-4 ${st.iconColor}`} />
                   <div>
-                    <div className="font-medium">{service.name}</div>
-                    {service.message && (
-                      <div className="text-sm text-muted-foreground">
-                        {service.message}
-                      </div>
-                    )}
+                    <p className="text-xs font-medium text-[#c8dce8]">{service.name}</p>
+                    {service.message && <p className="text-[10px] text-[#4a6480]">{service.message}</p>}
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   {service.latency !== undefined && (
-                    <div className="text-sm text-muted-foreground">
-                      {service.latency}ms
-                    </div>
+                    <span className="text-[10px] font-mono text-[#4a6480]">{service.latency}ms</span>
                   )}
-                  {getStatusBadge(service.status)}
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded border capitalize ${st.badge}`}>
+                    {service.status}
+                  </span>
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* DB + Runtime */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332] flex items-center gap-2">
+            <Database className="h-3.5 w-3.5 text-[#4a6480]" />
+            <span className="text-[11px] font-semibold text-[#c8dce8]">Database Metrics</span>
+          </div>
+          <div className="p-4 space-y-3">
+            <MetricBar
+              label={`Active Connections (max ${dbMetrics?.maxConnections})`}
+              value={Math.round(((dbMetrics?.connections ?? 0) / (dbMetrics?.maxConnections ?? 1)) * 100)}
+            />
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[#4a6480]">Avg Query Time</span>
+              <span className="font-mono text-[#c8dce8]">{dbMetrics?.queryTime}ms</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[#4a6480]">Slow Queries (last hour)</span>
+              <span className="font-mono text-[#c8dce8]">{dbMetrics?.slowQueries}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332] flex items-center gap-2">
+            <Server className="h-3.5 w-3.5 text-[#4a6480]" />
+            <span className="text-[11px] font-semibold text-[#c8dce8]">Runtime Info</span>
+          </div>
+          <div className="p-4 space-y-3">
+            {[
+              { label: 'Uptime',                value: metrics?.uptime },
+              { label: 'Version',               value: metrics ? `v${metrics.version}` : '—' },
+              { label: 'Goroutines',            value: metrics?.goroutines },
+              { label: 'WebSocket Connections', value: metrics?.connections },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between text-xs">
+                <span className="text-[#4a6480]">{label}</span>
+                <span className="font-mono text-[#c8dce8]">{value}</span>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Database Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Database className="w-5 h-5" />
-              Database Metrics
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Active Connections</span>
-              <span className="font-mono">
-                {dbMetrics?.connections} / {dbMetrics?.maxConnections}
-              </span>
-            </div>
-            <Progress
-              value={(dbMetrics?.connections || 0) / (dbMetrics?.maxConnections || 1) * 100}
-              className="h-2"
-            />
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Avg Query Time</span>
-              <span className="font-mono">{dbMetrics?.queryTime}ms</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Slow Queries (last hour)</span>
-              <span className="font-mono">{dbMetrics?.slowQueries}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Server className="w-5 h-5" />
-              Runtime Info
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Uptime</span>
-              <span className="font-mono">{metrics?.uptime}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Version</span>
-              <Badge variant="outline">v{metrics?.version}</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Goroutines</span>
-              <span className="font-mono">{metrics?.goroutines}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">WebSocket Connections</span>
-              <span className="font-mono">{metrics?.connections}</span>
-            </div>
-          </CardContent>
-        </Card>
+        </div>
       </div>
 
-      {/* Last Refresh */}
-      <div className="flex items-center justify-center text-sm text-muted-foreground">
-        <Clock className="w-4 h-4 mr-1" />
+      <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#3d5670]">
+        <Clock className="w-3 h-3" />
         Last updated: {lastRefresh.toLocaleTimeString()}
       </div>
     </div>
