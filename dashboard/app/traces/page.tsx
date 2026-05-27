@@ -4,11 +4,10 @@ import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Copy, Check, Loader2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { SpanWaterfall } from '@/components/traces/SpanWaterfall';
 import { useSpans } from '@/lib/hooks/useTelemetry';
+import { cn } from '@/lib/utils';
 
 function TracesContent() {
   const searchParams = useSearchParams();
@@ -19,9 +18,7 @@ function TracesContent() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [copied, setCopied] = useState(false);
 
-  const { data, isLoading, error } = useSpans(
-    traceId ? { trace_id: traceId } : {}
-  );
+  const { data, isLoading, error } = useSpans(traceId ? { trace_id: traceId } : {});
 
   const spans = data?.spans ?? [];
   const services = Array.from(new Set(spans.map((s) => s.service)));
@@ -40,61 +37,58 @@ function TracesContent() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="px-6 py-6 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <Link
           href={executionId ? `/executions/${executionId}` : '/executions'}
-          className="text-muted-foreground hover:text-foreground"
+          className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-sm text-muted-foreground">Trace</span>
-          <code className="text-xs font-mono bg-muted px-2 py-0.5 rounded truncate">
+          <span className="text-[11px] text-[#4a6480]">Trace</span>
+          <code className="text-[11px] font-mono bg-[#1a2d3d] text-[#7fa8c8] px-2 py-0.5 rounded truncate">
             {traceId || '—'}
           </code>
           {traceId && (
-            <button onClick={handleCopy} className="text-muted-foreground hover:text-foreground">
-              {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+            <button
+              onClick={handleCopy}
+              className="text-[#4a6480] hover:text-[#7fa8c8] transition-colors"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-teal-400" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
           )}
         </div>
         {spans.length > 0 && (
           <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={
-                overallStatus === 'error'
-                  ? 'text-red-600 border-red-200'
-                  : 'text-green-600 border-green-200'
-              }
-            >
+            <span className={cn(
+              'text-[10px] font-semibold px-2 py-0.5 rounded capitalize',
+              overallStatus === 'error' ? 'bg-red-400/10 text-red-400' : 'bg-teal-400/10 text-teal-400'
+            )}>
               {overallStatus}
-            </Badge>
-            <span className="text-sm text-muted-foreground">{totalDuration}ms total</span>
+            </span>
+            <span className="text-[11px] text-[#4a6480]">{totalDuration}ms total</span>
           </div>
         )}
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-2 flex-wrap">
         <Select value={serviceFilter} onValueChange={setServiceFilter}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="h-7 w-[160px] text-xs bg-[#0f1923] border-[#1e2d3d] text-[#7fa8c8]">
             <SelectValue placeholder="All services" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All services</SelectItem>
             {services.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
+              <SelectItem key={s} value={s}>{s}</SelectItem>
             ))}
           </SelectContent>
         </Select>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[140px]">
+          <SelectTrigger className="h-7 w-[130px] text-xs bg-[#0f1923] border-[#1e2d3d] text-[#7fa8c8]">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -106,48 +100,38 @@ function TracesContent() {
         </Select>
       </div>
 
-      {/* Empty state */}
       {!traceId && (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground text-sm">
-            No trace ID provided. Open this page from an execution&apos;s Trace tab.
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-8 text-center">
+          <p className="text-xs text-[#3d5670]">No trace ID provided. Open this page from an execution&apos;s Trace tab.</p>
+        </div>
       )}
 
-      {/* Loading */}
       {traceId && isLoading && (
-        <Card>
-          <CardContent className="py-12 flex justify-center">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-8 flex justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-[#3d5670]" />
+        </div>
       )}
 
-      {/* Error */}
       {traceId && error && (
-        <Card>
-          <CardContent className="py-12 text-center text-red-600 text-sm">
-            Failed to load trace. The trace may have expired or tracing may be disabled.
-          </CardContent>
-        </Card>
+        <div className="rounded-xl bg-red-400/5 border border-red-400/20 p-6 text-center">
+          <p className="text-xs text-red-400">Failed to load trace. The trace may have expired or tracing may be disabled.</p>
+        </div>
       )}
 
-      {/* Waterfall */}
       {traceId && !isLoading && spans.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Span Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#1a2332]">
+            <span className="text-[11px] font-semibold text-[#c8dce8]">Span Timeline</span>
+          </div>
+          <div className="p-4">
             <SpanWaterfall
               spans={spans}
               errorSpanIds={errorSpanIds}
               filterService={serviceFilter === 'all' ? undefined : serviceFilter}
               filterStatus={statusFilter === 'all' ? undefined : statusFilter}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -157,8 +141,8 @@ export default function TracesPage() {
   return (
     <Suspense
       fallback={
-        <div className="container mx-auto py-8 flex justify-center">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        <div className="px-6 py-6 flex justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-[#3d5670]" />
         </div>
       }
     >

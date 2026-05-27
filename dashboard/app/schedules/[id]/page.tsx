@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -12,17 +12,6 @@ import {
   useResumeSchedule,
   useTriggerSchedule,
 } from '@/lib/hooks/useSchedules';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,14 +37,44 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { useState } from 'react';
+import { cn } from '@/lib/utils';
 import { describeCron, type ScheduleStatus } from '@/lib/api/schedules';
 
-export default function ScheduleDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+function StatusBadge({ status }: { status: ScheduleStatus }) {
+  const cls = status === 'active'
+    ? 'bg-teal-400/10 text-teal-400'
+    : status === 'paused'
+    ? 'bg-yellow-400/10 text-yellow-400'
+    : 'bg-[#1a2d3d] text-[#4a6480]';
+  return (
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded capitalize', cls)}>
+      {status}
+    </span>
+  );
+}
+
+function RunStatusBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    completed: 'bg-teal-400/10 text-teal-400',
+    failed:    'bg-red-400/10 text-red-400',
+    running:   'bg-blue-400/10 text-blue-400',
+    pending:   'bg-[#1a2d3d] text-[#4a6480]',
+  };
+  return (
+    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded capitalize w-fit', map[status] ?? 'bg-[#1a2d3d] text-[#4a6480]')}>
+      {status}
+    </span>
+  );
+}
+
+function ResultIcon({ result }: { result?: string }) {
+  if (result === 'success') return <CheckCircle2 className="h-3.5 w-3.5 text-teal-400 shrink-0" />;
+  if (result === 'failure') return <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />;
+  if (result === 'skipped') return <AlertCircle className="h-3.5 w-3.5 text-yellow-400 shrink-0" />;
+  return null;
+}
+
+export default function ScheduleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -74,335 +93,242 @@ export default function ScheduleDetailPage({
     router.push('/schedules');
   };
 
-  const getStatusBadge = (status: ScheduleStatus) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Active</Badge>;
-      case 'paused':
-        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">Paused</Badge>;
-      case 'disabled':
-        return <Badge variant="secondary">Disabled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getResultIcon = (result?: string) => {
-    switch (result) {
-      case 'success':
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      case 'failure':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'skipped':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-      default:
-        return null;
-    }
-  };
-
-  const getRunStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="outline" className="text-green-600">Completed</Badge>;
-      case 'running':
-        return <Badge className="bg-primary/10 text-primary">Running</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      case 'pending':
-        return <Badge variant="secondary">Pending</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
   if (error) {
     return (
-      <div className="container mx-auto py-8">
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="text-destructive">Error</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Failed to load schedule. It may have been deleted.</p>
-            <Link href="/schedules">
-              <Button className="mt-4">Back to Schedules</Button>
-            </Link>
-          </CardContent>
-        </Card>
+      <div className="px-6 py-6">
+        <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] p-6">
+          <p className="text-[13px] font-semibold text-red-400 mb-2">Error Loading Schedule</p>
+          <p className="text-xs text-[#4a6480] mb-4">Failed to load schedule. It may have been deleted.</p>
+          <Link
+            href="/schedules"
+            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors"
+          >
+            Back to Schedules
+          </Link>
+        </div>
       </div>
     );
   }
 
   if (isLoading || !schedule) {
     return (
-      <div className="container mx-auto py-8">
-        <Card>
-          <CardContent className="py-12">
-            <div className="flex items-center justify-center">
-              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="px-6 py-6 flex items-center justify-center h-48">
+        <RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" />
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="px-6 py-6 space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/schedules">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <Link
+            href="/schedules"
+            className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors mt-0.5"
+          >
+            <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">{schedule.name}</h1>
-              {getStatusBadge(schedule.status)}
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-semibold text-[#c8dce8]">{schedule.name}</h1>
+              <StatusBadge status={schedule.status} />
             </div>
             {schedule.description && (
-              <p className="text-muted-foreground mt-1">{schedule.description}</p>
+              <p className="text-xs text-[#4a6480] mt-0.5">{schedule.description}</p>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
             onClick={() => triggerMutation.mutate(id)}
             disabled={triggerMutation.isPending}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
           >
-            <Play className="mr-2 h-4 w-4" />
-            Run Now
-          </Button>
+            <Play className="h-3 w-3" />Run Now
+          </button>
           {schedule.status === 'active' ? (
-            <Button
-              variant="outline"
+            <button
               onClick={() => pauseMutation.mutate(id)}
               disabled={pauseMutation.isPending}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] disabled:opacity-50 transition-colors"
             >
-              <Pause className="mr-2 h-4 w-4" />
-              Pause
-            </Button>
+              <Pause className="h-3 w-3" />Pause
+            </button>
           ) : (
-            <Button
-              variant="outline"
+            <button
               onClick={() => resumeMutation.mutate(id)}
               disabled={resumeMutation.isPending}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] disabled:opacity-50 transition-colors"
             >
-              <Play className="mr-2 h-4 w-4" />
-              Resume
-            </Button>
+              <Play className="h-3 w-3" />Resume
+            </button>
           )}
-          <Link href={`/schedules/${id}/edit`}>
-            <Button variant="outline">
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-          </Link>
-          <Button
-            variant="outline"
-            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-            onClick={() => setDeleteDialogOpen(true)}
+          <Link
+            href={`/schedules/${id}/edit`}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#7fa8c8] bg-[#0f1923] border border-[#1e2d3d] hover:border-[#2a3d52] transition-colors"
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </Button>
+            <Edit className="h-3 w-3" />Edit
+          </Link>
+          <button
+            onClick={() => setDeleteDialogOpen(true)}
+            className="flex items-center justify-center h-7 w-7 rounded text-[#3d5670] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Schedule
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">{describeCron(schedule.cron_expr)}</p>
-            <p className="text-sm text-muted-foreground font-mono">{schedule.cron_expr}</p>
-            <p className="text-sm text-muted-foreground mt-1">Timezone: {schedule.timezone}</p>
-          </CardContent>
-        </Card>
+      {/* KPI cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="flex flex-col gap-2 p-4 rounded-xl bg-[#0f1923] border border-[#1e2d3d]">
+          <div className="flex items-center gap-1.5">
+            <Clock className="h-3 w-3 text-[#3d5670]" />
+            <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Schedule</span>
+          </div>
+          <p className="text-[13px] font-semibold text-[#c8dce8]">{describeCron(schedule.cron_expr)}</p>
+          <p className="text-[10px] font-mono text-[#4a6480]">{schedule.cron_expr}</p>
+          <p className="text-[10px] text-[#4a6480]">TZ: {schedule.timezone}</p>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Next Run
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {schedule.next_run_at && schedule.status === 'active' ? (
-              <>
-                <p className="text-lg font-semibold">
-                  {format(new Date(schedule.next_run_at), 'MMM d, yyyy')}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {format(new Date(schedule.next_run_at), 'h:mm a')}
-                </p>
-              </>
-            ) : (
-              <p className="text-lg text-muted-foreground">Not scheduled</p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-2 p-4 rounded-xl bg-[#0f1923] border border-[#1e2d3d]">
+          <div className="flex items-center gap-1.5">
+            <Calendar className="h-3 w-3 text-[#3d5670]" />
+            <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Next Run</span>
+          </div>
+          {schedule.next_run_at && schedule.status === 'active' ? (
+            <>
+              <p className="text-[13px] font-semibold text-[#c8dce8]">
+                {format(new Date(schedule.next_run_at), 'MMM d, yyyy')}
+              </p>
+              <p className="text-[11px] text-[#4a6480]">{format(new Date(schedule.next_run_at), 'h:mm a')}</p>
+            </>
+          ) : (
+            <p className="text-[13px] text-[#3d5670]">Not scheduled</p>
+          )}
+        </div>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Last 30 Days
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {stats ? (
-              <>
-                <p className="text-lg font-semibold">
-                  {stats.successful_runs}/{stats.total_runs} successful
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {stats.total_runs > 0
-                    ? `${Math.round((stats.successful_runs / stats.total_runs) * 100)}% success rate`
-                    : 'No runs yet'}
-                </p>
-              </>
-            ) : (
-              <p className="text-lg text-muted-foreground">Loading...</p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-2 p-4 rounded-xl bg-[#0f1923] border border-[#1e2d3d]">
+          <div className="flex items-center gap-1.5">
+            <BarChart3 className="h-3 w-3 text-[#3d5670]" />
+            <span className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Last 30 Days</span>
+          </div>
+          {stats ? (
+            <>
+              <p className="text-[13px] font-semibold text-[#c8dce8]">
+                {stats.successful_runs}/{stats.total_runs} successful
+              </p>
+              <p className="text-[11px] text-[#4a6480]">
+                {stats.total_runs > 0
+                  ? `${Math.round((stats.successful_runs / stats.total_runs) * 100)}% success rate`
+                  : 'No runs yet'}
+              </p>
+            </>
+          ) : (
+            <p className="text-[13px] text-[#3d5670]">Loading…</p>
+          )}
+        </div>
       </div>
 
       {/* Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <dt className="text-sm font-medium text-muted-foreground">Flow</dt>
-              <dd>
-                {schedule.flow ? (
-                  <Link href={`/flows/${schedule.flow.id}`} className="text-primary hover:underline">
-                    {schedule.flow.name}
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground">Unknown</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-muted-foreground">Max Retries</dt>
-              <dd>{schedule.max_retries > 0 ? `${schedule.max_retries} retries` : 'No retries'}</dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-muted-foreground">Allow Overlap</dt>
-              <dd>{schedule.allow_overlap ? 'Yes' : 'No'}</dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-muted-foreground">Notifications</dt>
-              <dd>
-                {schedule.notify_on_failure || schedule.notify_on_success ? (
-                  <span>
-                    {schedule.notify_on_failure && 'On failure'}
-                    {schedule.notify_on_failure && schedule.notify_on_success && ', '}
-                    {schedule.notify_on_success && 'On success'}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">Disabled</span>
-                )}
-              </dd>
-            </div>
-            {schedule.tags && schedule.tags.length > 0 && (
-              <div className="md:col-span-2">
-                <dt className="text-sm font-medium text-muted-foreground mb-1">Tags</dt>
-                <dd className="flex gap-2 flex-wrap">
-                  {schedule.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">{tag}</Badge>
-                  ))}
-                </dd>
-              </div>
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[#1a2332]">
+          <span className="text-[11px] font-semibold text-[#c8dce8]">Details</span>
+        </div>
+        <div className="grid grid-cols-2 gap-0 divide-y divide-[#1a2332]">
+          <div className="px-4 py-3 border-r border-[#1a2332]">
+            <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1">Flow</p>
+            {schedule.flow ? (
+              <Link href={`/flows/${schedule.flow.id}`} className="text-[12px] text-teal-400 hover:text-teal-300 transition-colors">
+                {schedule.flow.name}
+              </Link>
+            ) : (
+              <span className="text-[12px] text-[#4a6480]">Unknown</span>
             )}
-          </dl>
-        </CardContent>
-      </Card>
-
-      {/* Recent Runs */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Runs</CardTitle>
-          <CardDescription>Last 10 scheduled executions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {runsData?.runs && runsData.runs.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Scheduled</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Result</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Retries</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {runsData.runs.map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">
-                          {format(new Date(run.scheduled_at), 'MMM d, h:mm a')}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatDistanceToNow(new Date(run.scheduled_at), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{getRunStatusBadge(run.status)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getResultIcon(run.result)}
-                        <span className="capitalize">{run.result || '-'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : '-'}
-                    </TableCell>
-                    <TableCell>{run.retry_count}</TableCell>
-                  </TableRow>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1">Max Retries</p>
+            <p className="text-[12px] text-[#c8dce8]">{schedule.max_retries > 0 ? `${schedule.max_retries} retries` : 'No retries'}</p>
+          </div>
+          <div className="px-4 py-3 border-r border-[#1a2332]">
+            <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1">Allow Overlap</p>
+            <p className="text-[12px] text-[#c8dce8]">{schedule.allow_overlap ? 'Yes' : 'No'}</p>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-1">Notifications</p>
+            <p className="text-[12px] text-[#c8dce8]">
+              {schedule.notify_on_failure || schedule.notify_on_success ? (
+                [schedule.notify_on_failure && 'On failure', schedule.notify_on_success && 'On success'].filter(Boolean).join(', ')
+              ) : (
+                <span className="text-[#4a6480]">Disabled</span>
+              )}
+            </p>
+          </div>
+          {schedule.tags && schedule.tags.length > 0 && (
+            <div className="col-span-2 px-4 py-3">
+              <p className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider mb-2">Tags</p>
+              <div className="flex gap-1 flex-wrap">
+                {schedule.tags.map((tag) => (
+                  <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#4a6480]">{tag}</span>
                 ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              <Calendar className="mx-auto h-12 w-12 mb-4" />
-              <p>No runs yet</p>
+              </div>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Delete Dialog */}
+      {/* Recent Runs */}
+      <div className="rounded-xl bg-[#0f1923] border border-[#1e2d3d] overflow-hidden">
+        <div className="px-4 py-2.5 border-b border-[#1a2332]">
+          <span className="text-[11px] font-semibold text-[#c8dce8]">Recent Runs</span>
+          <span className="text-[10px] text-[#4a6480] ml-2">last 10 executions</span>
+        </div>
+        {runsData?.runs && runsData.runs.length > 0 ? (
+          <>
+            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-2.5 border-b border-[#1a2332]">
+              {['Scheduled', 'Status', 'Result', 'Duration', 'Retries'].map((h) => (
+                <span key={h} className="text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">{h}</span>
+              ))}
+            </div>
+            <div className="divide-y divide-[#1a2332]">
+              {runsData.runs.map((run) => (
+                <div key={run.id} className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr] gap-4 px-4 py-3 items-center hover:bg-[#131b26] transition-colors">
+                  <div>
+                    <p className="text-[12px] text-[#c8dce8]">{format(new Date(run.scheduled_at), 'MMM d, h:mm a')}</p>
+                    <p className="text-[10px] text-[#4a6480]">{formatDistanceToNow(new Date(run.scheduled_at), { addSuffix: true })}</p>
+                  </div>
+                  <RunStatusBadge status={run.status} />
+                  <div className="flex items-center gap-1.5">
+                    <ResultIcon result={run.result} />
+                    <span className="text-[11px] text-[#7fa8c8] capitalize">{run.result || '—'}</span>
+                  </div>
+                  <span className="text-[11px] text-[#4a6480]">
+                    {run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : '—'}
+                  </span>
+                  <span className="text-[11px] text-[#4a6480]">{run.retry_count}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Calendar className="h-8 w-8 mb-2 text-[#1e2d3d]" />
+            <p className="text-xs text-[#3d5670]">No runs yet</p>
+          </div>
+        )}
+      </div>
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Schedule</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{schedule.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{schedule.name}&quot;? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
