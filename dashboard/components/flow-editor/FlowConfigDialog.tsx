@@ -13,7 +13,6 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -23,17 +22,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import type { FlowDefinition } from '@/lib/api/types';
 
 interface FlowConfigDialogProps {
@@ -50,6 +42,14 @@ interface EnvVar {
   isEditing?: boolean;
 }
 
+type ConfigTab = 'metadata' | 'environment' | 'defaults';
+
+const CONFIG_TABS: { value: ConfigTab; label: string; icon: React.ElementType }[] = [
+  { value: 'metadata', label: 'Metadata', icon: Info },
+  { value: 'environment', label: 'Environment', icon: Database },
+  { value: 'defaults', label: 'Defaults', icon: Clock },
+];
+
 export default function FlowConfigDialog({
   definition,
   onChange,
@@ -61,19 +61,14 @@ export default function FlowConfigDialog({
   const [localDefinition, setLocalDefinition] = useState<FlowDefinition>({ ...definition, tags: definition.tags ?? [] });
   const [envVars, setEnvVars] = useState<EnvVar[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [tab, setTab] = useState<ConfigTab>('metadata');
 
-  // Use controlled or uncontrolled state
   const open = controlledOpen !== undefined ? controlledOpen : isOpen;
   const setOpen = onOpenChange || setIsOpen;
 
-  // Initialize environment variables from definition
   useEffect(() => {
     if (definition.env) {
-      const vars = Object.entries(definition.env).map(([key, value]) => ({
-        key,
-        value: String(value),
-      }));
-      setEnvVars(vars);
+      setEnvVars(Object.entries(definition.env).map(([key, value]) => ({ key, value: String(value) })));
     } else {
       setEnvVars([]);
     }
@@ -81,20 +76,9 @@ export default function FlowConfigDialog({
   }, [definition, open]);
 
   const handleSave = () => {
-    // Convert env vars array back to object
     const env: Record<string, string> = {};
-    envVars.forEach(({ key, value }) => {
-      if (key.trim()) {
-        env[key.trim()] = value;
-      }
-    });
-
-    const updated: FlowDefinition = {
-      ...localDefinition,
-      env: Object.keys(env).length > 0 ? env : undefined,
-    };
-
-    onChange(updated);
+    envVars.forEach(({ key, value }) => { if (key.trim()) env[key.trim()] = value; });
+    onChange({ ...localDefinition, env: Object.keys(env).length > 0 ? env : undefined });
     setOpen(false);
   };
 
@@ -103,55 +87,36 @@ export default function FlowConfigDialog({
     setOpen(false);
   };
 
-  // Environment variable handlers
-  const addEnvVar = () => {
-    setEnvVars([...envVars, { key: '', value: '', isEditing: true }]);
-  };
-
+  const addEnvVar = () => setEnvVars([...envVars, { key: '', value: '', isEditing: true }]);
   const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
     const updated = [...envVars];
     updated[index][field] = value;
     setEnvVars(updated);
   };
+  const removeEnvVar = (index: number) => setEnvVars(envVars.filter((_, i) => i !== index));
 
-  const removeEnvVar = (index: number) => {
-    setEnvVars(envVars.filter((_, i) => i !== index));
-  };
-
-  // Tag handlers
   const addTag = () => {
     const tag = tagInput.trim();
     if (tag && !localDefinition.tags.includes(tag)) {
-      setLocalDefinition({
-        ...localDefinition,
-        tags: [...localDefinition.tags, tag],
-      });
+      setLocalDefinition({ ...localDefinition, tags: [...localDefinition.tags, tag] });
       setTagInput('');
     }
   };
+  const removeTag = (tag: string) =>
+    setLocalDefinition({ ...localDefinition, tags: localDefinition.tags.filter((t) => t !== tag) });
 
-  const removeTag = (tag: string) => {
-    setLocalDefinition({
-      ...localDefinition,
-      tags: localDefinition.tags.filter((t) => t !== tag),
-    });
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addTag();
-    }
+  const handleTagKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); addTag(); }
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button variant="ghost" size="sm" className="h-8 gap-1.5">
-            <Settings2 className="w-4 h-4" />
+          <button className="flex items-center gap-1.5 h-8 px-3 rounded text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors">
+            <Settings2 className="w-3.5 h-3.5" />
             Flow Settings
-          </Button>
+          </button>
         )}
       </DialogTrigger>
       <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
@@ -165,285 +130,225 @@ export default function FlowConfigDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="metadata" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="grid grid-cols-3 w-full">
-            <TabsTrigger value="metadata" className="gap-1.5">
-              <Info className="w-3.5 h-3.5" />
-              Metadata
-            </TabsTrigger>
-            <TabsTrigger value="environment" className="gap-1.5">
-              <Database className="w-3.5 h-3.5" />
-              Environment
-            </TabsTrigger>
-            <TabsTrigger value="defaults" className="gap-1.5">
-              <Clock className="w-3.5 h-3.5" />
-              Defaults
-            </TabsTrigger>
-          </TabsList>
+        {/* Tab bar */}
+        <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-[#0b0f18] border border-[#1e2d3d]">
+          {CONFIG_TABS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setTab(value)}
+              className={cn(
+                'flex items-center gap-1.5 flex-1 h-7 px-3 rounded-md text-xs font-medium transition-colors',
+                tab === value ? 'bg-teal-400/15 text-teal-400' : 'text-[#4a6480] hover:text-[#7fa8c8]'
+              )}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
 
-          <div className="flex-1 overflow-y-auto mt-4 pr-2">
-            {/* Metadata Tab */}
-            <TabsContent value="metadata" className="space-y-4 mt-0">
-              {/* Flow Name */}
+        <div className="flex-1 overflow-y-auto pr-1">
+          {/* Metadata Tab */}
+          {tab === 'metadata' && (
+            <div className="space-y-4 mt-2">
               <div className="space-y-2">
-                <Label htmlFor="flow-name">Flow Name *</Label>
+                <Label htmlFor="flow-name" className="text-xs">Flow Name *</Label>
                 <Input
                   id="flow-name"
                   value={localDefinition.name}
-                  onChange={(e) =>
-                    setLocalDefinition({ ...localDefinition, name: e.target.value })
-                  }
+                  onChange={(e) => setLocalDefinition({ ...localDefinition, name: e.target.value })}
                   placeholder="My Test Flow"
                   className="font-medium"
                 />
-                <p className="text-xs text-muted-foreground">
-                  A descriptive name for your flow
-                </p>
+                <p className="text-[10px] text-[#4a6480]">A descriptive name for your flow</p>
               </div>
 
-              {/* Description */}
               <div className="space-y-2">
-                <Label htmlFor="flow-description">Description</Label>
+                <Label htmlFor="flow-description" className="text-xs">Description</Label>
                 <Textarea
                   id="flow-description"
                   value={localDefinition.description}
-                  onChange={(e) =>
-                    setLocalDefinition({ ...localDefinition, description: e.target.value })
-                  }
+                  onChange={(e) => setLocalDefinition({ ...localDefinition, description: e.target.value })}
                   placeholder="Describe what this flow tests or validates..."
                   rows={3}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Optional description of the flow's purpose
-                </p>
+                <p className="text-[10px] text-[#4a6480]">Optional description of the flow's purpose</p>
               </div>
 
-              {/* Suite */}
               <div className="space-y-2">
-                <Label htmlFor="flow-suite">Test Suite</Label>
+                <Label htmlFor="flow-suite" className="text-xs">Test Suite</Label>
                 <Input
                   id="flow-suite"
                   value={localDefinition.suite}
-                  onChange={(e) =>
-                    setLocalDefinition({ ...localDefinition, suite: e.target.value })
-                  }
+                  onChange={(e) => setLocalDefinition({ ...localDefinition, suite: e.target.value })}
                   placeholder="api-tests, integration, smoke"
                   className="font-mono text-sm"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Group flows into test suites for organization
-                </p>
+                <p className="text-[10px] text-[#4a6480]">Group flows into test suites for organization</p>
               </div>
 
-              {/* Tags */}
               <div className="space-y-2">
-                <Label htmlFor="flow-tags">Tags</Label>
+                <Label htmlFor="flow-tags" className="text-xs">Tags</Label>
                 <div className="flex gap-2">
                   <Input
                     id="flow-tags"
                     value={tagInput}
                     onChange={(e) => setTagInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
+                    onKeyDown={handleTagKeyDown}
                     placeholder="Add a tag and press Enter"
                     className="font-mono text-sm"
                   />
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
                     onClick={addTag}
                     disabled={!tagInput.trim()}
+                    className="flex items-center justify-center h-9 w-9 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-40 transition-colors"
                   >
                     <Plus className="w-4 h-4" />
-                  </Button>
+                  </button>
                 </div>
                 {localDefinition.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {localDefinition.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className="gap-1 pl-2 pr-1 py-1"
-                      >
-                        <Tag className="w-3 h-3" />
+                      <span key={tag} className="flex items-center gap-1 pl-2 pr-1 py-0.5 text-[10px] font-medium rounded border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8]">
+                        <Tag className="w-3 h-3 text-[#4a6480]" />
                         {tag}
                         <button
                           onClick={() => removeTag(tag)}
-                          className="ml-1 hover:bg-muted rounded-sm p-0.5"
+                          className="ml-0.5 flex items-center justify-center h-3.5 w-3.5 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                         >
-                          <X className="w-3 h-3" />
+                          <X className="w-2.5 h-2.5" />
                         </button>
-                      </Badge>
+                      </span>
                     ))}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  Add tags for filtering and categorization
+                <p className="text-[10px] text-[#4a6480]">Add tags for filtering and categorization</p>
+              </div>
+            </div>
+          )}
+
+          {/* Environment Tab */}
+          {tab === 'environment' && (
+            <div className="space-y-4 mt-2">
+              <div className="p-3 bg-teal-400/5 border border-teal-400/20 rounded-lg">
+                <p className="text-xs text-[#7fa8c8]">
+                  Environment variables are available to all steps using{' '}
+                  <code className="font-mono text-teal-400">{'${ENV_VAR_NAME}'}</code> syntax.
                 </p>
               </div>
-            </TabsContent>
 
-            {/* Environment Tab */}
-            <TabsContent value="environment" className="space-y-4 mt-0">
-              <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                <p className="text-sm text-foreground">
-                  Environment variables are available to all steps in this flow using{' '}
-                  <code className="font-mono">{'${ENV_VAR_NAME}'}</code> syntax.
-                </p>
-              </div>
-
-              {/* Environment Variables List */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Environment Variables</Label>
-                  <Button
+                  <Label className="text-xs">Environment Variables</Label>
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
                     onClick={addEnvVar}
-                    className="h-8"
+                    className="flex items-center gap-1 h-7 px-3 rounded-lg text-xs border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
                   >
-                    <Plus className="w-4 h-4 mr-1" />
+                    <Plus className="w-3.5 h-3.5" />
                     Add Variable
-                  </Button>
+                  </button>
                 </div>
 
                 {envVars.length === 0 ? (
-                  <div className="text-center py-8 text-sm text-muted-foreground border rounded-lg border-dashed">
+                  <div className="text-center py-8 text-xs text-[#4a6480] border border-dashed border-[#1e2d3d] rounded-lg">
                     No environment variables defined
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {envVars.map((envVar, index) => (
-                      <div
-                        key={index}
-                        className="flex gap-2 items-start p-3 border rounded-lg bg-muted/30"
-                      >
+                      <div key={index} className="flex gap-2 items-start p-3 border border-[#1e2d3d] rounded-lg bg-[#0f1923]">
                         <div className="flex-1 grid grid-cols-2 gap-2">
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">
-                              Variable Name
-                            </Label>
+                            <Label className="text-[10px] text-[#4a6480]">Variable Name</Label>
                             <Input
                               value={envVar.key}
-                              onChange={(e) =>
-                                updateEnvVar(index, 'key', e.target.value)
-                              }
+                              onChange={(e) => updateEnvVar(index, 'key', e.target.value)}
                               placeholder="API_URL"
                               className="font-mono text-sm h-8"
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs text-muted-foreground">Value</Label>
+                            <Label className="text-[10px] text-[#4a6480]">Value</Label>
                             <Input
                               value={envVar.value}
-                              onChange={(e) =>
-                                updateEnvVar(index, 'value', e.target.value)
-                              }
+                              onChange={(e) => updateEnvVar(index, 'value', e.target.value)}
                               placeholder="https://api.example.com"
                               className="font-mono text-sm h-8"
                             />
                           </div>
                         </div>
-                        <Button
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="sm"
                           onClick={() => removeEnvVar(index)}
-                          className="h-8 w-8 p-0 mt-6"
+                          className="flex items-center justify-center h-8 w-8 mt-6 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                         >
                           <X className="w-4 h-4" />
-                        </Button>
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              {/* Common Examples */}
-              <details className="space-y-2 p-3 border rounded-lg">
-                <summary className="text-sm font-medium cursor-pointer">
-                  Common Environment Variables
-                </summary>
+              <details className="space-y-2 p-3 border border-[#1e2d3d] rounded-lg">
+                <summary className="text-xs font-medium text-[#7fa8c8] cursor-pointer">Common Environment Variables</summary>
                 <div className="pt-2 space-y-2 text-xs">
-                  <div className="p-2 bg-muted rounded font-mono text-[10px]">
-                    <div className="font-semibold mb-1">API Configuration</div>
-                    <div>API_URL: https://api.example.com</div>
-                    <div>API_KEY: your-api-key-here</div>
-                    <div>API_TIMEOUT: 30s</div>
-                  </div>
-                  <div className="p-2 bg-muted rounded font-mono text-[10px]">
-                    <div className="font-semibold mb-1">Database</div>
-                    <div>DB_HOST: localhost:5432</div>
-                    <div>DB_NAME: testdb</div>
-                    <div>DB_USER: admin</div>
-                  </div>
-                  <div className="p-2 bg-muted rounded font-mono text-[10px]">
-                    <div className="font-semibold mb-1">Test Data</div>
-                    <div>TEST_USER_EMAIL: test@example.com</div>
-                    <div>TEST_USER_PASSWORD: password123</div>
-                  </div>
+                  {[
+                    { title: 'API Configuration', lines: ['API_URL: https://api.example.com', 'API_KEY: your-api-key-here', 'API_TIMEOUT: 30s'] },
+                    { title: 'Database', lines: ['DB_HOST: localhost:5432', 'DB_NAME: testdb', 'DB_USER: admin'] },
+                    { title: 'Test Data', lines: ['TEST_USER_EMAIL: test@example.com', 'TEST_USER_PASSWORD: password123'] },
+                  ].map(({ title, lines }) => (
+                    <div key={title} className="p-2 bg-[#0b0f18] border border-[#1e2d3d] rounded-lg font-mono text-[10px]">
+                      <div className="font-semibold mb-1 text-[#7fa8c8]">{title}</div>
+                      {lines.map((l) => <div key={l} className="text-[#4a6480]">{l}</div>)}
+                    </div>
+                  ))}
                 </div>
               </details>
-            </TabsContent>
+            </div>
+          )}
 
-            {/* Defaults Tab */}
-            <TabsContent value="defaults" className="space-y-4 mt-0">
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg flex gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-amber-900 dark:text-amber-300">
-                  Default settings apply to all steps in this flow unless overridden at the
-                  step level. These settings are stored as flow-level configuration.
+          {/* Defaults Tab */}
+          {tab === 'defaults' && (
+            <div className="space-y-4 mt-2">
+              <div className="p-3 bg-yellow-400/5 border border-yellow-400/20 rounded-lg flex gap-2">
+                <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-[#7fa8c8]">
+                  Default settings apply to all steps in this flow unless overridden at the step level.
                 </p>
               </div>
 
-              {/* Global Timeout */}
               <div className="space-y-2">
-                <Label htmlFor="default-timeout" className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
+                <Label htmlFor="default-timeout" className="flex items-center gap-2 text-xs">
+                  <Clock className="w-3.5 h-3.5 text-[#4a6480]" />
                   Default Step Timeout
                 </Label>
                 <Input
                   id="default-timeout"
                   value={(localDefinition as any).default_timeout || ''}
-                  onChange={(e) =>
-                    setLocalDefinition({
-                      ...localDefinition,
-                      default_timeout: e.target.value,
-                    } as any)
-                  }
+                  onChange={(e) => setLocalDefinition({ ...localDefinition, default_timeout: e.target.value } as any)}
                   placeholder="30s (e.g., 5s, 1m, 30s)"
                   className="font-mono text-sm"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Default timeout for all steps (e.g., 30s, 1m, 5m)
-                </p>
+                <p className="text-[10px] text-[#4a6480]">Default timeout for all steps (e.g., 30s, 1m, 5m)</p>
               </div>
 
-              {/* Global Retry */}
               <div className="space-y-3">
-                <Label className="flex items-center gap-2">
-                  <RotateCcw className="w-4 h-4" />
+                <Label className="flex items-center gap-2 text-xs">
+                  <RotateCcw className="w-3.5 h-3.5 text-[#4a6480]" />
                   Default Retry Configuration
                 </Label>
-                <div className="space-y-3 pl-6 border-l-2">
+                <div className="space-y-3 pl-5 border-l-2 border-[#1a2332]">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="default-retry-enabled" className="text-sm">
-                      Enable retry by default
-                    </Label>
+                    <Label htmlFor="default-retry-enabled" className="text-xs text-[#7fa8c8]">Enable retry by default</Label>
                     <Switch
                       id="default-retry-enabled"
                       checked={!!(localDefinition as any).default_retry}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          setLocalDefinition({
-                            ...localDefinition,
-                            default_retry: {
-                              max_attempts: 3,
-                              delay: '1s',
-                              backoff: 'exponential',
-                            },
-                          } as any);
+                          setLocalDefinition({ ...localDefinition, default_retry: { max_attempts: 3, delay: '1s', backoff: 'exponential' } } as any);
                         } else {
                           const { default_retry, ...rest } = localDefinition as any;
                           setLocalDefinition(rest);
@@ -455,66 +360,32 @@ export default function FlowConfigDialog({
                   {(localDefinition as any).default_retry && (
                     <>
                       <div className="space-y-1">
-                        <Label htmlFor="default-max-attempts" className="text-xs">
-                          Max Attempts
-                        </Label>
+                        <Label htmlFor="default-max-attempts" className="text-[10px] text-[#4a6480]">Max Attempts</Label>
                         <Input
                           id="default-max-attempts"
-                          type="number"
-                          min="1"
-                          max="10"
+                          type="number" min="1" max="10"
                           value={(localDefinition as any).default_retry.max_attempts || 3}
-                          onChange={(e) =>
-                            setLocalDefinition({
-                              ...localDefinition,
-                              default_retry: {
-                                ...(localDefinition as any).default_retry,
-                                max_attempts: parseInt(e.target.value) || 3,
-                              },
-                            } as any)
-                          }
+                          onChange={(e) => setLocalDefinition({ ...localDefinition, default_retry: { ...(localDefinition as any).default_retry, max_attempts: parseInt(e.target.value) || 3 } } as any)}
                           className="h-8"
                         />
                       </div>
-
                       <div className="space-y-1">
-                        <Label htmlFor="default-retry-delay" className="text-xs">
-                          Initial Delay
-                        </Label>
+                        <Label htmlFor="default-retry-delay" className="text-[10px] text-[#4a6480]">Initial Delay</Label>
                         <Input
                           id="default-retry-delay"
                           value={(localDefinition as any).default_retry.delay || '1s'}
-                          onChange={(e) =>
-                            setLocalDefinition({
-                              ...localDefinition,
-                              default_retry: {
-                                ...(localDefinition as any).default_retry,
-                                delay: e.target.value,
-                              },
-                            } as any)
-                          }
+                          onChange={(e) => setLocalDefinition({ ...localDefinition, default_retry: { ...(localDefinition as any).default_retry, delay: e.target.value } } as any)}
                           placeholder="1s"
                           className="font-mono text-sm h-8"
                         />
                       </div>
-
                       <div className="space-y-1">
-                        <Label htmlFor="default-retry-backoff" className="text-xs">
-                          Backoff Strategy
-                        </Label>
+                        <Label htmlFor="default-retry-backoff" className="text-[10px] text-[#4a6480]">Backoff Strategy</Label>
                         <select
                           id="default-retry-backoff"
                           value={(localDefinition as any).default_retry.backoff || 'exponential'}
-                          onChange={(e) =>
-                            setLocalDefinition({
-                              ...localDefinition,
-                              default_retry: {
-                                ...(localDefinition as any).default_retry,
-                                backoff: e.target.value,
-                              },
-                            } as any)
-                          }
-                          className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onChange={(e) => setLocalDefinition({ ...localDefinition, default_retry: { ...(localDefinition as any).default_retry, backoff: e.target.value } } as any)}
+                          className="flex h-8 w-full rounded-lg border border-[#1e2d3d] bg-[#0b0f18] px-3 py-1 text-xs text-[#c8dce8] focus:outline-none focus:border-teal-400/50 transition-colors"
                         >
                           <option value="constant">Constant</option>
                           <option value="linear">Linear</option>
@@ -526,62 +397,50 @@ export default function FlowConfigDialog({
                 </div>
               </div>
 
-              {/* Execution Settings */}
               <div className="space-y-3">
-                <Label>Execution Settings</Label>
-                <div className="space-y-3 pl-6 border-l-2">
+                <Label className="text-xs">Execution Settings</Label>
+                <div className="space-y-3 pl-5 border-l-2 border-[#1a2332]">
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <Label htmlFor="fail-fast" className="text-sm">
-                        Fail Fast
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Stop execution on first failure
-                      </p>
+                      <Label htmlFor="fail-fast" className="text-xs text-[#7fa8c8]">Fail Fast</Label>
+                      <p className="text-[10px] text-[#4a6480]">Stop execution on first failure</p>
                     </div>
                     <Switch
                       id="fail-fast"
                       checked={(localDefinition as any).fail_fast || false}
-                      onCheckedChange={(checked) =>
-                        setLocalDefinition({
-                          ...localDefinition,
-                          fail_fast: checked,
-                        } as any)
-                      }
+                      onCheckedChange={(checked) => setLocalDefinition({ ...localDefinition, fail_fast: checked } as any)}
                     />
                   </div>
-
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                      <Label htmlFor="continue-on-error" className="text-sm">
-                        Continue on Error
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Continue execution even if steps fail
-                      </p>
+                      <Label htmlFor="continue-on-error" className="text-xs text-[#7fa8c8]">Continue on Error</Label>
+                      <p className="text-[10px] text-[#4a6480]">Continue execution even if steps fail</p>
                     </div>
                     <Switch
                       id="continue-on-error"
                       checked={(localDefinition as any).continue_on_error || false}
-                      onCheckedChange={(checked) =>
-                        setLocalDefinition({
-                          ...localDefinition,
-                          continue_on_error: checked,
-                        } as any)
-                      }
+                      onCheckedChange={(checked) => setLocalDefinition({ ...localDefinition, continue_on_error: checked } as any)}
                     />
                   </div>
                 </div>
               </div>
-            </TabsContent>
-          </div>
-        </Tabs>
+            </div>
+          )}
+        </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={handleCancel}>
+          <button
+            onClick={handleCancel}
+            className="flex items-center h-8 px-4 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+          >
             Cancel
-          </Button>
-          <Button onClick={handleSave}>Save Changes</Button>
+          </button>
+          <button
+            onClick={handleSave}
+            className="flex items-center h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+          >
+            Save Changes
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
