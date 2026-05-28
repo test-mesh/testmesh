@@ -3,7 +3,6 @@
 import { useState, useRef } from 'react';
 import { Variable, Search, Clock, Hash, Braces, Link } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Popover,
@@ -27,7 +26,6 @@ interface VariableOption {
   description?: string;
 }
 
-// Built-in variables
 const builtinVariables: VariableOption[] = [
   { name: 'RANDOM_ID', type: 'builtin', path: '${RANDOM_ID}', description: 'Generate a UUID' },
   { name: 'TIMESTAMP', type: 'builtin', path: '${TIMESTAMP}', description: 'Unix timestamp' },
@@ -57,11 +55,9 @@ export default function VariablePicker({
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [cursorPosition, setCursorPosition] = useState<number | null>(null);
-  // When a URL variable is selected, hold it here so we can show path composer
   const [pendingUrlVar, setPendingUrlVar] = useState<VariableOption | null>(null);
   const [pathInput, setPathInput] = useState('');
 
-  // Build list of available variables
   const allVariables: VariableOption[] = [
     ...builtinVariables,
     ...Object.keys(variables).map((key) => ({
@@ -80,16 +76,13 @@ export default function VariablePicker({
     ),
   ];
 
-  // Filter variables based on search
   const filteredVariables = allVariables.filter(
     (v) =>
       v.name.toLowerCase().includes(search.toLowerCase()) ||
       v.description?.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Insert variable at cursor position
   const insertVariable = (variable: VariableOption) => {
-    // For URL variables: show path composer instead of immediately inserting
     if (isUrlVariable(variable, variables)) {
       setPendingUrlVar(variable);
       setPathInput('');
@@ -119,13 +112,13 @@ export default function VariablePicker({
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'builtin':
-        return <Clock className="w-3 h-3 text-primary" />;
+        return <Clock className="w-3 h-3 text-teal-400" />;
       case 'env':
-        return <Hash className="w-3 h-3 text-green-500" />;
+        return <Hash className="w-3 h-3 text-green-400" />;
       case 'step':
-        return <Braces className="w-3 h-3 text-purple-500" />;
+        return <Braces className="w-3 h-3 text-purple-400" />;
       default:
-        return <Variable className="w-3 h-3" />;
+        return <Variable className="w-3 h-3 text-[#4a6480]" />;
     }
   };
 
@@ -142,19 +135,18 @@ export default function VariablePicker({
         />
         <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setPendingUrlVar(null); setPathInput(''); setSearch(''); } }}>
           <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 w-8 p-0"
+            <button
+              type="button"
+              className="flex items-center justify-center h-8 w-8 rounded border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
               title="Insert variable"
             >
               <Variable className="w-4 h-4" />
-            </Button>
+            </button>
           </PopoverTrigger>
           <PopoverContent className="w-72 p-0" align="end">
-            <div className="p-2 border-b">
+            <div className="p-2 border-b border-[#1a2332]">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#4a6480]" />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -165,14 +157,13 @@ export default function VariablePicker({
               </div>
             </div>
             {pendingUrlVar ? (
-              /* Path composer — shown after selecting a URL variable */
               <div className="p-3 space-y-3">
                 <div className="flex items-center gap-1.5 text-xs font-medium">
-                  <Link className="w-3 h-3 text-green-500" />
-                  <span className="font-mono text-green-600">{pendingUrlVar.path}</span>
+                  <Link className="w-3 h-3 text-teal-400" />
+                  <span className="font-mono text-teal-400">{pendingUrlVar.path}</span>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground mb-1.5">Append a path:</p>
+                  <p className="text-[10px] text-[#4a6480] mb-1.5">Append a path:</p>
                   <Input
                     autoFocus
                     value={pathInput}
@@ -186,87 +177,97 @@ export default function VariablePicker({
                   />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground mb-1">Common paths:</p>
+                  <p className="text-[10px] text-[#4a6480] mb-1">Common paths:</p>
                   <div className="flex flex-wrap gap-1">
                     {COMMON_PATHS.map((p) => (
                       <button
                         key={p}
+                        type="button"
                         onClick={() => commitInsert(pendingUrlVar.path + p)}
-                        className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 border transition-colors"
+                        className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1a2332] hover:bg-[#1e2d3d] border border-[#1e2d3d] text-[#7fa8c8] transition-colors"
                       >
                         {p}
                       </button>
                     ))}
                     <button
+                      type="button"
                       onClick={() => commitInsert(pendingUrlVar.path)}
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 border text-muted-foreground transition-colors"
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-[#1a2332] hover:bg-[#1e2d3d] border border-[#1e2d3d] text-[#4a6480] transition-colors"
                     >
                       (no path)
                     </button>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" className="h-6 text-xs flex-1" onClick={() => commitInsert(pendingUrlVar.path + pathInput)}>
+                  <button
+                    type="button"
+                    className="flex items-center justify-center flex-1 h-6 rounded bg-teal-400 text-[#0b0f18] text-xs font-medium hover:bg-teal-300 transition-colors"
+                    onClick={() => commitInsert(pendingUrlVar.path + pathInput)}
+                  >
                     Insert
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setPendingUrlVar(null)}>
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center justify-center h-6 px-2 rounded text-xs text-[#7fa8c8] hover:text-[#c8dce8] hover:bg-[#1a2d3d] transition-colors"
+                    onClick={() => setPendingUrlVar(null)}
+                  >
                     Back
-                  </Button>
+                  </button>
                 </div>
               </div>
             ) : (
               <div className="max-h-64 overflow-y-auto">
-              {filteredVariables.length === 0 ? (
-                <div className="p-3 text-center text-xs text-muted-foreground">
-                  No variables found
-                </div>
-              ) : (
-                <div className="p-1">
-                  {/* Group by type */}
-                  {['builtin', 'env', 'step'].map((type) => {
-                    const typeVars = filteredVariables.filter((v) => v.type === type);
-                    if (typeVars.length === 0) return null;
+                {filteredVariables.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-[#4a6480]">
+                    No variables found
+                  </div>
+                ) : (
+                  <div className="p-1">
+                    {['builtin', 'env', 'step'].map((type) => {
+                      const typeVars = filteredVariables.filter((v) => v.type === type);
+                      if (typeVars.length === 0) return null;
 
-                    return (
-                      <div key={type} className="mb-2">
-                        <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground uppercase">
-                          {type === 'builtin' && 'Built-in'}
-                          {type === 'env' && 'Environment'}
-                          {type === 'step' && 'Step Outputs'}
-                        </div>
-                        {typeVars.map((variable) => (
-                          <button
-                            key={variable.path}
-                            onClick={() => insertVariable(variable)}
-                            className="w-full flex items-center gap-2 px-2 py-1.5 text-left rounded hover:bg-muted transition-colors"
-                          >
-                            {getTypeIcon(variable.type)}
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs font-mono truncate flex items-center gap-1.5">
-                                {variable.name}
-                                {isUrlVariable(variable, variables) && (
-                                  <span className="text-[9px] px-1 py-0 rounded bg-green-100 text-green-700 font-sans">URL</span>
+                      return (
+                        <div key={type} className="mb-2">
+                          <div className="px-2 py-1 text-[10px] font-medium text-[#4a6480] uppercase">
+                            {type === 'builtin' && 'Built-in'}
+                            {type === 'env' && 'Environment'}
+                            {type === 'step' && 'Step Outputs'}
+                          </div>
+                          {typeVars.map((variable) => (
+                            <button
+                              key={variable.path}
+                              type="button"
+                              onClick={() => insertVariable(variable)}
+                              className="w-full flex items-center gap-2 px-2 py-1.5 text-left rounded hover:bg-[#1a2d3d] transition-colors"
+                            >
+                              {getTypeIcon(variable.type)}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-mono truncate flex items-center gap-1.5 text-[#c8dce8]">
+                                  {variable.name}
+                                  {isUrlVariable(variable, variables) && (
+                                    <span className="text-[9px] px-1 py-0 rounded bg-teal-400/10 text-teal-400 font-sans">URL</span>
+                                  )}
+                                </div>
+                                {variable.description && (
+                                  <div className="text-[10px] text-[#4a6480] truncate">
+                                    {variable.description}
+                                  </div>
                                 )}
                               </div>
-                              {variable.description && (
-                                <div className="text-[10px] text-muted-foreground truncate">
-                                  {variable.description}
-                                </div>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
             {!pendingUrlVar && (
-            <div className="p-2 border-t text-[10px] text-muted-foreground">
-              Click to insert at cursor · URL vars show path composer
-            </div>
+              <div className="p-2 border-t border-[#1a2332] text-[10px] text-[#4a6480]">
+                Click to insert at cursor · URL vars show path composer
+              </div>
             )}
           </PopoverContent>
         </Popover>

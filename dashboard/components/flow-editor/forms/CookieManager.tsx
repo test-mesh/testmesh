@@ -14,7 +14,6 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -32,7 +31,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -42,8 +40,8 @@ export interface CookieConfig {
   value: string;
   domain?: string;
   path?: string;
-  expires?: string; // ISO date string or relative time like "1h", "7d"
-  maxAge?: number; // Seconds
+  expires?: string;
+  maxAge?: number;
   secure?: boolean;
   httpOnly?: boolean;
   sameSite?: 'Strict' | 'Lax' | 'None';
@@ -223,63 +221,60 @@ export default function CookieManager({
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex items-center justify-between pb-2 border-b">
+      <div className="flex items-center justify-between pb-2 border-b border-[#1a2332]">
         <div className="flex items-center gap-2">
-          <Cookie className="h-4 w-4 text-orange-500" />
-          <span className="text-sm font-medium">Cookie Management</span>
+          <Cookie className="h-4 w-4 text-orange-400" />
+          <span className="text-sm font-medium text-[#c8dce8]">Cookie Management</span>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setShowImportDialog(true)}
-            className="h-7 text-xs gap-1"
+            className="flex items-center gap-1 h-7 px-2 rounded border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
           >
             <Upload className="w-3 h-3" />
             Import
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          </button>
+          <button
+            type="button"
             onClick={exportCookies}
             disabled={cookies.length === 0}
-            className="h-7 text-xs gap-1"
+            className="flex items-center gap-1 h-7 px-2 rounded border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download className="w-3 h-3" />
             Export
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          </button>
+          <button
+            type="button"
             onClick={addCookie}
-            className="h-7 text-xs gap-1"
+            className="flex items-center gap-1 h-7 px-2 rounded border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
           >
             <Plus className="w-3 h-3" />
             Add Cookie
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Cookie Templates */}
       {cookies.length === 0 && (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-[#4a6480]">
             Start with a template or create a new cookie
           </p>
           <div className="grid grid-cols-2 gap-2">
             {COOKIE_TEMPLATES.map((template, idx) => (
               <button
                 key={idx}
+                type="button"
                 onClick={() => applyTemplate(template.cookies)}
-                className="p-3 border rounded-lg hover:border-primary transition-colors text-left group"
+                className="p-3 border border-[#1e2d3d] rounded-lg hover:border-teal-400/50 transition-colors text-left group bg-[#0f1923]"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <Cookie className="w-4 h-4 text-orange-500" />
-                  <span className="font-medium text-sm group-hover:text-primary transition-colors">
+                  <Cookie className="w-4 h-4 text-orange-400" />
+                  <span className="font-medium text-sm text-[#c8dce8] group-hover:text-teal-400 transition-colors">
                     {template.name}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#4a6480]">
                   {template.cookies.length} cookie{template.cookies.length > 1 ? 's' : ''}
                 </p>
               </button>
@@ -288,7 +283,6 @@ export default function CookieManager({
         </div>
       )}
 
-      {/* Cookie List */}
       {cookies.length > 0 && (
         <ScrollArea className="h-[400px] pr-4">
           <div className="space-y-3">
@@ -297,25 +291,24 @@ export default function CookieManager({
                 key={index}
                 className={cn(
                   'p-3 border rounded-lg transition-colors',
-                  editingIndex === index && 'border-primary bg-primary/5'
+                  editingIndex === index
+                    ? 'border-teal-400/30 bg-teal-400/5'
+                    : 'border-[#1a2332] bg-[#0b0f18]'
                 )}
               >
                 {editingIndex === index ? (
-                  /* Editing Mode */
                   <div className="space-y-3">
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-sm">Edit Cookie</h4>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <h4 className="font-medium text-sm text-[#c8dce8]">Edit Cookie</h4>
+                      <button
+                        type="button"
                         onClick={() => setEditingIndex(null)}
-                        className="h-6 text-xs"
+                        className="flex items-center h-6 px-2 rounded text-xs text-[#7fa8c8] hover:text-[#c8dce8] hover:bg-[#1a2d3d] transition-colors"
                       >
                         Done
-                      </Button>
+                      </button>
                     </div>
 
-                    {/* Name and Value */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs">Name *</Label>
@@ -337,7 +330,6 @@ export default function CookieManager({
                       </div>
                     </div>
 
-                    {/* Domain and Path */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs flex items-center gap-1">
@@ -362,7 +354,6 @@ export default function CookieManager({
                       </div>
                     </div>
 
-                    {/* Expiration */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label className="text-xs flex items-center gap-1">
@@ -375,7 +366,7 @@ export default function CookieManager({
                           placeholder="1h, 7d, 30d"
                           className="h-7 text-xs font-mono"
                         />
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-[10px] text-[#4a6480]">
                           e.g., 1h, 7d, 30d, or ISO date
                         </p>
                       </div>
@@ -395,11 +386,10 @@ export default function CookieManager({
                       </div>
                     </div>
 
-                    {/* Security Flags */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                      <div className="flex items-center justify-between p-2 bg-[#0b0f18] border border-[#1a2332] rounded">
                         <div className="flex items-center gap-2">
-                          <Shield className="w-3 h-3 text-primary" />
+                          <Shield className="w-3 h-3 text-teal-400" />
                           <Label className="text-xs">Secure (HTTPS only)</Label>
                         </div>
                         <Switch
@@ -408,9 +398,9 @@ export default function CookieManager({
                         />
                       </div>
 
-                      <div className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                      <div className="flex items-center justify-between p-2 bg-[#0b0f18] border border-[#1a2332] rounded">
                         <div className="flex items-center gap-2">
-                          <Shield className="w-3 h-3 text-purple-500" />
+                          <Shield className="w-3 h-3 text-purple-400" />
                           <Label className="text-xs">HttpOnly (No JavaScript access)</Label>
                         </div>
                         <Switch
@@ -440,85 +430,80 @@ export default function CookieManager({
                             </SelectItem>
                           </SelectContent>
                         </Select>
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-[10px] text-[#4a6480]">
                           CSRF protection level
                         </p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  /* Display Mode */
                   <div>
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono text-sm font-medium truncate">
+                        <div className="font-mono text-sm font-medium truncate text-[#c8dce8]">
                           {cookie.name}
                         </div>
-                        <div className="font-mono text-xs text-muted-foreground truncate">
+                        <div className="font-mono text-xs text-[#4a6480] truncate">
                           {cookie.value}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 ml-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
+                        <button
+                          type="button"
                           onClick={() => setEditingIndex(index)}
-                          className="h-6 w-6 p-0"
+                          className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                         >
                           <span className="sr-only">Edit</span>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => duplicateCookie(index)}
-                          className="h-6 w-6 p-0"
+                          className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                         >
                           <Copy className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => removeCookie(index)}
-                          className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                          className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                         >
                           <Trash2 className="w-3 h-3" />
-                        </Button>
+                        </button>
                       </div>
                     </div>
 
-                    {/* Cookie Details */}
                     <div className="flex flex-wrap gap-1 mt-2">
                       {cookie.domain && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-teal-400/10 text-teal-400 rounded">
                           {cookie.domain}
                         </span>
                       )}
                       {cookie.path && cookie.path !== '/' && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-[#1a2332] text-[#7fa8c8] rounded">
                           {cookie.path}
                         </span>
                       )}
                       {cookie.secure && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded flex items-center gap-0.5">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-green-400/15 text-green-400 rounded flex items-center gap-0.5">
                           <Shield className="w-2.5 h-2.5" />
                           Secure
                         </span>
                       )}
                       {cookie.httpOnly && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 rounded">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-purple-400/15 text-purple-400 rounded">
                           HttpOnly
                         </span>
                       )}
                       {cookie.sameSite && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 rounded">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-orange-400/15 text-orange-400 rounded">
                           {cookie.sameSite}
                         </span>
                       )}
                       {cookie.expires && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 rounded flex items-center gap-0.5">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-amber-400/15 text-amber-400 rounded flex items-center gap-0.5">
                           <Clock className="w-2.5 h-2.5" />
                           {cookie.expires}
                         </span>
@@ -532,7 +517,6 @@ export default function CookieManager({
         </ScrollArea>
       )}
 
-      {/* Import Dialog */}
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
         <DialogContent>
           <DialogHeader>
@@ -549,10 +533,10 @@ export default function CookieManager({
               rows={8}
               className="font-mono text-xs"
             />
-            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="p-3 bg-teal-400/5 border border-teal-400/20 rounded-lg">
               <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-blue-500 mt-0.5" />
-                <div className="text-xs text-blue-900 dark:text-blue-300">
+                <AlertCircle className="w-4 h-4 text-teal-400 mt-0.5" />
+                <div className="text-xs text-[#7fa8c8]">
                   <p className="font-medium mb-1">Format Example:</p>
                   <code className="text-[10px]">
                     sessionId=abc123; Domain=.example.com; Path=/; Secure; HttpOnly; SameSite=Lax
@@ -562,12 +546,21 @@ export default function CookieManager({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowImportDialog(false)}>
+            <button
+              type="button"
+              onClick={() => setShowImportDialog(false)}
+              className="flex items-center justify-center h-9 px-4 rounded border border-[#1e2d3d] bg-[#0f1923] text-sm text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+            >
               Cancel
-            </Button>
-            <Button onClick={importCookies} disabled={!importText.trim()}>
+            </button>
+            <button
+              type="button"
+              onClick={importCookies}
+              disabled={!importText.trim()}
+              className="flex items-center justify-center h-9 px-4 rounded bg-teal-400 text-[#0b0f18] text-sm font-medium hover:bg-teal-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
               Import
-            </Button>
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

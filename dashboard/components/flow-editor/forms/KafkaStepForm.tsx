@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import {
-  MessageSquare,
   Send,
   Download,
   Plus,
@@ -10,15 +9,13 @@ import {
   ChevronDown,
   ChevronRight,
   Key,
-  FileJson,
+  MessageSquare,
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -57,7 +54,6 @@ export default function KafkaStepForm({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const action = (config.action as string) || 'produce';
 
-  // Parse headers
   const headers: KafkaHeader[] = (() => {
     const h = config.headers as Record<string, string> | undefined;
     if (!h) return [];
@@ -74,32 +70,38 @@ export default function KafkaStepForm({
 
   return (
     <div className={cn('space-y-4', className)}>
-      {/* Action Type */}
       <div className="space-y-2">
         <Label className="text-xs font-medium">Action</Label>
         <div className="flex gap-2">
-          <Button
-            variant={action === 'produce' ? 'default' : 'outline'}
-            size="sm"
+          <button
+            type="button"
             onClick={() => onChange('action', 'produce')}
-            className="flex-1 h-9"
+            className={cn(
+              'flex items-center gap-2 flex-1 h-9 px-3 rounded-lg border text-sm font-medium transition-colors',
+              action === 'produce'
+                ? 'border-teal-400/30 bg-teal-400/10 text-teal-400'
+                : 'border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8]'
+            )}
           >
-            <Send className="w-4 h-4 mr-2" />
+            <Send className="w-4 h-4" />
             Produce
-          </Button>
-          <Button
-            variant={action === 'consume' ? 'default' : 'outline'}
-            size="sm"
+          </button>
+          <button
+            type="button"
             onClick={() => onChange('action', 'consume')}
-            className="flex-1 h-9"
+            className={cn(
+              'flex items-center gap-2 flex-1 h-9 px-3 rounded-lg border text-sm font-medium transition-colors',
+              action === 'consume'
+                ? 'border-teal-400/30 bg-teal-400/10 text-teal-400'
+                : 'border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8]'
+            )}
           >
-            <Download className="w-4 h-4 mr-2" />
+            <Download className="w-4 h-4" />
             Consume
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Connection */}
       <div className="space-y-3">
         <Label className="text-xs font-medium">Connection</Label>
         <div className="space-y-2">
@@ -110,13 +112,12 @@ export default function KafkaStepForm({
             variables={variables}
             stepOutputs={stepOutputs}
           />
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[10px] text-[#4a6480]">
             Comma-separated broker addresses
           </p>
         </div>
       </div>
 
-      {/* Topic */}
       <div className="space-y-2">
         <Label className="text-xs font-medium">Topic</Label>
         <VariablePicker
@@ -128,10 +129,8 @@ export default function KafkaStepForm({
         />
       </div>
 
-      {/* Produce-specific options */}
       {action === 'produce' && (
         <div className="space-y-4">
-          {/* Key and Partition */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label className="text-xs flex items-center gap-1">
@@ -158,7 +157,6 @@ export default function KafkaStepForm({
             </div>
           </div>
 
-          {/* Message Value */}
           <div className="space-y-2">
             <Label className="text-xs font-medium flex items-center gap-1">
               <MessageSquare className="w-3 h-3" />
@@ -180,18 +178,17 @@ export default function KafkaStepForm({
               placeholder='{"event": "user.created", "data": {...}}'
               className="text-xs font-mono resize-none min-h-[100px]"
             />
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-[10px] text-[#4a6480]">
               JSON or string value. Use {'${variable}'} for dynamic content.
             </p>
           </div>
 
-          {/* Headers */}
           <Collapsible>
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
               <ChevronRight className="w-3 h-3" />
               Message Headers
               {headers.length > 0 && (
-                <span className="ml-1 text-[10px] bg-muted px-1 rounded">
+                <span className="ml-1 text-[10px] bg-[#1a2332] px-1 rounded text-[#7fa8c8]">
                   {headers.length}
                 </span>
               )}
@@ -209,7 +206,7 @@ export default function KafkaStepForm({
                     placeholder="key"
                     className="h-7 text-xs font-mono w-32"
                   />
-                  <span className="text-muted-foreground">:</span>
+                  <span className="text-[#4a6480]">:</span>
                   <Input
                     value={header.value}
                     onChange={(e) => {
@@ -220,34 +217,30 @@ export default function KafkaStepForm({
                     placeholder="value"
                     className="h-7 text-xs font-mono flex-1"
                   />
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={() => updateHeaders(headers.filter((_, i) => i !== index))}
-                    className="h-7 w-7 p-0"
+                    className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                   >
                     <Trash2 className="w-3 h-3" />
-                  </Button>
+                  </button>
                 </div>
               ))}
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => updateHeaders([...headers, { key: '', value: '' }])}
-                className="h-7 text-xs"
+                className="flex items-center gap-1 h-7 px-3 rounded border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
               >
-                <Plus className="w-3 h-3 mr-1" />
+                <Plus className="w-3 h-3" />
                 Add Header
-              </Button>
+              </button>
             </CollapsibleContent>
           </Collapsible>
         </div>
       )}
 
-      {/* Consume-specific options */}
       {action === 'consume' && (
         <div className="space-y-4">
-          {/* Consumer Group */}
           <div className="space-y-2">
             <Label className="text-xs font-medium">Consumer Group</Label>
             <VariablePicker
@@ -259,7 +252,6 @@ export default function KafkaStepForm({
             />
           </div>
 
-          {/* Consume Options */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label className="text-xs flex items-center gap-1">
@@ -285,7 +277,6 @@ export default function KafkaStepForm({
             </div>
           </div>
 
-          {/* Offset */}
           <div className="space-y-2">
             <Label className="text-xs font-medium">Starting Offset</Label>
             <Select
@@ -303,9 +294,8 @@ export default function KafkaStepForm({
             </Select>
           </div>
 
-          {/* Filter */}
           <Collapsible>
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
               <ChevronRight className="w-3 h-3" />
               Message Filter
             </CollapsibleTrigger>
@@ -333,13 +323,12 @@ export default function KafkaStepForm({
         </div>
       )}
 
-      {/* Advanced Options */}
       <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
           {showAdvanced ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
           Advanced Options
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-3 space-y-3 pt-3 border-t">
+        <CollapsibleContent className="mt-3 space-y-3 pt-3 border-t border-[#1e2d3d]">
           <div className="space-y-3">
             {(config.sasl_mechanism as string) && config.sasl_mechanism !== 'none' ? (
               <div className="grid grid-cols-2 gap-3">
@@ -366,7 +355,6 @@ export default function KafkaStepForm({
               </div>
             ) : null}
 
-            {/* TLS */}
             <div className="flex items-center gap-2">
               <Switch
                 checked={(config.tls as boolean) || false}
@@ -387,7 +375,6 @@ export default function KafkaStepForm({
               </div>
             ) : null}
 
-            {/* Compression */}
             {action === 'produce' ? (
               <div className="space-y-2">
                 <Label className="text-xs">Compression</Label>

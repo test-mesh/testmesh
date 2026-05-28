@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -66,17 +65,16 @@ export default function PostgreSQLNativeForm({
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex items-center gap-2 pb-2 border-b">
-        <Database className="h-4 w-4 text-blue-600" />
-        <span className="text-sm font-medium">PostgreSQL</span>
+      <div className="flex items-center gap-2 pb-2 border-b border-[#1a2332]">
+        <Database className="h-4 w-4 text-blue-400" />
+        <span className="text-sm font-medium text-[#c8dce8]">PostgreSQL</span>
         {action && (
-          <span className="text-xs text-muted-foreground font-mono">({action})</span>
+          <span className="text-xs text-[#4a6480] font-mono">({action})</span>
         )}
       </div>
 
-      {/* Connection */}
-      <details className="space-y-3 p-3 border rounded-lg">
-        <summary className="text-sm font-medium cursor-pointer">Connection</summary>
+      <details className="space-y-3 p-3 border border-[#1a2332] rounded-lg">
+        <summary className="text-sm font-medium text-[#c8dce8] cursor-pointer">Connection</summary>
         <div className="space-y-3 pt-3">
           <div className="flex items-center justify-between">
             <Label>Use connection string</Label>
@@ -84,7 +82,6 @@ export default function PostgreSQLNativeForm({
               checked={useConnectionString}
               onCheckedChange={(checked) => {
                 if (checked) {
-                  // Clear individual fields
                   onChange('host', undefined);
                   onChange('port', undefined);
                   onChange('user', undefined);
@@ -183,7 +180,6 @@ export default function PostgreSQLNativeForm({
         </div>
       </details>
 
-      {/* Query — for query/assert */}
       {(action === 'postgresql.query' || action === 'postgresql.assert') && (
         <div className="space-y-2">
           <Label htmlFor="pg-query">SQL Query</Label>
@@ -198,7 +194,6 @@ export default function PostgreSQLNativeForm({
         </div>
       )}
 
-      {/* Statement — for execute */}
       {action === 'postgresql.execute' && (
         <div className="space-y-2">
           <Label htmlFor="pg-statement">SQL Statement</Label>
@@ -213,7 +208,6 @@ export default function PostgreSQLNativeForm({
         </div>
       )}
 
-      {/* Table — for insert/update/delete/columns */}
       {needsTable && (
         <div className="space-y-2">
           <Label htmlFor="pg-table">Table</Label>
@@ -227,7 +221,6 @@ export default function PostgreSQLNativeForm({
         </div>
       )}
 
-      {/* Data — for insert/update */}
       {needsData && (
         <div className="space-y-2">
           <Label htmlFor="pg-data">Data (JSON object)</Label>
@@ -242,7 +235,6 @@ export default function PostgreSQLNativeForm({
         </div>
       )}
 
-      {/* Where + WhereParams — for update/delete */}
       {needsWhere && (
         <>
           <div className="space-y-2">
@@ -269,7 +261,6 @@ export default function PostgreSQLNativeForm({
         </>
       )}
 
-      {/* Returning — for insert/update/delete */}
       {needsReturning && (
         <div className="space-y-2">
           <Label htmlFor="pg-returning">Returning (optional)</Label>
@@ -283,7 +274,6 @@ export default function PostgreSQLNativeForm({
         </div>
       )}
 
-      {/* Schema — for tables/columns */}
       {needsSchema && (
         <div className="space-y-2">
           <Label htmlFor="pg-schema">Schema</Label>
@@ -297,7 +287,6 @@ export default function PostgreSQLNativeForm({
         </div>
       )}
 
-      {/* Statements — for transaction */}
       {needsStatements && (
         <div className="space-y-2">
           <Label htmlFor="pg-statements">Statements (one per line)</Label>
@@ -311,24 +300,27 @@ export default function PostgreSQLNativeForm({
             rows={6}
             className="font-mono text-sm"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#4a6480]">
             Each statement runs within the same transaction. All succeed or all roll back.
           </p>
         </div>
       )}
 
-      {/* Assertions — for postgresql.assert */}
       {isAssert && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Assertions</Label>
-            <Button variant="outline" size="sm" onClick={addAssertion} type="button">
-              <Plus className="h-3 w-3 mr-1" />
+            <button
+              type="button"
+              onClick={addAssertion}
+              className="flex items-center gap-1 h-7 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+            >
+              <Plus className="h-3 w-3" />
               Add
-            </Button>
+            </button>
           </div>
           {assertions.length === 0 && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#4a6480]">
               No assertions yet. Click Add to create one.
             </p>
           )}
@@ -340,15 +332,13 @@ export default function PostgreSQLNativeForm({
                 placeholder='rows[0].status == "active"'
                 className="font-mono text-sm flex-1"
               />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => removeAssertion(index)}
+              <button
                 type="button"
-                className="text-destructive hover:text-destructive"
+                onClick={() => removeAssertion(index)}
+                className="flex items-center justify-center h-8 w-8 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
               >
                 <Trash2 className="h-3 w-3" />
-              </Button>
+              </button>
             </div>
           ))}
         </div>

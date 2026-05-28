@@ -16,8 +16,6 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -502,28 +500,29 @@ export default function FlowEditor({
     setHistoryIndex((prev) => prev + 1);
   }, [definition, historyIndex]);
 
+  const hasValidationIssues = validationResult && (validationResult.errorCount > 0 || validationResult.warningCount > 0);
+
   return (
     <div className={cn('flex flex-col h-full bg-[#0d1117]', className)}>
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-[#1e2d3d] bg-[#0f1923]">
         <div className="flex items-center gap-2">
           {/* YAML Drawer button */}
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setYamlSheetOpen(true)}
-            className="h-8 text-xs gap-1.5"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
           >
             <Code className="w-3.5 h-3.5" />
             YAML
-          </Button>
+          </button>
 
-          <div className="w-px h-6 bg-border mx-2" />
+          <div className="w-px h-6 bg-[#1e2d3d] mx-1" />
 
           {/* Templates */}
           <TemplatesDialog onApplyTemplate={handleApplyTemplate} />
 
-          <div className="w-px h-6 bg-border mx-2" />
+          <div className="w-px h-6 bg-[#1e2d3d] mx-1" />
 
           {/* Flow Settings */}
           <FlowConfigDialog
@@ -534,87 +533,100 @@ export default function FlowEditor({
             }}
           />
 
-          <div className="w-px h-6 bg-border mx-2" />
+          <div className="w-px h-6 bg-[#1e2d3d] mx-1" />
 
           {/* Undo/Redo */}
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={handleUndo}
             disabled={!canUndo}
-            className="h-8 w-8 p-0"
+            title="Undo"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Undo className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
+          </button>
+          <button
+            type="button"
             onClick={handleRedo}
             disabled={!canRedo}
-            className="h-8 w-8 p-0"
+            title="Redo"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Redo className="w-4 h-4" />
-          </Button>
+          </button>
 
-          {/* Canvas panel toggles */}
-          <div className="w-px h-6 bg-border mx-2" />
+          <div className="w-px h-6 bg-[#1e2d3d] mx-1" />
 
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={handleAutoLayout}
-            className="h-8 text-xs gap-1.5"
             title="Automatically arrange nodes"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
           >
             <Sparkles className="w-3.5 h-3.5" />
             Auto Layout
-          </Button>
+          </button>
 
-          <Button
-            variant={showSearch ? 'secondary' : 'outline'}
-            size="sm"
+          <button
+            type="button"
             onClick={() => setShowSearch(!showSearch)}
-            className="h-8 text-xs gap-1.5"
             title="Search nodes (Cmd/Ctrl+F)"
+            className={cn(
+              'flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors',
+              showSearch
+                ? 'bg-[#1a2332] text-[#c8dce8]'
+                : 'text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#0f1923]'
+            )}
           >
             <Search className="w-3.5 h-3.5" />
             Search
-          </Button>
+          </button>
 
-          <div className="w-px h-6 bg-border mx-2" />
+          <div className="w-px h-6 bg-[#1e2d3d] mx-1" />
 
-          <Button
-            variant={showPalette ? 'secondary' : 'ghost'}
-            size="sm"
+          <button
+            type="button"
             onClick={() => setShowPalette(!showPalette)}
-            className="h-8 text-xs"
+            className={cn(
+              'flex items-center h-8 px-3 rounded-lg text-xs font-medium transition-colors',
+              showPalette
+                ? 'bg-[#1a2332] text-[#c8dce8]'
+                : 'text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#0f1923]'
+            )}
           >
             <ChevronLeft className={cn('w-4 h-4 mr-1 transition-transform', !showPalette && 'rotate-180')} />
             Actions
-          </Button>
-          <Button
-            variant={showProperties ? 'secondary' : 'ghost'}
-            size="sm"
+          </button>
+          <button
+            type="button"
             onClick={() => setShowProperties(!showProperties)}
-            className="h-8 text-xs"
+            className={cn(
+              'flex items-center h-8 px-3 rounded-lg text-xs font-medium transition-colors',
+              showProperties
+                ? 'bg-[#1a2332] text-[#c8dce8]'
+                : 'text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#0f1923]'
+            )}
           >
             Properties
             <ChevronRight className={cn('w-4 h-4 ml-1 transition-transform', !showProperties && 'rotate-180')} />
-          </Button>
+          </button>
 
-          <Button
-            variant={showValidation ? 'secondary' : 'ghost'}
-            size="sm"
+          <button
+            type="button"
             onClick={() => setShowValidation(!showValidation)}
-            className={cn(
-              'h-8 text-xs gap-1.5',
-              validationResult && !validationResult.valid && 'text-red-500 hover:text-red-600'
-            )}
             title={
               validationResult
                 ? `${validationResult.errorCount} errors, ${validationResult.warningCount} warnings`
                 : 'Show validation'
             }
+            className={cn(
+              'flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium transition-colors',
+              showValidation
+                ? 'bg-[#1a2332] text-[#c8dce8]'
+                : validationResult && !validationResult.valid
+                  ? 'text-red-400 hover:text-red-300 hover:bg-[#1a2d3d]'
+                  : 'text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#0f1923]'
+            )}
           >
             {validationResult && !validationResult.valid ? (
               <AlertCircle className="w-3.5 h-3.5" />
@@ -622,59 +634,59 @@ export default function FlowEditor({
               <CheckCircle2 className="w-3.5 h-3.5" />
             )}
             Validation
-            {validationResult && (validationResult.errorCount > 0 || validationResult.warningCount > 0) && (
-              <Badge
-                variant={validationResult.errorCount > 0 ? 'destructive' : 'secondary'}
-                className="h-4 text-[10px] px-1 ml-0.5"
-              >
-                {validationResult.errorCount + validationResult.warningCount}
-              </Badge>
+            {hasValidationIssues && (
+              <span className={cn(
+                'ml-0.5 px-1 rounded text-[10px] leading-4 font-medium',
+                validationResult!.errorCount > 0
+                  ? 'bg-red-400/20 text-red-400'
+                  : 'bg-amber-400/15 text-amber-400'
+              )}>
+                {validationResult!.errorCount + validationResult!.warningCount}
+              </span>
             )}
-          </Button>
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
           {isDirty && (
-            <span className="text-xs text-muted-foreground">Unsaved changes</span>
+            <span className="text-xs text-[#4a6480]">Unsaved changes</span>
           )}
 
           {/* Export Dialog */}
           <ExportDialog definition={mode === 'visual' ? definition : parseYaml(yaml) || definition} />
 
           {/* Help Button */}
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={() => setShowShortcuts(true)}
-            className="h-8 w-8 p-0"
             title="Keyboard shortcuts (?)"
+            className="h-8 w-8 rounded-lg flex items-center justify-center text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
           >
             <HelpCircle className="w-4 h-4" />
-          </Button>
+          </button>
 
-          <div className="w-px h-6 bg-border" />
+          <div className="w-px h-6 bg-[#1e2d3d]" />
 
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="h-8"
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Save className="w-4 h-4 mr-1.5" />
+            <Save className="w-4 h-4" />
             {isSaving ? 'Saving...' : 'Save'}
-          </Button>
+          </button>
 
           {onRun && (
-            <Button
-              size="sm"
+            <button
+              type="button"
               onClick={handleRun}
               disabled={isRunning}
-              className="h-8"
+              className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-teal-400 text-[#0b0f18] text-xs font-medium hover:bg-teal-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <Play className="w-4 h-4 mr-1.5" />
+              <Play className="w-4 h-4" />
               {isRunning ? 'Running...' : 'Run'}
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -686,7 +698,7 @@ export default function FlowEditor({
 
         {/* Search Panel */}
         {showSearch && (
-          <div className="w-80 border-r">
+          <div className="w-80 border-r border-[#1e2d3d]">
             <SearchPanel
               nodes={(() => {
                 const { nodes } = flowDefinitionToNodesAndEdges(definition);
@@ -752,26 +764,25 @@ export default function FlowEditor({
       {/* YAML Sheet Drawer */}
       <Sheet open={yamlSheetOpen} onOpenChange={(open) => { if (!open) handleYamlSheetClose(); }}>
         <SheetContent side="right" className="w-[600px] sm:max-w-[600px] flex flex-col p-0">
-          <SheetHeader className="px-6 py-4 border-b">
+          <SheetHeader className="px-6 py-4 border-b border-[#1e2d3d]">
             <div className="flex items-center justify-between">
-              <SheetTitle className="text-base">YAML Editor</SheetTitle>
+              <SheetTitle className="text-base text-[#c8dce8]">YAML Editor</SheetTitle>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
+                <button
+                  type="button"
                   onClick={handleValidate}
-                  className="h-7 text-xs"
+                  className="flex items-center gap-1 h-7 px-2 rounded border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                  <CheckCircle2 className="w-3.5 h-3.5" />
                   Validate
-                </Button>
-                <Button
-                  size="sm"
+                </button>
+                <button
+                  type="button"
                   onClick={handleYamlSheetClose}
-                  className="h-7 text-xs"
+                  className="h-7 px-3 rounded bg-teal-400 text-[#0b0f18] text-xs font-medium hover:bg-teal-300 transition-colors"
                 >
                   Apply
-                </Button>
+                </button>
               </div>
             </div>
           </SheetHeader>
@@ -783,9 +794,9 @@ export default function FlowEditor({
             </Alert>
           )}
           {validationSuccess && !yamlError && (
-            <Alert className="mx-4 mt-3 border-green-500/50">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-xs text-green-700 dark:text-green-400">{validationSuccess}</AlertDescription>
+            <Alert className="mx-4 mt-3 border-green-400/30 bg-green-400/5">
+              <CheckCircle2 className="h-4 w-4 text-green-400" />
+              <AlertDescription className="text-xs text-green-400">{validationSuccess}</AlertDescription>
             </Alert>
           )}
 

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Plus, Trash2, HelpCircle, CheckCircle, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -30,7 +29,7 @@ interface Assertion {
   left: string;
   operator: string;
   right: string;
-  raw?: string; // For advanced mode
+  raw?: string;
 }
 
 interface AssertionBuilderProps {
@@ -69,12 +68,9 @@ const COMMON_PATHS = [
   { path: 'rows[0]', description: 'First database row' },
 ];
 
-// Parse assertion string into structured form
 function parseAssertion(assertion: string): Assertion {
   const id = Math.random().toString(36).substr(2, 9);
 
-  // Try to parse common patterns
-  // Pattern: left operator right
   const patterns = [
     /^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/,
     /^(.+?)\s+contains\s+(.+)$/,
@@ -92,7 +88,6 @@ function parseAssertion(assertion: string): Assertion {
     const match = assertion.match(pattern);
     if (match) {
       const [, left, opOrRight, right] = match;
-      // Determine operator based on pattern
       if (pattern.source.includes('contains')) {
         return { id, left, operator: 'contains', right: opOrRight };
       }
@@ -105,33 +100,27 @@ function parseAssertion(assertion: string): Assertion {
       if (pattern.source.includes('isEmpty')) {
         return { id, left, operator: 'isEmpty', right: '' };
       }
-      // Comparison operators
       return { id, left, operator: opOrRight, right: right || '' };
     }
   }
 
-  // Fallback: treat as raw expression
   return { id, left: '', operator: '', right: '', raw: assertion };
 }
 
-// Convert structured assertion back to string
 function assertionToString(assertion: Assertion): string {
   if (assertion.raw) return assertion.raw;
 
   const { left, operator, right } = assertion;
   if (!left || !operator) return '';
 
-  // Operators that don't need right side
   if (['exists', 'isNull', 'isEmpty'].includes(operator)) {
     return `${left} ${operator}`;
   }
 
-  // Word operators
   if (['contains', 'startsWith', 'endsWith', 'matches', 'hasLength', 'isType'].includes(operator)) {
     return `${left} ${operator} ${right}`;
   }
 
-  // Comparison operators
   return `${left} ${operator} ${right}`;
 }
 
@@ -180,7 +169,7 @@ export default function AssertionBuilder({
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger>
-                <HelpCircle className="w-3 h-3 text-muted-foreground" />
+                <HelpCircle className="w-3 h-3 text-[#4a6480]" />
               </TooltipTrigger>
               <TooltipContent side="right" className="max-w-xs">
                 <p className="text-xs">
@@ -190,31 +179,34 @@ export default function AssertionBuilder({
             </Tooltip>
           </TooltipProvider>
         </div>
-        <Button variant="outline" size="sm" onClick={addAssertion} className="h-6 px-2 text-xs">
-          <Plus className="w-3 h-3 mr-1" />
+        <button
+          type="button"
+          onClick={addAssertion}
+          className="flex items-center gap-1 h-6 px-2 rounded border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+        >
+          <Plus className="w-3 h-3" />
           Add
-        </Button>
+        </button>
       </div>
 
       {parsedAssertions.length === 0 ? (
-        <div className="text-center py-6 border-2 border-dashed rounded-lg">
-          <CheckCircle className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
-          <p className="text-xs text-muted-foreground">No assertions defined</p>
-          <p className="text-[10px] text-muted-foreground mt-1">
+        <div className="text-center py-6 border border-dashed border-[#1e2d3d] rounded-lg">
+          <CheckCircle className="w-8 h-8 mx-auto text-[#3d5670] mb-2" />
+          <p className="text-xs text-[#4a6480]">No assertions defined</p>
+          <p className="text-[10px] text-[#4a6480] mt-1">
             Click "Add" to validate step output
           </p>
         </div>
       ) : (
         <div className="space-y-2">
-          {parsedAssertions.map((assertion, index) => (
+          {parsedAssertions.map((assertion) => (
             <div
               key={assertion.id}
-              className="p-2 border rounded-lg bg-card space-y-2"
+              className="p-2 border border-[#1a2332] rounded-lg bg-[#0b0f18] space-y-2"
             >
               {assertion.raw ? (
-                // Advanced/raw mode
                 <div className="space-y-1">
-                  <div className="flex items-center gap-1 text-[10px] text-amber-600">
+                  <div className="flex items-center gap-1 text-[10px] text-amber-400">
                     <AlertCircle className="w-3 h-3" />
                     Advanced expression
                   </div>
@@ -226,7 +218,6 @@ export default function AssertionBuilder({
                   />
                 </div>
               ) : (
-                // Visual builder mode
                 <div className="grid grid-cols-[1fr,auto,1fr,auto] gap-1.5 items-center">
                   <div className="relative">
                     <Input
@@ -272,19 +263,17 @@ export default function AssertionBuilder({
                     <div />
                   )}
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={() => removeAssertion(assertion.id)}
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                   >
                     <Trash2 className="w-3 h-3" />
-                  </Button>
+                  </button>
                 </div>
               )}
 
-              {/* Preview */}
-              <div className="text-[10px] text-muted-foreground font-mono bg-muted/50 px-2 py-1 rounded">
+              <div className="text-[10px] text-[#4a6480] font-mono bg-[#1a2332] px-2 py-1 rounded">
                 {assertionToString(assertion) || 'Invalid assertion'}
               </div>
             </div>
@@ -292,9 +281,8 @@ export default function AssertionBuilder({
         </div>
       )}
 
-      {/* Quick templates */}
       <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-        <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+        <CollapsibleTrigger className="flex items-center gap-1 text-[10px] text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
           <span>Quick templates</span>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2 space-y-1">
@@ -308,15 +296,16 @@ export default function AssertionBuilder({
           ].map((template) => (
             <button
               key={template.label}
+              type="button"
               onClick={() => {
                 const parsed = parseAssertion(template.assertion);
                 updateAssertions([...parsedAssertions, parsed]);
               }}
-              className="block w-full text-left px-2 py-1 text-[10px] rounded hover:bg-muted transition-colors"
+              className="block w-full text-left px-2 py-1 text-[10px] rounded hover:bg-[#1a2d3d] transition-colors"
             >
-              <span className="text-muted-foreground">+ </span>
-              {template.label}
-              <span className="text-muted-foreground ml-1 font-mono">({template.assertion})</span>
+              <span className="text-[#4a6480]">+ </span>
+              <span className="text-[#7fa8c8]">{template.label}</span>
+              <span className="text-[#4a6480] ml-1 font-mono">({template.assertion})</span>
             </button>
           ))}
         </CollapsibleContent>

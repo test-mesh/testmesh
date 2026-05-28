@@ -14,31 +14,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export interface SSLTLSConfig {
-  // Client Certificate Authentication
   client_cert?: string;
   client_key?: string;
   client_key_passphrase?: string;
-
-  // Certificate Authority
   ca_cert?: string;
   ca_bundle?: string;
-
-  // TLS Version
   min_tls_version?: 'TLS1.0' | 'TLS1.1' | 'TLS1.2' | 'TLS1.3';
   max_tls_version?: 'TLS1.0' | 'TLS1.1' | 'TLS1.2' | 'TLS1.3';
-
-  // Cipher Suites
   cipher_suites?: string[];
-
-  // Verification Options
   verify_ssl?: boolean;
   verify_hostname?: boolean;
-  server_name?: string; // SNI override
-
-  // Advanced
+  server_name?: string;
   allow_insecure?: boolean;
   client_auth_type?: 'none' | 'optional' | 'required';
 }
@@ -65,12 +53,15 @@ const COMMON_CIPHER_SUITES = [
   'TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256',
 ];
 
+type SSLTab = 'certificates' | 'tls-version' | 'verification';
+
 export default function SSLTLSConfigPanel({
   value,
   onChange,
   className,
 }: SSLTLSConfigPanelProps) {
   const [certInputMode, setCertInputMode] = useState<'file' | 'text'>('file');
+  const [activeTab, setActiveTab] = useState<SSLTab>('certificates');
 
   const updateConfig = (updates: Partial<SSLTLSConfig>) => {
     onChange({ ...value, ...updates });
@@ -78,37 +69,45 @@ export default function SSLTLSConfigPanel({
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex items-center gap-2 pb-2 border-b">
-        <Shield className="h-4 w-4 text-primary" />
-        <span className="text-sm font-medium">SSL/TLS Configuration</span>
+      <div className="flex items-center gap-2 pb-2 border-b border-[#1a2332]">
+        <Shield className="h-4 w-4 text-teal-400" />
+        <span className="text-sm font-medium text-[#c8dce8]">SSL/TLS Configuration</span>
       </div>
 
-      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-        <p className="text-sm text-foreground">
+      <div className="p-3 bg-teal-400/5 border border-teal-400/20 rounded-lg">
+        <p className="text-sm text-[#c8dce8]">
           Configure SSL/TLS settings for secure HTTPS communication with client certificates,
           custom CA bundles, and TLS version controls.
         </p>
       </div>
 
-      <Tabs defaultValue="certificates" className="w-full">
-        <TabsList className="grid grid-cols-3 w-full">
-          <TabsTrigger value="certificates" className="text-xs">
-            <Key className="w-3 h-3 mr-1" />
-            Certificates
-          </TabsTrigger>
-          <TabsTrigger value="tls-version" className="text-xs">
-            <Lock className="w-3 h-3 mr-1" />
-            TLS Version
-          </TabsTrigger>
-          <TabsTrigger value="verification" className="text-xs">
-            <Shield className="w-3 h-3 mr-1" />
-            Verification
-          </TabsTrigger>
-        </TabsList>
+      {/* Tab pills */}
+      <div className="flex gap-1 p-1 bg-[#0f1923] rounded-lg border border-[#1e2d3d]">
+        {([
+          { id: 'certificates', label: 'Certificates', icon: Key },
+          { id: 'tls-version', label: 'TLS Version', icon: Lock },
+          { id: 'verification', label: 'Verification', icon: Shield },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={cn(
+              'flex items-center gap-1 flex-1 h-7 px-2 rounded text-xs font-medium transition-colors',
+              activeTab === id
+                ? 'bg-[#1a2332] text-[#c8dce8]'
+                : 'text-[#4a6480] hover:text-[#7fa8c8]'
+            )}
+          >
+            <Icon className="w-3 h-3" />
+            {label}
+          </button>
+        ))}
+      </div>
 
-        {/* Certificates Tab */}
-        <TabsContent value="certificates" className="space-y-4 mt-4">
-          {/* Client Certificate */}
+      {/* Certificates Tab */}
+      {activeTab === 'certificates' && (
+        <div className="space-y-4">
           <div className="space-y-3">
             <Label className="flex items-center gap-2">
               <FileKey className="w-4 h-4" />
@@ -117,23 +116,25 @@ export default function SSLTLSConfigPanel({
 
             <div className="flex items-center gap-2 mb-2">
               <button
+                type="button"
                 onClick={() => setCertInputMode('file')}
                 className={cn(
                   'px-3 py-1 text-xs rounded-md transition-colors',
                   certInputMode === 'file'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted hover:bg-muted/80'
+                    ? 'bg-teal-400 text-[#0b0f18]'
+                    : 'bg-[#1a2332] hover:bg-[#1e2d3d] text-[#7fa8c8]'
                 )}
               >
                 File Path
               </button>
               <button
+                type="button"
                 onClick={() => setCertInputMode('text')}
                 className={cn(
                   'px-3 py-1 text-xs rounded-md transition-colors',
                   certInputMode === 'text'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted hover:bg-muted/80'
+                    ? 'bg-teal-400 text-[#0b0f18]'
+                    : 'bg-[#1a2332] hover:bg-[#1e2d3d] text-[#7fa8c8]'
                 )}
               >
                 PEM Content
@@ -152,7 +153,7 @@ export default function SSLTLSConfigPanel({
                   placeholder="/path/to/client.crt"
                   className="font-mono text-sm"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#4a6480]">
                   Path to client certificate file (PEM format)
                 </p>
               </div>
@@ -172,7 +173,6 @@ export default function SSLTLSConfigPanel({
               </div>
             )}
 
-            {/* Client Key */}
             <div className="space-y-2">
               <Label htmlFor="client_key" className="text-xs">
                 Private Key {certInputMode === 'file' ? 'Path' : 'Content'}
@@ -197,7 +197,6 @@ export default function SSLTLSConfigPanel({
               )}
             </div>
 
-            {/* Key Passphrase */}
             <div className="space-y-2">
               <Label htmlFor="client_key_passphrase" className="text-xs">
                 Private Key Passphrase (Optional)
@@ -210,15 +209,14 @@ export default function SSLTLSConfigPanel({
                 placeholder="Enter passphrase if key is encrypted"
                 className="font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Leave empty if private key is not encrypted
               </p>
             </div>
           </div>
 
-          <div className="border-t pt-3" />
+          <div className="border-t border-[#1e2d3d] pt-3" />
 
-          {/* CA Certificate */}
           <div className="space-y-3">
             <Label className="flex items-center gap-2">
               <Shield className="w-4 h-4" />
@@ -247,7 +245,7 @@ export default function SSLTLSConfigPanel({
                   className="font-mono text-xs"
                 />
               )}
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Custom CA certificate to trust (optional, for self-signed certs)
               </p>
             </div>
@@ -263,15 +261,17 @@ export default function SSLTLSConfigPanel({
                 placeholder="/etc/ssl/certs/ca-bundle.crt"
                 className="font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Path to CA bundle file with multiple certificates
               </p>
             </div>
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* TLS Version Tab */}
-        <TabsContent value="tls-version" className="space-y-4 mt-4">
+      {/* TLS Version Tab */}
+      {activeTab === 'tls-version' && (
+        <div className="space-y-4">
           <div className="space-y-3">
             <Label htmlFor="min_tls_version">Minimum TLS Version</Label>
             <Select
@@ -287,16 +287,14 @@ export default function SSLTLSConfigPanel({
                     <div className="flex items-center gap-2">
                       {ver.label}
                       {ver.recommended && (
-                        <span className="text-xs text-green-600 dark:text-green-400">
-                          ✓ Recommended
-                        </span>
+                        <span className="text-xs text-green-400">✓ Recommended</span>
                       )}
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#4a6480]">
               Minimum acceptable TLS version for the connection
             </p>
           </div>
@@ -318,18 +316,17 @@ export default function SSLTLSConfigPanel({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#4a6480]">
               Maximum TLS version to use (usually TLS 1.3)
             </p>
           </div>
 
-          <div className="border-t pt-3" />
+          <div className="border-t border-[#1e2d3d] pt-3" />
 
-          {/* Cipher Suites */}
           <div className="space-y-3">
             <Label>Cipher Suites (Advanced)</Label>
-            <div className="p-3 bg-muted/30 rounded-lg space-y-2">
-              <p className="text-xs text-muted-foreground">
+            <div className="p-3 bg-[#0b0f18] border border-[#1a2332] rounded-lg space-y-2">
+              <p className="text-xs text-[#4a6480]">
                 Specify allowed cipher suites in order of preference. Leave empty to use defaults.
               </p>
               <Textarea
@@ -346,14 +343,14 @@ export default function SSLTLSConfigPanel({
             </div>
 
             <details className="space-y-2">
-              <summary className="text-xs font-medium cursor-pointer">
+              <summary className="text-xs font-medium text-[#c8dce8] cursor-pointer">
                 Common Cipher Suites
               </summary>
               <div className="pl-4 pt-2 space-y-1 text-xs font-mono">
                 {COMMON_CIPHER_SUITES.map((cipher) => (
                   <div
                     key={cipher}
-                    className="flex items-center justify-between p-2 bg-muted rounded hover:bg-muted/80 cursor-pointer"
+                    className="flex items-center justify-between p-2 bg-[#1a2332] rounded hover:bg-[#1e2d3d] cursor-pointer transition-colors"
                     onClick={() => {
                       const current = value.cipher_suites || [];
                       if (!current.includes(cipher)) {
@@ -361,22 +358,23 @@ export default function SSLTLSConfigPanel({
                       }
                     }}
                   >
-                    <span>{cipher}</span>
-                    <span className="text-[10px] text-muted-foreground">Click to add</span>
+                    <span className="text-[#c8dce8]">{cipher}</span>
+                    <span className="text-[10px] text-[#4a6480]">Click to add</span>
                   </div>
                 ))}
               </div>
             </details>
           </div>
-        </TabsContent>
+        </div>
+      )}
 
-        {/* Verification Tab */}
-        <TabsContent value="verification" className="space-y-4 mt-4">
-          {/* SSL Verification */}
-          <div className="flex items-center justify-between p-3 border rounded-lg">
+      {/* Verification Tab */}
+      {activeTab === 'verification' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 border border-[#1e2d3d] rounded-lg">
             <div className="space-y-0.5">
               <Label htmlFor="verify_ssl">Verify SSL Certificate</Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Validate server certificate against trusted CAs
               </p>
             </div>
@@ -387,11 +385,10 @@ export default function SSLTLSConfigPanel({
             />
           </div>
 
-          {/* Hostname Verification */}
-          <div className="flex items-center justify-between p-3 border rounded-lg">
+          <div className="flex items-center justify-between p-3 border border-[#1e2d3d] rounded-lg">
             <div className="space-y-0.5">
               <Label htmlFor="verify_hostname">Verify Hostname</Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Check that certificate hostname matches request URL
               </p>
             </div>
@@ -402,7 +399,6 @@ export default function SSLTLSConfigPanel({
             />
           </div>
 
-          {/* Server Name (SNI) */}
           <div className="space-y-2">
             <Label htmlFor="server_name">Server Name (SNI Override)</Label>
             <Input
@@ -412,22 +408,21 @@ export default function SSLTLSConfigPanel({
               placeholder="api.example.com"
               className="font-mono text-sm"
             />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#4a6480]">
               Override the Server Name Indication (SNI) sent during TLS handshake
             </p>
           </div>
 
-          <div className="border-t pt-3" />
+          <div className="border-t border-[#1e2d3d] pt-3" />
 
-          {/* Allow Insecure */}
-          <div className="p-3 border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
+          <div className="p-3 border border-amber-400/30 bg-amber-400/5 rounded-lg">
             <div className="flex items-start gap-2 mb-3">
-              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5" />
               <div className="flex-1">
-                <Label htmlFor="allow_insecure" className="text-amber-900 dark:text-amber-100">
+                <Label htmlFor="allow_insecure" className="text-amber-400">
                   Allow Insecure Connections
                 </Label>
-                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                <p className="text-xs text-amber-400/70 mt-1">
                   Skip all SSL/TLS verification (not recommended for production)
                 </p>
               </div>
@@ -438,14 +433,13 @@ export default function SSLTLSConfigPanel({
               />
             </div>
             {value.allow_insecure && (
-              <p className="text-xs text-amber-800 dark:text-amber-200">
+              <p className="text-xs text-amber-400/70">
                 ⚠️ Warning: This disables all SSL verification and should only be used for testing
                 against development/staging servers with self-signed certificates.
               </p>
             )}
           </div>
 
-          {/* Client Auth Type */}
           <div className="space-y-2">
             <Label htmlFor="client_auth_type">Client Authentication</Label>
             <Select
@@ -461,35 +455,34 @@ export default function SSLTLSConfigPanel({
                 <SelectItem value="required">Required (Must have cert)</SelectItem>
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#4a6480]">
               How to handle server requests for client certificate
             </p>
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
-      {/* Summary */}
-      <div className="p-3 bg-muted/30 border rounded-lg">
-        <div className="flex items-center gap-2 text-sm font-medium mb-2">
+      <div className="p-3 bg-[#0b0f18] border border-[#1a2332] rounded-lg">
+        <div className="flex items-center gap-2 text-sm font-medium text-[#c8dce8] mb-2">
           <Info className="w-4 h-4" />
           Configuration Summary
         </div>
-        <div className="space-y-1 text-xs">
+        <div className="space-y-1 text-xs text-[#7fa8c8]">
           {value.client_cert && (
             <div className="flex items-center gap-2">
-              <Key className="w-3 h-3 text-green-500" />
+              <Key className="w-3 h-3 text-green-400" />
               <span>Client certificate configured</span>
             </div>
           )}
           {value.ca_cert && (
             <div className="flex items-center gap-2">
-              <Shield className="w-3 h-3 text-primary" />
+              <Shield className="w-3 h-3 text-teal-400" />
               <span>Custom CA certificate set</span>
             </div>
           )}
           {value.min_tls_version && (
             <div className="flex items-center gap-2">
-              <Lock className="w-3 h-3 text-purple-500" />
+              <Lock className="w-3 h-3 text-purple-400" />
               <span>
                 TLS {value.min_tls_version} - {value.max_tls_version || 'TLS1.3'}
               </span>
@@ -497,12 +490,12 @@ export default function SSLTLSConfigPanel({
           )}
           {value.allow_insecure && (
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-3 h-3 text-amber-500" />
+              <AlertTriangle className="w-3 h-3 text-amber-400" />
               <span>Insecure mode enabled (verification disabled)</span>
             </div>
           )}
           {!value.client_cert && !value.ca_cert && !value.allow_insecure && (
-            <div className="text-muted-foreground">No SSL/TLS configuration set</div>
+            <div className="text-[#4a6480]">No SSL/TLS configuration set</div>
           )}
         </div>
       </div>

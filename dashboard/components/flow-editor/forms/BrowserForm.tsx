@@ -1,11 +1,10 @@
 'use client';
 
-import { Chrome, MousePointer, Type, Eye, Camera } from 'lucide-react';
+import { Chrome, Camera } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -45,18 +44,17 @@ export default function BrowserForm({
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex items-center gap-2 pb-2 border-b">
-        <Chrome className="h-4 w-4 text-amber-500" />
-        <span className="text-sm font-medium">Browser Automation</span>
+      <div className="flex items-center gap-2 pb-2 border-b border-[#1a2332]">
+        <Chrome className="h-4 w-4 text-amber-400" />
+        <span className="text-sm font-medium text-[#c8dce8]">Browser Automation</span>
       </div>
 
-      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-        <p className="text-sm text-foreground">
+      <div className="p-3 bg-teal-400/5 border border-teal-400/20 rounded-lg">
+        <p className="text-sm text-[#c8dce8]">
           Automate browser interactions: navigate, click, type, screenshot, and validate page content.
         </p>
       </div>
 
-      {/* Browser Type */}
       <div className="space-y-2">
         <Label htmlFor="browser">Browser</Label>
         <Select
@@ -74,7 +72,6 @@ export default function BrowserForm({
         </Select>
       </div>
 
-      {/* Initial URL */}
       <div className="space-y-2">
         <Label htmlFor="url">Initial URL</Label>
         <Input
@@ -84,48 +81,44 @@ export default function BrowserForm({
           placeholder="https://example.com"
           className="font-mono text-sm"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[#4a6480]">
           Starting URL for the browser session
         </p>
       </div>
 
-      {/* Actions */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label>Browser Actions</Label>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={addAction}
-            className="h-6 px-2 text-xs"
+            className="flex items-center gap-1 h-6 px-2 rounded text-xs text-[#7fa8c8] hover:text-[#c8dce8] hover:bg-[#1a2d3d] transition-colors"
           >
             + Add Action
-          </Button>
+          </button>
         </div>
 
         {actions.length === 0 ? (
-          <div className="p-4 border rounded-lg bg-muted/30 text-center">
-            <p className="text-sm text-muted-foreground">
+          <div className="p-4 border border-[#1a2332] rounded-lg bg-[#0b0f18] text-center">
+            <p className="text-sm text-[#4a6480]">
               No actions configured. Add actions to automate browser interactions.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
             {actions.map((action, index) => (
-              <div key={index} className="p-3 border rounded-lg space-y-3 bg-muted/20">
+              <div key={index} className="p-3 border border-[#1a2332] rounded-lg space-y-3 bg-[#0b0f18]">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Action {index + 1}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <span className="text-sm font-medium text-[#c8dce8]">Action {index + 1}</span>
+                  <button
+                    type="button"
                     onClick={() => removeAction(index)}
-                    className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                    className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                   >
                     ×
-                  </Button>
+                  </button>
                 </div>
 
-                {/* Action Type */}
                 <div className="space-y-2">
                   <Label className="text-xs">Action Type</Label>
                   <Select
@@ -149,7 +142,6 @@ export default function BrowserForm({
                   </Select>
                 </div>
 
-                {/* Action-specific fields */}
                 {action.type === 'navigate' && (
                   <div className="space-y-2">
                     <Label className="text-xs">URL</Label>
@@ -268,7 +260,6 @@ export default function BrowserForm({
                   </div>
                 )}
 
-                {/* Delay after action */}
                 <div className="space-y-2">
                   <Label className="text-xs">Delay After Action</Label>
                   <Input
@@ -284,17 +275,15 @@ export default function BrowserForm({
         )}
       </div>
 
-      {/* Browser Options */}
-      <details className="space-y-3 p-3 border rounded-lg">
-        <summary className="text-sm font-medium cursor-pointer">
+      <details className="space-y-3 p-3 border border-[#1e2d3d] rounded-lg">
+        <summary className="text-sm font-medium text-[#c8dce8] cursor-pointer">
           Browser Options
         </summary>
         <div className="pt-3 space-y-3">
-          {/* Headless */}
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label>Headless Mode</Label>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Run browser without GUI
               </p>
             </div>
@@ -304,7 +293,6 @@ export default function BrowserForm({
             />
           </div>
 
-          {/* Viewport */}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-2">
               <Label className="text-xs">Width</Label>
@@ -326,7 +314,6 @@ export default function BrowserForm({
             </div>
           </div>
 
-          {/* User Agent */}
           <div className="space-y-2">
             <Label className="text-xs">User Agent (Optional)</Label>
             <Input
@@ -337,7 +324,6 @@ export default function BrowserForm({
             />
           </div>
 
-          {/* Timeout */}
           <div className="space-y-2">
             <Label className="text-xs">Default Timeout</Label>
             <Input
@@ -350,15 +336,14 @@ export default function BrowserForm({
         </div>
       </details>
 
-      {/* Examples */}
-      <details className="space-y-2 p-3 border rounded-lg">
-        <summary className="text-sm font-medium cursor-pointer">
+      <details className="space-y-2 p-3 border border-[#1e2d3d] rounded-lg">
+        <summary className="text-sm font-medium text-[#c8dce8] cursor-pointer">
           Example Use Cases
         </summary>
         <div className="pt-2 space-y-3 text-xs">
           <div>
-            <p className="font-medium mb-1">1. Login Flow Test</p>
-            <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
+            <p className="font-medium mb-1 text-[#c8dce8]">1. Login Flow Test</p>
+            <div className="p-2 bg-[#1a2332] rounded font-mono text-[10px] space-y-1 text-[#7fa8c8]">
               <div>1. Navigate: https://app.example.com/login</div>
               <div>2. Type: #email → user@example.com</div>
               <div>3. Type: #password → password123</div>
@@ -368,8 +353,8 @@ export default function BrowserForm({
           </div>
 
           <div>
-            <p className="font-medium mb-1">2. E2E Purchase Flow</p>
-            <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
+            <p className="font-medium mb-1 text-[#c8dce8]">2. E2E Purchase Flow</p>
+            <div className="p-2 bg-[#1a2332] rounded font-mono text-[10px] space-y-1 text-[#7fa8c8]">
               <div>1. Navigate to product page</div>
               <div>2. Click: Add to cart</div>
               <div>3. Navigate to checkout</div>
@@ -380,8 +365,8 @@ export default function BrowserForm({
           </div>
 
           <div>
-            <p className="font-medium mb-1">3. Visual Regression</p>
-            <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
+            <p className="font-medium mb-1 text-[#c8dce8]">3. Visual Regression</p>
+            <div className="p-2 bg-[#1a2332] rounded font-mono text-[10px] space-y-1 text-[#7fa8c8]">
               <div>1. Navigate to page</div>
               <div>2. Wait for: .content-loaded</div>
               <div>3. Screenshot: full_page=true</div>
@@ -391,17 +376,16 @@ export default function BrowserForm({
         </div>
       </details>
 
-      {/* Output Info */}
-      <div className="p-3 bg-muted/30 border rounded-lg space-y-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
+      <div className="p-3 bg-[#0b0f18] border border-[#1a2332] rounded-lg space-y-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-[#c8dce8]">
           <Camera className="h-4 w-4" />
           Output Format
         </div>
-        <div className="text-xs text-muted-foreground space-y-1">
-          <div>• <span className="font-mono">screenshots</span> - Array of screenshot paths</div>
-          <div>• <span className="font-mono">page_title</span> - Final page title</div>
-          <div>• <span className="font-mono">page_url</span> - Final page URL</div>
-          <div>• <span className="font-mono">script_results</span> - Results from execute_script actions</div>
+        <div className="text-xs text-[#4a6480] space-y-1">
+          <div>• <span className="font-mono text-[#7fa8c8]">screenshots</span> - Array of screenshot paths</div>
+          <div>• <span className="font-mono text-[#7fa8c8]">page_title</span> - Final page title</div>
+          <div>• <span className="font-mono text-[#7fa8c8]">page_url</span> - Final page URL</div>
+          <div>• <span className="font-mono text-[#7fa8c8]">script_results</span> - Results from execute_script actions</div>
         </div>
       </div>
     </div>

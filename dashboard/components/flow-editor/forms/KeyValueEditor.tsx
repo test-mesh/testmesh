@@ -1,8 +1,6 @@
 'use client';
 
-import { useState } from 'react';
 import { Plus, X, Variable } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
@@ -78,14 +76,14 @@ export default function KeyValueEditor({
         <div>
           <Label>{label}</Label>
           {description && (
-            <p className="text-xs text-muted-foreground mt-1">{description}</p>
+            <p className="text-xs text-[#4a6480] mt-1">{description}</p>
           )}
         </div>
       )}
 
       <div className="space-y-2">
         {pairs.length === 0 && (
-          <div className="text-sm text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+          <div className="text-sm text-[#4a6480] text-center py-4 border border-dashed border-[#1e2d3d] rounded-lg">
             No items added yet
           </div>
         )}
@@ -101,16 +99,14 @@ export default function KeyValueEditor({
                   className="pr-8"
                 />
                 {allowVariables && onVariablePick && (
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                     onClick={() => onVariablePick('key', index)}
                     title="Insert variable"
                   >
                     <Variable className="h-3.5 w-3.5" />
-                  </Button>
+                  </button>
                 )}
               </div>
               <div className="relative">
@@ -121,42 +117,36 @@ export default function KeyValueEditor({
                   className={cn(allowVariables && 'pr-8')}
                 />
                 {allowVariables && onVariablePick && (
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                     onClick={() => onVariablePick('value', index)}
                     title="Insert variable"
                   >
                     <Variable className="h-3.5 w-3.5" />
-                  </Button>
+                  </button>
                 )}
               </div>
             </div>
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
               onClick={() => handleRemove(index)}
-              className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
+              className="flex items-center justify-center h-9 w-9 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
             >
               <X className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
         ))}
       </div>
 
-      <Button
+      <button
         type="button"
-        variant="outline"
-        size="sm"
         onClick={handleAdd}
-        className="w-full"
+        className="flex items-center justify-center gap-2 w-full h-8 rounded-lg border border-dashed border-[#1e2d3d] text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:border-[#2a3d52] transition-colors"
       >
-        <Plus className="h-4 w-4 mr-2" />
+        <Plus className="h-3.5 w-3.5" />
         Add Item
-      </Button>
+      </button>
     </div>
   );
 }

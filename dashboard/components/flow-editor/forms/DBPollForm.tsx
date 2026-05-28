@@ -4,7 +4,6 @@ import { Database, Plus, Trash2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -55,18 +54,17 @@ export default function DBPollForm({
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex items-center gap-2 pb-2 border-b">
-        <Database className="h-4 w-4 text-purple-500" />
-        <span className="text-sm font-medium">DB Poll</span>
+      <div className="flex items-center gap-2 pb-2 border-b border-[#1a2332]">
+        <Database className="h-4 w-4 text-purple-400" />
+        <span className="text-sm font-medium text-[#c8dce8]">DB Poll</span>
       </div>
 
-      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-        <p className="text-sm text-foreground">
+      <div className="p-3 bg-teal-400/5 border border-teal-400/20 rounded-lg">
+        <p className="text-sm text-[#c8dce8]">
           Polls a database query until a condition is met or timeout is reached.
         </p>
       </div>
 
-      {/* Connection */}
       <div className="space-y-2">
         <Label htmlFor="connection">Connection String</Label>
         <Input
@@ -76,12 +74,11 @@ export default function DBPollForm({
           placeholder="${DB_DSN}"
           className="font-mono text-sm"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[#4a6480]">
           Database DSN or use a variable like {'${DB_DSN}'}
         </p>
       </div>
 
-      {/* Query */}
       <div className="space-y-2">
         <Label htmlFor="query">SQL Query</Label>
         <Textarea
@@ -92,45 +89,46 @@ export default function DBPollForm({
           rows={4}
           className="font-mono text-sm"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[#4a6480]">
           Use $1, $2, ... for parameters
         </p>
       </div>
 
-      {/* Params */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label>Query Parameters</Label>
-          <Button variant="ghost" size="sm" onClick={addParam} className="h-6 px-2 text-xs">
-            <Plus className="h-3 w-3 mr-1" /> Add
-          </Button>
+          <button
+            type="button"
+            onClick={addParam}
+            className="flex items-center gap-1 h-6 px-2 rounded text-xs text-[#7fa8c8] hover:text-[#c8dce8] hover:bg-[#1a2d3d] transition-colors"
+          >
+            <Plus className="h-3 w-3" /> Add
+          </button>
         </div>
         {params.length === 0 && (
-          <p className="text-xs text-muted-foreground">No parameters. Add parameters for $1, $2, ...</p>
+          <p className="text-xs text-[#4a6480]">No parameters. Add parameters for $1, $2, ...</p>
         )}
         {params.map((param, i) => (
           <div key={i} className="flex gap-2 items-center">
-            <span className="text-xs text-muted-foreground w-6 text-right shrink-0">${i + 1}</span>
+            <span className="text-xs text-[#4a6480] w-6 text-right shrink-0">${i + 1}</span>
             <Input
               value={param}
               onChange={(e) => updateParam(i, e.target.value)}
               placeholder={`value for $${i + 1}`}
               className="font-mono text-sm"
             />
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
+              type="button"
               onClick={() => removeParam(i)}
-              className="h-8 w-8 shrink-0"
+              className="flex items-center justify-center h-8 w-8 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors shrink-0"
             >
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-            </Button>
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         ))}
       </div>
 
-      {/* Condition */}
-      <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+      <div className="space-y-3 p-3 border border-[#1a2332] rounded-lg bg-[#0b0f18]">
         <Label className="text-sm font-medium">Success Condition</Label>
 
         <div className="space-y-2">
@@ -147,7 +145,7 @@ export default function DBPollForm({
                 <SelectItem key={ct.value} value={ct.value}>
                   <div>
                     <div className="font-medium">{ct.label}</div>
-                    <div className="text-xs text-muted-foreground">{ct.description}</div>
+                    <div className="text-xs text-[#4a6480]">{ct.description}</div>
                   </div>
                 </SelectItem>
               ))}
@@ -196,7 +194,6 @@ export default function DBPollForm({
         )}
       </div>
 
-      {/* Timeout */}
       <div className="space-y-2">
         <Label htmlFor="timeout">Timeout</Label>
         <Input
@@ -206,12 +203,11 @@ export default function DBPollForm({
           placeholder="30s"
           className="font-mono"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[#4a6480]">
           Max time to poll (e.g., 30s, 2m, 5m)
         </p>
       </div>
 
-      {/* Interval */}
       <div className="space-y-2">
         <Label htmlFor="interval">Poll Interval</Label>
         <Input
@@ -221,7 +217,7 @@ export default function DBPollForm({
           placeholder="1s"
           className="font-mono"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[#4a6480]">
           Time between DB queries (e.g., 500ms, 1s, 5s)
         </p>
       </div>

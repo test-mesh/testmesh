@@ -1,10 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { AlertTriangle, Plus, X } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -43,9 +41,6 @@ export default function ErrorHandlingPanel({
   onChange,
   className,
 }: ErrorHandlingPanelProps) {
-  const [showErrorSteps, setShowErrorSteps] = useState(false);
-  const [showTimeoutSteps, setShowTimeoutSteps] = useState(false);
-
   const handleOnErrorChange = (onError: string) => {
     onChange({ ...value, on_error: onError as 'fail' | 'continue' | 'retry' });
   };
@@ -99,11 +94,10 @@ export default function ErrorHandlingPanel({
   return (
     <div className={cn('space-y-4', className)}>
       <div className="flex items-center gap-2">
-        <AlertTriangle className="h-4 w-4 text-amber-500" />
+        <AlertTriangle className="h-4 w-4 text-amber-400" />
         <Label>Error Handling</Label>
       </div>
 
-      {/* On Error Behavior */}
       <div className="space-y-2">
         <Label htmlFor="on_error">When Step Fails</Label>
         <Select
@@ -117,7 +111,7 @@ export default function ErrorHandlingPanel({
             <SelectItem value="fail">
               <div>
                 <div className="font-medium">Fail Flow</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-[#4a6480]">
                   Stop execution and mark flow as failed
                 </div>
               </div>
@@ -125,7 +119,7 @@ export default function ErrorHandlingPanel({
             <SelectItem value="continue">
               <div>
                 <div className="font-medium">Continue</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-[#4a6480]">
                   Continue to next step despite error
                 </div>
               </div>
@@ -133,7 +127,7 @@ export default function ErrorHandlingPanel({
             <SelectItem value="retry">
               <div>
                 <div className="font-medium">Retry</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-[#4a6480]">
                   Use retry configuration to retry this step
                 </div>
               </div>
@@ -142,17 +136,13 @@ export default function ErrorHandlingPanel({
         </Select>
       </div>
 
-      {/* Error Steps */}
-      <Accordion type="single" collapsible className="border rounded-lg">
+      <Accordion type="single" collapsible className="border border-[#1e2d3d] rounded-lg">
         <AccordionItem value="error_steps" className="border-none">
-          <AccordionTrigger
-            className="px-4 hover:no-underline"
-            onClick={() => setShowErrorSteps(!showErrorSteps)}
-          >
+          <AccordionTrigger className="px-4 hover:no-underline">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Error Steps</span>
+              <span className="text-sm font-medium text-[#c8dce8]">Error Steps</span>
               {value.error_steps && value.error_steps.length > 0 && (
-                <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
+                <span className="text-xs px-2 py-0.5 bg-amber-400/10 text-amber-400 rounded-full">
                   {value.error_steps.length}
                 </span>
               )}
@@ -160,7 +150,7 @@ export default function ErrorHandlingPanel({
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Steps to execute when this step fails (before flow fails or continues)
               </p>
 
@@ -169,7 +159,7 @@ export default function ErrorHandlingPanel({
                   {value.error_steps.map((step, index) => (
                     <div
                       key={step.id}
-                      className="p-3 border rounded-lg bg-muted/30 space-y-2"
+                      className="p-3 border border-[#1a2332] rounded-lg bg-[#0b0f18] space-y-2"
                     >
                       <div className="flex items-start gap-2">
                         <div className="flex-1 space-y-2">
@@ -200,51 +190,43 @@ export default function ErrorHandlingPanel({
                             />
                           )}
                         </div>
-                        <Button
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="sm"
                           onClick={() => removeErrorStep(index)}
-                          className="h-8 w-8 p-0 text-destructive"
+                          className="flex items-center justify-center h-8 w-8 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                         >
                           <X className="h-4 w-4" />
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 border-2 border-dashed rounded-lg">
-                  <p className="text-xs text-muted-foreground">No error steps defined</p>
+                <div className="text-center py-4 border border-dashed border-[#1e2d3d] rounded-lg">
+                  <p className="text-xs text-[#4a6480]">No error steps defined</p>
                 </div>
               )}
 
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
                 onClick={addErrorStep}
-                className="w-full"
+                className="flex items-center justify-center gap-2 w-full h-8 rounded-lg border border-dashed border-[#1e2d3d] text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:border-[#2a3d52] transition-colors"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-3.5 w-3.5" />
                 Add Error Step
-              </Button>
+              </button>
             </div>
           </AccordionContent>
         </AccordionItem>
       </Accordion>
 
-      {/* Timeout Steps */}
-      <Accordion type="single" collapsible className="border rounded-lg">
+      <Accordion type="single" collapsible className="border border-[#1e2d3d] rounded-lg">
         <AccordionItem value="timeout_steps" className="border-none">
-          <AccordionTrigger
-            className="px-4 hover:no-underline"
-            onClick={() => setShowTimeoutSteps(!showTimeoutSteps)}
-          >
+          <AccordionTrigger className="px-4 hover:no-underline">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Timeout Steps</span>
+              <span className="text-sm font-medium text-[#c8dce8]">Timeout Steps</span>
               {value.on_timeout && value.on_timeout.length > 0 && (
-                <span className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
+                <span className="text-xs px-2 py-0.5 bg-amber-400/10 text-amber-400 rounded-full">
                   {value.on_timeout.length}
                 </span>
               )}
@@ -252,7 +234,7 @@ export default function ErrorHandlingPanel({
           </AccordionTrigger>
           <AccordionContent className="px-4 pb-4">
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Steps to execute when this step times out
               </p>
 
@@ -261,7 +243,7 @@ export default function ErrorHandlingPanel({
                   {value.on_timeout.map((step, index) => (
                     <div
                       key={step.id}
-                      className="p-3 border rounded-lg bg-muted/30 space-y-2"
+                      className="p-3 border border-[#1a2332] rounded-lg bg-[#0b0f18] space-y-2"
                     >
                       <div className="flex items-start gap-2">
                         <div className="flex-1 space-y-2">
@@ -292,35 +274,31 @@ export default function ErrorHandlingPanel({
                             />
                           )}
                         </div>
-                        <Button
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="sm"
                           onClick={() => removeTimeoutStep(index)}
-                          className="h-8 w-8 p-0 text-destructive"
+                          className="flex items-center justify-center h-8 w-8 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                         >
                           <X className="h-4 w-4" />
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 border-2 border-dashed rounded-lg">
-                  <p className="text-xs text-muted-foreground">No timeout steps defined</p>
+                <div className="text-center py-4 border border-dashed border-[#1e2d3d] rounded-lg">
+                  <p className="text-xs text-[#4a6480]">No timeout steps defined</p>
                 </div>
               )}
 
-              <Button
+              <button
                 type="button"
-                variant="outline"
-                size="sm"
                 onClick={addTimeoutStep}
-                className="w-full"
+                className="flex items-center justify-center gap-2 w-full h-8 rounded-lg border border-dashed border-[#1e2d3d] text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:border-[#2a3d52] transition-colors"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-3.5 w-3.5" />
                 Add Timeout Step
-              </Button>
+              </button>
             </div>
           </AccordionContent>
         </AccordionItem>

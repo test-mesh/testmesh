@@ -5,7 +5,6 @@ import { Server, Plus, Trash2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -65,12 +64,11 @@ export default function MockServerConfigureForm({
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex items-center gap-2 pb-2 border-b">
-        <Server className="h-4 w-4 text-pink-500" />
-        <span className="text-sm font-medium">Configure Mock Server</span>
+      <div className="flex items-center gap-2 pb-2 border-b border-[#1a2332]">
+        <Server className="h-4 w-4 text-pink-400" />
+        <span className="text-sm font-medium text-[#c8dce8]">Configure Mock Server</span>
       </div>
 
-      {/* Server ID */}
       <div className="space-y-2">
         <Label htmlFor="mock-server-id">Server ID</Label>
         <Input
@@ -80,45 +78,45 @@ export default function MockServerConfigureForm({
           placeholder="my_mock_server"
           className="font-mono text-sm"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[#4a6480]">
           Matches the server ID used in mock_server_start.
         </p>
       </div>
 
-      {/* Endpoints */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label>Endpoints</Label>
-          <Button variant="outline" size="sm" onClick={addEndpoint} type="button">
-            <Plus className="h-3 w-3 mr-1" />
+          <button
+            type="button"
+            onClick={addEndpoint}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+          >
+            <Plus className="h-3 w-3" />
             Add Endpoint
-          </Button>
+          </button>
         </div>
 
         {endpoints.length === 0 && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#4a6480]">
             No endpoints configured. Click Add Endpoint to create one.
           </p>
         )}
 
         {endpoints.map((endpoint, index) => (
-          <div key={endpoint.id} className="p-3 border rounded-lg space-y-3">
+          <div key={endpoint.id} className="p-3 border border-[#1a2332] rounded-lg space-y-3 bg-[#0b0f18]">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">
+              <span className="text-xs font-medium text-[#4a6480]">
                 Endpoint {index + 1}
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => removeEndpoint(index)}
+              <button
                 type="button"
-                className="text-destructive hover:text-destructive h-6 px-2"
+                onClick={() => removeEndpoint(index)}
+                className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
               >
                 <Trash2 className="h-3 w-3" />
-              </Button>
+              </button>
             </div>
 
-            {/* Method + Path */}
             <div className="flex gap-2">
               <div className="w-32 shrink-0">
                 <Select
@@ -147,7 +145,6 @@ export default function MockServerConfigureForm({
               </div>
             </div>
 
-            {/* Status */}
             <div className="space-y-1">
               <Label className="text-xs">Status Code</Label>
               <Input
@@ -160,7 +157,6 @@ export default function MockServerConfigureForm({
               />
             </div>
 
-            {/* Response */}
             <div className="space-y-1">
               <Label className="text-xs">Response Body (JSON)</Label>
               <Textarea
@@ -172,7 +168,6 @@ export default function MockServerConfigureForm({
               />
             </div>
 
-            {/* Response Headers */}
             <KeyValueEditor
               label="Response Headers"
               value={endpoint.headers || {}}

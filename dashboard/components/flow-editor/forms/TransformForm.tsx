@@ -12,7 +12,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 
 interface TransformFormProps {
   config: Record<string, unknown>;
@@ -118,13 +117,6 @@ export default function TransformForm({
   const operation = (config.operation as string) || 'jsonpath';
   const template = TEMPLATES[operation as keyof typeof TEMPLATES];
 
-  const loadTemplate = () => {
-    if (template) {
-      onChange('input', template.input);
-      onChange('expression', template.expression);
-    }
-  };
-
   const needsExpression = ![
     'base64_encode',
     'base64_decode',
@@ -135,25 +127,23 @@ export default function TransformForm({
 
   return (
     <div className={cn('space-y-4', className)}>
-      <div className="flex items-center gap-2 pb-2 border-b">
-        <Wand2 className="h-4 w-4 text-orange-500" />
-        <span className="text-sm font-medium">Transform Data</span>
+      <div className="flex items-center gap-2 pb-2 border-b border-[#1a2332]">
+        <Wand2 className="h-4 w-4 text-orange-400" />
+        <span className="text-sm font-medium text-[#c8dce8]">Transform Data</span>
       </div>
 
-      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-        <p className="text-sm text-foreground">
+      <div className="p-3 bg-teal-400/5 border border-teal-400/20 rounded-lg">
+        <p className="text-sm text-[#c8dce8]">
           Transform, extract, or manipulate data using various operations and expressions.
         </p>
       </div>
 
-      {/* Operation Type */}
       <div className="space-y-2">
         <Label htmlFor="operation">Transform Operation</Label>
         <Select
           value={operation}
           onValueChange={(v) => {
             onChange('operation', v);
-            // Auto-load template when operation changes
             const newTemplate = TEMPLATES[v as keyof typeof TEMPLATES];
             if (newTemplate) {
               onChange('input', newTemplate.input);
@@ -179,11 +169,10 @@ export default function TransformForm({
           </SelectContent>
         </Select>
         {template && (
-          <p className="text-xs text-muted-foreground">{template.description}</p>
+          <p className="text-xs text-[#4a6480]">{template.description}</p>
         )}
       </div>
 
-      {/* Input Source */}
       <div className="space-y-2">
         <Label htmlFor="input">Input Data</Label>
         <Textarea
@@ -194,12 +183,11 @@ export default function TransformForm({
           rows={3}
           className="font-mono text-sm"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[#4a6480]">
           Source data to transform. Use {'${variable}'} to reference step outputs.
         </p>
       </div>
 
-      {/* Expression */}
       {needsExpression && (
         <div className="space-y-2">
           <Label htmlFor="expression">
@@ -213,7 +201,7 @@ export default function TransformForm({
             rows={operation === 'javascript' ? 6 : 4}
             className="font-mono text-sm"
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#4a6480]">
             {operation === 'jsonpath' && 'JSONPath expression (e.g., $.data[*].name)'}
             {operation === 'jq' && 'JQ filter expression (e.g., .data | map(.id))'}
             {operation === 'template' && 'Template with ${variables} placeholders'}
@@ -227,7 +215,6 @@ export default function TransformForm({
         </div>
       )}
 
-      {/* Output Variable */}
       <div className="space-y-2">
         <Label htmlFor="output_var">Output Variable Name</Label>
         <Input
@@ -237,23 +224,22 @@ export default function TransformForm({
           placeholder="transformed_data"
           className="font-mono text-sm"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-[#4a6480]">
           Variable name to store the transformation result
         </p>
       </div>
 
-      {/* Common Examples */}
-      <details className="space-y-2 p-3 border rounded-lg">
-        <summary className="text-sm font-medium cursor-pointer">
+      <details className="space-y-2 p-3 border border-[#1a2332] rounded-lg">
+        <summary className="text-sm font-medium text-[#c8dce8] cursor-pointer">
           Common Transform Patterns
         </summary>
         <div className="pt-2 space-y-3 text-xs">
           <div>
-            <p className="font-medium mb-1 flex items-center gap-1">
+            <p className="font-medium mb-1 text-[#c8dce8] flex items-center gap-1">
               <Filter className="w-3 h-3" />
               Extract Nested Data
             </p>
-            <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
+            <div className="p-2 bg-[#1a2332] rounded font-mono text-[10px] space-y-1 text-[#7fa8c8]">
               <div>Operation: JSONPath</div>
               <div>Input: ${'${api_response.body}'}</div>
               <div>Expression: $.data.users[*].email</div>
@@ -262,11 +248,11 @@ export default function TransformForm({
           </div>
 
           <div>
-            <p className="font-medium mb-1 flex items-center gap-1">
+            <p className="font-medium mb-1 text-[#c8dce8] flex items-center gap-1">
               <Code className="w-3 h-3" />
               Format String
             </p>
-            <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
+            <div className="p-2 bg-[#1a2332] rounded font-mono text-[10px] space-y-1 text-[#7fa8c8]">
               <div>Operation: Template</div>
               <div>Input: ${'${user}'}</div>
               <div>Expression: Hello ${'${input.name}'}, ID: ${'${input.id}'}</div>
@@ -275,11 +261,11 @@ export default function TransformForm({
           </div>
 
           <div>
-            <p className="font-medium mb-1 flex items-center gap-1">
+            <p className="font-medium mb-1 text-[#c8dce8] flex items-center gap-1">
               <List className="w-3 h-3" />
               Filter Array
             </p>
-            <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
+            <div className="p-2 bg-[#1a2332] rounded font-mono text-[10px] space-y-1 text-[#7fa8c8]">
               <div>Operation: Filter</div>
               <div>Input: ${'${items}'}</div>
               <div>Expression: item =&gt; item.price &gt; 100</div>
@@ -288,11 +274,11 @@ export default function TransformForm({
           </div>
 
           <div>
-            <p className="font-medium mb-1 flex items-center gap-1">
+            <p className="font-medium mb-1 text-[#c8dce8] flex items-center gap-1">
               <Calculator className="w-3 h-3" />
               Encode Credentials
             </p>
-            <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
+            <div className="p-2 bg-[#1a2332] rounded font-mono text-[10px] space-y-1 text-[#7fa8c8]">
               <div>Operation: Base64 Encode</div>
               <div>Input: username:password</div>
               <div>Result: dXNlcm5hbWU6cGFzc3dvcmQ=</div>
@@ -300,11 +286,11 @@ export default function TransformForm({
           </div>
 
           <div>
-            <p className="font-medium mb-1 flex items-center gap-1">
+            <p className="font-medium mb-1 text-[#c8dce8] flex items-center gap-1">
               <Code className="w-3 h-3" />
               Custom Logic
             </p>
-            <div className="p-2 bg-muted rounded font-mono text-[10px] space-y-1">
+            <div className="p-2 bg-[#1a2332] rounded font-mono text-[10px] space-y-1 text-[#7fa8c8]">
               <div>Operation: JavaScript</div>
               <div>Input: ${'${response.body}'}</div>
               <div className="whitespace-pre-wrap">
@@ -319,15 +305,14 @@ return { total, count: input.items.length };`}
         </div>
       </details>
 
-      {/* Quick Reference */}
-      <details className="space-y-2 p-3 border rounded-lg">
-        <summary className="text-sm font-medium cursor-pointer">
+      <details className="space-y-2 p-3 border border-[#1a2332] rounded-lg">
+        <summary className="text-sm font-medium text-[#c8dce8] cursor-pointer">
           Quick Reference
         </summary>
         <div className="pt-2 space-y-2 text-xs">
           <div>
-            <p className="font-medium mb-1">JSONPath Syntax</p>
-            <div className="space-y-0.5 text-[10px] font-mono text-muted-foreground">
+            <p className="font-medium mb-1 text-[#c8dce8]">JSONPath Syntax</p>
+            <div className="space-y-0.5 text-[10px] font-mono text-[#4a6480]">
               <div>$ - Root object</div>
               <div>$.field - Access property</div>
               <div>$.items[0] - Array index</div>
@@ -338,8 +323,8 @@ return { total, count: input.items.length };`}
           </div>
 
           <div>
-            <p className="font-medium mb-1">JQ Syntax</p>
-            <div className="space-y-0.5 text-[10px] font-mono text-muted-foreground">
+            <p className="font-medium mb-1 text-[#c8dce8]">JQ Syntax</p>
+            <div className="space-y-0.5 text-[10px] font-mono text-[#4a6480]">
               <div>.field - Access property</div>
               <div>.items[] - Array elements</div>
               <div>.items | map(.id) - Transform</div>
@@ -349,8 +334,8 @@ return { total, count: input.items.length };`}
           </div>
 
           <div>
-            <p className="font-medium mb-1">Template Variables</p>
-            <div className="space-y-0.5 text-[10px] font-mono text-muted-foreground">
+            <p className="font-medium mb-1 text-[#c8dce8]">Template Variables</p>
+            <div className="space-y-0.5 text-[10px] font-mono text-[#4a6480]">
               <div>${'${input.field}'} - From input data</div>
               <div>${'${step_id.output}'} - From step output</div>
               <div>${'${ENV_VAR}'} - Environment variable</div>
@@ -359,15 +344,14 @@ return { total, count: input.items.length };`}
         </div>
       </details>
 
-      {/* Output Info */}
-      <div className="p-3 bg-muted/30 border rounded-lg space-y-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
+      <div className="p-3 bg-[#0b0f18] border border-[#1a2332] rounded-lg space-y-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-[#c8dce8]">
           <Wand2 className="h-4 w-4" />
           Output Access
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-[#4a6480]">
           Access the transformed data using:{' '}
-          <code className="font-mono">${'{'}
+          <code className="font-mono text-[#7fa8c8]">${'{'}
             {(config.output_var as string) || 'output_var'}
           {'}'}</code>
         </div>

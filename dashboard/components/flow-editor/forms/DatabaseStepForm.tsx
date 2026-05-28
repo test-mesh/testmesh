@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import {
   Database,
-  Play,
   ChevronDown,
   ChevronRight,
   Plus,
@@ -12,7 +11,6 @@ import {
   Lock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -68,7 +66,6 @@ export default function DatabaseStepForm({
   const dbType = (config.type as string) || 'postgresql';
   const dbConfig = DB_TYPES.find((d) => d.value === dbType) || DB_TYPES[0];
 
-  // Parse parameters
   const params: string[] = (() => {
     const p = config.params;
     if (Array.isArray(p)) return p.map(String);
@@ -79,7 +76,6 @@ export default function DatabaseStepForm({
     onChange('params', newParams);
   };
 
-  // Detect parameter placeholders in query
   const detectParams = (query: string): number => {
     const matches = query.match(/\$\d+/g);
     return matches ? Math.max(...matches.map((m) => parseInt(m.slice(1)))) : 0;
@@ -87,7 +83,6 @@ export default function DatabaseStepForm({
 
   const queryParamCount = detectParams((config.query as string) || '');
 
-  // Auto-adjust params array when query changes
   const ensureParamsLength = () => {
     if (params.length < queryParamCount) {
       const newParams = [...params];
@@ -100,7 +95,6 @@ export default function DatabaseStepForm({
 
   return (
     <div className={cn('space-y-4', className)}>
-      {/* Database Type */}
       <div className="space-y-2">
         <Label className="text-xs font-medium">Database Type</Label>
         <Select value={dbType} onValueChange={(v) => onChange('type', v)}>
@@ -117,7 +111,6 @@ export default function DatabaseStepForm({
         </Select>
       </div>
 
-      {/* Connection String */}
       <div className="space-y-2">
         <Label className="text-xs font-medium flex items-center gap-1">
           <Lock className="w-3 h-3" />
@@ -130,12 +123,11 @@ export default function DatabaseStepForm({
           variables={variables}
           stepOutputs={stepOutputs}
         />
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[10px] text-[#4a6480]">
           Use environment variables for sensitive data: {'${DB_CONNECTION}'}
         </p>
       </div>
 
-      {/* Query */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-medium flex items-center gap-1">
@@ -144,20 +136,24 @@ export default function DatabaseStepForm({
           </Label>
           <Collapsible open={showTemplates} onOpenChange={setShowTemplates}>
             <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px]">
+              <button
+                type="button"
+                className="flex items-center gap-1 h-5 px-2 rounded text-[10px] text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+              >
                 Templates
-                <ChevronDown className="w-3 h-3 ml-1" />
-              </Button>
+                <ChevronDown className="w-3 h-3 ml-0.5" />
+              </button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="absolute right-0 mt-1 z-10 bg-popover border rounded-md shadow-lg p-1 min-w-[150px]">
+            <CollapsibleContent className="absolute right-0 mt-1 z-10 bg-[#0f1923] border border-[#1e2d3d] rounded-md shadow-lg p-1 min-w-[150px]">
               {QUERY_TEMPLATES.map((template) => (
                 <button
                   key={template.label}
+                  type="button"
                   onClick={() => {
                     onChange('query', template.query);
                     setShowTemplates(false);
                   }}
-                  className="block w-full text-left px-2 py-1 text-xs rounded hover:bg-muted"
+                  className="block w-full text-left px-2 py-1 text-xs rounded text-[#7fa8c8] hover:bg-[#1a2d3d] hover:text-[#c8dce8] transition-colors"
                 >
                   {template.label}
                 </button>
@@ -169,25 +165,23 @@ export default function DatabaseStepForm({
           value={(config.query as string) || ''}
           onChange={(e) => {
             onChange('query', e.target.value);
-            // Auto-detect and adjust params
             setTimeout(ensureParamsLength, 0);
           }}
           placeholder="SELECT * FROM users WHERE id = $1;"
           className="text-xs font-mono resize-none min-h-[100px]"
         />
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[10px] text-[#4a6480]">
           Use $1, $2, etc. for parameterized queries
         </p>
       </div>
 
-      {/* Parameters */}
       {(queryParamCount > 0 || params.length > 0) && (
         <div className="space-y-2">
           <Label className="text-xs font-medium">Parameters</Label>
           <div className="space-y-2">
             {params.map((param, index) => (
               <div key={index} className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-6">${index + 1}</span>
+                <span className="text-xs text-[#4a6480] w-6">${index + 1}</span>
                 <VariablePicker
                   value={param}
                   onChange={(v) => {
@@ -200,37 +194,33 @@ export default function DatabaseStepForm({
                   stepOutputs={stepOutputs}
                   className="flex-1"
                 />
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
+                  type="button"
                   onClick={() => updateParams(params.filter((_, i) => i !== index))}
-                  className="h-7 w-7 p-0"
+                  className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                 >
                   <Trash2 className="w-3 h-3" />
-                </Button>
+                </button>
               </div>
             ))}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={() => updateParams([...params, ''])}
-            className="h-7 text-xs"
+            className="flex items-center gap-1 h-7 px-3 rounded border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
           >
-            <Plus className="w-3 h-3 mr-1" />
+            <Plus className="w-3 h-3" />
             Add Parameter
-          </Button>
+          </button>
         </div>
       )}
 
-      {/* Advanced Options */}
       <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
-        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
           {showAdvanced ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
           Advanced Options
         </CollapsibleTrigger>
-        <CollapsibleContent className="mt-3 space-y-3 pt-3 border-t">
-          {/* Transaction */}
+        <CollapsibleContent className="mt-3 space-y-3 pt-3 border-t border-[#1e2d3d]">
           <div className="flex items-center gap-2">
             <Switch
               checked={(config.transaction as boolean) || false}
@@ -239,7 +229,6 @@ export default function DatabaseStepForm({
             <Label className="text-xs">Wrap in transaction</Label>
           </div>
 
-          {/* Timeout */}
           <div className="space-y-2">
             <Label className="text-xs">Query Timeout</Label>
             <Input
@@ -250,7 +239,6 @@ export default function DatabaseStepForm({
             />
           </div>
 
-          {/* Max Rows */}
           <div className="space-y-2">
             <Label className="text-xs">Max Rows</Label>
             <Input
@@ -260,12 +248,11 @@ export default function DatabaseStepForm({
               placeholder="1000"
               className="h-8 text-sm"
             />
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-[10px] text-[#4a6480]">
               Limit returned rows to prevent memory issues
             </p>
           </div>
 
-          {/* SSL Mode (PostgreSQL) */}
           {dbType === 'postgresql' && (
             <div className="space-y-2">
               <Label className="text-xs">SSL Mode</Label>
@@ -287,7 +274,6 @@ export default function DatabaseStepForm({
             </div>
           )}
 
-          {/* Connection Pool */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label className="text-xs">Pool Min</Label>
