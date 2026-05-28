@@ -17,7 +17,6 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +27,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { FlowDefinition } from '@/lib/api/types';
 import {
@@ -59,10 +57,10 @@ const iconMap: Record<string, React.ElementType> = {
   FileText,
 };
 
-const difficultyColors = {
-  beginner: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
-  intermediate: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
-  advanced: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+const difficultyColors: Record<string, string> = {
+  beginner: 'bg-teal-400/10 text-teal-400',
+  intermediate: 'bg-yellow-400/10 text-yellow-400',
+  advanced: 'bg-red-400/10 text-red-400',
 };
 
 export default function TemplatesDialog({
@@ -76,11 +74,9 @@ export default function TemplatesDialog({
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | 'all'>('all');
   const [selectedTemplate, setSelectedTemplate] = useState<FlowTemplate | null>(null);
 
-  // Use controlled or uncontrolled state
   const open = controlledOpen !== undefined ? controlledOpen : isOpen;
   const setOpen = onOpenChange || setIsOpen;
 
-  // Filter templates
   const filteredTemplates = searchQuery
     ? searchTemplates(searchQuery)
     : selectedCategory === 'all'
@@ -108,10 +104,10 @@ export default function TemplatesDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button variant="outline" size="sm" className="h-8 gap-1.5">
-            <Sparkles className="w-4 h-4" />
+          <button className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">
+            <Sparkles className="w-3.5 h-3.5" />
             Templates
-          </Button>
+          </button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[95vw] sm:w-[1800px] max-h-[85vh] overflow-hidden flex flex-col">
@@ -127,53 +123,50 @@ export default function TemplatesDialog({
 
         <div className="flex-1 flex gap-4 min-h-0">
           {/* Sidebar */}
-          <div className="w-64 flex flex-col gap-4">
-            {/* Search */}
+          <div className="w-64 flex flex-col gap-3">
             <div className="relative">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#4a6480]" />
               <Input
                 placeholder="Search templates..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-9"
+                className="pl-7 h-8 text-xs"
               />
             </div>
 
-            {/* Categories */}
             <ScrollArea className="flex-1">
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 <button
                   onClick={() => setSelectedCategory('all')}
                   className={cn(
-                    'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                    'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors',
                     selectedCategory === 'all'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted'
+                      ? 'bg-teal-400/15 text-teal-400'
+                      : 'text-[#4a6480] hover:bg-[#1a2d3d] hover:text-[#7fa8c8]'
                   )}
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-3.5 h-3.5" />
                   All Templates
-                  <span className="ml-auto text-xs">{flowTemplates.length}</span>
+                  <span className="ml-auto text-[10px]">{flowTemplates.length}</span>
                 </button>
 
                 {Object.entries(templateCategories).map(([key, { label, icon }]) => {
                   const Icon = iconMap[icon] || FileText;
                   const count = getTemplatesByCategory(key as TemplateCategory).length;
-
                   return (
                     <button
                       key={key}
                       onClick={() => setSelectedCategory(key as TemplateCategory)}
                       className={cn(
-                        'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                        'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors',
                         selectedCategory === key
-                          ? 'bg-primary text-primary-foreground'
-                          : 'hover:bg-muted'
+                          ? 'bg-teal-400/15 text-teal-400'
+                          : 'text-[#4a6480] hover:bg-[#1a2d3d] hover:text-[#7fa8c8]'
                       )}
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-3.5 h-3.5" />
                       {label}
-                      <span className="ml-auto text-xs">{count}</span>
+                      <span className="ml-auto text-[10px]">{count}</span>
                     </button>
                   );
                 })}
@@ -184,98 +177,92 @@ export default function TemplatesDialog({
           {/* Main Content */}
           <div className="flex-1 flex flex-col gap-4 min-h-0">
             {selectedTemplate ? (
-              /* Template Details */
               <div className="flex-1 flex flex-col gap-4 overflow-hidden">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-lg font-semibold">{selectedTemplate.name}</h3>
-                      <Badge className={difficultyColors[selectedTemplate.difficulty]}>
+                      <h3 className="text-base font-semibold text-[#c8dce8]">{selectedTemplate.name}</h3>
+                      <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded', difficultyColors[selectedTemplate.difficulty])}>
                         {selectedTemplate.difficulty}
-                      </Badge>
+                      </span>
                     </div>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {selectedTemplate.description}
-                    </p>
+                    <p className="text-xs text-[#4a6480] mb-3">{selectedTemplate.description}</p>
                     <div className="flex flex-wrap gap-1">
                       {selectedTemplate.tags.map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs">
+                        <span key={tag} className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-[#1e2d3d] bg-[#0f1923] text-[#4a6480]">
                           {tag}
-                        </Badge>
+                        </span>
                       ))}
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedTemplate(null)}>
+                  <button
+                    onClick={() => setSelectedTemplate(null)}
+                    className="flex items-center h-7 px-3 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+                  >
                     Back
-                  </Button>
+                  </button>
                 </div>
 
-                {/* Template Preview */}
-                <ScrollArea className="flex-1 border rounded-lg p-4 bg-muted/30">
+                <ScrollArea className="flex-1 border border-[#1e2d3d] rounded-lg p-4 bg-[#0b0f18]">
                   <div className="space-y-4">
-                    {/* Metadata */}
                     <div>
-                      <h4 className="font-semibold text-sm mb-2">Flow Details</h4>
+                      <h4 className="font-semibold text-xs text-[#7fa8c8] mb-2">Flow Details</h4>
                       <div className="space-y-1 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">Name:</span>{' '}
-                          {selectedTemplate.definition.name}
+                        <div className="text-[#4a6480]">
+                          Name: <span className="text-[#7fa8c8]">{selectedTemplate.definition.name}</span>
                         </div>
-                        <div>
-                          <span className="text-muted-foreground">Suite:</span>{' '}
-                          {selectedTemplate.definition.suite}
+                        <div className="text-[#4a6480]">
+                          Suite: <span className="text-[#7fa8c8]">{selectedTemplate.definition.suite}</span>
                         </div>
                         {selectedTemplate.definition.tags && (
-                          <div>
-                            <span className="text-muted-foreground">Tags:</span>{' '}
-                            {selectedTemplate.definition.tags.join(', ')}
+                          <div className="text-[#4a6480]">
+                            Tags: <span className="text-[#7fa8c8]">{selectedTemplate.definition.tags.join(', ')}</span>
                           </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Environment Variables */}
                     {selectedTemplate.definition.env && (
                       <div>
-                        <h4 className="font-semibold text-sm mb-2">Environment Variables</h4>
+                        <h4 className="font-semibold text-xs text-[#7fa8c8] mb-2">Environment Variables</h4>
                         <div className="space-y-1 text-xs font-mono">
                           {Object.entries(selectedTemplate.definition.env).map(([key, value]) => (
                             <div key={key} className="flex gap-2">
-                              <span className="text-muted-foreground">{key}:</span>
-                              <span>{String(value)}</span>
+                              <span className="text-[#4a6480]">{key}:</span>
+                              <span className="text-[#7fa8c8]">{String(value)}</span>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* Setup Steps */}
                     {selectedTemplate.definition.setup && selectedTemplate.definition.setup.length > 0 && (
                       <div>
-                        <h4 className="font-semibold text-sm mb-2">Setup ({selectedTemplate.definition.setup.length})</h4>
+                        <h4 className="font-semibold text-xs text-[#7fa8c8] mb-2">
+                          Setup ({selectedTemplate.definition.setup.length})
+                        </h4>
                         <div className="space-y-2">
                           {selectedTemplate.definition.setup.map((step, idx) => (
-                            <div key={idx} className="p-2 bg-background rounded border">
-                              <div className="font-medium text-xs">{step.name || step.id}</div>
-                              <div className="text-[10px] text-muted-foreground">{step.action}</div>
+                            <div key={idx} className="p-2 bg-[#0f1923] rounded-lg border border-[#1e2d3d]">
+                              <div className="font-medium text-xs text-[#c8dce8]">{step.name || step.id}</div>
+                              <div className="text-[10px] text-[#4a6480]">{step.action}</div>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* Main Steps */}
                     <div>
-                      <h4 className="font-semibold text-sm mb-2">
+                      <h4 className="font-semibold text-xs text-[#7fa8c8] mb-2">
                         Steps ({selectedTemplate.definition.steps.length})
                       </h4>
                       <div className="space-y-2">
                         {selectedTemplate.definition.steps.map((step, idx) => (
-                          <div key={idx} className="p-2 bg-background rounded border">
-                            <div className="font-medium text-xs">{step.name || step.id}</div>
-                            <div className="text-[10px] text-muted-foreground">{step.action}</div>
+                          <div key={idx} className="p-2 bg-[#0f1923] rounded-lg border border-[#1e2d3d]">
+                            <div className="font-medium text-xs text-[#c8dce8]">{step.name || step.id}</div>
+                            <div className="text-[10px] text-[#4a6480]">{step.action}</div>
                             {step.assert && step.assert.length > 0 && (
-                              <div className="mt-1 flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+                              <div className="mt-1 flex items-center gap-1 text-[10px] text-teal-400">
                                 <Check className="w-3 h-3" />
                                 {step.assert.length} assertion{step.assert.length > 1 ? 's' : ''}
                               </div>
@@ -285,17 +272,16 @@ export default function TemplatesDialog({
                       </div>
                     </div>
 
-                    {/* Teardown Steps */}
                     {selectedTemplate.definition.teardown && selectedTemplate.definition.teardown.length > 0 && (
                       <div>
-                        <h4 className="font-semibold text-sm mb-2">
+                        <h4 className="font-semibold text-xs text-[#7fa8c8] mb-2">
                           Teardown ({selectedTemplate.definition.teardown.length})
                         </h4>
                         <div className="space-y-2">
                           {selectedTemplate.definition.teardown.map((step, idx) => (
-                            <div key={idx} className="p-2 bg-background rounded border">
-                              <div className="font-medium text-xs">{step.name || step.id}</div>
-                              <div className="text-[10px] text-muted-foreground">{step.action}</div>
+                            <div key={idx} className="p-2 bg-[#0f1923] rounded-lg border border-[#1e2d3d]">
+                              <div className="font-medium text-xs text-[#c8dce8]">{step.name || step.id}</div>
+                              <div className="text-[10px] text-[#4a6480]">{step.action}</div>
                             </div>
                           ))}
                         </div>
@@ -305,60 +291,54 @@ export default function TemplatesDialog({
                 </ScrollArea>
               </div>
             ) : (
-              /* Template Grid */
               <ScrollArea className="flex-1">
                 {filteredTemplates.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-64 text-center">
-                    <Search className="w-12 h-12 text-muted-foreground mb-3" />
-                    <h3 className="font-semibold mb-1">No templates found</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Try adjusting your search or category filter
-                    </p>
+                    <Search className="w-12 h-12 text-[#3d5670] mb-3" />
+                    <h3 className="font-semibold text-sm text-[#7fa8c8] mb-1">No templates found</h3>
+                    <p className="text-xs text-[#4a6480]">Try adjusting your search or category filter</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 gap-4 pr-2">
+                  <div className="grid grid-cols-3 gap-3 pr-2">
                     {filteredTemplates.map((template) => {
                       const Icon = iconMap[template.icon] || FileText;
-
                       return (
                         <button
                           key={template.id}
                           onClick={() => setSelectedTemplate(template)}
-                          className="flex flex-col items-start gap-2 p-4 border rounded-lg hover:border-primary transition-colors text-left group"
+                          className="flex flex-col items-start gap-2 p-4 border border-[#1e2d3d] rounded-xl bg-[#0f1923] hover:border-teal-400/30 hover:bg-[#131b26] transition-colors text-left group"
                         >
                           <div className="flex items-start justify-between w-full">
-                            <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                              <Icon className="w-5 h-5" />
+                            <div className="p-2 rounded-lg bg-teal-400/10 text-teal-400">
+                              <Icon className="w-4 h-4" />
                             </div>
-                            <Badge className={cn('text-xs', difficultyColors[template.difficulty])}>
+                            <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded', difficultyColors[template.difficulty])}>
                               {template.difficulty}
-                            </Badge>
+                            </span>
                           </div>
 
                           <div className="flex-1 w-full">
-                            <h4 className="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">
+                            <h4 className="font-semibold text-xs text-[#c8dce8] mb-1 group-hover:text-teal-400 transition-colors">
                               {template.name}
                             </h4>
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {template.description}
-                            </p>
+                            <p className="text-[10px] text-[#4a6480] line-clamp-2">{template.description}</p>
                           </div>
 
                           <div className="flex flex-wrap gap-1 w-full">
                             {template.tags.slice(0, 3).map((tag) => (
-                              <Badge key={tag} variant="outline" className="text-[10px]">
+                              <span key={tag} className="text-[9px] font-medium px-1.5 py-0.5 rounded border border-[#1e2d3d] bg-[#0b0f18] text-[#4a6480]">
                                 {tag}
-                              </Badge>
+                              </span>
                             ))}
                             {template.tags.length > 3 && (
-                              <Badge variant="outline" className="text-[10px]">
+                              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded border border-[#1e2d3d] bg-[#0b0f18] text-[#4a6480]">
                                 +{template.tags.length - 3}
-                              </Badge>
+                              </span>
                             )}
                           </div>
 
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <span>{template.definition.steps.length} steps</span>
+                          <div className="text-[10px] text-[#3d5670]">
+                            {template.definition.steps.length} steps
                           </div>
                         </button>
                       );
@@ -371,14 +351,20 @@ export default function TemplatesDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={handleClose}>
+          <button
+            onClick={handleClose}
+            className="flex items-center h-8 px-4 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+          >
             Close
-          </Button>
+          </button>
           {selectedTemplate && (
-            <Button onClick={handleApply} className="gap-2">
+            <button
+              onClick={handleApply}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+            >
               Apply Template
-              <ArrowRight className="w-4 h-4" />
-            </Button>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           )}
         </DialogFooter>
       </DialogContent>

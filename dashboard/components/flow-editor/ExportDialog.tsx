@@ -10,7 +10,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -53,53 +52,33 @@ export default function ExportDialog({
   const [includeComments, setIncludeComments] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  // Use controlled or uncontrolled state
   const open = controlledOpen !== undefined ? controlledOpen : isOpen;
   const setOpen = onOpenChange || setIsOpen;
 
-  // Generate export content based on format
   const getExportContent = (): string => {
     switch (format) {
-      case 'yaml':
-        return flowDefinitionToYaml(definition);
-
-      case 'json':
-        return JSON.stringify(definition);
-
-      case 'json-pretty':
-        return JSON.stringify(definition, null, 2);
-
-      case 'curl':
-        return generateCurlCommands(definition);
-
-      case 'postman':
-        return generatePostmanCollection(definition);
-
-      default:
-        return '';
+      case 'yaml': return flowDefinitionToYaml(definition);
+      case 'json': return JSON.stringify(definition);
+      case 'json-pretty': return JSON.stringify(definition, null, 2);
+      case 'curl': return generateCurlCommands(definition);
+      case 'postman': return generatePostmanCollection(definition);
+      default: return '';
     }
   };
 
   const exportContent = getExportContent();
 
-  // Get file extension based on format
   const getFileExtension = (): string => {
     switch (format) {
-      case 'yaml':
-        return 'yaml';
+      case 'yaml': return 'yaml';
       case 'json':
-      case 'json-pretty':
-        return 'json';
-      case 'curl':
-        return 'sh';
-      case 'postman':
-        return 'json';
-      default:
-        return 'txt';
+      case 'json-pretty': return 'json';
+      case 'curl': return 'sh';
+      case 'postman': return 'json';
+      default: return 'txt';
     }
   };
 
-  // Handle copy to clipboard
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(exportContent);
@@ -110,7 +89,6 @@ export default function ExportDialog({
     }
   };
 
-  // Handle download
   const handleDownload = () => {
     const blob = new Blob([exportContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -127,10 +105,10 @@ export default function ExportDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {trigger || (
-          <Button variant="outline" size="sm" className="h-8 gap-1.5">
-            <Download className="w-4 h-4" />
+          <button className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">
+            <Download className="w-3.5 h-3.5" />
             Export
-          </Button>
+          </button>
         )}
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
@@ -145,7 +123,6 @@ export default function ExportDialog({
         </DialogHeader>
 
         <div className="flex-1 flex flex-col gap-4 min-h-0">
-          {/* Format Selection */}
           <div className="space-y-2">
             <Label htmlFor="export-format">Export Format</Label>
             <Select value={format} onValueChange={(v) => setFormat(v as ExportFormat)}>
@@ -158,9 +135,7 @@ export default function ExportDialog({
                     <FileCode className="w-4 h-4" />
                     <div>
                       <div className="font-medium">YAML</div>
-                      <div className="text-xs text-muted-foreground">
-                        Human-readable format (recommended)
-                      </div>
+                      <div className="text-xs text-muted-foreground">Human-readable format (recommended)</div>
                     </div>
                   </div>
                 </SelectItem>
@@ -169,9 +144,7 @@ export default function ExportDialog({
                     <FileJson className="w-4 h-4" />
                     <div>
                       <div className="font-medium">JSON (Pretty)</div>
-                      <div className="text-xs text-muted-foreground">
-                        Formatted JSON with indentation
-                      </div>
+                      <div className="text-xs text-muted-foreground">Formatted JSON with indentation</div>
                     </div>
                   </div>
                 </SelectItem>
@@ -180,9 +153,7 @@ export default function ExportDialog({
                     <FileJson className="w-4 h-4" />
                     <div>
                       <div className="font-medium">JSON (Compact)</div>
-                      <div className="text-xs text-muted-foreground">
-                        Minified JSON for APIs
-                      </div>
+                      <div className="text-xs text-muted-foreground">Minified JSON for APIs</div>
                     </div>
                   </div>
                 </SelectItem>
@@ -191,9 +162,7 @@ export default function ExportDialog({
                     <FileCode className="w-4 h-4" />
                     <div>
                       <div className="font-medium">cURL Commands</div>
-                      <div className="text-xs text-muted-foreground">
-                        Shell commands for HTTP requests
-                      </div>
+                      <div className="text-xs text-muted-foreground">Shell commands for HTTP requests</div>
                     </div>
                   </div>
                 </SelectItem>
@@ -202,9 +171,7 @@ export default function ExportDialog({
                     <ExternalLink className="w-4 h-4" />
                     <div>
                       <div className="font-medium">Postman Collection</div>
-                      <div className="text-xs text-muted-foreground">
-                        Import into Postman
-                      </div>
+                      <div className="text-xs text-muted-foreground">Import into Postman</div>
                     </div>
                   </div>
                 </SelectItem>
@@ -212,14 +179,11 @@ export default function ExportDialog({
             </Select>
           </div>
 
-          {/* Options */}
           {format === 'yaml' && (
-            <div className="flex items-center justify-between p-3 border rounded-lg">
+            <div className="flex items-center justify-between p-3 border border-[#1e2d3d] rounded-lg bg-[#0f1923]">
               <div className="space-y-0.5">
-                <Label htmlFor="include-comments">Include Comments</Label>
-                <p className="text-xs text-muted-foreground">
-                  Add helpful comments to explain each step
-                </p>
+                <Label htmlFor="include-comments" className="text-xs text-[#c8dce8]">Include Comments</Label>
+                <p className="text-[10px] text-[#4a6480]">Add helpful comments to explain each step</p>
               </div>
               <Switch
                 id="include-comments"
@@ -229,11 +193,8 @@ export default function ExportDialog({
             </div>
           )}
 
-          {/* Preview */}
           <div className="flex-1 flex flex-col min-h-0">
-            <Label htmlFor="export-preview" className="mb-2">
-              Preview
-            </Label>
+            <Label htmlFor="export-preview" className="mb-2 text-xs text-[#7fa8c8]">Preview</Label>
             <Textarea
               id="export-preview"
               value={exportContent}
@@ -242,59 +203,46 @@ export default function ExportDialog({
             />
           </div>
 
-          {/* Stats */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-4 text-[10px] text-[#4a6480]">
             <span>{exportContent.split('\n').length} lines</span>
             <span>{exportContent.length} characters</span>
-            <span>
-              {(new Blob([exportContent]).size / 1024).toFixed(2)} KB
-            </span>
+            <span>{(new Blob([exportContent]).size / 1024).toFixed(2)} KB</span>
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <button
+            onClick={() => setOpen(false)}
+            className="flex items-center h-8 px-4 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+          >
             Close
-          </Button>
-          <Button variant="outline" onClick={handleCopy} className="gap-2">
+          </button>
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+          >
             {copied ? (
-              <>
-                <Check className="w-4 h-4 text-green-500" />
-                Copied!
-              </>
+              <><Check className="w-3.5 h-3.5 text-teal-400" /> Copied!</>
             ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                Copy
-              </>
+              <><Copy className="w-3.5 h-3.5" /> Copy</>
             )}
-          </Button>
-          <Button onClick={handleDownload} className="gap-2">
-            <Download className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleDownload}
+            className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+          >
+            <Download className="w-3.5 h-3.5" />
             Download
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-/**
- * Generate cURL commands for HTTP requests in the flow
- */
 function generateCurlCommands(definition: FlowDefinition): string {
-  const commands: string[] = [];
-
-  commands.push(`#!/bin/bash`);
-  commands.push(`# cURL commands for: ${definition.name}`);
-  commands.push('');
-
-  const allSteps = [
-    ...(definition.setup || []),
-    ...(definition.steps || []),
-    ...(definition.teardown || []),
-  ];
-
+  const commands: string[] = [`#!/bin/bash`, `# cURL commands for: ${definition.name}`, ''];
+  const allSteps = [...(definition.setup || []), ...(definition.steps || []), ...(definition.teardown || [])];
   const httpSteps = allSteps.filter((step) => step.action === 'http_request');
 
   if (httpSteps.length === 0) {
@@ -306,102 +254,55 @@ function generateCurlCommands(definition: FlowDefinition): string {
     const config = step.config;
     const method = config.method || 'GET';
     const url = config.url || 'http://example.com';
-
     commands.push(`# Step ${index + 1}: ${step.name || step.id}`);
-
     let curlCmd = `curl -X ${method}`;
-
-    // Add headers
     if (config.headers && typeof config.headers === 'object') {
-      Object.entries(config.headers).forEach(([key, value]) => {
-        curlCmd += ` \\\n  -H "${key}: ${value}"`;
-      });
+      Object.entries(config.headers).forEach(([key, value]) => { curlCmd += ` \\\n  -H "${key}: ${value}"`; });
     }
-
-    // Add body
     if (config.body && method !== 'GET' && method !== 'HEAD') {
-      const bodyStr =
-        typeof config.body === 'string'
-          ? config.body
-          : JSON.stringify(config.body);
+      const bodyStr = typeof config.body === 'string' ? config.body : JSON.stringify(config.body);
       curlCmd += ` \\\n  -d '${bodyStr}'`;
     }
-
-    // Add URL
     curlCmd += ` \\\n  "${url}"`;
-
-    commands.push(curlCmd);
-    commands.push('');
+    commands.push(curlCmd, '');
   });
 
   return commands.join('\n');
 }
 
-/**
- * Generate Postman collection from flow
- */
 function generatePostmanCollection(definition: FlowDefinition): string {
   const collection = {
     info: {
       name: definition.name,
       description: definition.description || '',
-      schema:
-        'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+      schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
     },
     item: [] as any[],
   };
 
-  const allSteps = [
-    ...(definition.setup || []),
-    ...(definition.steps || []),
-    ...(definition.teardown || []),
-  ];
-
+  const allSteps = [...(definition.setup || []), ...(definition.steps || []), ...(definition.teardown || [])];
   const httpSteps = allSteps.filter((step) => step.action === 'http_request');
 
   httpSteps.forEach((step) => {
     const config = step.config;
-
     const request: any = {
       method: config.method || 'GET',
       header: [],
-      url: {
-        raw: config.url || '',
-        host: [config.url || ''],
-      },
+      url: { raw: config.url || '', host: [config.url || ''] },
     };
-
-    // Add headers
     if (config.headers && typeof config.headers === 'object') {
       Object.entries(config.headers).forEach(([key, value]) => {
-        request.header.push({
-          key,
-          value: String(value),
-          type: 'text',
-        });
+        request.header.push({ key, value: String(value), type: 'text' });
       });
     }
-
-    // Add body
     if (config.body && config.method !== 'GET') {
       request.body = {
         mode: 'raw',
-        raw:
-          typeof config.body === 'string'
-            ? config.body
-            : JSON.stringify(config.body, null, 2),
-        options: {
-          raw: {
-            language: 'json',
-          },
-        },
+        raw: typeof config.body === 'string' ? config.body : JSON.stringify(config.body, null, 2),
+        options: { raw: { language: 'json' } },
       };
     }
-
-    collection.item.push({
-      name: step.name || step.id || 'HTTP Request',
-      request,
-    });
+    collection.item.push({ name: step.name || step.id || 'HTTP Request', request });
   });
 
   return JSON.stringify(collection, null, 2);

@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MessageSquare, Plus, Trash2, Edit2, User, Clock, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { MessageSquare, Plus, Trash2, Edit2, User, Clock } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import {
@@ -52,16 +51,13 @@ export default function CommentPanel({
 
   const handleAddComment = () => {
     if (!newComment.trim()) return;
-
-    const comment: Comment = {
+    onChange([...comments, {
       id: generateId(),
       author: authorName,
       content: newComment.trim(),
       timestamp: new Date().toISOString(),
       replies: [],
-    };
-
-    onChange([...comments, comment]);
+    }]);
     setNewComment('');
   };
 
@@ -72,108 +68,72 @@ export default function CommentPanel({
   const handleEditComment = (commentId: string) => {
     const comment = comments.find((c) => c.id === commentId);
     if (!comment) return;
-
     setEditingId(commentId);
     setEditContent(comment.content);
   };
 
   const handleSaveEdit = (commentId: string) => {
     if (!editContent.trim()) return;
-
-    onChange(
-      comments.map((c) =>
-        c.id === commentId
-          ? {
-              ...c,
-              content: editContent.trim(),
-              edited: true,
-              editedAt: new Date().toISOString(),
-            }
-          : c
-      )
-    );
-
+    onChange(comments.map((c) =>
+      c.id === commentId
+        ? { ...c, content: editContent.trim(), edited: true, editedAt: new Date().toISOString() }
+        : c
+    ));
     setEditingId(null);
     setEditContent('');
   };
 
   const handleAddReply = (parentId: string) => {
     if (!replyContent.trim()) return;
-
-    const reply: Comment = {
-      id: generateId(),
-      author: authorName,
-      content: replyContent.trim(),
-      timestamp: new Date().toISOString(),
-    };
-
-    onChange(
-      comments.map((c) =>
-        c.id === parentId
-          ? {
-              ...c,
-              replies: [...(c.replies || []), reply],
-            }
-          : c
-      )
-    );
-
+    onChange(comments.map((c) =>
+      c.id === parentId
+        ? { ...c, replies: [...(c.replies || []), { id: generateId(), author: authorName, content: replyContent.trim(), timestamp: new Date().toISOString() }] }
+        : c
+    ));
     setReplyingTo(null);
     setReplyContent('');
   };
 
   const handleDeleteReply = (parentId: string, replyId: string) => {
-    onChange(
-      comments.map((c) =>
-        c.id === parentId
-          ? {
-              ...c,
-              replies: (c.replies || []).filter((r) => r.id !== replyId),
-            }
-          : c
-      )
-    );
+    onChange(comments.map((c) =>
+      c.id === parentId ? { ...c, replies: (c.replies || []).filter((r) => r.id !== replyId) } : c
+    ));
   };
 
   const formatTimestamp = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
+    const diffMs = Date.now() - new Date(timestamp).getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-
     if (diffMins < 1) return 'just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    return new Date(timestamp).toLocaleDateString();
   };
 
   const handleAuthorNameChange = (name: string) => {
     setAuthorName(name);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('testmesh_author_name', name);
-    }
+    if (typeof window !== 'undefined') localStorage.setItem('testmesh_author_name', name);
   };
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Header */}
-      <div className="flex items-center gap-2 pb-3 border-b">
-        <MessageSquare className="h-4 w-4 text-primary" />
+      <div className="flex items-center gap-2 pb-3 border-b border-[#1a2332]">
+        <MessageSquare className="h-4 w-4 text-teal-400" />
         <div className="flex-1">
-          <div className="text-sm font-medium">Comments</div>
-          <div className="text-xs text-muted-foreground">{nodeName}</div>
+          <div className="text-sm font-medium text-[#c8dce8]">Comments</div>
+          <div className="text-xs text-[#4a6480]">{nodeName}</div>
         </div>
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-[#3d5670]">
           {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
         </div>
       </div>
 
       {/* Author Name */}
-      <div className="py-3 border-b">
-        <label className="text-xs text-muted-foreground mb-1 block">Your Name</label>
+      <div className="py-3 border-b border-[#1a2332]">
+        <label className="text-[10px] text-[#4a6480] mb-1 block">Your Name</label>
         <Input
           value={authorName}
           onChange={(e) => handleAuthorNameChange(e.target.value)}
@@ -185,49 +145,42 @@ export default function CommentPanel({
       {/* Comments List */}
       <div className="flex-1 overflow-y-auto py-3 space-y-4">
         {comments.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground text-sm">
+          <div className="text-center py-8 text-[#3d5670]">
             <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p>No comments yet</p>
+            <p className="text-sm">No comments yet</p>
             <p className="text-xs mt-1">Add the first comment below</p>
           </div>
         ) : (
           comments.map((comment) => (
             <div key={comment.id} className="space-y-2">
-              {/* Main Comment */}
-              <div className="p-3 border rounded-lg bg-card">
+              <div className="p-3 border border-[#1e2d3d] rounded-lg bg-[#0f1923]">
                 <div className="flex items-start gap-2 mb-2">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <User className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs font-medium">{comment.author}</span>
-                      <Clock className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">
-                        {formatTimestamp(comment.timestamp)}
-                      </span>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <User className="h-3 w-3 text-[#4a6480]" />
+                      <span className="text-xs font-medium text-[#c8dce8]">{comment.author}</span>
+                      <Clock className="h-3 w-3 text-[#4a6480]" />
+                      <span className="text-xs text-[#4a6480]">{formatTimestamp(comment.timestamp)}</span>
                       {comment.edited && (
-                        <span className="text-xs text-muted-foreground italic">
+                        <span className="text-[10px] text-[#3d5670] italic">
                           (edited {comment.editedAt ? formatTimestamp(comment.editedAt) : ''})
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    <button
                       onClick={() => handleEditComment(comment.id)}
-                      className="h-6 w-6 p-0"
+                      className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                     >
                       <Edit2 className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    </button>
+                    <button
                       onClick={() => handleDeleteComment(comment.id)}
-                      className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                      className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                     >
                       <Trash2 className="h-3 w-3" />
-                    </Button>
+                    </button>
                   </div>
                 </div>
 
@@ -240,75 +193,61 @@ export default function CommentPanel({
                       placeholder="Edit comment..."
                     />
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
+                      <button
                         onClick={() => handleSaveEdit(comment.id)}
-                        className="h-6 text-xs"
+                        className="flex items-center h-6 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
                       >
                         Save
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingId(null);
-                          setEditContent('');
-                        }}
-                        className="h-6 text-xs"
+                      </button>
+                      <button
+                        onClick={() => { setEditingId(null); setEditContent(''); }}
+                        className="flex items-center h-6 px-3 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                       >
                         Cancel
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    <p className="text-xs text-[#7fa8c8] whitespace-pre-wrap">{comment.content}</p>
+                    <button
                       onClick={() => setReplyingTo(comment.id)}
-                      className="h-6 text-xs mt-2"
+                      className="flex items-center h-6 px-2 rounded text-[10px] text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] mt-2 transition-colors"
                     >
                       Reply
-                    </Button>
+                    </button>
                   </>
                 )}
               </div>
 
-              {/* Replies */}
               {comment.replies && comment.replies.length > 0 && (
-                <div className="ml-6 space-y-2">
+                <div className="ml-5 border-l-2 border-[#1a2332] pl-3 space-y-2">
                   {comment.replies.map((reply) => (
-                    <div key={reply.id} className="p-2 border rounded bg-muted/30">
+                    <div key={reply.id} className="p-2 border border-[#1e2d3d] rounded-lg bg-[#0f1923]">
                       <div className="flex items-start gap-2 mb-1">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <User className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs font-medium">{reply.author}</span>
-                            <Clock className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimestamp(reply.timestamp)}
-                            </span>
+                            <User className="h-3 w-3 text-[#4a6480]" />
+                            <span className="text-xs font-medium text-[#c8dce8]">{reply.author}</span>
+                            <Clock className="h-3 w-3 text-[#4a6480]" />
+                            <span className="text-xs text-[#4a6480]">{formatTimestamp(reply.timestamp)}</span>
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
+                        <button
                           onClick={() => handleDeleteReply(comment.id, reply.id)}
-                          className="h-5 w-5 p-0 text-destructive hover:text-destructive"
+                          className="flex items-center justify-center h-5 w-5 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                         >
                           <Trash2 className="h-3 w-3" />
-                        </Button>
+                        </button>
                       </div>
-                      <p className="text-xs whitespace-pre-wrap">{reply.content}</p>
+                      <p className="text-xs text-[#7fa8c8] whitespace-pre-wrap">{reply.content}</p>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Reply Input */}
               {replyingTo === comment.id && (
-                <div className="ml-6 space-y-2">
+                <div className="ml-5 border-l-2 border-[#1a2332] pl-3 space-y-2">
                   <Textarea
                     value={replyContent}
                     onChange={(e) => setReplyContent(e.target.value)}
@@ -317,24 +256,18 @@ export default function CommentPanel({
                     autoFocus
                   />
                   <div className="flex gap-2">
-                    <Button
-                      size="sm"
+                    <button
                       onClick={() => handleAddReply(comment.id)}
-                      className="h-6 text-xs"
+                      className="flex items-center h-6 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
                     >
                       Reply
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setReplyingTo(null);
-                        setReplyContent('');
-                      }}
-                      className="h-6 text-xs"
+                    </button>
+                    <button
+                      onClick={() => { setReplyingTo(null); setReplyContent(''); }}
+                      className="flex items-center h-6 px-3 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                     >
                       Cancel
-                    </Button>
+                    </button>
                   </div>
                 </div>
               )}
@@ -343,34 +276,32 @@ export default function CommentPanel({
         )}
       </div>
 
-      {/* New Comment Input */}
-      <div className="pt-3 border-t space-y-2">
+      {/* New Comment */}
+      <div className="pt-3 border-t border-[#1a2332] space-y-2">
         <Textarea
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
           placeholder="Add a comment..."
-          className="min-h-[80px] text-sm"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              handleAddComment();
-            }
-          }}
+          className="min-h-[80px] text-xs"
+          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddComment(); }}
         />
         <div className="flex justify-between items-center">
-          <span className="text-xs text-muted-foreground">
-            Press {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+Enter to submit
+          <span className="text-[10px] text-[#3d5670]">
+            Press {typeof navigator !== 'undefined' && navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+Enter to submit
           </span>
-          <Button size="sm" onClick={handleAddComment} className="gap-2">
+          <button
+            onClick={handleAddComment}
+            className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
+          >
             <Plus className="h-3 w-3" />
             Add Comment
-          </Button>
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// Dialog wrapper for standalone use
 export function CommentDialog({
   open,
   onOpenChange,
@@ -391,7 +322,7 @@ export function CommentDialog({
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
+            <MessageSquare className="h-5 w-5 text-teal-400" />
             Comments: {nodeName}
           </DialogTitle>
           <DialogDescription>
