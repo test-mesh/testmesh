@@ -1,8 +1,6 @@
 'use client';
 
-import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +11,6 @@ import KeyValueEditor from './KeyValueEditor';
 import type { KeyValuePair } from '../types';
 import { generatePairId } from '../types';
 
-// Common headers for quick add
 const COMMON_HEADERS = [
   { key: 'Content-Type', value: 'application/json' },
   { key: 'Accept', value: 'application/json' },
@@ -30,10 +27,8 @@ interface HeadersTabProps {
 
 export default function HeadersTab({ headers, onChange }: HeadersTabProps) {
   const addCommonHeader = (header: { key: string; value: string }) => {
-    // Check if header already exists
     const exists = headers.some((h) => h.key.toLowerCase() === header.key.toLowerCase());
     if (exists) {
-      // Update existing header
       onChange(
         headers.map((h) =>
           h.key.toLowerCase() === header.key.toLowerCase()
@@ -42,38 +37,24 @@ export default function HeadersTab({ headers, onChange }: HeadersTabProps) {
         )
       );
     } else {
-      // Add new header
-      onChange([
-        ...headers,
-        {
-          id: generatePairId(),
-          key: header.key,
-          value: header.value,
-          enabled: true,
-        },
-      ]);
+      onChange([...headers, { id: generatePairId(), key: header.key, value: header.value, enabled: true }]);
     }
   };
 
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-muted-foreground">
-          HTTP headers to include with the request
-        </div>
+        <div className="text-xs text-[#4a6480]">HTTP headers to include with the request</div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="text-xs">
-              <Plus className="w-3 h-3 mr-1" />
+            <button className="flex items-center gap-1 h-7 px-2 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">
+              <Plus className="w-3 h-3" />
               Common Headers
-            </Button>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {COMMON_HEADERS.map((header) => (
-              <DropdownMenuItem
-                key={header.key}
-                onClick={() => addCommonHeader(header)}
-              >
+              <DropdownMenuItem key={header.key} onClick={() => addCommonHeader(header)}>
                 <span className="font-mono text-xs">{header.key}</span>
               </DropdownMenuItem>
             ))}
