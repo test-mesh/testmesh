@@ -2,9 +2,6 @@
 
 import { useState } from 'react';
 import { useIntegrations, useDeleteIntegration, useTestConnection } from '@/lib/hooks/useIntegrations';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Bot, Settings, Trash2, CheckCircle, XCircle, Loader2, AlertCircle, Server } from 'lucide-react';
 import { AIProviderDialog } from './AIProviderDialog';
 import { useToast } from '@/hooks/use-toast';
@@ -41,6 +38,30 @@ const PROVIDERS = [
   },
 ];
 
+function getStatusSpan(integration?: SystemIntegration) {
+  if (!integration) {
+    return <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1a2332] text-[#4a6480]">Not Configured</span>;
+  }
+  switch (integration.status) {
+    case 'active':
+      return (
+        <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400">
+          <CheckCircle className="h-3 w-3" />Active
+        </span>
+      );
+    case 'error':
+      return (
+        <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-red-400/10 text-red-400">
+          <XCircle className="h-3 w-3" />Error
+        </span>
+      );
+    case 'disabled':
+      return <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1a2332] text-[#4a6480]">Disabled</span>;
+    default:
+      return <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1a2332] text-[#4a6480]">Unknown</span>;
+  }
+}
+
 export function AIProviderSection() {
   const { data, isLoading } = useIntegrations({ type: 'ai_provider' });
   const deleteIntegration = useDeleteIntegration();
@@ -55,9 +76,8 @@ export function AIProviderSection() {
 
   const integrations = data?.integrations || [];
 
-  const getIntegrationForProvider = (provider: IntegrationProvider) => {
-    return integrations.find(i => i.provider === provider);
-  };
+  const getIntegrationForProvider = (provider: IntegrationProvider) =>
+    integrations.find(i => i.provider === provider);
 
   const handleConfigure = (provider: IntegrationProvider, integration?: SystemIntegration) => {
     setSelectedProvider(provider);
@@ -72,80 +92,33 @@ export function AIProviderSection() {
 
   const confirmDelete = async () => {
     if (!integrationToDelete) return;
-
     try {
       await deleteIntegration.mutateAsync(integrationToDelete.id);
-      toast({
-        title: 'Integration deleted',
-        description: `${integrationToDelete.name} has been removed.`,
-      });
+      toast({ title: 'Integration deleted', description: `${integrationToDelete.name} has been removed.` });
       setDeleteDialogOpen(false);
       setIntegrationToDelete(null);
     } catch (error) {
-      toast({
-        title: 'Delete failed',
-        description: error instanceof Error ? error.message : 'Failed to delete integration',
-        variant: 'destructive',
-      });
+      toast({ title: 'Delete failed', description: error instanceof Error ? error.message : 'Failed to delete integration', variant: 'destructive' });
     }
   };
 
   const handleTest = async (integration: SystemIntegration) => {
     try {
       const result = await testConnection.mutateAsync(integration.id);
-
       if (result.success) {
-        toast({
-          title: 'Connection successful',
-          description: result.message || 'Provider is configured correctly',
-        });
+        toast({ title: 'Connection successful', description: result.message || 'Provider is configured correctly' });
       } else {
-        toast({
-          title: 'Connection failed',
-          description: result.error || 'Failed to connect to provider',
-          variant: 'destructive',
-        });
+        toast({ title: 'Connection failed', description: result.error || 'Failed to connect to provider', variant: 'destructive' });
       }
     } catch (error) {
-      toast({
-        title: 'Test failed',
-        description: error instanceof Error ? error.message : 'Failed to test connection',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const getStatusBadge = (integration?: SystemIntegration) => {
-    if (!integration) {
-      return <Badge variant="outline">Not Configured</Badge>;
-    }
-
-    switch (integration.status) {
-      case 'active':
-        return (
-          <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Active
-          </Badge>
-        );
-      case 'error':
-        return (
-          <Badge variant="destructive">
-            <XCircle className="h-3 w-3 mr-1" />
-            Error
-          </Badge>
-        );
-      case 'disabled':
-        return <Badge variant="secondary">Disabled</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
+      toast({ title: 'Test failed', description: error instanceof Error ? error.message : 'Failed to test connection', variant: 'destructive' });
     }
   };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#4a6480]" />
       </div>
     );
   }
@@ -158,104 +131,99 @@ export function AIProviderSection() {
           const isConfigured = !!integration;
 
           return (
-            <Card key={provider} className="flex flex-col">
-              <CardHeader>
+            <div key={provider} className="flex flex-col rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+              <div className="p-5 border-b border-[#1a2332]">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-lg bg-primary/10 p-2">
-                      <Icon className="h-5 w-5 text-primary" />
+                    <div className="rounded-lg bg-teal-400/10 p-2">
+                      <Icon className="h-5 w-5 text-teal-400" />
                     </div>
                     <div>
-                      <CardTitle className="text-lg">{name}</CardTitle>
-                      {getStatusBadge(integration)}
+                      <p className="text-sm font-semibold text-[#c8dce8]">{name}</p>
+                      {getStatusSpan(integration)}
                     </div>
                   </div>
                 </div>
-                <CardDescription className="mt-2">{description}</CardDescription>
-              </CardHeader>
+                <p className="text-xs text-[#4a6480] mt-2">{description}</p>
+              </div>
 
-              <CardContent className="flex-1">
+              <div className="p-5 flex-1">
                 {integration && (
-                  <div className="space-y-2 text-sm">
+                  <div className="space-y-2">
                     {integration.config.model && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Model:</span>
-                        <span className="font-medium">{integration.config.model}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-[#4a6480]">Model:</span>
+                        <span className="font-medium text-[#c8dce8]">{integration.config.model}</span>
                       </div>
                     )}
                     {integration.config.endpoint && (
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Endpoint:</span>
-                        <span className="font-mono text-xs">{integration.config.endpoint}</span>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-[#4a6480]">Endpoint:</span>
+                        <span className="font-mono text-[11px] text-[#7fa8c8]">{integration.config.endpoint}</span>
                       </div>
                     )}
                     {integration.last_test_at && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Last tested:</span>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-[#4a6480]">Last tested:</span>
                         <div className="flex items-center gap-1">
                           {integration.last_test_status === 'success' ? (
-                            <CheckCircle className="h-3 w-3 text-green-600" />
+                            <CheckCircle className="h-3 w-3 text-teal-400" />
                           ) : (
-                            <AlertCircle className="h-3 w-3 text-red-600" />
+                            <AlertCircle className="h-3 w-3 text-red-400" />
                           )}
-                          <span className="text-xs">
+                          <span className="text-[11px] text-[#7fa8c8]">
                             {new Date(integration.last_test_at).toLocaleString()}
                           </span>
                         </div>
                       </div>
                     )}
                     {integration.last_test_error && (
-                      <div className="rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                      <div className="rounded-md bg-red-400/5 border border-red-400/20 p-2 text-xs text-red-400">
                         {integration.last_test_error}
                       </div>
                     )}
                   </div>
                 )}
-              </CardContent>
+              </div>
 
-              <CardFooter className="flex gap-2">
+              <div className="p-5 pt-0 flex gap-2">
                 {isConfigured ? (
                   <>
-                    <Button
-                      variant="outline"
-                      size="sm"
+                    <button
                       onClick={() => handleConfigure(provider, integration)}
-                      className="flex-1"
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors flex-1"
                     >
-                      <Settings className="h-4 w-4 mr-2" />
+                      <Settings className="h-3.5 w-3.5" />
                       Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
+                    </button>
+                    <button
                       onClick={() => handleTest(integration)}
                       disabled={testConnection.isPending}
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
                     >
                       {testConnection.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       ) : (
                         'Test'
                       )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    </button>
+                    <button
                       onClick={() => handleDelete(integration)}
+                      className="flex items-center justify-center h-8 w-8 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </>
                 ) : (
-                  <Button
+                  <button
                     onClick={() => handleConfigure(provider)}
-                    className="w-full"
-                    size="sm"
+                    className="flex items-center justify-center gap-2 h-8 w-full rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 transition-colors"
                   >
                     Configure
-                  </Button>
+                  </button>
                 )}
-              </CardFooter>
-            </Card>
+              </div>
+            </div>
           );
         })}
       </div>

@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -93,12 +92,11 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
 
   useEffect(() => {
     if (integration && open) {
-      // Populate form with integration data
       setValue('model', integration.config.model || '');
       setValue('endpoint', integration.config.endpoint || '');
       setValue('temperature', integration.config.temperature || 0.7);
       setValue('max_tokens', integration.config.max_tokens || 4096);
-      setValue('api_key', ''); // Never pre-fill API key for security
+      setValue('api_key', '');
     } else if (open && !isEditing) {
       reset();
     }
@@ -109,7 +107,6 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
 
     try {
       if (isEditing && integration) {
-        // Update existing integration
         await updateIntegration.mutateAsync({
           id: integration.id,
           data: {
@@ -122,22 +119,15 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
           },
         });
 
-        // Update secrets if API key provided
         if (data.api_key) {
           await updateSecrets.mutateAsync({
             id: integration.id,
-            data: {
-              secrets: { api_key: data.api_key },
-            },
+            data: { secrets: { api_key: data.api_key } },
           });
         }
 
-        toast({
-          title: 'Integration updated',
-          description: `${providerConfig.name} configuration has been updated.`,
-        });
+        toast({ title: 'Integration updated', description: `${providerConfig.name} configuration has been updated.` });
       } else {
-        // Create new integration
         const secrets: Record<string, string> = {};
         if (providerConfig.requiresApiKey && data.api_key) {
           secrets.api_key = data.api_key;
@@ -156,10 +146,7 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
           secrets,
         });
 
-        toast({
-          title: 'Integration created',
-          description: `${providerConfig.name} has been configured successfully.`,
-        });
+        toast({ title: 'Integration created', description: `${providerConfig.name} has been configured successfully.` });
       }
 
       onOpenChange(false);
@@ -175,35 +162,19 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
 
   const handleTestConnection = async () => {
     if (!integration) {
-      toast({
-        title: 'Cannot test',
-        description: 'Please save the configuration first before testing.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Cannot test', description: 'Please save the configuration first before testing.', variant: 'destructive' });
       return;
     }
 
     try {
       const result = await testConnection.mutateAsync(integration.id);
-
       if (result.success) {
-        toast({
-          title: 'Connection successful',
-          description: result.message || 'Provider is configured correctly',
-        });
+        toast({ title: 'Connection successful', description: result.message || 'Provider is configured correctly' });
       } else {
-        toast({
-          title: 'Connection failed',
-          description: result.error || 'Failed to connect to provider',
-          variant: 'destructive',
-        });
+        toast({ title: 'Connection failed', description: result.error || 'Failed to connect to provider', variant: 'destructive' });
       }
     } catch (error) {
-      toast({
-        title: 'Test failed',
-        description: error instanceof Error ? error.message : 'Failed to test connection',
-        variant: 'destructive',
-      });
+      toast({ title: 'Test failed', description: error instanceof Error ? error.message : 'Failed to test connection', variant: 'destructive' });
     }
   };
 
@@ -228,18 +199,16 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
             {providerConfig.requiresApiKey && (
               <div className="space-y-2">
                 <Label htmlFor="api_key">
-                  API Key {!isEditing && <span className="text-destructive">*</span>}
+                  API Key {!isEditing && <span className="text-red-400">*</span>}
                 </Label>
                 <Input
                   id="api_key"
                   type="password"
                   placeholder={isEditing ? 'Leave empty to keep current key' : 'sk-...'}
-                  {...register('api_key', {
-                    required: !isEditing && 'API key is required',
-                  })}
+                  {...register('api_key', { required: !isEditing && 'API key is required' })}
                 />
                 {errors.api_key && (
-                  <p className="text-sm text-destructive">{errors.api_key.message}</p>
+                  <p className="text-xs text-red-400">{errors.api_key.message}</p>
                 )}
               </div>
             )}
@@ -247,22 +216,18 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
             {providerConfig.requiresEndpoint && (
               <div className="space-y-2">
                 <Label htmlFor="endpoint">
-                  Endpoint URL <span className="text-destructive">*</span>
+                  Endpoint URL <span className="text-red-400">*</span>
                 </Label>
                 <Input
                   id="endpoint"
                   type="url"
                   placeholder="http://localhost:11434"
-                  {...register('endpoint', {
-                    required: 'Endpoint URL is required for local providers',
-                  })}
+                  {...register('endpoint', { required: 'Endpoint URL is required for local providers' })}
                 />
                 {errors.endpoint && (
-                  <p className="text-sm text-destructive">{errors.endpoint.message}</p>
+                  <p className="text-xs text-red-400">{errors.endpoint.message}</p>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  For Ollama: http://localhost:11434
-                </p>
+                <p className="text-xs text-[#4a6480]">For Ollama: http://localhost:11434</p>
               </div>
             )}
 
@@ -277,9 +242,7 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
                 </SelectTrigger>
                 <SelectContent>
                   {providerConfig.models.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
+                    <SelectItem key={model} value={model}>{model}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -297,7 +260,6 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
                   {...register('temperature', { valueAsNumber: true })}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="max_tokens">Max Tokens</Label>
                 <Input
@@ -314,35 +276,30 @@ export function AIProviderDialog({ open, onOpenChange, provider, integration }: 
 
           <DialogFooter className="gap-2">
             {isEditing && (
-              <Button
+              <button
                 type="button"
-                variant="outline"
                 onClick={handleTestConnection}
                 disabled={testConnection.isPending}
+                className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
               >
                 {testConnection.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Testing...
-                  </>
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" />Testing...</>
                 ) : (
                   'Test Connection'
                 )}
-              </Button>
+              </button>
             )}
-            <Button
+            <button
               type="submit"
               disabled={createIntegration.isPending || updateIntegration.isPending}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
               {(createIntegration.isPending || updateIntegration.isPending) ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving...</>
               ) : (
                 'Save'
               )}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -2,11 +2,8 @@
 
 import { useState } from 'react';
 import { useIntegrations, useCreateIntegration, useUpdateSecrets } from '@/lib/hooks/useIntegrations';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Copy, CheckCircle, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -77,42 +74,43 @@ export function ArgoCDIntegrationSection() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#4a6480]" />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
+      <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+        <div className="p-5 border-b border-[#1a2332]">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Argo CD Configuration</CardTitle>
-              <CardDescription>
+              <p className="text-sm font-semibold text-[#c8dce8]">Argo CD Configuration</p>
+              <p className="text-xs text-[#4a6480] mt-0.5">
                 Receive sync events from Argo CD and automatically trigger test suites after successful deployments
-              </CardDescription>
+              </p>
             </div>
             {isConfigured && (
-              <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Configured
-              </Badge>
+              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400">
+                <CheckCircle className="h-3 w-3" />Configured
+              </span>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Webhook URL — always visible */}
+        </div>
+        <div className="p-5 space-y-4">
           <div className="space-y-2">
             <Label>Webhook URL</Label>
             <div className="flex gap-2">
               <Input value={webhookUrl} readOnly className="font-mono text-sm" />
-              <Button variant="outline" size="sm" onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}>
+              <button
+                onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}
+                className="flex items-center justify-center h-9 w-9 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors shrink-0"
+              >
                 <Copy className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Register this URL in your <code>argocd-notifications-cm</code> ConfigMap as the TestMesh webhook endpoint
+            <p className="text-xs text-[#4a6480]">
+              Register this URL in your <code className="px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">argocd-notifications-cm</code> ConfigMap as the TestMesh webhook endpoint
             </p>
           </div>
 
@@ -147,7 +145,7 @@ export function ArgoCDIntegrationSection() {
                     onChange={e => setAppFilter(e.target.value)}
                     placeholder="testmesh-* (glob pattern, leave blank to match all)"
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-[#4a6480]">
                     Only sync events from matching Argo CD application names will be processed
                   </p>
                 </div>
@@ -166,71 +164,73 @@ export function ArgoCDIntegrationSection() {
                     placeholder={isConfigured ? 'Enter new token to rotate' : 'argocd token (for API access)'}
                     className="font-mono text-sm pr-10"
                   />
-                  <Button
+                  <button
                     type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
                     onClick={() => setShowToken(v => !v)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                   >
                     {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
+                  </button>
                 </div>
                 {apiToken && (
-                  <Button variant="outline" size="sm" onClick={() => copyToClipboard(apiToken, 'Token')}>
+                  <button
+                    onClick={() => copyToClipboard(apiToken, 'Token')}
+                    className="flex items-center justify-center h-9 w-9 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors shrink-0"
+                  >
                     <Copy className="h-4 w-4" />
-                  </Button>
+                  </button>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4a6480]">
                 Stored encrypted. Used to fetch Argo CD application state and manage test environments.
               </p>
             </div>
 
-            <Button
+            <button
               onClick={handleSave}
               disabled={isSaving || (!isConfigured && !argoCDURL)}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
               {isSaving ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{isConfigured ? 'Updating...' : 'Saving...'}</>
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />{isConfigured ? 'Updating...' : 'Saving...'}</>
               ) : (
                 isConfigured ? 'Save Changes' : 'Save Integration'
               )}
-            </Button>
+            </button>
           </div>
 
           {isConfigured && (
             <Alert>
               <AlertDescription className="space-y-2">
-                <p className="font-medium">To configure Argo CD notifications:</p>
-                <ol className="list-decimal list-inside space-y-1 text-sm">
-                  <li>Edit your <code>argocd-notifications-cm</code> ConfigMap</li>
+                <p className="font-medium text-sm">To configure Argo CD notifications:</p>
+                <ol className="list-decimal list-inside space-y-1 text-xs text-[#7fa8c8]">
+                  <li>Edit your <code className="px-1 py-0.5 rounded bg-[#1a2332]">argocd-notifications-cm</code> ConfigMap</li>
                   <li>Add a webhook service pointing to the URL above</li>
-                  <li>Add a trigger for <code>on-sync-succeeded</code></li>
+                  <li>Add a trigger for <code className="px-1 py-0.5 rounded bg-[#1a2332]">on-sync-succeeded</code></li>
                   <li>
                     Annotate each Argo CD Application with{' '}
-                    <code>notifications.argoproj.io/subscribe.on-sync-succeeded.testmesh: &quot;&quot;</code>
+                    <code className="px-1 py-0.5 rounded bg-[#1a2332]">notifications.argoproj.io/subscribe.on-sync-succeeded.testmesh: &quot;&quot;</code>
                   </li>
-                  <li>See the <a href="/docs/guides/gitops-integration" className="underline">GitOps Integration guide</a> for full YAML examples</li>
+                  <li>See the <a href="/docs/guides/gitops-integration" className="text-teal-400 hover:underline">GitOps Integration guide</a> for full YAML examples</li>
                 </ol>
               </AlertDescription>
             </Alert>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {isConfigured && integration && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Trigger Rules</CardTitle>
-            <CardDescription>
+        <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+          <div className="p-5 border-b border-[#1a2332]">
+            <p className="text-sm font-semibold text-[#c8dce8]">Trigger Rules</p>
+            <p className="text-xs text-[#4a6480] mt-0.5">
               Map Argo CD application names to suites — when a matching app syncs successfully, the linked suite runs automatically
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </p>
+          </div>
+          <div className="p-5">
             <TriggerRulesTable integrationId={integration.id} />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
     </div>
   );

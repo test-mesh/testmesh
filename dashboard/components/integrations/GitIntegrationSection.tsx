@@ -3,13 +3,10 @@
 import { useState } from 'react';
 import { useIntegrations, useCreateIntegration, useUpdateSecrets, useGitHubAppStatus, useGitHubInstallations, useGitHubAuthorize } from '@/lib/hooks/useIntegrations';
 import { useActiveWorkspace } from '@/lib/hooks/useWorkspaces';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Copy, CheckCircle, XCircle, Loader2, AlertCircle, Plus, Eye, EyeOff } from 'lucide-react';
+import { Copy, CheckCircle, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { TriggerRulesTable } from './TriggerRulesTable';
 import { WebhookDeliveryLog } from './WebhookDeliveryLog';
@@ -48,40 +45,23 @@ export function GitIntegrationSection() {
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    toast({
-      title: 'Copied!',
-      description: `${label} copied to clipboard`,
-    });
+    toast({ title: 'Copied!', description: `${label} copied to clipboard` });
   };
 
   const handleEnableWebhook = async () => {
     if (!webhookSecret) {
-      toast({
-        title: 'Missing secret',
-        description: 'Please generate or enter a webhook secret',
-        variant: 'destructive',
-      });
+      toast({ title: 'Missing secret', description: 'Please generate or enter a webhook secret', variant: 'destructive' });
       return;
     }
 
     setIsGenerating(true);
-
     try {
       if (isConfigured && integration) {
-        // Update existing integration
         const secrets: Record<string, string> = { webhook_secret: webhookSecret };
         if (accessToken) secrets['access_token'] = accessToken;
-        await updateSecrets.mutateAsync({
-          id: integration.id,
-          data: { secrets },
-        });
-
-        toast({
-          title: 'Webhook updated',
-          description: 'GitHub webhook secret has been updated',
-        });
+        await updateSecrets.mutateAsync({ id: integration.id, data: { secrets } });
+        toast({ title: 'Webhook updated', description: 'GitHub webhook secret has been updated' });
       } else {
-        // Create new integration
         const secrets: Record<string, string> = { webhook_secret: webhookSecret };
         if (accessToken) secrets['access_token'] = accessToken;
         await createIntegration.mutateAsync({
@@ -91,11 +71,7 @@ export function GitIntegrationSection() {
           config: { signature_header: 'X-Hub-Signature-256' },
           secrets,
         });
-
-        toast({
-          title: 'Webhook enabled',
-          description: 'GitHub webhook integration has been configured',
-        });
+        toast({ title: 'Webhook enabled', description: 'GitHub webhook integration has been configured' });
       }
 
       setWebhookSecret('');
@@ -114,7 +90,7 @@ export function GitIntegrationSection() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#4a6480]" />
       </div>
     );
   }
@@ -122,74 +98,76 @@ export function GitIntegrationSection() {
   return (
     <div className="space-y-6">
       {isAppConfigured && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Connect with GitHub</CardTitle>
-            <CardDescription>
+        <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+          <div className="p-5 border-b border-[#1a2332]">
+            <p className="text-sm font-semibold text-[#c8dce8]">Connect with GitHub</p>
+            <p className="text-xs text-[#4a6480] mt-0.5">
               Authorize TestMesh to access your GitHub repositories via the GitHub App.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+            </p>
+          </div>
+          <div className="p-5 space-y-4">
             {isConfigured && integration?.config?.github_user_login ? (
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <span className="text-sm">
-                  Connected as <strong>{integration.config.github_user_login}</strong>
-                </span>
+              <div className="flex items-center gap-2 text-sm text-[#7fa8c8]">
+                <CheckCircle className="h-4 w-4 text-teal-400" />
+                Connected as <strong className="text-[#c8dce8]">{integration.config.github_user_login}</strong>
               </div>
             ) : null}
-            <Button
+            <button
               onClick={() => authorize.mutate()}
               disabled={authorize.isPending}
-              variant={isConfigured ? 'outline' : 'default'}
+              className={`flex items-center gap-2 h-9 px-4 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors ${
+                isConfigured
+                  ? 'border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8]'
+                  : 'bg-teal-400 text-[#0b0f18] hover:bg-teal-300'
+              }`}
             >
-              {authorize.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {authorize.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isConfigured ? 'Reconnect with GitHub' : 'Connect with GitHub'}
-            </Button>
+            </button>
             {installations.length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-medium">App installed on:</p>
+                <p className="text-xs font-medium text-[#7fa8c8]">App installed on:</p>
                 {installations.map(inst => (
-                  <div key={inst.id} className="flex items-center gap-2 text-sm">
+                  <div key={inst.id} className="flex items-center gap-2 text-xs text-[#c8dce8]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={inst.avatar_url} alt={inst.login} className="h-5 w-5 rounded-full" />
                     <span>{inst.login}</span>
-                    <Badge variant="secondary">{inst.type}</Badge>
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-[#1a2332] text-[#4a6480]">{inst.type}</span>
                   </div>
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
-      {/* Webhook Configuration */}
-      <Card>
-        <CardHeader>
+      <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+        <div className="p-5 border-b border-[#1a2332]">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Webhook Configuration</CardTitle>
-              <CardDescription>
+              <p className="text-sm font-semibold text-[#c8dce8]">Webhook Configuration</p>
+              <p className="text-xs text-[#4a6480] mt-0.5">
                 Set up GitHub webhooks to trigger tests automatically
-              </CardDescription>
+              </p>
             </div>
             {isConfigured && (
-              <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Configured
-              </Badge>
+              <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400">
+                <CheckCircle className="h-3 w-3" />Configured
+              </span>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Webhook URL — always visible */}
+        </div>
+        <div className="p-5 space-y-4">
           <div className="space-y-2">
             <Label>Webhook URL</Label>
             <div className="flex gap-2">
               <Input value={webhookUrl} readOnly className="font-mono text-sm" />
-              <Button variant="outline" size="sm" onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}>
+              <button
+                onClick={() => copyToClipboard(webhookUrl, 'Webhook URL')}
+                className="flex items-center justify-center h-9 w-9 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors shrink-0"
+              >
                 <Copy className="h-4 w-4" />
-              </Button>
+              </button>
             </div>
           </div>
 
@@ -203,7 +181,6 @@ export function GitIntegrationSection() {
             </Alert>
           )}
 
-          {/* Secret input — always visible so user can regenerate or enter manually */}
           <div className="space-y-2">
             <Label htmlFor="webhook-secret">{isConfigured ? 'New Webhook Secret' : 'Webhook Secret'}</Label>
             <div className="flex gap-2">
@@ -216,24 +193,30 @@ export function GitIntegrationSection() {
                   placeholder="Enter or generate a secret"
                   className="font-mono text-sm pr-10"
                 />
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
                   onClick={() => setShowSecret(v => !v)}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
                 >
                   {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
+                </button>
               </div>
-              <Button variant="outline" onClick={generateSecret}>Generate</Button>
+              <button
+                onClick={generateSecret}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors shrink-0"
+              >
+                Generate
+              </button>
               {webhookSecret && (
-                <Button variant="outline" size="sm" onClick={() => copyToClipboard(webhookSecret, 'Secret')}>
+                <button
+                  onClick={() => copyToClipboard(webhookSecret, 'Secret')}
+                  className="flex items-center justify-center h-9 w-9 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors shrink-0"
+                >
                   <Copy className="h-4 w-4" />
-                </Button>
+                </button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-[#4a6480]">
               {isConfigured
                 ? 'Enter a new secret to rotate it, then update the value in GitHub'
                 : 'This secret will be used to verify webhook requests from GitHub'}
@@ -249,50 +232,53 @@ export function GitIntegrationSection() {
               onChange={e => setAccessToken(e.target.value)}
               placeholder="ghp_... (required to browse repositories)"
             />
-            <p className="text-xs text-muted-foreground">
-              Required to browse repositories when adding a repository link. Needs <code className="bg-muted px-1 rounded">repo</code> scope.
+            <p className="text-xs text-[#4a6480]">
+              Required to browse repositories when adding a repository link. Needs <code className="px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">repo</code> scope.
             </p>
           </div>
 
-          <Button onClick={handleEnableWebhook} disabled={!webhookSecret || isGenerating}>
+          <button
+            onClick={handleEnableWebhook}
+            disabled={!webhookSecret || isGenerating}
+            className="flex items-center gap-2 h-9 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+          >
             {isGenerating ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{isConfigured ? 'Updating...' : 'Enabling...'}</>
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" />{isConfigured ? 'Updating...' : 'Enabling...'}</>
             ) : (
               isConfigured ? 'Save New Secret' : 'Enable Webhook'
             )}
-          </Button>
+          </button>
 
           {isConfigured && (
             <Alert>
               <AlertDescription className="space-y-2">
-                <p className="font-medium">To configure webhooks in GitHub:</p>
-                <ol className="list-decimal list-inside space-y-1 text-sm">
+                <p className="font-medium text-sm">To configure webhooks in GitHub:</p>
+                <ol className="list-decimal list-inside space-y-1 text-xs text-[#7fa8c8]">
                   <li>Go to your repository Settings → Webhooks → Add webhook</li>
                   <li>Paste the Webhook URL above</li>
-                  <li>Select <strong>application/json</strong> as Content type</li>
+                  <li>Select <strong className="text-[#c8dce8]">application/json</strong> as Content type</li>
                   <li>Enter the webhook secret you configured</li>
-                  <li>Choose events: <strong>Pushes</strong> and <strong>Pull requests</strong></li>
-                  <li>Click <strong>Add webhook</strong></li>
+                  <li>Choose events: <strong className="text-[#c8dce8]">Pushes</strong> and <strong className="text-[#c8dce8]">Pull requests</strong></li>
+                  <li>Click <strong className="text-[#c8dce8]">Add webhook</strong></li>
                 </ol>
               </AlertDescription>
             </Alert>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Trigger Rules */}
       {isConfigured && integration && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Trigger Rules</CardTitle>
-            <CardDescription>
+        <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+          <div className="p-5 border-b border-[#1a2332]">
+            <p className="text-sm font-semibold text-[#c8dce8]">Trigger Rules</p>
+            <p className="text-xs text-[#4a6480] mt-0.5">
               Configure which repositories and branches trigger test executions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </p>
+          </div>
+          <div className="p-5">
             <TriggerRulesTable integrationId={integration.id} />
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {isConfigured && integration && (

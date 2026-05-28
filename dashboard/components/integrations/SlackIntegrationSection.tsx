@@ -2,11 +2,9 @@
 
 import { useState } from 'react';
 import { useIntegrations, useCreateIntegration, useUpdateIntegration, useUpdateSecrets, useTestConnection, useDeleteIntegration } from '@/lib/hooks/useIntegrations';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, XCircle, Loader2, AlertCircle, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -54,10 +52,7 @@ export function SlackIntegrationSection() {
       if (isConfigured && integration) {
         await updateIntegration.mutateAsync({
           id: integration.id,
-          data: {
-            name,
-            config: { channel, notify_on_events: selectedEvents },
-          },
+          data: { name, config: { channel, notify_on_events: selectedEvents } },
         });
         if (webhookURL) {
           await updateSecrets.mutateAsync({ id: integration.id, data: { secrets: { webhook_url: webhookURL } } });
@@ -109,16 +104,19 @@ export function SlackIntegrationSection() {
   };
 
   if (isLoading) {
-    return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>;
+    return (
+      <div className="flex items-center gap-2 text-[#4a6480] text-xs">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      {/* Status banner */}
       {isConfigured && (
         <Alert variant={integration.status === 'active' ? 'default' : 'destructive'}>
           {integration.status === 'active' ? (
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CheckCircle className="h-4 w-4 text-teal-400" />
           ) : (
             <XCircle className="h-4 w-4" />
           )}
@@ -129,9 +127,13 @@ export function SlackIntegrationSection() {
                 <> — last tested {new Date(integration.last_test_at).toLocaleString()}</>
               )}
             </span>
-            <Badge variant={integration.status === 'active' ? 'default' : 'destructive'}>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+              integration.status === 'active'
+                ? 'bg-teal-400/10 text-teal-400'
+                : 'bg-red-400/10 text-red-400'
+            }`}>
               {integration.status}
-            </Badge>
+            </span>
           </AlertDescription>
         </Alert>
       )}
@@ -158,7 +160,7 @@ export function SlackIntegrationSection() {
         <div className="space-y-1">
           <Label htmlFor="slack-webhook">
             Incoming Webhook URL
-            {isConfigured && <span className="ml-2 text-xs text-muted-foreground">(enter new URL to update)</span>}
+            {isConfigured && <span className="ml-2 text-xs text-[#4a6480]">(enter new URL to update)</span>}
           </Label>
           <div className="relative">
             <Input
@@ -169,17 +171,15 @@ export function SlackIntegrationSection() {
               placeholder="https://hooks.slack.com/services/…"
               className="pr-10"
             />
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
               onClick={() => setShowWebhook(s => !s)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
             >
               {showWebhook ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-            </Button>
+            </button>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#4a6480]">
             Create an Incoming Webhook in your Slack app settings and paste the URL above.
           </p>
         </div>
@@ -217,20 +217,32 @@ export function SlackIntegrationSection() {
       </div>
 
       <div className="flex gap-2">
-        <Button onClick={handleSave} disabled={isSaving}>
-          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="flex items-center gap-2 h-9 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+        >
+          {isSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {isConfigured ? 'Update' : 'Enable Slack'}
-        </Button>
+        </button>
 
         {isConfigured && (
           <>
-            <Button variant="outline" onClick={handleTest} disabled={isTesting}>
-              {isTesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <button
+              onClick={handleTest}
+              disabled={isTesting}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] disabled:opacity-50 transition-colors"
+            >
+              {isTesting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Test Connection
-            </Button>
-            <Button variant="destructive" size="icon" onClick={handleDelete} title="Remove integration">
+            </button>
+            <button
+              onClick={handleDelete}
+              title="Remove integration"
+              className="flex items-center justify-center h-9 w-9 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-red-400 hover:border-red-400/30 hover:bg-red-400/5 transition-colors"
+            >
               <Trash2 className="h-4 w-4" />
-            </Button>
+            </button>
           </>
         )}
       </div>

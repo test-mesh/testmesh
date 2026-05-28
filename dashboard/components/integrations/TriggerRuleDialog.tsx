@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -108,29 +107,15 @@ export function TriggerRuleDialog({
 
   const onSubmit = async (data: FormData) => {
     if (selectedEvents.length === 0) {
-      toast({
-        title: 'Validation error',
-        description: 'Please select at least one event type',
-        variant: 'destructive',
-      });
+      toast({ title: 'Validation error', description: 'Please select at least one event type', variant: 'destructive' });
       return;
     }
-
     if (data.trigger_mode === 'schedule' && !data.schedule_id) {
-      toast({
-        title: 'Validation error',
-        description: 'Please select a schedule',
-        variant: 'destructive',
-      });
+      toast({ title: 'Validation error', description: 'Please select a schedule', variant: 'destructive' });
       return;
     }
-
     if (data.trigger_mode === 'direct' && !data.flow_id) {
-      toast({
-        title: 'Validation error',
-        description: 'Please select a flow',
-        variant: 'destructive',
-      });
+      toast({ title: 'Validation error', description: 'Please select a flow', variant: 'destructive' });
       return;
     }
 
@@ -148,26 +133,11 @@ export function TriggerRuleDialog({
       };
 
       if (isEditing && rule) {
-        await updateRule.mutateAsync({
-          workspaceId,
-          id: rule.id,
-          data: payload,
-        });
-
-        toast({
-          title: 'Rule updated',
-          description: `Trigger rule "${data.name}" has been updated.`,
-        });
+        await updateRule.mutateAsync({ workspaceId, id: rule.id, data: payload });
+        toast({ title: 'Rule updated', description: `Trigger rule "${data.name}" has been updated.` });
       } else {
-        await createRule.mutateAsync({
-          workspaceId,
-          data: payload,
-        });
-
-        toast({
-          title: 'Rule created',
-          description: `Trigger rule "${data.name}" has been created.`,
-        });
+        await createRule.mutateAsync({ workspaceId, data: payload });
+        toast({ title: 'Rule created', description: `Trigger rule "${data.name}" has been created.` });
       }
 
       onOpenChange(false);
@@ -187,9 +157,7 @@ export function TriggerRuleDialog({
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit(onSubmit)}>
           <DialogHeader>
-            <DialogTitle>
-              {isEditing ? 'Edit' : 'Create'} Trigger Rule
-            </DialogTitle>
+            <DialogTitle>{isEditing ? 'Edit' : 'Create'} Trigger Rule</DialogTitle>
             <DialogDescription>
               Configure when and how tests should be triggered from Git events
             </DialogDescription>
@@ -198,52 +166,39 @@ export function TriggerRuleDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">
-                Rule Name <span className="text-destructive">*</span>
+                Rule Name <span className="text-red-400">*</span>
               </Label>
               <Input
                 id="name"
                 placeholder="Main branch CI"
-                {...register('name', {
-                  required: 'Rule name is required',
-                })}
+                {...register('name', { required: 'Rule name is required' })}
               />
-              {errors.name && (
-                <p className="text-sm text-destructive">{errors.name.message}</p>
-              )}
+              {errors.name && <p className="text-xs text-red-400">{errors.name.message}</p>}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="repository">
-                Repository <span className="text-destructive">*</span>
+                Repository <span className="text-red-400">*</span>
               </Label>
               <Input
                 id="repository"
                 placeholder="owner/repo"
                 {...register('repository', {
                   required: 'Repository is required',
-                  pattern: {
-                    value: /^[^/]+\/[^/]+$/,
-                    message: 'Format: owner/repo',
-                  },
+                  pattern: { value: /^[^/]+\/[^/]+$/, message: 'Format: owner/repo' },
                 })}
               />
-              {errors.repository && (
-                <p className="text-sm text-destructive">{errors.repository.message}</p>
-              )}
-              <p className="text-xs text-muted-foreground">
+              {errors.repository && <p className="text-xs text-red-400">{errors.repository.message}</p>}
+              <p className="text-xs text-[#4a6480]">
                 Format: owner/repository-name (e.g., facebook/react)
               </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="branch_filter">Branch Filter</Label>
-              <Input
-                id="branch_filter"
-                placeholder="*"
-                {...register('branch_filter')}
-              />
-              <p className="text-xs text-muted-foreground">
-                Use * for all branches, or specify a branch name like "main" or "develop"
+              <Input id="branch_filter" placeholder="*" {...register('branch_filter')} />
+              <p className="text-xs text-[#4a6480]">
+                Use * for all branches, or specify a branch name like &quot;main&quot; or &quot;develop&quot;
               </p>
             </div>
 
@@ -251,16 +206,13 @@ export function TriggerRuleDialog({
               <Label>Event Types</Label>
               <div className="space-y-2">
                 {EVENT_TYPES.map((event) => (
-                  <div key={event.id} className="flex items-center space-x-2">
+                  <div key={event.id} className="flex items-center gap-2">
                     <Checkbox
                       id={event.id}
                       checked={selectedEvents.includes(event.id)}
                       onCheckedChange={() => toggleEvent(event.id)}
                     />
-                    <Label
-                      htmlFor={event.id}
-                      className="text-sm font-normal cursor-pointer"
-                    >
+                    <Label htmlFor={event.id} className="text-sm font-normal cursor-pointer">
                       {event.label}
                     </Label>
                   </div>
@@ -274,13 +226,13 @@ export function TriggerRuleDialog({
                 value={triggerMode}
                 onValueChange={(value) => setValue('trigger_mode', value as 'schedule' | 'direct')}
               >
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                   <RadioGroupItem value="schedule" id="schedule" />
                   <Label htmlFor="schedule" className="font-normal cursor-pointer">
                     Via Schedule (recommended)
                   </Label>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center gap-2">
                   <RadioGroupItem value="direct" id="direct" />
                   <Label htmlFor="direct" className="font-normal cursor-pointer">
                     Direct Execution
@@ -300,13 +252,11 @@ export function TriggerRuleDialog({
                     </SelectTrigger>
                     <SelectContent>
                       {schedulesData?.schedules?.map((schedule) => (
-                        <SelectItem key={schedule.id} value={schedule.id}>
-                          {schedule.name}
-                        </SelectItem>
+                        <SelectItem key={schedule.id} value={schedule.id}>{schedule.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-[#4a6480]">
                     The selected schedule will be triggered when the event occurs
                   </p>
                 </div>
@@ -324,13 +274,11 @@ export function TriggerRuleDialog({
                     </SelectTrigger>
                     <SelectContent>
                       {flowsData?.flows?.map((flow) => (
-                        <SelectItem key={flow.id} value={flow.id}>
-                          {flow.name}
-                        </SelectItem>
+                        <SelectItem key={flow.id} value={flow.id}>{flow.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-[#4a6480]">
                     The flow will be executed immediately when the event occurs
                   </p>
                 </div>
@@ -339,19 +287,17 @@ export function TriggerRuleDialog({
           </div>
 
           <DialogFooter>
-            <Button
+            <button
               type="submit"
               disabled={createRule.isPending || updateRule.isPending}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
               {(createRule.isPending || updateRule.isPending) ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving...</>
               ) : (
                 'Save Rule'
               )}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -1,11 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Command,
@@ -30,14 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Loader2, Plus, Pencil, Trash2, GitBranch, X, ChevronsUpDown, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIntegrations, useGitRepositories } from '@/lib/hooks/useIntegrations';
@@ -78,7 +68,6 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
   const [form, setForm] = useState<LinkFormState>(defaultForm);
   const [newMappingService, setNewMappingService] = useState('');
   const [newMappingPatterns, setNewMappingPatterns] = useState('');
-
   const [repoComboboxOpen, setRepoComboboxOpen] = useState(false);
   const [repoSearch, setRepoSearch] = useState('');
 
@@ -92,11 +81,7 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
   const links = linksData?.repository_links || [];
   const gitIntegrations = integrationsData?.integrations || [];
 
-  const openCreate = () => {
-    setEditingLink(null);
-    setForm(defaultForm);
-    setDialogOpen(true);
-  };
+  const openCreate = () => { setEditingLink(null); setForm(defaultForm); setDialogOpen(true); };
 
   const openEdit = (link: RepositoryLink) => {
     setEditingLink(link);
@@ -113,27 +98,18 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
 
   const addMapping = () => {
     if (!newMappingService.trim()) return;
-    const patterns = newMappingPatterns
-      .split(',')
-      .map(p => p.trim())
-      .filter(Boolean);
+    const patterns = newMappingPatterns.split(',').map(p => p.trim()).filter(Boolean);
     if (patterns.length === 0) return;
     setForm(prev => ({
       ...prev,
-      service_mappings: [
-        ...prev.service_mappings,
-        { service_name: newMappingService.trim(), path_patterns: patterns },
-      ],
+      service_mappings: [...prev.service_mappings, { service_name: newMappingService.trim(), path_patterns: patterns }],
     }));
     setNewMappingService('');
     setNewMappingPatterns('');
   };
 
   const removeMapping = (index: number) => {
-    setForm(prev => ({
-      ...prev,
-      service_mappings: prev.service_mappings.filter((_, i) => i !== index),
-    }));
+    setForm(prev => ({ ...prev, service_mappings: prev.service_mappings.filter((_, i) => i !== index) }));
   };
 
   const handleSave = async () => {
@@ -193,82 +169,91 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
   return (
     <>
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            Link repositories to this workspace to enable AI-powered test adaptation when code changes.
-            Tag flows with <code className="bg-muted px-1 rounded text-xs">service:your-service-name</code> to link them.
-          </p>
-        </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
+        <p className="text-xs text-[#4a6480]">
+          Link repositories to this workspace to enable AI-powered test adaptation when code changes.
+          Tag flows with <code className="px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8] text-[11px]">service:your-service-name</code> to link them.
+        </p>
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors shrink-0 ml-4"
+        >
+          <Plus className="h-3.5 w-3.5" />
           Add Repository
-        </Button>
+        </button>
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <Loader2 className="h-6 w-6 animate-spin text-[#4a6480]" />
         </div>
       ) : links.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <GitBranch className="h-10 w-10 mx-auto mb-2 opacity-40" />
-          <p>No repositories linked yet</p>
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <GitBranch className="h-10 w-10 mb-2 text-[#3d5670]" />
+          <p className="text-xs text-[#4a6480]">No repositories linked yet</p>
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Repository</TableHead>
-              <TableHead>Branch</TableHead>
-              <TableHead>Services Mapped</TableHead>
-              <TableHead>Auto-Adapt</TableHead>
-              <TableHead>Auto-Apply Threshold</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {links.map(link => (
-              <TableRow key={link.id}>
-                <TableCell className="font-mono text-sm">{link.repository}</TableCell>
-                <TableCell>{link.default_branch}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {(link.service_mappings || []).map(m => (
-                      <Badge key={m.service_name} variant="outline" className="text-xs">
-                        {m.service_name}
-                      </Badge>
-                    ))}
-                    {(!link.service_mappings || link.service_mappings.length === 0) && (
-                      <span className="text-muted-foreground text-xs">None</span>
+        <div className="rounded-lg border border-[#1e2d3d] overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-[#1a2332] bg-[#0f1923]">
+                <th className="text-left py-2.5 px-3 text-[10px] font-medium text-[#4a6480] uppercase tracking-wide">Repository</th>
+                <th className="text-left py-2.5 px-3 text-[10px] font-medium text-[#4a6480] uppercase tracking-wide">Branch</th>
+                <th className="text-left py-2.5 px-3 text-[10px] font-medium text-[#4a6480] uppercase tracking-wide">Services Mapped</th>
+                <th className="text-left py-2.5 px-3 text-[10px] font-medium text-[#4a6480] uppercase tracking-wide">Auto-Adapt</th>
+                <th className="text-left py-2.5 px-3 text-[10px] font-medium text-[#4a6480] uppercase tracking-wide">Auto-Apply</th>
+                <th className="text-right py-2.5 px-3 text-[10px] font-medium text-[#4a6480] uppercase tracking-wide">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1a2332]">
+              {links.map(link => (
+                <tr key={link.id} className="hover:bg-[#131b26] transition-colors">
+                  <td className="py-3 px-3 font-mono text-[#c8dce8]">{link.repository}</td>
+                  <td className="py-3 px-3 text-[#7fa8c8]">{link.default_branch}</td>
+                  <td className="py-3 px-3">
+                    <div className="flex flex-wrap gap-1">
+                      {(link.service_mappings || []).map(m => (
+                        <span key={m.service_name} className="text-[10px] px-1.5 py-0.5 rounded border border-[#2a3d52] text-[#7fa8c8]">
+                          {m.service_name}
+                        </span>
+                      ))}
+                      {(!link.service_mappings || link.service_mappings.length === 0) && (
+                        <span className="text-[#4a6480]">None</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="py-3 px-3">
+                    {link.auto_adapt ? (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400">Enabled</span>
+                    ) : (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#1a2332] text-[#4a6480]">Disabled</span>
                     )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {link.auto_adapt ? (
-                    <Badge className="bg-green-500/10 text-green-600 border-green-500/20 text-xs">Enabled</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs">Disabled</Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {link.auto_apply_threshold > 0
-                    ? `${Math.round(link.auto_apply_threshold * 100)}%`
-                    : 'Manual'}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(link)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(link)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  </td>
+                  <td className="py-3 px-3 text-[#7fa8c8]">
+                    {link.auto_apply_threshold > 0
+                      ? `${Math.round(link.auto_apply_threshold * 100)}%`
+                      : 'Manual'}
+                  </td>
+                  <td className="py-3 px-3">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => openEdit(link)}
+                        className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(link)}
+                        className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -285,7 +270,10 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
               <>
                 <div className="space-y-2">
                   <Label>Git Integration</Label>
-                  <Select value={form.integration_id} onValueChange={v => { setForm(p => ({ ...p, integration_id: v, repository: '' })); setRepoSearch(''); }}>
+                  <Select
+                    value={form.integration_id}
+                    onValueChange={v => { setForm(p => ({ ...p, integration_id: v, repository: '' })); setRepoSearch(''); }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select integration..." />
                     </SelectTrigger>
@@ -304,16 +292,15 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
                   {!reposError && (reposData?.repositories?.length ?? 0) > 0 || reposLoading || form.integration_id ? (
                     <Popover open={repoComboboxOpen} onOpenChange={setRepoComboboxOpen}>
                       <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
+                        <button
                           role="combobox"
                           aria-expanded={repoComboboxOpen}
-                          className="w-full justify-between font-normal"
                           disabled={!form.integration_id}
+                          className="flex items-center justify-between w-full h-9 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#c8dce8] hover:border-[#2a3d52] disabled:opacity-50 transition-colors"
                         >
-                          {form.repository || <span className="text-muted-foreground">Select repository...</span>}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
+                          {form.repository || <span className="text-[#4a6480]">Select repository...</span>}
+                          <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 text-[#4a6480]" />
+                        </button>
                       </PopoverTrigger>
                       <PopoverContent className="w-full p-0" align="start">
                         <Command shouldFilter={false}>
@@ -325,7 +312,7 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
                           <CommandList>
                             {reposLoading ? (
                               <div className="flex items-center justify-center py-4">
-                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                <Loader2 className="h-4 w-4 animate-spin text-[#4a6480]" />
                               </div>
                             ) : reposError ? (
                               <CommandEmpty>Failed to load repositories. Check integration token.</CommandEmpty>
@@ -344,10 +331,10 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
                                   >
                                     <div className="flex items-center gap-2 w-full min-w-0">
                                       <span className="font-medium truncate">{repo.full_name}</span>
-                                      {repo.private && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
+                                      {repo.private && <Lock className="h-3 w-3 shrink-0 text-[#4a6480]" />}
                                     </div>
                                     {repo.description && (
-                                      <span className="text-xs text-muted-foreground truncate">{repo.description}</span>
+                                      <span className="text-xs text-[#4a6480] truncate">{repo.description}</span>
                                     )}
                                   </CommandItem>
                                 ))}
@@ -365,7 +352,7 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
                         placeholder="owner/repo"
                       />
                       {form.integration_id && (
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-[#4a6480]">
                           Add an access token in the integration to browse repositories
                         </p>
                       )}
@@ -386,19 +373,22 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
 
             <div className="space-y-2">
               <Label>Service Path Mappings</Label>
-              <p className="text-xs text-muted-foreground">
-                Map service names to file path patterns. Tag flows with <code className="bg-muted px-1 rounded">service:name</code> to link them.
+              <p className="text-xs text-[#4a6480]">
+                Map service names to file path patterns. Tag flows with <code className="px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8] text-[11px]">service:name</code> to link them.
               </p>
               <div className="space-y-2">
                 {form.service_mappings.map((mapping, i) => (
-                  <div key={i} className="flex items-start gap-2 p-2 border rounded">
+                  <div key={i} className="flex items-start gap-2 p-2 rounded border border-[#1e2d3d] bg-[#0b0f18]">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{mapping.service_name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{mapping.path_patterns.join(', ')}</p>
+                      <p className="text-xs font-medium text-[#c8dce8]">{mapping.service_name}</p>
+                      <p className="text-[10px] text-[#4a6480] truncate">{mapping.path_patterns.join(', ')}</p>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => removeMapping(i)}>
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <button
+                      onClick={() => removeMapping(i)}
+                      className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 ))}
                 <div className="flex gap-2">
@@ -414,9 +404,13 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
                     placeholder="api/user-service/**, proto/user/**"
                     className="flex-1"
                   />
-                  <Button variant="outline" size="sm" onClick={addMapping} type="button">
-                    <Plus className="h-4 w-4" />
-                  </Button>
+                  <button
+                    onClick={addMapping}
+                    type="button"
+                    className="flex items-center justify-center h-9 w-9 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors shrink-0"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
@@ -424,7 +418,7 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
             <div className="flex items-center justify-between">
               <div>
                 <Label>Auto-Adapt</Label>
-                <p className="text-xs text-muted-foreground">Automatically analyze code changes and generate test adaptation suggestions</p>
+                <p className="text-xs text-[#4a6480]">Automatically analyze code changes and generate test adaptation suggestions</p>
               </div>
               <Switch
                 checked={form.auto_adapt}
@@ -444,7 +438,7 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
                   onChange={e => setForm(p => ({ ...p, auto_apply_threshold: parseFloat(e.target.value) }))}
                   className="w-full"
                 />
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-[#4a6480]">
                   {form.auto_apply_threshold === 0
                     ? 'All suggestions will require manual review'
                     : `Suggestions with ≥${Math.round(form.auto_apply_threshold * 100)}% confidence will be automatically applied`}
@@ -454,10 +448,19 @@ export function RepositoryLinksSection({ workspaceId }: RepositoryLinksSectionPr
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : 'Save'}
-            </Button>
+            <button
+              onClick={() => setDialogOpen(false)}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+            >
+              {isSaving ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving...</> : 'Save'}
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

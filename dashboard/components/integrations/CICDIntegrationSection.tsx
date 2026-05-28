@@ -1,11 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Copy, CheckCircle, ExternalLink } from 'lucide-react';
+import { Copy, CheckCircle } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5016';
 
@@ -19,23 +15,21 @@ function CodeBlock({ code, language = 'yaml' }: { code: string; language?: strin
   };
 
   return (
-    <div className="relative group rounded-lg border bg-muted/50 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/80">
-        <span className="text-xs text-muted-foreground font-mono">{language}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 px-2 text-xs gap-1"
+    <div className="rounded-lg border border-[#1e2d3d] overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#1a2332] bg-[#0b0f18]">
+        <span className="text-[10px] text-[#4a6480] font-mono">{language}</span>
+        <button
           onClick={handleCopy}
+          className="flex items-center gap-1 h-6 px-2 rounded text-[10px] text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
         >
           {copied ? (
-            <><CheckCircle className="w-3 h-3 text-green-500" />Copied</>
+            <><CheckCircle className="w-3 h-3 text-teal-400" />Copied</>
           ) : (
             <><Copy className="w-3 h-3" />Copy</>
           )}
-        </Button>
+        </button>
       </div>
-      <pre className="p-3 text-xs font-mono overflow-x-auto whitespace-pre text-foreground">{code}</pre>
+      <pre className="p-3 text-xs font-mono overflow-x-auto whitespace-pre text-[#c8dce8] bg-[#0f1923]">{code}</pre>
     </div>
   );
 }
@@ -106,92 +100,105 @@ curl -X POST ${API_URL}/api/v1/suites/YOUR_SUITE_ID/run \\
 curl ${API_URL}/api/v1/executions/EXECUTION_ID \\
   -H "Authorization: Bearer YOUR_API_KEY"`;
 
+type CICDTab = 'github' | 'gitlab' | 'jenkins' | 'curl';
+
 export function CICDIntegrationSection() {
+  const [tab, setTab] = useState<CICDTab>('github');
+
   return (
     <div className="space-y-6">
-      {/* Overview card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">API-Based CI/CD Triggering</CardTitle>
-          <CardDescription>
+      <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+        <div className="p-5 border-b border-[#1a2332]">
+          <p className="text-sm font-semibold text-[#c8dce8]">API-Based CI/CD Triggering</p>
+          <p className="text-xs text-[#4a6480] mt-0.5">
             Use the TestMesh REST API to trigger test runs from any CI/CD pipeline. Generate an API key
             in Settings → Plugins, then use it in your pipeline scripts.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">GitHub Actions</Badge>
-            <Badge variant="secondary">GitLab CI</Badge>
-            <Badge variant="secondary">Jenkins</Badge>
-            <Badge variant="secondary">CircleCI</Badge>
-            <Badge variant="secondary">Bitbucket Pipelines</Badge>
-            <Badge variant="secondary">Any REST client</Badge>
+            {['GitHub Actions', 'GitLab CI', 'Jenkins', 'CircleCI', 'Bitbucket Pipelines', 'Any REST client'].map(p => (
+              <span key={p} className="text-[10px] px-1.5 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">{p}</span>
+            ))}
           </div>
-          <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-            <div className="font-medium text-xs text-muted-foreground uppercase tracking-wide">API Base URL</div>
-            <code className="text-sm font-mono text-primary">{API_URL}/api/v1</code>
+          <div className="rounded-lg border border-[#1e2d3d] bg-[#0b0f18] p-3 space-y-1">
+            <div className="text-[10px] font-medium text-[#4a6480] uppercase tracking-wide">API Base URL</div>
+            <code className="text-sm font-mono text-teal-400">{API_URL}/api/v1</code>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Pipeline examples */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Pipeline Examples</CardTitle>
-          <CardDescription>
+      <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+        <div className="p-5 border-b border-[#1a2332]">
+          <p className="text-sm font-semibold text-[#c8dce8]">Pipeline Examples</p>
+          <p className="text-xs text-[#4a6480] mt-0.5">
             Copy these snippets into your CI/CD configuration. Replace{' '}
-            <code className="text-xs font-mono bg-muted px-1 rounded">YOUR_API_KEY</code> and{' '}
-            <code className="text-xs font-mono bg-muted px-1 rounded">your-suite-id</code> with
+            <code className="text-[11px] font-mono px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">YOUR_API_KEY</code> and{' '}
+            <code className="text-[11px] font-mono px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">your-suite-id</code> with
             your actual values.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="github" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="github" className="text-xs">GitHub Actions</TabsTrigger>
-              <TabsTrigger value="gitlab" className="text-xs">GitLab CI</TabsTrigger>
-              <TabsTrigger value="jenkins" className="text-xs">Jenkins</TabsTrigger>
-              <TabsTrigger value="curl" className="text-xs">REST API</TabsTrigger>
-            </TabsList>
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex gap-0.5 border-b border-[#1a2332] pb-3">
+            {([
+              ['github', 'GitHub Actions'],
+              ['gitlab', 'GitLab CI'],
+              ['jenkins', 'Jenkins'],
+              ['curl', 'REST API'],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`h-7 px-3 rounded text-xs transition-colors ${
+                  tab === id
+                    ? 'bg-[#1a2332] text-[#c8dce8]'
+                    : 'text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#131b26]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
-            <TabsContent value="github">
+          {tab === 'github' && (
+            <div className="space-y-2">
               <CodeBlock code={GITHUB_ACTIONS_YAML} language=".github/workflows/testmesh.yml" />
-              <p className="text-xs text-muted-foreground mt-2">
-                Add <code className="bg-muted px-1 rounded">TESTMESH_API_KEY</code> as a repository secret in GitHub → Settings → Secrets and variables → Actions.
+              <p className="text-xs text-[#4a6480]">
+                Add <code className="px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">TESTMESH_API_KEY</code> as a repository secret in GitHub → Settings → Secrets and variables → Actions.
               </p>
-            </TabsContent>
-
-            <TabsContent value="gitlab">
+            </div>
+          )}
+          {tab === 'gitlab' && (
+            <div className="space-y-2">
               <CodeBlock code={GITLAB_CI_YAML} language=".gitlab-ci.yml" />
-              <p className="text-xs text-muted-foreground mt-2">
-                Add <code className="bg-muted px-1 rounded">TESTMESH_API_KEY</code> as a CI/CD variable in GitLab → Settings → CI/CD → Variables.
+              <p className="text-xs text-[#4a6480]">
+                Add <code className="px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">TESTMESH_API_KEY</code> as a CI/CD variable in GitLab → Settings → CI/CD → Variables.
               </p>
-            </TabsContent>
-
-            <TabsContent value="jenkins">
+            </div>
+          )}
+          {tab === 'jenkins' && (
+            <div className="space-y-2">
               <CodeBlock code={JENKINS_GROOVY} language="Jenkinsfile" />
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-xs text-[#4a6480]">
                 Store the API key as a Jenkins credential and inject via{' '}
-                <code className="bg-muted px-1 rounded">withCredentials</code> or environment variables.
+                <code className="px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">withCredentials</code> or environment variables.
               </p>
-            </TabsContent>
+            </div>
+          )}
+          {tab === 'curl' && (
+            <CodeBlock code={CURL_EXAMPLE} language="bash" />
+          )}
+        </div>
+      </div>
 
-            <TabsContent value="curl">
-              <CodeBlock code={CURL_EXAMPLE} language="bash" />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      {/* JUnit export */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">JUnit Report Export</CardTitle>
-          <CardDescription>
+      <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+        <div className="p-5 border-b border-[#1a2332]">
+          <p className="text-sm font-semibold text-[#c8dce8]">JUnit Report Export</p>
+          <p className="text-xs text-[#4a6480] mt-0.5">
             Export execution results as JUnit XML for test reporting in your CI/CD dashboard.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </p>
+        </div>
+        <div className="p-5 space-y-2">
           <CodeBlock
             code={`# Export execution results as JUnit XML
 curl "${API_URL}/api/v1/reports" \\
@@ -206,12 +213,12 @@ curl "${API_URL}/api/v1/reports" \\
   }'`}
             language="bash"
           />
-          <p className="text-xs text-muted-foreground mt-2">
-            Use the <code className="bg-muted px-1 rounded">Analytics → Export</code> tab for interactive report generation,
+          <p className="text-xs text-[#4a6480]">
+            Use the <code className="px-1 py-0.5 rounded bg-[#1a2332] text-[#7fa8c8]">Analytics → Export</code> tab for interactive report generation,
             or the API for automated pipeline exports.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
