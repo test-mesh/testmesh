@@ -11,31 +11,17 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Button } from '@/components/ui/button';
 
-// Navigation items for search — matches sidebar navigation
 const searchableItems = [
-  // Overview
   { title: 'Dashboard', href: '/', keywords: ['home', 'overview'] },
-
-  // Flow authoring & organization
   { title: 'Flows', href: '/flows', keywords: ['tests', 'sequences'] },
   { title: 'Collections', href: '/collections', keywords: ['groups', 'folders'] },
-
-  // Execution
   { title: 'Executions', href: '/executions', keywords: ['runs', 'results'] },
   { title: 'Schedules', href: '/schedules', keywords: ['cron', 'automation'] },
-
-  // Test infrastructure
   { title: 'Mock Servers', href: '/mocks', keywords: ['stubs', 'virtualization'] },
-
-  // Development tools
   { title: 'Request Builder', href: '/request-builder', keywords: ['http', 'api', 'send'] },
-  // Insights
   { title: 'Analytics', href: '/analytics', keywords: ['metrics', 'data'] },
   { title: 'Reports', href: '/reports', keywords: ['documentation', 'output'] },
-
-  // Administration
   { title: 'Integrations', href: '/integrations', keywords: ['connections', 'providers', 'configuration'] },
   { title: 'Plugins', href: '/plugins', keywords: ['extensions', 'addons'] },
   { title: 'Health', href: '/health', keywords: ['status', 'monitoring'] },
@@ -52,7 +38,6 @@ export function GlobalSearch() {
         setOpen((open) => !open);
       }
     };
-
     document.addEventListener('keydown', down);
     return () => document.removeEventListener('keydown', down);
   }, []);
@@ -64,17 +49,16 @@ export function GlobalSearch() {
 
   return (
     <>
-      <Button
-        variant="outline"
-        className="relative w-full justify-start text-sm text-muted-foreground"
+      <button
         onClick={() => setOpen(true)}
+        className="relative w-full flex items-center h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#4a6480] hover:border-[#2a3d52] hover:text-[#7fa8c8] transition-colors"
       >
-        <Search className="mr-2 h-4 w-4" />
+        <Search className="mr-2 h-3.5 w-3.5 shrink-0" />
         <span className="hidden lg:inline-flex">Search...</span>
-        <kbd className="pointer-events-none ml-auto hidden h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 lg:flex">
+        <kbd className="pointer-events-none ml-auto hidden h-5 select-none items-center gap-0.5 rounded border border-[#2a3d52] bg-[#1a2332] px-1.5 font-mono text-[10px] font-medium text-[#4a6480] lg:flex">
           <span className="text-xs">⌘</span>K
         </kbd>
-      </Button>
+      </button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
         <CommandInput placeholder="Search navigation..." />
