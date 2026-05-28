@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Check, ChevronDown, Globe, Plus, Settings } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,31 +57,37 @@ export function EnvironmentSelector({
 
   if (isLoading) {
     return (
-      <Button variant="outline" size="sm" disabled className={className}>
-        <Globe className="w-4 h-4 mr-2 animate-pulse" />
+      <button
+        disabled
+        className={cn('flex items-center h-7 px-2.5 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#4a6480] opacity-50 cursor-not-allowed text-xs gap-2', className)}
+      >
+        <Globe className="w-3.5 h-3.5 animate-pulse" />
         {!compact && 'Loading...'}
-      </Button>
+      </button>
     );
   }
 
   if (environments.length === 0) {
     return (
-      <Button variant="outline" size="sm" asChild className={className}>
-        <Link href="/environments">
-          <Plus className="w-4 h-4 mr-2" />
-          {!compact && 'Add Environment'}
-        </Link>
-      </Button>
+      <Link
+        href="/environments"
+        className={cn('flex items-center h-7 px-2.5 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors text-xs gap-2', className)}
+      >
+        <Plus className="w-3.5 h-3.5" />
+        {!compact && 'Add Environment'}
+      </Link>
     );
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn('justify-between', compact ? 'w-auto px-2' : 'w-full', className)}
-          size="sm"
+        <button
+          className={cn(
+            'flex items-center justify-between h-7 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors text-xs gap-2',
+            compact ? 'w-auto px-2' : 'w-full px-2.5',
+            className
+          )}
         >
           <div className="flex items-center gap-2 truncate">
             {activeEnvironment ? (
@@ -95,13 +100,13 @@ export function EnvironmentSelector({
               </>
             ) : (
               <>
-                <Globe className="w-4 h-4 flex-shrink-0" />
+                <Globe className="w-3.5 h-3.5 flex-shrink-0" />
                 {!compact && <span>No Environment</span>}
               </>
             )}
           </div>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
+          <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[200px]">
         <DropdownMenuLabel>Environments</DropdownMenuLabel>

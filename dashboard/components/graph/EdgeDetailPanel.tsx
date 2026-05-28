@@ -1,8 +1,6 @@
 'use client';
 
 import { X, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import type { GraphEdge, GraphNode } from '@/lib/api/graph';
 
 const EDGE_HEX: Record<string, string> = {
@@ -28,40 +26,45 @@ export function EdgeDetailPanel({ edge, sourceNode, targetNode, onClose }: EdgeD
   const color = EDGE_HEX[edge.type] ?? '#9ca3af';
 
   return (
-    <div className="w-72 shrink-0 border-l flex flex-col h-full bg-background">
-      <div className="flex items-center justify-between px-4 py-3 border-b">
+    <div className="w-72 shrink-0 border-l border-[#1e2d3d] flex flex-col h-full bg-[#0b0f18]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a2332]">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: color }} />
-          <h3 className="font-medium text-sm capitalize">{edge.type.replace(/_/g, ' ')}</h3>
+          <h3 className="text-xs font-semibold text-[#c8dce8] capitalize">{edge.type.replace(/_/g, ' ')}</h3>
         </div>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
+        <button
+          className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+          onClick={onClose}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <div className="px-4 py-4 flex flex-col gap-4">
         {/* Flow */}
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm">
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-[#131b26] border border-[#1e2d3d] text-xs">
           <div className="flex-1 min-w-0">
-            <p className="font-medium truncate">{sourceNode?.name ?? '…'}</p>
-            <p className="text-[10px] text-muted-foreground">{sourceNode?.type}</p>
+            <p className="font-medium text-[#c8dce8] truncate">{sourceNode?.name ?? '…'}</p>
+            <p className="text-[10px] text-[#4a6480]">{sourceNode?.type}</p>
           </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" style={{ color }} />
+          <ArrowRight className="h-3.5 w-3.5 shrink-0" style={{ color }} />
           <div className="flex-1 min-w-0 text-right">
-            <p className="font-medium truncate">{targetNode?.name ?? '…'}</p>
-            <p className="text-[10px] text-muted-foreground">{targetNode?.type}</p>
+            <p className="font-medium text-[#c8dce8] truncate">{targetNode?.name ?? '…'}</p>
+            <p className="text-[10px] text-[#4a6480]">{targetNode?.type}</p>
           </div>
         </div>
 
         {/* Meta */}
-        <div className="flex flex-col gap-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Layer</span>
-            <Badge variant="outline" className="text-[10px]">{edge.source_layer}</Badge>
+        <div className="flex flex-col gap-2 text-xs">
+          <div className="flex justify-between items-center">
+            <span className="text-[#4a6480]">Layer</span>
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-[#1e2d3d] bg-[#0f1923] text-[#4a6480]">
+              {edge.source_layer}
+            </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Confidence</span>
-            <span>{(edge.confidence * 100).toFixed(0)}%</span>
+            <span className="text-[#4a6480]">Confidence</span>
+            <span className="text-[#7fa8c8]">{(edge.confidence * 100).toFixed(0)}%</span>
           </div>
         </div>
       </div>

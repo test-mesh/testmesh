@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { Menu } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { WorkspaceSwitcher } from '@/components/workspaces/WorkspaceSwitcher';
 import { EnvironmentSelector } from '@/components/environments/EnvironmentSelector';
 import { GlobalSearch } from '@/components/search/GlobalSearch';
@@ -18,14 +17,12 @@ export function TopNavHeader({ onMenuClick }: TopNavHeaderProps) {
     <header className="sticky top-0 z-50 h-12 shrink-0 border-b border-[#1a2332] bg-[#0b0f18]">
       <div className="flex h-full items-center px-4 gap-3">
         {/* Mobile hamburger */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="md:hidden h-8 w-8 text-[#3d5670] hover:text-[#7fa8c8]"
+        <button
+          className="md:hidden flex items-center justify-center h-8 w-8 rounded text-[#3d5670] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
           onClick={onMenuClick}
         >
           <Menu className="h-4 w-4" />
-        </Button>
+        </button>
 
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateRepo, useUpdateRepo } from '@/lib/hooks/useGraph';
@@ -13,7 +12,7 @@ import type { GraphRepo } from '@/lib/api/graph';
 interface RepoDialogProps {
   open: boolean;
   onClose: () => void;
-  repo?: GraphRepo; // undefined = create mode
+  repo?: GraphRepo;
 }
 
 export function RepoDialog({ open, onClose, repo }: RepoDialogProps) {
@@ -68,36 +67,23 @@ export function RepoDialog({ open, onClose, repo }: RepoDialogProps) {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="repo-name">Name</Label>
-            <Input
-              id="repo-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="my-service"
-            />
+            <Input id="repo-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="my-service" />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="repo-url">Git URL</Label>
-            <Input
-              id="repo-url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://github.com/org/repo.git"
-            />
+            <Input id="repo-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://github.com/org/repo.git" />
           </div>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="repo-branch">Branch</Label>
-            <Input
-              id="repo-branch"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="main"
-            />
+            <Input id="repo-branch" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="main" />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="repo-pat">Personal Access Token <span className="text-muted-foreground">(optional)</span></Label>
+            <Label htmlFor="repo-pat">
+              Personal Access Token <span className="text-[#4a6480]">(optional)</span>
+            </Label>
             <Input
               id="repo-pat"
               type="password"
@@ -108,25 +94,36 @@ export function RepoDialog({ open, onClose, repo }: RepoDialogProps) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="repo-ssh">SSH Private Key <span className="text-muted-foreground">(optional)</span></Label>
+            <Label htmlFor="repo-ssh">
+              SSH Private Key <span className="text-[#4a6480]">(optional)</span>
+            </Label>
             <textarea
               id="repo-ssh"
-              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+              className="flex min-h-[80px] w-full rounded-lg border border-[#1e2d3d] bg-[#0b0f18] px-3 py-2 text-xs font-mono text-[#c8dce8] placeholder-[#3d5670] focus:outline-none focus:border-teal-400/50 transition-colors resize-none"
               value={sshKey}
               onChange={(e) => setSshKey(e.target.value)}
               placeholder={isEdit ? 'Leave blank to keep existing' : '-----BEGIN RSA PRIVATE KEY-----'}
             />
           </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && <p className="text-xs text-red-400">{error}</p>}
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isPending}
+              className="h-8 px-4 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] disabled:opacity-50 transition-colors"
+            >
               Cancel
-            </Button>
-            <Button type="submit" disabled={isPending}>
+            </button>
+            <button
+              type="submit"
+              disabled={isPending}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+            >
               {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Register'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>

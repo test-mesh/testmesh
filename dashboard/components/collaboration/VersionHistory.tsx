@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -19,7 +17,6 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   useFlowVersions,
   useFlowVersion,
@@ -74,23 +71,28 @@ export function VersionHistory({ flowId, onRestore, className }: VersionHistoryP
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className={className}>
-          <History className="h-4 w-4 mr-2" />
+        <button
+          className={cn(
+            'flex items-center gap-1.5 h-7 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors',
+            className
+          )}
+        >
+          <History className="h-3.5 w-3.5" />
           Version History
           {versions.length > 0 && (
-            <Badge variant="secondary" className="ml-2">
+            <span className="ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#1a2d3d] text-[#4a6480]">
               {versions.length}
-            </Badge>
+            </span>
           )}
-        </Button>
+        </button>
       </SheetTrigger>
-      <SheetContent className="!w-[min(900px,90vw)] !max-w-none px-6">
+      <SheetContent className="!w-[min(900px,90vw)] !max-w-none px-6 bg-[#0b0f18] border-l border-[#1e2d3d]">
         <SheetHeader className="px-0">
-          <SheetTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
+          <SheetTitle className="flex items-center gap-2 text-[#c8dce8]">
+            <History className="h-4 w-4" />
             Version History
           </SheetTitle>
-          <SheetDescription>
+          <SheetDescription className="text-[#4a6480]">
             Browse and compare previous versions of this flow
           </SheetDescription>
         </SheetHeader>
@@ -98,19 +100,23 @@ export function VersionHistory({ flowId, onRestore, className }: VersionHistoryP
         <div className="mt-6 space-y-4">
           {/* Compare Mode Toggle */}
           <div className="flex items-center justify-between">
-            <Button
-              variant={isComparing ? 'default' : 'outline'}
-              size="sm"
+            <button
               onClick={() => {
                 setIsComparing(!isComparing);
                 setCompareVersion(null);
               }}
+              className={cn(
+                'flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium transition-colors',
+                isComparing
+                  ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+                  : 'border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8]'
+              )}
             >
-              <GitCompare className="h-4 w-4 mr-2" />
+              <GitCompare className="h-3.5 w-3.5" />
               {isComparing ? 'Comparing' : 'Compare Versions'}
-            </Button>
+            </button>
             {isComparing && selectedVersion && (
-              <span className="text-sm text-muted-foreground">
+              <span className="text-xs text-[#4a6480]">
                 Select another version to compare
               </span>
             )}
@@ -119,16 +125,16 @@ export function VersionHistory({ flowId, onRestore, className }: VersionHistoryP
           <div className="grid grid-cols-2 gap-4">
             {/* Version List */}
             <div className="space-y-2">
-              <h4 className="text-sm font-medium">Versions</h4>
-              <ScrollArea className="h-[500px] rounded-md border p-2">
+              <h4 className="text-xs font-semibold text-[#3d5670] uppercase tracking-wider">Versions</h4>
+              <ScrollArea className="h-[500px] rounded-lg border border-[#1e2d3d] p-2">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-8">
-                    <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" />
                   </div>
                 ) : versions.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center py-8 text-[#3d5670]">
                     <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No version history</p>
+                    <p className="text-xs">No version history</p>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -148,15 +154,14 @@ export function VersionHistory({ flowId, onRestore, className }: VersionHistoryP
 
             {/* Version Detail / Comparison */}
             <div className="space-y-2">
-              <h4 className="text-sm font-medium">
+              <h4 className="text-xs font-semibold text-[#3d5670] uppercase tracking-wider">
                 {isComparing && compareVersion ? 'Comparison' : 'Details'}
               </h4>
-              <ScrollArea className="h-[500px] rounded-md border p-2">
+              <ScrollArea className="h-[500px] rounded-lg border border-[#1e2d3d] p-2">
                 {isComparing && selectedVersion && compareVersion ? (
-                  // Comparison View
                   comparisonLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" />
                     </div>
                   ) : comparisonData ? (
                     <VersionComparison
@@ -164,26 +169,22 @@ export function VersionHistory({ flowId, onRestore, className }: VersionHistoryP
                       v2={comparisonData.version2}
                     />
                   ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <p className="text-sm">Select two versions to compare</p>
+                    <div className="text-center py-8 text-[#3d5670]">
+                      <p className="text-xs">Select two versions to compare</p>
                     </div>
                   )
                 ) : selectedVersion && versionDetail ? (
-                  // Single Version Detail
                   detailLoading ? (
                     <div className="flex items-center justify-center py-8">
-                      <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" />
                     </div>
                   ) : (
-                    <VersionDetail
-                      version={versionDetail}
-                      onRestore={onRestore}
-                    />
+                    <VersionDetail version={versionDetail} onRestore={onRestore} />
                   )
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center py-8 text-[#3d5670]">
                     <FileCode className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">Select a version to view details</p>
+                    <p className="text-xs">Select a version to view details</p>
                   </div>
                 )}
               </ScrollArea>
@@ -210,32 +211,35 @@ function VersionItem({
     <button
       onClick={onClick}
       className={cn(
-        'w-full text-left p-2 rounded-md transition-colors',
-        'hover:bg-muted',
-        isSelected && 'bg-primary/10 border border-primary',
-        isCompareTarget && 'bg-blue-500/10 border border-blue-500'
+        'w-full text-left p-2 rounded-lg transition-colors',
+        'hover:bg-[#131b26]',
+        isSelected && 'bg-teal-400/5 border border-teal-400/30',
+        isCompareTarget && 'bg-blue-400/5 border border-blue-400/30'
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="font-medium text-sm">v{version.version}</span>
+        <span className="text-xs font-medium text-[#c8dce8]">v{version.version}</span>
         {(isSelected || isCompareTarget) && (
-          <Badge variant={isSelected ? 'default' : 'secondary'} className="text-xs">
+          <span className={cn(
+            'text-[10px] font-medium px-1.5 py-0.5 rounded',
+            isSelected ? 'bg-teal-400/15 text-teal-400' : 'bg-blue-400/10 text-blue-400'
+          )}>
             {isSelected ? 'Selected' : 'Compare'}
-          </Badge>
+          </span>
         )}
       </div>
-      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-        <Clock className="h-3 w-3" />
+      <div className="flex items-center gap-1.5 mt-1 text-[10px] text-[#3d5670]">
+        <Clock className="h-2.5 w-2.5" />
         {formatDistanceToNow(new Date(version.created_at), { addSuffix: true })}
       </div>
       {version.author_name && (
-        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-          <User className="h-3 w-3" />
+        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-[#3d5670]">
+          <User className="h-2.5 w-2.5" />
           {version.author_name}
         </div>
       )}
       {version.message && (
-        <p className="mt-1 text-xs text-muted-foreground truncate">{version.message}</p>
+        <p className="mt-1 text-[10px] text-[#3d5670] truncate">{version.message}</p>
       )}
     </button>
   );
@@ -249,16 +253,16 @@ function VersionDetail({
   onRestore?: (version: FlowVersion) => void;
 }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-1">
       <div>
-        <h5 className="font-medium">Version {version.version}</h5>
-        <div className="mt-2 space-y-1 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
+        <h5 className="text-xs font-semibold text-[#c8dce8]">Version {version.version}</h5>
+        <div className="mt-2 space-y-1 text-xs text-[#4a6480]">
+          <div className="flex items-center gap-1.5">
             <Clock className="h-3 w-3" />
             {new Date(version.created_at).toLocaleString()}
           </div>
           {version.author_name && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <User className="h-3 w-3" />
               {version.author_name}
             </div>
@@ -268,88 +272,75 @@ function VersionDetail({
 
       {version.message && (
         <div>
-          <h6 className="text-sm font-medium">Message</h6>
-          <p className="mt-1 text-sm text-muted-foreground">{version.message}</p>
+          <h6 className="text-xs font-semibold text-[#c8dce8]">Message</h6>
+          <p className="mt-1 text-xs text-[#4a6480]">{version.message}</p>
         </div>
       )}
 
       {version.description && (
         <div>
-          <h6 className="text-sm font-medium">Description</h6>
-          <p className="mt-1 text-sm text-muted-foreground">{version.description}</p>
+          <h6 className="text-xs font-semibold text-[#c8dce8]">Description</h6>
+          <p className="mt-1 text-xs text-[#4a6480]">{version.description}</p>
         </div>
       )}
 
-      <Separator />
+      <div className="h-px bg-[#1a2332]" />
 
       <div>
-        <h6 className="text-sm font-medium mb-2">Content</h6>
-        <pre className="p-2 bg-muted rounded-md text-xs overflow-x-auto max-h-[200px]">
+        <h6 className="text-xs font-semibold text-[#c8dce8] mb-2">Content</h6>
+        <pre className="p-2 bg-[#0b0f18] border border-[#1e2d3d] rounded-lg text-[10px] overflow-x-auto max-h-[200px] font-mono text-[#7fa8c8]">
           <code>{version.content}</code>
         </pre>
       </div>
 
       {onRestore && (
         <>
-          <Separator />
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
+          <div className="h-px bg-[#1a2332]" />
+          <button
             onClick={() => onRestore(version)}
+            className="w-full h-8 rounded-lg text-xs border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
           >
             Restore this version
-          </Button>
+          </button>
         </>
       )}
     </div>
   );
 }
 
-function VersionComparison({
-  v1,
-  v2,
-}: {
-  v1: FlowVersion;
-  v2: FlowVersion;
-}) {
-  // Simple line-by-line diff visualization
+function VersionComparison({ v1, v2 }: { v1: FlowVersion; v2: FlowVersion }) {
   const lines1 = v1.content.split('\n');
   const lines2 = v2.content.split('\n');
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between text-sm">
-        <Badge variant="outline">v{v1.version}</Badge>
-        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-        <Badge variant="outline">v{v2.version}</Badge>
+    <div className="space-y-4 p-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="px-2 py-0.5 rounded border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8]">v{v1.version}</span>
+        <ChevronRight className="h-3.5 w-3.5 text-[#3d5670]" />
+        <span className="px-2 py-0.5 rounded border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8]">v{v2.version}</span>
       </div>
 
-      <div className="text-xs space-y-1">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <span className="text-green-600">+ Added</span>
-          <span className="text-red-600">- Removed</span>
-        </div>
+      <div className="text-[10px] flex items-center gap-3 text-[#4a6480]">
+        <span className="text-green-400">+ Added</span>
+        <span className="text-red-400">- Removed</span>
       </div>
 
-      <Separator />
+      <div className="h-px bg-[#1a2332]" />
 
       <div className="space-y-1 font-mono text-xs">
-        {/* Very simple diff - in production you'd use a proper diff library */}
-        <div className="p-2 bg-muted rounded-md max-h-[250px] overflow-auto">
+        <div className="p-2 bg-[#0b0f18] border border-[#1e2d3d] rounded-lg max-h-[250px] overflow-auto">
           {lines2.map((line, i) => {
             const oldLine = lines1[i];
             const isNew = !oldLine;
             const isChanged = oldLine && oldLine !== line;
-            const isRemoved = i >= lines2.length && lines1[i];
 
             return (
               <div
                 key={i}
                 className={cn(
-                  'px-1',
-                  isNew && 'bg-green-500/20 text-green-700 dark:text-green-300',
-                  isChanged && 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-300'
+                  'px-1 text-[#7fa8c8]',
+                  isNew && 'bg-green-400/10 text-green-400',
+                  isChanged && 'bg-yellow-400/10 text-yellow-400'
                 )}
               >
                 {line || ' '}
@@ -359,7 +350,7 @@ function VersionComparison({
           {lines1.slice(lines2.length).map((line, i) => (
             <div
               key={`removed-${i}`}
-              className="px-1 bg-red-500/20 text-red-700 dark:text-red-300 line-through"
+              className="px-1 bg-red-400/10 text-red-400 line-through"
             >
               {line}
             </div>
@@ -367,7 +358,7 @@ function VersionComparison({
         </div>
       </div>
 
-      <div className="text-xs text-muted-foreground">
+      <div className="text-[10px] text-[#4a6480]">
         <p>v{v1.version}: {v1.author_name || 'Unknown'}</p>
         <p>v{v2.version}: {v2.author_name || 'Unknown'}</p>
       </div>
@@ -375,7 +366,6 @@ function VersionComparison({
   );
 }
 
-// Dropdown version for compact display
 export function VersionDropdown({
   flowId,
   currentVersion,
@@ -388,9 +378,7 @@ export function VersionDropdown({
   const { data: versionsData, isLoading } = useFlowVersions(flowId, 20);
   const versions = versionsData?.versions || [];
 
-  if (isLoading || versions.length === 0) {
-    return null;
-  }
+  if (isLoading || versions.length === 0) return null;
 
   return (
     <Select

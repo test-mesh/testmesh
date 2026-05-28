@@ -5,7 +5,6 @@ import { LogOut, User as UserIcon, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { isCloudMode } from '@/lib/features';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,14 +49,14 @@ export function UserProfileMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative rounded-full">
-          <Avatar className="h-8 w-8">
+        <button className="relative rounded-full flex items-center justify-center hover:ring-2 hover:ring-[#2a3d52] transition-all">
+          <Avatar className="h-7 w-7">
             <AvatarImage src={user.avatar_url} alt={user.name || user.email || 'User'} />
-            <AvatarFallback className="bg-primary text-primary-foreground">
+            <AvatarFallback className="bg-teal-400/20 text-teal-400 text-[10px] font-semibold">
               {initials}
             </AvatarFallback>
           </Avatar>
-        </Button>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="font-normal">

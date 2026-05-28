@@ -2,9 +2,6 @@
 
 import { useState } from 'react';
 import { Sparkles, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { useApplyRepairSuggestion, useDismissRepairSuggestion } from '@/lib/hooks/useTelemetry';
 import type { RepairSuggestion } from '@/lib/api/types';
 
@@ -23,57 +20,54 @@ export function RepairSuggestionCard({ workspaceId, suggestion }: Props) {
   const confidencePct = Math.round(suggestion.confidence * 100);
 
   return (
-    <Card className="border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/20 mb-4">
-      <CardContent className="pt-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="w-4 h-4 text-blue-600" />
-          <span className="font-semibold text-sm">Repair Suggestion</span>
-          <Badge variant="outline" className="text-xs ml-auto">
-            {confidencePct}% confidence
-          </Badge>
-        </div>
+    <div className="rounded-xl bg-blue-400/5 border border-blue-400/20 p-4 mb-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+        <span className="font-semibold text-sm text-[#c8dce8]">Repair Suggestion</span>
+        <span className="ml-auto text-[10px] font-medium px-2 py-0.5 rounded border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8]">
+          {confidencePct}% confidence
+        </span>
+      </div>
 
-        <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
-          {suggestion.diagnosis}
-        </p>
+      <p className="text-xs text-[#4a6480] mb-3 leading-relaxed">
+        {suggestion.diagnosis}
+      </p>
 
-        {suggestion.yaml_diff && (
-          <div className="mb-3">
-            <button
-              onClick={() => setShowDiff(!showDiff)}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              {showDiff ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              {showDiff ? 'Hide diff' : 'View diff'}
-            </button>
-            {showDiff && (
-              <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-x-auto font-mono leading-relaxed whitespace-pre-wrap">
-                {suggestion.yaml_diff}
-              </pre>
-            )}
-          </div>
-        )}
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            onClick={() => apply.mutate({ workspaceId, suggestionId: suggestion.id })}
-            disabled={apply.isPending || apply.isSuccess || dismiss.isPending}
+      {suggestion.yaml_diff && (
+        <div className="mb-3">
+          <button
+            onClick={() => setShowDiff(!showDiff)}
+            className="flex items-center gap-1 text-xs text-[#4a6480] hover:text-[#7fa8c8] transition-colors"
           >
-            <Check className="w-3 h-3 mr-1" />
-            Apply fix
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => dismiss.mutate({ workspaceId, suggestionId: suggestion.id })}
-            disabled={dismiss.isPending || apply.isPending || apply.isSuccess}
-          >
-            <X className="w-3 h-3 mr-1" />
-            Dismiss
-          </Button>
+            {showDiff ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {showDiff ? 'Hide diff' : 'View diff'}
+          </button>
+          {showDiff && (
+            <pre className="mt-2 p-3 bg-[#0b0f18] border border-[#1e2d3d] rounded-lg text-xs overflow-x-auto font-mono leading-relaxed whitespace-pre-wrap text-[#7fa8c8]">
+              {suggestion.yaml_diff}
+            </pre>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => apply.mutate({ workspaceId, suggestionId: suggestion.id })}
+          disabled={apply.isPending || apply.isSuccess || dismiss.isPending}
+          className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+        >
+          <Check className="w-3 h-3" />
+          Apply fix
+        </button>
+        <button
+          onClick={() => dismiss.mutate({ workspaceId, suggestionId: suggestion.id })}
+          disabled={dismiss.isPending || apply.isPending || apply.isSuccess}
+          className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] disabled:opacity-50 transition-colors"
+        >
+          <X className="w-3 h-3" />
+          Dismiss
+        </button>
+      </div>
+    </div>
   );
 }

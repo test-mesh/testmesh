@@ -1,11 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
   useFlowComments,
   useCreateComment,
@@ -65,7 +62,6 @@ export function CommentThread({
 
   const handleSubmit = () => {
     if (!newComment.trim()) return;
-
     createComment.mutate(
       {
         flow_id: flowId,
@@ -74,17 +70,12 @@ export function CommentThread({
         author_avatar: currentUserAvatar,
         content: newComment.trim(),
       },
-      {
-        onSuccess: () => {
-          setNewComment('');
-        },
-      }
+      { onSuccess: () => setNewComment('') }
     );
   };
 
   const handleReply = (parentId: string) => {
     if (!replyContent.trim()) return;
-
     createComment.mutate(
       {
         flow_id: flowId,
@@ -103,49 +94,38 @@ export function CommentThread({
     );
   };
 
-  const handleResolve = (commentId: string) => {
-    resolveComment.mutate({ id: commentId, flowId });
-  };
-
-  const handleUnresolve = (commentId: string) => {
-    unresolveComment.mutate({ id: commentId, flowId });
-  };
-
+  const handleResolve = (commentId: string) => resolveComment.mutate({ id: commentId, flowId });
+  const handleUnresolve = (commentId: string) => unresolveComment.mutate({ id: commentId, flowId });
   const handleDelete = (commentId: string) => {
     if (confirm('Are you sure you want to delete this comment?')) {
       deleteComment.mutate({ id: commentId, flowId });
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const getInitials = (name: string) =>
+    name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
 
   return (
     <div className={cn('space-y-4', className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="font-medium flex items-center gap-2">
-          <MessageSquare className="h-4 w-4" />
+        <h3 className="text-sm font-medium text-[#c8dce8] flex items-center gap-2">
+          <MessageSquare className="h-3.5 w-3.5" />
           Comments ({comments.length})
         </h3>
-        <Button variant="ghost" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4" />
-        </Button>
+        <button
+          onClick={() => refetch()}
+          className="flex items-center justify-center h-7 w-7 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* New Comment Input */}
       <div className="flex gap-3">
-        <Avatar className="h-8 w-8 shrink-0">
-          {currentUserAvatar ? (
-            <AvatarImage src={currentUserAvatar} alt={currentUserName} />
-          ) : null}
-          <AvatarFallback>{getInitials(currentUserName)}</AvatarFallback>
+        <Avatar className="h-7 w-7 shrink-0">
+          {currentUserAvatar ? <AvatarImage src={currentUserAvatar} alt={currentUserName} /> : null}
+          <AvatarFallback className="bg-teal-400/20 text-teal-400 text-[10px] font-semibold">{getInitials(currentUserName)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 space-y-2">
           <Textarea
@@ -156,30 +136,30 @@ export function CommentThread({
             className="resize-none"
           />
           <div className="flex justify-end">
-            <Button
-              size="sm"
+            <button
               onClick={handleSubmit}
               disabled={!newComment.trim() || createComment.isPending}
+              className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
-              <Send className="h-4 w-4 mr-2" />
+              <Send className="h-3 w-3" />
               Comment
-            </Button>
+            </button>
           </div>
         </div>
       </div>
 
-      <Separator />
+      <div className="h-px bg-[#1a2332]" />
 
       {/* Comment List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-8">
-          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          <RefreshCw className="h-5 w-5 animate-spin text-[#3d5670]" />
         </div>
       ) : rootComments.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
+        <div className="text-center py-8 text-[#3d5670]">
           <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p>No comments yet</p>
-          <p className="text-sm">Be the first to comment on this flow</p>
+          <p className="text-sm">No comments yet</p>
+          <p className="text-xs mt-1">Be the first to comment on this flow</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -229,7 +209,6 @@ interface CommentItemProps {
 
 function CommentItem({
   comment,
-  flowId,
   currentUserId,
   currentUserName,
   currentUserAvatar,
@@ -249,41 +228,37 @@ function CommentItem({
   return (
     <div className={cn('space-y-3', comment.resolved && 'opacity-60')}>
       <div className="flex gap-3">
-        <Avatar className="h-8 w-8 shrink-0">
-          {comment.author_avatar ? (
-            <AvatarImage src={comment.author_avatar} alt={comment.author_name} />
-          ) : null}
-          <AvatarFallback>{getInitials(comment.author_name)}</AvatarFallback>
+        <Avatar className="h-7 w-7 shrink-0">
+          {comment.author_avatar ? <AvatarImage src={comment.author_avatar} alt={comment.author_name} /> : null}
+          <AvatarFallback className="bg-teal-400/20 text-teal-400 text-[10px] font-semibold">{getInitials(comment.author_name)}</AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-sm">{comment.author_name}</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs font-medium text-[#c8dce8]">{comment.author_name}</span>
+            <span className="text-[10px] text-[#3d5670]">
               {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
             </span>
             {comment.resolved && (
-              <Badge variant="secondary" className="text-xs">
-                <CheckCircle className="h-3 w-3 mr-1" />
+              <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400">
+                <CheckCircle className="h-2.5 w-2.5" />
                 Resolved
-              </Badge>
+              </span>
             )}
           </div>
-          <p className="text-sm mt-1 whitespace-pre-wrap">{comment.content}</p>
+          <p className="text-xs text-[#7fa8c8] mt-1 whitespace-pre-wrap">{comment.content}</p>
           <div className="flex items-center gap-2 mt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
+            <button
+              className="flex items-center gap-1 h-6 px-2 rounded text-[10px] text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
               onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
             >
-              <Reply className="h-3 w-3 mr-1" />
+              <Reply className="h-3 w-3" />
               Reply
-            </Button>
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 px-2">
+                <button className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors">
                   <MoreHorizontal className="h-3 w-3" />
-                </Button>
+                </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 {comment.resolved ? (
@@ -299,7 +274,7 @@ function CommentItem({
                 )}
                 {isOwner && (
                   <DropdownMenuItem
-                    className="text-red-600"
+                    className="text-red-400"
                     onClick={() => onDelete(comment.id)}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
@@ -314,12 +289,10 @@ function CommentItem({
 
       {/* Reply Input */}
       {replyingTo === comment.id && (
-        <div className="ml-11 flex gap-3">
+        <div className="ml-10 flex gap-3">
           <Avatar className="h-6 w-6 shrink-0">
-            {currentUserAvatar ? (
-              <AvatarImage src={currentUserAvatar} alt={currentUserName} />
-            ) : null}
-            <AvatarFallback className="text-xs">{getInitials(currentUserName)}</AvatarFallback>
+            {currentUserAvatar ? <AvatarImage src={currentUserAvatar} alt={currentUserName} /> : null}
+            <AvatarFallback className="bg-teal-400/20 text-teal-400 text-[10px]">{getInitials(currentUserName)}</AvatarFallback>
           </Avatar>
           <div className="flex-1 space-y-2">
             <Textarea
@@ -327,27 +300,23 @@ function CommentItem({
               value={replyContent}
               onChange={(e) => setReplyContent(e.target.value)}
               rows={2}
-              className="resize-none text-sm"
+              className="resize-none text-xs"
               autoFocus
             />
             <div className="flex gap-2 justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setReplyingTo(null);
-                  setReplyContent('');
-                }}
+              <button
+                onClick={() => { setReplyingTo(null); setReplyContent(''); }}
+                className="h-7 px-3 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
               >
                 Cancel
-              </Button>
-              <Button
-                size="sm"
+              </button>
+              <button
                 onClick={() => onReply(comment.id)}
                 disabled={!replyContent.trim() || isReplying}
+                className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
               >
                 Reply
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -355,23 +324,21 @@ function CommentItem({
 
       {/* Replies */}
       {comment.replies && comment.replies.length > 0 && (
-        <div className="ml-11 space-y-3 border-l-2 border-muted pl-4">
+        <div className="ml-10 space-y-3 border-l-2 border-[#1a2332] pl-4">
           {comment.replies.map((reply) => (
             <div key={reply.id} className="flex gap-3">
               <Avatar className="h-6 w-6 shrink-0">
-                {reply.author_avatar ? (
-                  <AvatarImage src={reply.author_avatar} alt={reply.author_name} />
-                ) : null}
-                <AvatarFallback className="text-xs">{getInitials(reply.author_name)}</AvatarFallback>
+                {reply.author_avatar ? <AvatarImage src={reply.author_avatar} alt={reply.author_name} /> : null}
+                <AvatarFallback className="bg-teal-400/20 text-teal-400 text-[10px]">{getInitials(reply.author_name)}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{reply.author_name}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs font-medium text-[#c8dce8]">{reply.author_name}</span>
+                  <span className="text-[10px] text-[#3d5670]">
                     {formatDistanceToNow(new Date(reply.created_at), { addSuffix: true })}
                   </span>
                 </div>
-                <p className="text-sm mt-1 whitespace-pre-wrap">{reply.content}</p>
+                <p className="text-xs text-[#7fa8c8] mt-1 whitespace-pre-wrap">{reply.content}</p>
               </div>
             </div>
           ))}

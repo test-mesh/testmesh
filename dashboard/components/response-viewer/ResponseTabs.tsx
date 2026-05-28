@@ -13,10 +13,7 @@ import {
   Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import JsonTreeView from './JsonTreeView';
 
 interface ResponseData {
@@ -35,14 +32,12 @@ interface ResponseTabsProps {
   className?: string;
 }
 
-// Get status badge color
-function getStatusColor(status: number): 'default' | 'destructive' | 'secondary' {
-  if (status >= 200 && status < 300) return 'default';
-  if (status >= 400) return 'destructive';
-  return 'secondary';
+function getStatusClasses(status: number): string {
+  if (status >= 200 && status < 300) return 'bg-teal-400/10 text-teal-400 border border-teal-400/30';
+  if (status >= 400) return 'bg-red-400/10 text-red-400 border border-red-400/30';
+  return 'bg-[#1a2d3d] text-[#7fa8c8] border border-[#1e2d3d]';
 }
 
-// Format bytes to human readable
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -51,33 +46,24 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
 
-// Check if body is JSON
 function isJsonBody(body: any, contentType?: string): boolean {
   if (typeof body === 'object' && body !== null) return true;
   if (contentType?.includes('application/json')) return true;
   if (typeof body === 'string') {
-    try {
-      JSON.parse(body);
-      return true;
-    } catch {
-      return false;
-    }
+    try { JSON.parse(body); return true; } catch { return false; }
   }
   return false;
 }
 
-// Parse body as JSON if possible
 function parseJsonBody(body: any): any {
   if (typeof body === 'object' && body !== null) return body;
   if (typeof body === 'string') {
-    try {
-      return JSON.parse(body);
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(body); } catch { return null; }
   }
   return null;
 }
+
+type Tab = 'pretty' | 'raw' | 'headers' | 'cookies';
 
 export default function ResponseTabs({ response, className }: ResponseTabsProps) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -87,14 +73,13 @@ export default function ResponseTabs({ response, className }: ResponseTabsProps)
   const isJson = isJsonBody(response.body, contentType);
   const jsonBody = isJson ? parseJsonBody(response.body) || response.body : null;
 
-  // Filter headers by search
+  const [tab, setTab] = useState<Tab>(isJson ? 'pretty' : 'raw');
+
   const filteredHeaders = useMemo(() => {
     if (!headerSearch) return Object.entries(response.headers);
     const query = headerSearch.toLowerCase();
     return Object.entries(response.headers).filter(
-      ([key, value]) =>
-        key.toLowerCase().includes(query) ||
-        value.toLowerCase().includes(query)
+      ([key, value]) => key.toLowerCase().includes(query) || value.toLowerCase().includes(query)
     );
   }, [response.headers, headerSearch]);
 
@@ -114,133 +99,135 @@ export default function ResponseTabs({ response, className }: ResponseTabsProps)
     URL.revokeObjectURL(url);
   };
 
+  const hasCookies = response.cookies && Object.keys(response.cookies).length > 0;
+
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Status bar */}
-      <div className="flex items-center gap-4 p-3 border-b bg-muted/30">
-        <Badge variant={getStatusColor(response.status)} className="font-mono">
+      <div className="flex items-center gap-3 px-3 py-2 border-b border-[#1a2332] bg-[#0b0f18]">
+        <span className={cn('text-[10px] font-mono font-semibold px-2 py-0.5 rounded', getStatusClasses(response.status))}>
           {response.status} {response.statusText}
-        </Badge>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        </span>
+        <div className="flex items-center gap-1 text-[10px] text-[#4a6480]">
           <Clock className="w-3 h-3" />
           {response.time}ms
         </div>
-        <div className="text-xs text-muted-foreground">
-          {formatBytes(response.size)}
-        </div>
+        <div className="text-[10px] text-[#4a6480]">{formatBytes(response.size)}</div>
         <div className="flex-1" />
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
           onClick={() => handleCopy(response.bodyText, 'body')}
-          className="text-xs"
+          className="flex items-center gap-1 h-6 px-2 rounded text-[10px] text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
         >
-          {copied === 'body' ? (
-            <>
-              <Check className="w-3 h-3 mr-1 text-green-500" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="w-3 h-3 mr-1" />
-              Copy
-            </>
-          )}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
+          {copied === 'body' ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
+          {copied === 'body' ? 'Copied' : 'Copy'}
+        </button>
+        <button
           onClick={handleDownload}
-          className="text-xs"
+          className="flex items-center gap-1 h-6 px-2 rounded text-[10px] text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
         >
-          <Download className="w-3 h-3 mr-1" />
+          <Download className="w-3 h-3" />
           Download
-        </Button>
+        </button>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue={isJson ? 'pretty' : 'raw'} className="flex-1 flex flex-col">
-        <TabsList className="justify-start px-3 border-b rounded-none bg-transparent">
-          {isJson && (
-            <TabsTrigger value="pretty" className="text-xs">
-              <Code className="w-3 h-3 mr-1" />
-              Pretty
-            </TabsTrigger>
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 px-3 py-1.5 border-b border-[#1a2332]">
+        {isJson && (
+          <button
+            onClick={() => setTab('pretty')}
+            className={cn(
+              'flex items-center gap-1 h-6 px-2.5 rounded text-[10px] transition-colors',
+              tab === 'pretty' ? 'bg-teal-400/15 text-teal-400' : 'text-[#4a6480] hover:text-[#7fa8c8]'
+            )}
+          >
+            <Code className="w-3 h-3" />
+            Pretty
+          </button>
+        )}
+        <button
+          onClick={() => setTab('raw')}
+          className={cn(
+            'flex items-center gap-1 h-6 px-2.5 rounded text-[10px] transition-colors',
+            tab === 'raw' ? 'bg-teal-400/15 text-teal-400' : 'text-[#4a6480] hover:text-[#7fa8c8]'
           )}
-          <TabsTrigger value="raw" className="text-xs">
-            <FileText className="w-3 h-3 mr-1" />
-            Raw
-          </TabsTrigger>
-          <TabsTrigger value="headers" className="text-xs">
-            <Globe className="w-3 h-3 mr-1" />
-            Headers
-            <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
-              {Object.keys(response.headers).length}
-            </Badge>
-          </TabsTrigger>
-          {response.cookies && Object.keys(response.cookies).length > 0 && (
-            <TabsTrigger value="cookies" className="text-xs">
-              <Cookie className="w-3 h-3 mr-1" />
-              Cookies
-              <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
-                {Object.keys(response.cookies).length}
-              </Badge>
-            </TabsTrigger>
+        >
+          <FileText className="w-3 h-3" />
+          Raw
+        </button>
+        <button
+          onClick={() => setTab('headers')}
+          className={cn(
+            'flex items-center gap-1.5 h-6 px-2.5 rounded text-[10px] transition-colors',
+            tab === 'headers' ? 'bg-teal-400/15 text-teal-400' : 'text-[#4a6480] hover:text-[#7fa8c8]'
           )}
-        </TabsList>
+        >
+          <Globe className="w-3 h-3" />
+          Headers
+          <span className="text-[9px] px-1 rounded bg-[#1a2d3d] text-[#4a6480]">
+            {Object.keys(response.headers).length}
+          </span>
+        </button>
+        {hasCookies && (
+          <button
+            onClick={() => setTab('cookies')}
+            className={cn(
+              'flex items-center gap-1.5 h-6 px-2.5 rounded text-[10px] transition-colors',
+              tab === 'cookies' ? 'bg-teal-400/15 text-teal-400' : 'text-[#4a6480] hover:text-[#7fa8c8]'
+            )}
+          >
+            <Cookie className="w-3 h-3" />
+            Cookies
+            <span className="text-[9px] px-1 rounded bg-[#1a2d3d] text-[#4a6480]">
+              {Object.keys(response.cookies!).length}
+            </span>
+          </button>
+        )}
+      </div>
 
-        <div className="flex-1 overflow-hidden">
-          {/* Pretty JSON view */}
-          {isJson && (
-            <TabsContent value="pretty" className="m-0 h-full">
-              <JsonTreeView data={jsonBody} />
-            </TabsContent>
-          )}
+      <div className="flex-1 overflow-hidden">
+        {tab === 'pretty' && isJson && <JsonTreeView data={jsonBody} />}
 
-          {/* Raw text view */}
-          <TabsContent value="raw" className="m-0 h-full overflow-auto p-3">
-            <pre className="text-sm font-mono whitespace-pre-wrap break-all">
+        {tab === 'raw' && (
+          <div className="h-full overflow-auto p-3">
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all text-[#7fa8c8]">
               {response.bodyText}
             </pre>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Headers view */}
-          <TabsContent value="headers" className="m-0 h-full flex flex-col">
-            <div className="p-2 border-b">
+        {tab === 'headers' && (
+          <div className="h-full flex flex-col">
+            <div className="p-2 border-b border-[#1a2332]">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-[#3d5670]" />
                 <Input
                   value={headerSearch}
                   onChange={(e) => setHeaderSearch(e.target.value)}
                   placeholder="Search headers..."
-                  className="pl-8 h-8 text-sm"
+                  className="pl-7 h-7 text-xs"
                 />
               </div>
             </div>
             <div className="flex-1 overflow-auto p-2">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2 font-medium text-muted-foreground">Header</th>
-                    <th className="text-left p-2 font-medium text-muted-foreground">Value</th>
-                    <th className="w-10"></th>
+                  <tr className="border-b border-[#1a2332]">
+                    <th className="text-left p-2 text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Header</th>
+                    <th className="text-left p-2 text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Value</th>
+                    <th className="w-10" />
                   </tr>
                 </thead>
                 <tbody>
                   {filteredHeaders.map(([key, value]) => (
-                    <tr key={key} className="border-b group hover:bg-muted/50">
-                      <td className="p-2 font-mono text-foreground/80">{key}</td>
-                      <td className="p-2 font-mono text-foreground/60 break-all">{value}</td>
+                    <tr key={key} className="border-b border-[#1a2332] group hover:bg-[#131b26] transition-colors">
+                      <td className="p-2 font-mono text-[#7fa8c8]">{key}</td>
+                      <td className="p-2 font-mono text-[#4a6480] break-all">{value}</td>
                       <td className="p-2">
                         <button
                           onClick={() => handleCopy(value, key)}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted"
+                          className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-5 w-5 rounded hover:bg-[#1a2d3d] transition-colors"
                         >
-                          {copied === key ? (
-                            <Check className="w-3 h-3 text-green-500" />
-                          ) : (
-                            <Copy className="w-3 h-3 text-muted-foreground" />
-                          )}
+                          {copied === key ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3 text-[#4a6480]" />}
                         </button>
                       </td>
                     </tr>
@@ -248,49 +235,42 @@ export default function ResponseTabs({ response, className }: ResponseTabsProps)
                 </tbody>
               </table>
               {filteredHeaders.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No headers match your search
-                </div>
+                <div className="text-center py-8 text-xs text-[#3d5670]">No headers match your search</div>
               )}
             </div>
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Cookies view */}
-          {response.cookies && (
-            <TabsContent value="cookies" className="m-0 h-full overflow-auto p-2">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2 font-medium text-muted-foreground">Cookie</th>
-                    <th className="text-left p-2 font-medium text-muted-foreground">Value</th>
-                    <th className="w-10"></th>
+        {tab === 'cookies' && response.cookies && (
+          <div className="h-full overflow-auto p-2">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-[#1a2332]">
+                  <th className="text-left p-2 text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Cookie</th>
+                  <th className="text-left p-2 text-[10px] font-semibold text-[#3d5670] uppercase tracking-wider">Value</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(response.cookies).map(([key, value]) => (
+                  <tr key={key} className="border-b border-[#1a2332] group hover:bg-[#131b26] transition-colors">
+                    <td className="p-2 font-mono text-[#7fa8c8]">{key}</td>
+                    <td className="p-2 font-mono text-[#4a6480] break-all">{value}</td>
+                    <td className="p-2">
+                      <button
+                        onClick={() => handleCopy(value, `cookie-${key}`)}
+                        className="opacity-0 group-hover:opacity-100 flex items-center justify-center h-5 w-5 rounded hover:bg-[#1a2d3d] transition-colors"
+                      >
+                        {copied === `cookie-${key}` ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3 text-[#4a6480]" />}
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(response.cookies).map(([key, value]) => (
-                    <tr key={key} className="border-b group hover:bg-muted/50">
-                      <td className="p-2 font-mono text-foreground/80">{key}</td>
-                      <td className="p-2 font-mono text-foreground/60 break-all">{value}</td>
-                      <td className="p-2">
-                        <button
-                          onClick={() => handleCopy(value, `cookie-${key}`)}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-muted"
-                        >
-                          {copied === `cookie-${key}` ? (
-                            <Check className="w-3 h-3 text-green-500" />
-                          ) : (
-                            <Copy className="w-3 h-3 text-muted-foreground" />
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TabsContent>
-          )}
-        </div>
-      </Tabs>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

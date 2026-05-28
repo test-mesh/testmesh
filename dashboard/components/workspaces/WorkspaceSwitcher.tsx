@@ -3,7 +3,6 @@
 import { useEffect } from 'react';
 import { Building2, Check, ChevronDown, Plus, Settings, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,14 +42,17 @@ export function WorkspaceSwitcher({ className, compact = false }: WorkspaceSwitc
 
   if (isLoading) {
     return (
-      <Button
-        variant="outline"
+      <button
         disabled
-        className={cn(compact ? 'h-8 w-8 p-0' : 'w-full', className)}
+        className={cn(
+          'flex items-center rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#4a6480] opacity-50 cursor-not-allowed transition-colors',
+          compact ? 'h-7 w-7 justify-center' : 'h-7 px-2.5 gap-2',
+          className
+        )}
       >
-        <Building2 className={cn('h-4 w-4 animate-pulse', !compact && 'mr-2')} />
-        {!compact && <span className="text-muted-foreground">Loading...</span>}
-      </Button>
+        <Building2 className="h-3.5 w-3.5 animate-pulse" />
+        {!compact && <span className="text-xs">Loading...</span>}
+      </button>
     );
   }
 
@@ -61,13 +63,16 @@ export function WorkspaceSwitcher({ className, compact = false }: WorkspaceSwitc
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className={className} title={displayName}>
+          <button
+            className={cn('flex items-center justify-center h-7 w-7 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#4a6480] hover:border-[#2a3d52] hover:text-[#7fa8c8] transition-colors', className)}
+            title={displayName}
+          >
             {isPersonal ? (
-              <User className="h-4 w-4" />
+              <User className="h-3.5 w-3.5" />
             ) : (
-              <Building2 className="h-4 w-4" />
+              <Building2 className="h-3.5 w-3.5" />
             )}
-          </Button>
+          </button>
         </DropdownMenuTrigger>
         <WorkspaceSwitcherContent
           personalWorkspace={personalWorkspace}
@@ -82,21 +87,20 @@ export function WorkspaceSwitcher({ className, compact = false }: WorkspaceSwitc
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
+        <button
           role="combobox"
-          className={cn('justify-between', className)}
+          className={cn('flex items-center justify-between h-7 px-2.5 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors text-xs', className)}
         >
           <div className="flex items-center gap-2 truncate">
             {isPersonal ? (
-              <User className="h-4 w-4 shrink-0" />
+              <User className="h-3.5 w-3.5 shrink-0" />
             ) : (
-              <Building2 className="h-4 w-4 shrink-0" />
+              <Building2 className="h-3.5 w-3.5 shrink-0" />
             )}
             <span className="truncate">{displayName}</span>
           </div>
-          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
+          <ChevronDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+        </button>
       </DropdownMenuTrigger>
       <WorkspaceSwitcherContent
         personalWorkspace={personalWorkspace}
