@@ -2,7 +2,6 @@
 
 import { useState, useMemo } from 'react';
 import { Search, FileText, Loader2, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
@@ -12,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useFlows } from '@/lib/hooks/useFlows';
 import type { Flow, CollectionTreeNode } from '@/lib/api/types';
@@ -22,7 +20,6 @@ interface AddFlowDialogProps {
   onOpenChange: (open: boolean) => void;
   collectionId: string;
   collectionName: string;
-  /** Current flows already in this collection (to exclude from list) */
   existingFlowIds: string[];
   onAddFlow: (flowId: string) => Promise<void>;
   isLoading?: boolean;
@@ -42,10 +39,8 @@ export default function AddFlowDialog({
 
   const { data: flowsData, isLoading: isLoadingFlows } = useFlows();
 
-  // Filter out flows already in the collection and apply search
   const availableFlows = useMemo(() => {
     if (!flowsData?.flows) return [];
-
     const existingSet = new Set(existingFlowIds);
     return flowsData.flows
       .filter((flow) => !existingSet.has(flow.id))
@@ -88,9 +83,8 @@ export default function AddFlowDialog({
         </DialogHeader>
 
         <div className="py-4 space-y-3">
-          {/* Search */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#4a6480]" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -99,20 +93,17 @@ export default function AddFlowDialog({
             />
           </div>
 
-          {/* Flows list */}
-          <div className="max-h-[300px] overflow-auto border rounded-md">
+          <div className="max-h-[300px] overflow-auto border border-[#1e2d3d] rounded-lg bg-[#0f1923]">
             {isLoadingFlows ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <Loader2 className="w-5 h-5 animate-spin text-[#4a6480]" />
               </div>
             ) : availableFlows.length === 0 ? (
-              <div className="text-center text-sm text-muted-foreground py-8">
-                {searchQuery
-                  ? 'No matching flows found'
-                  : 'All flows are already in this collection'}
+              <div className="text-center text-xs text-[#4a6480] py-8">
+                {searchQuery ? 'No matching flows found' : 'All flows are already in this collection'}
               </div>
             ) : (
-              <div className="divide-y">
+              <div className="divide-y divide-[#1a2332]">
                 {availableFlows.map((flow) => (
                   <FlowListItem
                     key={flow.id}
@@ -127,12 +118,20 @@ export default function AddFlowDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>
+          <button
+            type="button"
+            onClick={() => handleOpenChange(false)}
+            className="flex items-center h-8 px-4 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+          >
             Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={!selectedFlowId || isLoading}>
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!selectedFlowId || isLoading}
+            className="flex items-center h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+          >
             {isLoading ? 'Adding...' : 'Add Flow'}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -150,49 +149,43 @@ function FlowListItem({ flow, isSelected, onSelect }: FlowListItemProps) {
     <div
       className={cn(
         'flex items-start gap-3 p-3 cursor-pointer transition-colors',
-        'hover:bg-muted/50',
-        isSelected && 'bg-primary/10'
+        'hover:bg-[#131b26]',
+        isSelected && 'bg-teal-400/5'
       )}
       onClick={onSelect}
     >
       <div
         className={cn(
-          'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5',
-          isSelected
-            ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-muted-foreground/30'
+          'w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5',
+          isSelected ? 'border-teal-400 bg-teal-400/20' : 'border-[#2a3d52]'
         )}
       >
-        {isSelected && <Check className="w-3 h-3" />}
+        {isSelected && <Check className="w-2.5 h-2.5 text-teal-400" />}
       </div>
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-          <span className="font-medium text-sm truncate">{flow.name}</span>
+          <FileText className="w-3.5 h-3.5 text-[#4a6480] shrink-0" />
+          <span className="font-medium text-xs text-[#c8dce8] truncate">{flow.name}</span>
         </div>
 
         {flow.description && (
-          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-            {flow.description}
-          </p>
+          <p className="text-[10px] text-[#4a6480] mt-0.5 line-clamp-1">{flow.description}</p>
         )}
 
-        <div className="flex items-center gap-2 mt-1.5">
+        <div className="flex items-center gap-1.5 mt-1">
           {flow.suite && (
-            <Badge variant="outline" className="text-xs">
+            <span className="text-[10px] px-1.5 py-0.5 rounded border border-[#1e2d3d] text-[#7fa8c8]">
               {flow.suite}
-            </Badge>
+            </span>
           )}
           {flow.tags?.slice(0, 3).map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-xs">
+            <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-[#1a2332] text-[#4a6480]">
               {tag}
-            </Badge>
+            </span>
           ))}
           {flow.tags && flow.tags.length > 3 && (
-            <span className="text-xs text-muted-foreground">
-              +{flow.tags.length - 3} more
-            </span>
+            <span className="text-[10px] text-[#4a6480]">+{flow.tags.length - 3} more</span>
           )}
         </div>
       </div>

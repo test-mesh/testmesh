@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { Folder, Palette } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,32 +18,18 @@ import type { Collection, CreateCollectionRequest, UpdateCollectionRequest } fro
 interface CollectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  collection?: Collection | null; // null = create, existing = edit
+  collection?: Collection | null;
   parentId?: string;
   onSubmit: (data: CreateCollectionRequest | UpdateCollectionRequest) => Promise<void>;
   isLoading?: boolean;
 }
 
-// Preset colors for collections
 const PRESET_COLORS = [
-  '#6366f1', // Indigo
-  '#8b5cf6', // Violet
-  '#d946ef', // Fuchsia
-  '#ec4899', // Pink
-  '#f43f5e', // Rose
-  '#ef4444', // Red
-  '#f97316', // Orange
-  '#f59e0b', // Amber
-  '#84cc16', // Lime
-  '#22c55e', // Green
-  '#14b8a6', // Teal
-  '#06b6d4', // Cyan
-  '#0ea5e9', // Sky
-  '#3b82f6', // Blue
-  '#64748b', // Slate
+  '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e',
+  '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e',
+  '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#64748b',
 ];
 
-// Preset icons (emojis)
 const PRESET_ICONS = [
   '📁', '📂', '🗂️', '📋', '📝',
   '🧪', '🔬', '⚗️', '🔧', '⚙️',
@@ -69,7 +54,6 @@ export default function CollectionDialog({
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
 
-  // Reset form when dialog opens/closes or collection changes
   useEffect(() => {
     if (open) {
       if (collection) {
@@ -88,9 +72,7 @@ export default function CollectionDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!name.trim()) return;
-
     const data: CreateCollectionRequest | UpdateCollectionRequest = {
       name: name.trim(),
       description: description.trim() || undefined,
@@ -98,7 +80,6 @@ export default function CollectionDialog({
       color: color || undefined,
       ...(isEditing ? {} : { parent_id: parentId }),
     };
-
     await onSubmit(data);
     onOpenChange(false);
   };
@@ -121,9 +102,8 @@ export default function CollectionDialog({
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Name */}
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name" className="text-xs">Name</Label>
               <Input
                 id="name"
                 value={name}
@@ -133,9 +113,8 @@ export default function CollectionDialog({
               />
             </div>
 
-            {/* Description */}
             <div className="space-y-2">
-              <Label htmlFor="description">Description (optional)</Label>
+              <Label htmlFor="description" className="text-xs">Description (optional)</Label>
               <Textarea
                 id="description"
                 value={description}
@@ -145,33 +124,27 @@ export default function CollectionDialog({
               />
             </div>
 
-            {/* Icon & Color */}
             <div className="flex gap-4">
-              {/* Icon picker */}
               <div className="space-y-2 flex-1">
-                <Label>Icon (optional)</Label>
+                <Label className="text-xs">Icon (optional)</Label>
                 <div className="relative">
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    className="w-full justify-start"
                     onClick={() => setShowIconPicker(!showIconPicker)}
+                    className="w-full flex items-center h-9 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] transition-colors"
                   >
                     {icon ? (
                       <span className="text-lg mr-2">{icon}</span>
                     ) : (
-                      <span className="text-muted-foreground">Select icon</span>
+                      <span className="text-[#4a6480]">Select icon</span>
                     )}
-                  </Button>
+                  </button>
                   {showIconPicker && (
-                    <div className="absolute top-full left-0 mt-1 p-2 bg-popover border rounded-lg shadow-lg z-50 grid grid-cols-5 gap-1">
+                    <div className="absolute top-full left-0 mt-1 p-2 bg-[#0f1923] border border-[#1e2d3d] rounded-lg shadow-lg z-50 grid grid-cols-5 gap-1">
                       <button
                         type="button"
-                        className="w-8 h-8 flex items-center justify-center rounded hover:bg-muted text-xs text-muted-foreground"
-                        onClick={() => {
-                          setIcon('');
-                          setShowIconPicker(false);
-                        }}
+                        className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#1a2d3d] text-[10px] text-[#4a6480]"
+                        onClick={() => { setIcon(''); setShowIconPicker(false); }}
                       >
                         None
                       </button>
@@ -179,11 +152,8 @@ export default function CollectionDialog({
                         <button
                           key={emoji}
                           type="button"
-                          className="w-8 h-8 flex items-center justify-center rounded hover:bg-muted text-lg"
-                          onClick={() => {
-                            setIcon(emoji);
-                            setShowIconPicker(false);
-                          }}
+                          className="w-8 h-8 flex items-center justify-center rounded hover:bg-[#1a2d3d] text-lg"
+                          onClick={() => { setIcon(emoji); setShowIconPicker(false); }}
                         >
                           {emoji}
                         </button>
@@ -193,34 +163,26 @@ export default function CollectionDialog({
                 </div>
               </div>
 
-              {/* Color picker */}
               <div className="space-y-2 flex-1">
-                <Label>Color</Label>
+                <Label className="text-xs">Color</Label>
                 <div className="relative">
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    className="w-full justify-start"
                     onClick={() => setShowColorPicker(!showColorPicker)}
+                    className="w-full flex items-center gap-2 h-9 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] transition-colors"
                   >
-                    <div
-                      className="w-4 h-4 rounded mr-2"
-                      style={{ backgroundColor: color }}
-                    />
-                    <Palette className="w-4 h-4 text-muted-foreground" />
-                  </Button>
+                    <div className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
+                    <Palette className="w-3.5 h-3.5 text-[#4a6480]" />
+                  </button>
                   {showColorPicker && (
-                    <div className="absolute top-full left-0 mt-1 p-2 bg-popover border rounded-lg shadow-lg z-50 grid grid-cols-5 gap-1">
+                    <div className="absolute top-full left-0 mt-1 p-2 bg-[#0f1923] border border-[#1e2d3d] rounded-lg shadow-lg z-50 grid grid-cols-5 gap-1">
                       {PRESET_COLORS.map((c) => (
                         <button
                           key={c}
                           type="button"
                           className="w-8 h-8 rounded hover:scale-110 transition-transform"
                           style={{ backgroundColor: c }}
-                          onClick={() => {
-                            setColor(c);
-                            setShowColorPicker(false);
-                          }}
+                          onClick={() => { setColor(c); setShowColorPicker(false); }}
                         />
                       ))}
                     </div>
@@ -231,12 +193,20 @@ export default function CollectionDialog({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="flex items-center h-8 px-4 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+            >
               Cancel
-            </Button>
-            <Button type="submit" disabled={!name.trim() || isLoading}>
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim() || isLoading}
+              className="flex items-center h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+            >
               {isLoading ? 'Saving...' : isEditing ? 'Save Changes' : 'Create'}
-            </Button>
+            </button>
           </DialogFooter>
         </form>
       </DialogContent>
