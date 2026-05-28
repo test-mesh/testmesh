@@ -1,8 +1,5 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import {
   Collapsible,
   CollapsibleContent,
@@ -48,10 +45,10 @@ const TYPE_LABELS: Record<SuggestionType, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  accepted: 'bg-blue-100 text-blue-800',
-  rejected: 'bg-gray-100 text-gray-800',
-  applied: 'bg-green-100 text-green-800',
+  pending: 'bg-yellow-400/10 text-yellow-400',
+  accepted: 'bg-blue-400/10 text-blue-400',
+  rejected: 'bg-[#1a2d3d] text-[#4a6480]',
+  applied: 'bg-teal-400/10 text-teal-400',
 };
 
 export function SuggestionCard({
@@ -64,56 +61,55 @@ export function SuggestionCard({
   const confidencePercent = Math.round(suggestion.confidence * 100);
   const confidenceColor =
     confidencePercent >= 80
-      ? 'text-green-600'
+      ? 'text-teal-400'
       : confidencePercent >= 50
-      ? 'text-yellow-600'
-      : 'text-red-600';
+      ? 'text-yellow-400'
+      : 'text-red-400';
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
+    <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+      <div className="px-4 py-3 border-b border-[#1a2332]">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 text-[#7fa8c8]">
             {TYPE_ICONS[suggestion.type]}
-            <CardTitle className="text-lg">{suggestion.title}</CardTitle>
+            <span className="text-sm font-medium text-[#c8dce8]">{suggestion.title}</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="capitalize">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-[#1e2d3d] text-[#7fa8c8]">
               {TYPE_LABELS[suggestion.type]}
-            </Badge>
-            <Badge className={STATUS_COLORS[suggestion.status]}>
+            </span>
+            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${STATUS_COLORS[suggestion.status] || 'bg-[#1a2332] text-[#4a6480]'}`}>
               {suggestion.status}
-            </Badge>
+            </span>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Confidence */}
-        <div className="flex items-center gap-2 text-sm">
-          <Lightbulb className="h-4 w-4 text-muted-foreground" />
-          <span>Confidence:</span>
-          <span className={`font-medium ${confidenceColor}`}>
-            {confidencePercent}%
-          </span>
+      </div>
+
+      <div className="px-4 py-3 space-y-3">
+        <div className="flex items-center gap-2 text-xs">
+          <Lightbulb className="h-3.5 w-3.5 text-[#4a6480]" />
+          <span className="text-[#4a6480]">Confidence:</span>
+          <span className={`font-medium ${confidenceColor}`}>{confidencePercent}%</span>
         </div>
 
-        {/* Code Sync Context */}
         {suggestion.type === 'code_sync' && suggestion.commit_sha && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <GitCommit className="h-4 w-4" />
+          <div className="flex items-center gap-2 text-xs text-[#4a6480]">
+            <GitCommit className="h-3.5 w-3.5" />
             <span>Triggered by commit:</span>
-            <code className="bg-muted px-1 rounded text-xs font-mono">{suggestion.commit_sha.slice(0, 8)}</code>
+            <code className="bg-[#1a2332] px-1 rounded font-mono text-[#7fa8c8]">
+              {suggestion.commit_sha.slice(0, 8)}
+            </code>
           </div>
         )}
 
         {suggestion.type === 'code_sync' && suggestion.changed_files && suggestion.changed_files.length > 0 && (
           <Collapsible>
-            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium hover:underline">
-              <ChevronDown className="h-4 w-4" />
+            <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium text-[#7fa8c8] hover:text-[#c8dce8] transition-colors">
+              <ChevronDown className="h-3.5 w-3.5" />
               Changed files ({suggestion.changed_files.length})
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <ul className="text-xs text-muted-foreground bg-muted p-3 rounded-lg space-y-0.5 font-mono">
+              <ul className="text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1a2332] p-3 rounded-lg space-y-0.5 font-mono">
                 {suggestion.changed_files.map(f => (
                   <li key={f}>{f}</li>
                 ))}
@@ -122,88 +118,91 @@ export function SuggestionCard({
           </Collapsible>
         )}
 
-        {/* Description */}
         {suggestion.description && (
-          <p className="text-sm text-muted-foreground">{suggestion.description}</p>
+          <p className="text-xs text-[#7fa8c8]">{suggestion.description}</p>
         )}
 
-        {/* Reasoning */}
         {suggestion.reasoning && (
           <Collapsible>
-            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium hover:underline">
-              <ChevronDown className="h-4 w-4" />
+            <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium text-[#7fa8c8] hover:text-[#c8dce8] transition-colors">
+              <ChevronDown className="h-3.5 w-3.5" />
               Why this suggestion?
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+              <p className="text-xs text-[#7fa8c8] bg-[#0b0f18] border border-[#1a2332] p-3 rounded-lg">
                 {suggestion.reasoning}
               </p>
             </CollapsibleContent>
           </Collapsible>
         )}
 
-        {/* YAML Preview */}
         {suggestion.suggested_yaml && (
           <Collapsible>
-            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium hover:underline">
-              <ChevronDown className="h-4 w-4" />
+            <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium text-[#7fa8c8] hover:text-[#c8dce8] transition-colors">
+              <ChevronDown className="h-3.5 w-3.5" />
               View suggested changes
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto max-h-64">
+              <pre className="bg-[#0b0f18] border border-[#1a2332] p-3 rounded-lg text-xs overflow-x-auto max-h-64 text-[#c8dce8] font-mono">
                 <code>{suggestion.suggested_yaml}</code>
               </pre>
             </CollapsibleContent>
           </Collapsible>
         )}
 
-        {/* Diff */}
         {suggestion.diff_patch && (
           <Collapsible>
-            <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium hover:underline">
-              <ChevronDown className="h-4 w-4" />
+            <CollapsibleTrigger className="flex items-center gap-2 text-xs font-medium text-[#7fa8c8] hover:text-[#c8dce8] transition-colors">
+              <ChevronDown className="h-3.5 w-3.5" />
               View diff
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-2">
-              <pre className="bg-muted p-3 rounded-lg text-xs overflow-x-auto max-h-64 whitespace-pre-wrap">
-                <code
-                  dangerouslySetInnerHTML={{ __html: suggestion.diff_patch }}
-                />
+              <pre className="bg-[#0b0f18] border border-[#1a2332] p-3 rounded-lg text-xs overflow-x-auto max-h-64 whitespace-pre-wrap text-[#c8dce8] font-mono">
+                <code dangerouslySetInnerHTML={{ __html: suggestion.diff_patch }} />
               </pre>
             </CollapsibleContent>
           </Collapsible>
         )}
 
-        {/* Actions */}
         {suggestion.status === 'pending' && (
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex items-center gap-2 pt-1">
             {onAccept && (
-              <Button variant="outline" size="sm" onClick={onAccept}>
-                <Check className="h-4 w-4 mr-1" />
+              <button
+                onClick={onAccept}
+                className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-teal-400/30 hover:text-teal-400 transition-colors"
+              >
+                <Check className="h-3.5 w-3.5" />
                 Accept
-              </Button>
+              </button>
             )}
             {onReject && (
-              <Button variant="ghost" size="sm" onClick={onReject}>
-                <X className="h-4 w-4 mr-1" />
+              <button
+                onClick={onReject}
+                className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
                 Reject
-              </Button>
+              </button>
             )}
           </div>
         )}
 
         {suggestion.status === 'accepted' && onApply && (
-          <Button onClick={onApply} disabled={isApplying}>
+          <button
+            onClick={onApply}
+            disabled={isApplying}
+            className="flex items-center h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+          >
             {isApplying ? 'Applying...' : 'Apply Suggestion'}
-          </Button>
+          </button>
         )}
 
         {suggestion.status === 'applied' && suggestion.applied_at && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-[#4a6480]">
             Applied on {new Date(suggestion.applied_at).toLocaleString()}
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

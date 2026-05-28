@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
@@ -51,14 +50,10 @@ export function PromptInput({
     });
   };
 
-  const handleExampleClick = (example: string) => {
-    setPrompt(example);
-  };
-
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="prompt">Describe your test flow</Label>
+        <Label htmlFor="prompt" className="text-xs">Describe your test flow</Label>
         <Textarea
           id="prompt"
           placeholder={placeholder}
@@ -72,7 +67,7 @@ export function PromptInput({
       {showOptions && providers.length > 0 && (
         <div className="flex items-center gap-4">
           <div className="space-y-2">
-            <Label htmlFor="provider">AI Provider</Label>
+            <Label htmlFor="provider" className="text-xs">AI Provider</Label>
             <Select value={provider} onValueChange={(v) => setProvider(v as AIProviderType | 'auto')}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Auto" />
@@ -91,10 +86,10 @@ export function PromptInput({
       )}
 
       <div className="flex items-center justify-between">
-        <Button
+        <button
           onClick={handleSubmit}
           disabled={!prompt.trim() || isLoading}
-          className="gap-2"
+          className="flex items-center gap-2 h-9 px-4 rounded-lg text-sm font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -102,27 +97,23 @@ export function PromptInput({
             <Sparkles className="h-4 w-4" />
           )}
           Generate Flow
-        </Button>
+        </button>
 
         {!prompt && (
-          <div className="text-sm text-muted-foreground">
-            Or try an example:
-          </div>
+          <span className="text-xs text-[#4a6480]">Or try an example:</span>
         )}
       </div>
 
       {!prompt && (
         <div className="flex flex-wrap gap-2">
           {EXAMPLE_PROMPTS.map((example, idx) => (
-            <Button
+            <button
               key={idx}
-              variant="outline"
-              size="sm"
-              onClick={() => handleExampleClick(example)}
-              className="text-xs"
+              onClick={() => setPrompt(example)}
+              className="h-7 px-2 rounded-lg text-xs border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
             >
               {example.slice(0, 50)}...
-            </Button>
+            </button>
           ))}
         </div>
       )}

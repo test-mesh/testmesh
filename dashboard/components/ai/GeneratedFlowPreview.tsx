@@ -1,11 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, Copy, FileText, Code, Clock, Zap } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { FlowDefinition, AIProviderType } from '@/lib/api/types';
 
 interface GeneratedFlowPreviewProps {
@@ -20,6 +17,8 @@ interface GeneratedFlowPreviewProps {
   isSaving?: boolean;
 }
 
+type PreviewTab = 'yaml' | 'steps';
+
 export function GeneratedFlowPreview({
   yaml,
   flowDef,
@@ -32,6 +31,7 @@ export function GeneratedFlowPreview({
   isSaving = false,
 }: GeneratedFlowPreviewProps) {
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<PreviewTab>('yaml');
 
   const handleCopy = () => {
     navigator.clipboard.writeText(yaml);
@@ -40,37 +40,39 @@ export function GeneratedFlowPreview({
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          {flowDef?.name || 'Generated Flow'}
-        </CardTitle>
+    <div className="rounded-xl border border-[#1e2d3d] bg-[#0f1923]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a2332]">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-[#7fa8c8]" />
+          <span className="text-sm font-medium text-[#c8dce8]">
+            {flowDef?.name || 'Generated Flow'}
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           {provider && (
-            <Badge variant="outline" className="capitalize">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border border-[#1e2d3d] bg-[#1a2332] text-[#7fa8c8] capitalize">
               {provider}
-            </Badge>
+            </span>
           )}
           {model && (
-            <Badge variant="secondary" className="text-xs">
+            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[#1a2332] text-[#4a6480]">
               {model}
-            </Badge>
+            </span>
           )}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Metadata */}
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+      </div>
+
+      <div className="px-4 py-3 space-y-3">
+        <div className="flex items-center gap-4 text-xs text-[#4a6480]">
           {tokensUsed && (
             <span className="flex items-center gap-1">
-              <Zap className="h-4 w-4" />
+              <Zap className="h-3.5 w-3.5" />
               {tokensUsed} tokens
             </span>
           )}
           {latencyMs && (
             <span className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
+              <Clock className="h-3.5 w-3.5" />
               {(latencyMs / 1000).toFixed(2)}s
             </span>
           )}
@@ -79,101 +81,106 @@ export function GeneratedFlowPreview({
           )}
         </div>
 
-        {/* Description */}
         {flowDef?.description && (
-          <p className="text-sm text-muted-foreground">{flowDef.description}</p>
+          <p className="text-xs text-[#7fa8c8]">{flowDef.description}</p>
         )}
 
-        {/* Tags */}
         {flowDef?.tags && flowDef.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {flowDef.tags.map((tag) => (
-              <Badge key={tag} variant="outline" className="text-xs">
+              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded border border-[#1e2d3d] text-[#4a6480]">
                 {tag}
-              </Badge>
+              </span>
             ))}
           </div>
         )}
 
-        {/* Preview Tabs */}
-        <Tabs defaultValue="yaml" className="w-full">
-          <TabsList>
-            <TabsTrigger value="yaml" className="gap-2">
-              <Code className="h-4 w-4" />
-              YAML
-            </TabsTrigger>
-            <TabsTrigger value="steps" className="gap-2">
-              <FileText className="h-4 w-4" />
-              Steps
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex gap-1 border-b border-[#1a2332] pb-0">
+          {([['yaml', 'YAML', Code], ['steps', 'Steps', FileText]] as const).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors',
+                tab === id
+                  ? 'border-teal-400 text-teal-400'
+                  : 'border-transparent text-[#4a6480] hover:text-[#7fa8c8]'
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
 
-          <TabsContent value="yaml" className="mt-4">
-            <div className="relative">
-              <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-sm max-h-96">
-                <code>{yaml}</code>
-              </pre>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="absolute top-2 right-2"
-                onClick={handleCopy}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
-          </TabsContent>
+        {tab === 'yaml' && (
+          <div className="relative">
+            <pre className="bg-[#0b0f18] border border-[#1a2332] p-3 rounded-lg overflow-x-auto text-xs max-h-96 text-[#c8dce8] font-mono">
+              <code>{yaml}</code>
+            </pre>
+            <button
+              onClick={handleCopy}
+              className="absolute top-2 right-2 flex items-center justify-center h-6 w-6 rounded hover:bg-[#1a2d3d] text-[#4a6480] hover:text-[#7fa8c8] transition-colors"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-teal-400" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+        )}
 
-          <TabsContent value="steps" className="mt-4">
-            {flowDef?.steps && flowDef.steps.length > 0 ? (
-              <div className="space-y-2">
-                {flowDef.steps.map((step, idx) => (
-                  <div
-                    key={step.id || idx}
-                    className="flex items-center gap-3 p-3 bg-muted rounded-lg"
-                  >
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-medium">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1">
-                      <div className="font-medium">{step.name || step.id}</div>
-                      <div className="text-sm text-muted-foreground">
-                        <code className="bg-background px-1 rounded">{step.action}</code>
-                        {step.description && ` - ${step.description}`}
-                      </div>
+        {tab === 'steps' && (
+          flowDef?.steps && flowDef.steps.length > 0 ? (
+            <div className="space-y-2">
+              {flowDef.steps.map((step, idx) => (
+                <div
+                  key={step.id || idx}
+                  className="flex items-center gap-3 p-3 bg-[#0b0f18] border border-[#1a2332] rounded-lg"
+                >
+                  <span className="flex items-center justify-center w-5 h-5 rounded-full bg-teal-400/15 text-teal-400 text-[10px] font-medium shrink-0">
+                    {idx + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-[#c8dce8]">{step.name || step.id}</div>
+                    <div className="text-[10px] text-[#4a6480] mt-0.5">
+                      <code className="bg-[#1a2332] px-1 rounded font-mono">{step.action}</code>
+                      {step.description && ` - ${step.description}`}
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-muted-foreground text-center py-4">
-                No steps found in the flow definition
-              </p>
-            )}
-          </TabsContent>
-        </Tabs>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-[#4a6480] text-center py-4">
+              No steps found in the flow definition
+            </p>
+          )
+        )}
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-4">
+        <div className="flex items-center gap-2 pt-2">
           {onSave && (
-            <Button onClick={onSave} disabled={isSaving}>
+            <button
+              onClick={onSave}
+              disabled={isSaving}
+              className="flex items-center gap-1.5 h-8 px-4 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
+            >
               {isSaving ? 'Saving...' : 'Save Flow'}
-            </Button>
+            </button>
           )}
           {onEdit && (
-            <Button variant="outline" onClick={onEdit}>
+            <button
+              onClick={onEdit}
+              className="flex items-center h-8 px-4 rounded-lg text-xs border border-[#1e2d3d] bg-[#0f1923] text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors"
+            >
               Edit YAML
-            </Button>
+            </button>
           )}
-          <Button variant="ghost" onClick={handleCopy}>
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+          >
             {copied ? 'Copied!' : 'Copy YAML'}
-          </Button>
+          </button>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
