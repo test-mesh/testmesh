@@ -13,7 +13,6 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -23,8 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import {
   Collapsible,
   CollapsibleContent,
@@ -47,22 +44,17 @@ interface OAuth2HelperProps {
   className?: string;
 }
 
-// Pre-configured provider templates
-const PROVIDER_TEMPLATES: Record<string, Partial<OAuth2Provider>> = {
-  custom: {
-    name: 'Custom Provider',
-    auth_url: '',
-    token_url: '',
-    scopes: '',
-  },
-};
+const GRANT_TABS: { value: OAuth2GrantType; label: string }[] = [
+  { value: 'authorization_code', label: 'Auth Code' },
+  { value: 'client_credentials', label: 'Client Creds' },
+  { value: 'password', label: 'Password' },
+];
 
 export default function OAuth2Helper({ onTokenReceived, className }: OAuth2HelperProps) {
   const [providers, setProviders] = useState<OAuth2Provider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>('custom');
   const [grantType, setGrantType] = useState<OAuth2GrantType>('authorization_code');
 
-  // Form fields
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [authUrl, setAuthUrl] = useState('');
@@ -72,19 +64,15 @@ export default function OAuth2Helper({ onTokenReceived, className }: OAuth2Helpe
   );
   const [scope, setScope] = useState('');
   const [state, setState] = useState('');
-
-  // Password grant fields
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  // Token state
   const [currentToken, setCurrentToken] = useState<OAuth2Token | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Load providers
   useEffect(() => {
     async function loadProviders() {
       try {
@@ -97,12 +85,8 @@ export default function OAuth2Helper({ onTokenReceived, className }: OAuth2Helpe
     loadProviders();
   }, []);
 
-  // Update form when provider changes
   useEffect(() => {
-    if (selectedProvider === 'custom') {
-      return;
-    }
-
+    if (selectedProvider === 'custom') return;
     const provider = providers.find((p) => p.id === selectedProvider);
     if (provider) {
       setAuthUrl(provider.auth_url);
@@ -120,127 +104,82 @@ export default function OAuth2Helper({ onTokenReceived, className }: OAuth2Helpe
   }, [currentToken]);
 
   const handleGetAuthUrl = async () => {
-    setIsLoading(true);
-    setError(null);
-
+    setIsLoading(true); setError(null);
     try {
       const { authorization_url } = await getAuthorizationURL({
         grant_type: 'authorization_code',
-        client_id: clientId,
-        client_secret: clientSecret,
-        auth_url: authUrl,
-        token_url: tokenUrl,
-        redirect_uri: redirectUri,
-        scope,
+        client_id: clientId, client_secret: clientSecret,
+        auth_url: authUrl, token_url: tokenUrl,
+        redirect_uri: redirectUri, scope,
         state: state || crypto.randomUUID(),
       });
-
-      // Open in new window
       window.open(authorization_url, '_blank', 'width=600,height=700');
     } catch (err: any) {
       setError(err.response?.data?.error || err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const handleExchangeCode = async (code: string) => {
-    setIsLoading(true);
-    setError(null);
-
+    setIsLoading(true); setError(null);
     try {
       const token = await exchangeAuthorizationCode({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        token_url: tokenUrl,
-        redirect_uri: redirectUri,
+        code, client_id: clientId, client_secret: clientSecret,
+        token_url: tokenUrl, redirect_uri: redirectUri,
       });
-
       setCurrentToken(token);
       onTokenReceived?.(token);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const handleClientCredentials = async () => {
-    setIsLoading(true);
-    setError(null);
-
+    setIsLoading(true); setError(null);
     try {
       const token = await getClientCredentialsToken({
-        client_id: clientId,
-        client_secret: clientSecret,
-        token_url: tokenUrl,
-        scope,
+        client_id: clientId, client_secret: clientSecret, token_url: tokenUrl, scope,
       });
-
       setCurrentToken(token);
       onTokenReceived?.(token);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const handlePasswordGrant = async () => {
-    setIsLoading(true);
-    setError(null);
-
+    setIsLoading(true); setError(null);
     try {
       const token = await getPasswordGrantToken({
-        client_id: clientId,
-        client_secret: clientSecret,
-        token_url: tokenUrl,
-        username,
-        password,
-        scope,
+        client_id: clientId, client_secret: clientSecret, token_url: tokenUrl, username, password, scope,
       });
-
       setCurrentToken(token);
       onTokenReceived?.(token);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const handleRefreshToken = async () => {
     if (!currentToken?.refresh_token) return;
-
-    setIsLoading(true);
-    setError(null);
-
+    setIsLoading(true); setError(null);
     try {
       const token = await refreshToken({
         refresh_token: currentToken.refresh_token,
-        client_id: clientId,
-        client_secret: clientSecret,
-        token_url: tokenUrl,
+        client_id: clientId, client_secret: clientSecret, token_url: tokenUrl,
       });
-
       setCurrentToken(token);
       onTokenReceived?.(token);
     } catch (err: any) {
       setError(err.response?.data?.error || err.message);
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
-  // Listen for OAuth callback
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'oauth2_callback' && event.data?.code) {
         handleExchangeCode(event.data.code);
       }
     };
-
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [clientId, clientSecret, tokenUrl, redirectUri]);
@@ -249,7 +188,7 @@ export default function OAuth2Helper({ onTokenReceived, className }: OAuth2Helpe
     <div className={cn('space-y-4', className)}>
       {/* Provider selector */}
       <div className="flex items-center gap-4">
-        <Label className="w-20">Provider</Label>
+        <Label className="w-20 text-xs">Provider</Label>
         <Select value={selectedProvider} onValueChange={setSelectedProvider}>
           <SelectTrigger className="flex-1">
             <SelectValue />
@@ -257,252 +196,180 @@ export default function OAuth2Helper({ onTokenReceived, className }: OAuth2Helpe
           <SelectContent>
             <SelectItem value="custom">Custom Provider</SelectItem>
             {providers.map((provider) => (
-              <SelectItem key={provider.id} value={provider.id}>
-                {provider.name}
-              </SelectItem>
+              <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
-      {/* Grant type selector */}
-      <Tabs value={grantType} onValueChange={(v) => setGrantType(v as OAuth2GrantType)}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="authorization_code" className="text-xs">
-            Auth Code
-          </TabsTrigger>
-          <TabsTrigger value="client_credentials" className="text-xs">
-            Client Creds
-          </TabsTrigger>
-          <TabsTrigger value="password" className="text-xs">
-            Password
-          </TabsTrigger>
-        </TabsList>
+      {/* Grant type tab pills */}
+      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[#0b0f18] border border-[#1e2d3d]">
+        {GRANT_TABS.map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setGrantType(value)}
+            className={cn(
+              'flex-1 h-7 rounded-md text-xs font-medium transition-colors',
+              grantType === value
+                ? 'bg-teal-400/15 text-teal-400'
+                : 'text-[#4a6480] hover:text-[#7fa8c8]'
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-        {/* Common fields */}
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Client ID</Label>
-            <Input
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="your-client-id"
-              className="flex-1 text-sm"
-            />
+      {/* Common fields */}
+      <div className="space-y-3">
+        {[
+          { label: 'Client ID', value: clientId, onChange: setClientId, placeholder: 'your-client-id', type: 'text' },
+          { label: 'Client Secret', value: clientSecret, onChange: setClientSecret, placeholder: 'your-client-secret', type: 'password' },
+        ].map(({ label, value, onChange, placeholder, type }) => (
+          <div key={label} className="flex items-center gap-4">
+            <Label className="w-28 text-xs shrink-0">{label}</Label>
+            <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="flex-1 text-xs" />
           </div>
+        ))}
 
+        {grantType === 'authorization_code' && (
           <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Client Secret</Label>
-            <Input
-              type="password"
-              value={clientSecret}
-              onChange={(e) => setClientSecret(e.target.value)}
-              placeholder="your-client-secret"
-              className="flex-1 text-sm"
-            />
+            <Label className="w-28 text-xs shrink-0">Auth URL</Label>
+            <Input value={authUrl} onChange={(e) => setAuthUrl(e.target.value)} placeholder="https://provider.com/oauth/authorize" className="flex-1 text-xs" />
           </div>
+        )}
 
-          {grantType === 'authorization_code' && (
-            <div className="flex items-center gap-4">
-              <Label className="w-20 text-sm">Auth URL</Label>
-              <Input
-                value={authUrl}
-                onChange={(e) => setAuthUrl(e.target.value)}
-                placeholder="https://provider.com/oauth/authorize"
-                className="flex-1 text-sm"
-              />
-            </div>
-          )}
-
-          <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Token URL</Label>
-            <Input
-              value={tokenUrl}
-              onChange={(e) => setTokenUrl(e.target.value)}
-              placeholder="https://provider.com/oauth/token"
-              className="flex-1 text-sm"
-            />
-          </div>
+        <div className="flex items-center gap-4">
+          <Label className="w-28 text-xs shrink-0">Token URL</Label>
+          <Input value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder="https://provider.com/oauth/token" className="flex-1 text-xs" />
         </div>
+      </div>
 
-        {/* Grant-type specific content */}
-        <TabsContent value="authorization_code" className="space-y-3 mt-3">
+      {/* Grant-type specific fields */}
+      {grantType === 'authorization_code' && (
+        <div className="space-y-3">
           <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Redirect URI</Label>
-            <Input
-              value={redirectUri}
-              onChange={(e) => setRedirectUri(e.target.value)}
-              placeholder="https://your-app.com/callback"
-              className="flex-1 text-sm"
-            />
+            <Label className="w-28 text-xs shrink-0">Redirect URI</Label>
+            <Input value={redirectUri} onChange={(e) => setRedirectUri(e.target.value)} placeholder="https://your-app.com/callback" className="flex-1 text-xs" />
+          </div>
+          <div className="flex items-center gap-4">
+            <Label className="w-28 text-xs shrink-0">Scope</Label>
+            <Input value={scope} onChange={(e) => setScope(e.target.value)} placeholder="openid profile email" className="flex-1 text-xs" />
           </div>
 
-          <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Scope</Label>
-            <Input
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-              placeholder="openid profile email"
-              className="flex-1 text-sm"
-            />
-          </div>
-
-          {/* Advanced options */}
           <Collapsible open={showAdvanced} onOpenChange={setShowAdvanced}>
             <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-start text-xs">
-                <ChevronDown
-                  className={cn('w-4 h-4 mr-1 transition-transform', showAdvanced && 'rotate-180')}
-                />
+              <button className="flex items-center gap-1.5 text-xs text-[#4a6480] hover:text-[#7fa8c8] transition-colors">
+                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showAdvanced && 'rotate-180')} />
                 Advanced Options
-              </Button>
+              </button>
             </CollapsibleTrigger>
             <CollapsibleContent className="space-y-3 mt-2">
               <div className="flex items-center gap-4">
-                <Label className="w-20 text-sm">State</Label>
-                <Input
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  placeholder="Random string for CSRF protection"
-                  className="flex-1 text-sm"
-                />
+                <Label className="w-28 text-xs shrink-0">State</Label>
+                <Input value={state} onChange={(e) => setState(e.target.value)} placeholder="Random string for CSRF protection" className="flex-1 text-xs" />
               </div>
             </CollapsibleContent>
           </Collapsible>
 
-          <Button
+          <button
             onClick={handleGetAuthUrl}
             disabled={!clientId || !authUrl || !tokenUrl || isLoading}
-            className="w-full"
+            className="flex items-center justify-center gap-1.5 w-full h-8 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
           >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <ExternalLink className="w-4 h-4 mr-2" />
-            )}
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />}
             Get New Access Token
-          </Button>
-        </TabsContent>
+          </button>
+        </div>
+      )}
 
-        <TabsContent value="client_credentials" className="space-y-3 mt-3">
+      {grantType === 'client_credentials' && (
+        <div className="space-y-3">
           <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Scope</Label>
-            <Input
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-              placeholder="api:read api:write"
-              className="flex-1 text-sm"
-            />
+            <Label className="w-28 text-xs shrink-0">Scope</Label>
+            <Input value={scope} onChange={(e) => setScope(e.target.value)} placeholder="api:read api:write" className="flex-1 text-xs" />
           </div>
-
-          <Button
+          <button
             onClick={handleClientCredentials}
             disabled={!clientId || !clientSecret || !tokenUrl || isLoading}
-            className="w-full"
+            className="flex items-center justify-center gap-1.5 w-full h-8 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
           >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Key className="w-4 h-4 mr-2" />
-            )}
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
             Get Token
-          </Button>
-        </TabsContent>
+          </button>
+        </div>
+      )}
 
-        <TabsContent value="password" className="space-y-3 mt-3">
-          <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Username</Label>
-            <Input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="user@example.com"
-              className="flex-1 text-sm"
-            />
-          </div>
-
-          <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Password</Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="flex-1 text-sm"
-            />
-          </div>
-
-          <div className="flex items-center gap-4">
-            <Label className="w-20 text-sm">Scope</Label>
-            <Input
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-              placeholder="openid profile"
-              className="flex-1 text-sm"
-            />
-          </div>
-
-          <Button
+      {grantType === 'password' && (
+        <div className="space-y-3">
+          {[
+            { label: 'Username', value: username, onChange: setUsername, placeholder: 'user@example.com', type: 'text' },
+            { label: 'Password', value: password, onChange: setPassword, placeholder: '••••••••', type: 'password' },
+            { label: 'Scope', value: scope, onChange: setScope, placeholder: 'openid profile', type: 'text' },
+          ].map(({ label, value, onChange, placeholder, type }) => (
+            <div key={label} className="flex items-center gap-4">
+              <Label className="w-28 text-xs shrink-0">{label}</Label>
+              <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="flex-1 text-xs" />
+            </div>
+          ))}
+          <button
             onClick={handlePasswordGrant}
             disabled={!clientId || !tokenUrl || !username || !password || isLoading}
-            className="w-full"
+            className="flex items-center justify-center gap-1.5 w-full h-8 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
           >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Shield className="w-4 h-4 mr-2" />
-            )}
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
             Get Token
-          </Button>
-        </TabsContent>
-      </Tabs>
+          </button>
+        </div>
+      )}
 
-      {/* Error message */}
+      {/* Error */}
       {error && (
-        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-md text-sm text-destructive">
+        <div className="p-3 bg-red-400/5 border border-red-400/20 rounded-lg text-xs text-red-400">
           {error}
         </div>
       )}
 
       {/* Token display */}
       {currentToken && (
-        <div className="p-3 bg-muted/50 rounded-md space-y-2">
+        <div className="p-3 bg-[#0f1923] border border-[#1e2d3d] rounded-xl space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium flex items-center gap-2">
-              <Key className="w-4 h-4 text-green-500" />
+            <span className="text-xs font-medium text-[#c8dce8] flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-teal-400" />
               Access Token
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               {currentToken.expires_at && (
-                <Badge variant="secondary" className="text-xs">
-                  <Clock className="w-3 h-3 mr-1" />
-                  Expires: {new Date(currentToken.expires_at).toLocaleTimeString()}
-                </Badge>
+                <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-[#1a2d3d] text-[#4a6480]">
+                  <Clock className="w-2.5 h-2.5" />
+                  {new Date(currentToken.expires_at).toLocaleTimeString()}
+                </span>
               )}
               {currentToken.refresh_token && (
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
                   onClick={handleRefreshToken}
                   disabled={isLoading}
+                  className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] disabled:opacity-50 transition-colors"
                 >
-                  <RefreshCw className="w-4 h-4" />
-                </Button>
+                  <RefreshCw className="w-3 h-3" />
+                </button>
               )}
-              <Button variant="ghost" size="sm" onClick={handleCopyToken}>
-                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-              </Button>
+              <button
+                onClick={handleCopyToken}
+                className="flex items-center justify-center h-6 w-6 rounded text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+              >
+                {copied ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
+              </button>
             </div>
           </div>
-          <code className="block p-2 bg-background rounded text-xs font-mono break-all">
+          <code className="block p-2 bg-[#0b0f18] border border-[#1e2d3d] rounded-lg text-[10px] font-mono break-all text-[#7fa8c8]">
             {currentToken.access_token}
           </code>
           {currentToken.token_type && (
-            <div className="text-xs text-muted-foreground">
-              Token Type: {currentToken.token_type}
-            </div>
+            <div className="text-[10px] text-[#4a6480]">Token Type: {currentToken.token_type}</div>
           )}
           {currentToken.scope && (
-            <div className="text-xs text-muted-foreground">Scope: {currentToken.scope}</div>
+            <div className="text-[10px] text-[#4a6480]">Scope: {currentToken.scope}</div>
           )}
         </div>
       )}
