@@ -9,11 +9,8 @@ import {
   AlertCircle,
   FileWarning,
   ChevronRight,
-  ToggleLeft,
-  ToggleRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -29,11 +26,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 
 interface Breakpoint {
   id: string;
@@ -86,39 +78,22 @@ export default function BreakpointManager({
     setCondition('');
   };
 
-  // Group breakpoints by type
   const stepBreakpoints = breakpoints.filter((bp) => bp.type === 'step' || bp.type === 'conditional');
   const errorBreakpoints = breakpoints.filter((bp) => bp.type === 'error');
   const assertionBreakpoints = breakpoints.filter((bp) => bp.type === 'assertion');
 
   const getStepInfo = (stepId: string) => steps.find((s) => s.id === stepId);
 
-  const BreakpointTypeIcon = ({ type }: { type: string }) => {
-    switch (type) {
-      case 'error':
-        return <AlertCircle className="w-3 h-3 text-red-500" />;
-      case 'assertion':
-        return <FileWarning className="w-3 h-3 text-amber-500" />;
-      case 'conditional':
-        return <CircleDot className="w-3 h-3 text-purple-500" />;
-      default:
-        return <CircleDot className="w-3 h-3 text-blue-500" />;
-    }
-  };
-
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      {/* Add Breakpoint */}
-      <div className="p-2 border-b">
+      <div className="p-2 border-b border-[#1a2332]">
         <Collapsible open={showAddForm} onOpenChange={setShowAddForm}>
           <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="w-full justify-start h-8">
-              <Plus className="w-3 h-3 mr-2" />
+            <button className="w-full flex items-center gap-2 h-8 px-3 rounded-lg border border-[#1e2d3d] bg-[#0f1923] text-xs text-[#7fa8c8] hover:border-[#2a3d52] hover:text-[#c8dce8] transition-colors">
+              <Plus className="w-3 h-3" />
               Add Breakpoint
-              <ChevronRight
-                className={cn('w-3 h-3 ml-auto transition-transform', showAddForm && 'rotate-90')}
-              />
-            </Button>
+              <ChevronRight className={cn('w-3 h-3 ml-auto transition-transform', showAddForm && 'rotate-90')} />
+            </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-2 space-y-2">
             <div className="space-y-2">
@@ -147,7 +122,7 @@ export default function BreakpointManager({
                     {steps.map((step) => (
                       <SelectItem key={step.id} value={step.id} className="text-xs">
                         <span className="font-mono">{step.id}</span>
-                        {step.name && <span className="text-muted-foreground ml-2">{step.name}</span>}
+                        {step.name && <span className="text-[#4a6480] ml-2">{step.name}</span>}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -167,39 +142,33 @@ export default function BreakpointManager({
               </div>
             )}
 
-            <Button
-              size="sm"
+            <button
               onClick={handleAdd}
-              disabled={
-                (breakpointType === 'step' || breakpointType === 'conditional') && !selectedStep
-              }
-              className="w-full h-8"
+              disabled={(breakpointType === 'step' || breakpointType === 'conditional') && !selectedStep}
+              className="w-full flex items-center justify-center h-8 rounded-lg text-xs font-medium bg-teal-400 text-[#0b0f18] hover:bg-teal-300 disabled:opacity-50 transition-colors"
             >
               Add
-            </Button>
+            </button>
           </CollapsibleContent>
         </Collapsible>
       </div>
 
-      {/* Breakpoint List */}
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-3">
-          {/* Step Breakpoints */}
           {stepBreakpoints.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] font-medium text-muted-foreground uppercase px-1">
+              <div className="text-[10px] font-medium text-[#4a6480] uppercase tracking-wide px-1">
                 Step Breakpoints
               </div>
               {stepBreakpoints.map((bp) => {
                 const stepInfo = getStepInfo(bp.step_id || '');
                 const isCurrent = bp.step_id === currentStep;
-
                 return (
                   <div
                     key={bp.id}
                     className={cn(
-                      'flex items-center gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors',
-                      isCurrent && 'bg-yellow-50 dark:bg-yellow-950/30'
+                      'group flex items-center gap-2 p-2 rounded-md hover:bg-[#131b26] transition-colors',
+                      isCurrent && 'bg-yellow-400/5'
                     )}
                   >
                     <button
@@ -207,122 +176,90 @@ export default function BreakpointManager({
                       className="shrink-0"
                       title={bp.enabled ? 'Disable' : 'Enable'}
                     >
-                      {bp.enabled ? (
-                        <CircleDot className="w-4 h-4 text-red-500" />
-                      ) : (
-                        <Circle className="w-4 h-4 text-muted-foreground" />
-                      )}
+                      {bp.enabled
+                        ? <CircleDot className="w-4 h-4 text-red-400" />
+                        : <Circle className="w-4 h-4 text-[#4a6480]" />}
                     </button>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-xs truncate">
-                          {bp.step_id}
-                        </span>
+                        <span className="font-mono text-xs text-[#c8dce8] truncate">{bp.step_id}</span>
                         {bp.type === 'conditional' && (
-                          <span className="text-[10px] text-purple-500">(conditional)</span>
+                          <span className="text-[10px] text-purple-400">(conditional)</span>
                         )}
                       </div>
                       {stepInfo?.name && (
-                        <div className="text-[10px] text-muted-foreground truncate">
-                          {stepInfo.name}
-                        </div>
+                        <div className="text-[10px] text-[#4a6480] truncate">{stepInfo.name}</div>
                       )}
                       {bp.condition && (
-                        <div className="text-[10px] font-mono text-purple-600 truncate">
+                        <div className="text-[10px] font-mono text-purple-400 truncate">
                           if: {bp.condition}
                         </div>
                       )}
                     </div>
                     {bp.hit_count > 0 && (
-                      <span className="text-[10px] text-muted-foreground">
-                        ×{bp.hit_count}
-                      </span>
+                      <span className="text-[10px] text-[#4a6480]">×{bp.hit_count}</span>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <button
                       onClick={() => onRemove(bp.id)}
-                      className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                      className="flex items-center justify-center h-6 w-6 rounded opacity-0 group-hover:opacity-100 text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                     >
                       <Trash2 className="w-3 h-3" />
-                    </Button>
+                    </button>
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* Error Breakpoints */}
           {errorBreakpoints.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] font-medium text-muted-foreground uppercase px-1">
+              <div className="text-[10px] font-medium text-[#4a6480] uppercase tracking-wide px-1">
                 Error Breakpoints
               </div>
               {errorBreakpoints.map((bp) => (
-                <div
-                  key={bp.id}
-                  className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50"
-                >
+                <div key={bp.id} className="group flex items-center gap-2 p-2 rounded-md hover:bg-[#131b26] transition-colors">
                   <button onClick={() => onToggle(bp.id)} className="shrink-0">
-                    {bp.enabled ? (
-                      <AlertCircle className="w-4 h-4 text-red-500" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-muted-foreground" />
-                    )}
+                    <AlertCircle className={cn('w-4 h-4', bp.enabled ? 'text-red-400' : 'text-[#4a6480]')} />
                   </button>
-                  <div className="flex-1 text-xs">Break on any error</div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <div className="flex-1 text-xs text-[#c8dce8]">Break on any error</div>
+                  <button
                     onClick={() => onRemove(bp.id)}
-                    className="h-6 w-6 p-0"
+                    className="flex items-center justify-center h-6 w-6 rounded opacity-0 group-hover:opacity-100 text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                   >
                     <Trash2 className="w-3 h-3" />
-                  </Button>
+                  </button>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Assertion Breakpoints */}
           {assertionBreakpoints.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] font-medium text-muted-foreground uppercase px-1">
+              <div className="text-[10px] font-medium text-[#4a6480] uppercase tracking-wide px-1">
                 Assertion Breakpoints
               </div>
               {assertionBreakpoints.map((bp) => (
-                <div
-                  key={bp.id}
-                  className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50"
-                >
+                <div key={bp.id} className="group flex items-center gap-2 p-2 rounded-md hover:bg-[#131b26] transition-colors">
                   <button onClick={() => onToggle(bp.id)} className="shrink-0">
-                    {bp.enabled ? (
-                      <FileWarning className="w-4 h-4 text-amber-500" />
-                    ) : (
-                      <FileWarning className="w-4 h-4 text-muted-foreground" />
-                    )}
+                    <FileWarning className={cn('w-4 h-4', bp.enabled ? 'text-amber-400' : 'text-[#4a6480]')} />
                   </button>
-                  <div className="flex-1 text-xs">Break on assertion failure</div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <div className="flex-1 text-xs text-[#c8dce8]">Break on assertion failure</div>
+                  <button
                     onClick={() => onRemove(bp.id)}
-                    className="h-6 w-6 p-0"
+                    className="flex items-center justify-center h-6 w-6 rounded opacity-0 group-hover:opacity-100 text-[#4a6480] hover:text-red-400 hover:bg-[#1a2d3d] transition-colors"
                   >
                     <Trash2 className="w-3 h-3" />
-                  </Button>
+                  </button>
                 </div>
               ))}
             </div>
           )}
 
           {breakpoints.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <CircleDot className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-xs">No breakpoints set</p>
-              <p className="text-[10px] mt-1">
-                Add a breakpoint to pause execution
-              </p>
+            <div className="text-center py-8">
+              <CircleDot className="w-8 h-8 mx-auto mb-2 text-[#3d5670]" />
+              <p className="text-xs text-[#4a6480]">No breakpoints set</p>
+              <p className="text-[10px] text-[#3d5670] mt-1">Add a breakpoint to pause execution</p>
             </div>
           )}
         </div>

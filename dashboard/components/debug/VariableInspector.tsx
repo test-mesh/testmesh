@@ -15,9 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface VariableInspectorProps {
   variables: Record<string, unknown>;
@@ -44,27 +42,19 @@ function getValueType(value: unknown): ValueType {
 }
 
 function buildTree(obj: unknown, path: string = ''): TreeNode[] {
-  if (obj === null || obj === undefined) return [];
-  if (typeof obj !== 'object') return [];
-
+  if (obj === null || obj === undefined || typeof obj !== 'object') return [];
   return Object.entries(obj as Record<string, unknown>).map(([key, value]) => {
     const nodePath = path ? `${path}.${key}` : key;
     const type = getValueType(value);
-
-    const node: TreeNode = {
-      key,
-      value,
-      type,
-      path: nodePath,
-    };
-
+    const node: TreeNode = { key, value, type, path: nodePath };
     if (type === 'object' || type === 'array') {
       node.children = buildTree(value, nodePath);
     }
-
     return node;
   });
 }
+
+type InspectorTab = 'variables' | 'outputs';
 
 function TreeNodeView({
   node,
@@ -85,86 +75,63 @@ function TreeNodeView({
 
   const TypeIcon = () => {
     switch (node.type) {
-      case 'string':
-        return <Type className="w-3 h-3 text-green-500" />;
-      case 'number':
-        return <Hash className="w-3 h-3 text-blue-500" />;
-      case 'boolean':
-        return <ToggleLeft className="w-3 h-3 text-purple-500" />;
-      case 'array':
-        return <List className="w-3 h-3 text-orange-500" />;
-      case 'object':
-        return <Braces className="w-3 h-3 text-cyan-500" />;
-      default:
-        return null;
+      case 'string': return <Type className="w-3 h-3 text-green-400 shrink-0" />;
+      case 'number': return <Hash className="w-3 h-3 text-blue-400 shrink-0" />;
+      case 'boolean': return <ToggleLeft className="w-3 h-3 text-purple-400 shrink-0" />;
+      case 'array': return <List className="w-3 h-3 text-orange-400 shrink-0" />;
+      case 'object': return <Braces className="w-3 h-3 text-cyan-400 shrink-0" />;
+      default: return null;
     }
   };
 
   const formatValue = (value: unknown, type: ValueType): string => {
     switch (type) {
-      case 'string':
+      case 'string': {
         const str = value as string;
         return str.length > 50 ? `"${str.substring(0, 50)}..."` : `"${str}"`;
+      }
       case 'number':
-      case 'boolean':
-        return String(value);
-      case 'null':
-        return 'null';
-      case 'undefined':
-        return 'undefined';
-      case 'array':
-        return `Array(${(value as unknown[]).length})`;
-      case 'object':
-        return `Object(${Object.keys(value as object).length})`;
-      default:
-        return String(value);
+      case 'boolean': return String(value);
+      case 'null': return 'null';
+      case 'undefined': return 'undefined';
+      case 'array': return `Array(${(value as unknown[]).length})`;
+      case 'object': return `Object(${Object.keys(value as object).length})`;
+      default: return String(value);
     }
   };
 
   return (
     <div>
       <div
-        className={cn(
-          'flex items-center gap-1 py-0.5 px-1 rounded hover:bg-muted/50 group',
-          'cursor-pointer select-none'
-        )}
+        className="flex items-center gap-1 py-0.5 px-1 rounded hover:bg-[#131b26] group cursor-pointer select-none"
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
         onClick={() => isExpandable && onToggle(node.path)}
       >
         {isExpandable ? (
-          isExpanded ? (
-            <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
-          )
+          isExpanded
+            ? <ChevronDown className="w-3 h-3 text-[#4a6480] shrink-0" />
+            : <ChevronRight className="w-3 h-3 text-[#4a6480] shrink-0" />
         ) : (
           <span className="w-3 shrink-0" />
         )}
         <TypeIcon />
-        <span className="text-xs font-mono text-foreground">{node.key}</span>
-        <span className="text-muted-foreground text-xs">:</span>
-        <span
-          className={cn(
-            'text-xs font-mono truncate',
-            node.type === 'string' && 'text-green-600 dark:text-green-400',
-            node.type === 'number' && 'text-blue-600 dark:text-blue-400',
-            node.type === 'boolean' && 'text-purple-600 dark:text-purple-400',
-            (node.type === 'null' || node.type === 'undefined') && 'text-muted-foreground italic'
-          )}
-        >
+        <span className="text-xs font-mono text-[#c8dce8]">{node.key}</span>
+        <span className="text-[#4a6480] text-xs">:</span>
+        <span className={cn(
+          'text-xs font-mono truncate',
+          node.type === 'string' && 'text-green-400',
+          node.type === 'number' && 'text-blue-400',
+          node.type === 'boolean' && 'text-purple-400',
+          (node.type === 'null' || node.type === 'undefined') && 'text-[#4a6480] italic'
+        )}>
           {formatValue(node.value, node.type)}
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onCopy(node.value);
-          }}
-          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 ml-auto"
+        <button
+          onClick={(e) => { e.stopPropagation(); onCopy(node.value); }}
+          className="flex items-center justify-center h-5 w-5 rounded opacity-0 group-hover:opacity-100 ml-auto text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
         >
           <Copy className="w-3 h-3" />
-        </Button>
+        </button>
       </div>
       {isExpanded && hasChildren && (
         <div>
@@ -193,51 +160,35 @@ export default function VariableInspector({
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
+  const [tab, setTab] = useState<InspectorTab>('variables');
 
   const variableTree = useMemo(() => buildTree(variables), [variables]);
   const outputTree = useMemo(() => buildTree(stepOutputs), [stepOutputs]);
 
-  // Filter tree based on search
   const filterTree = (nodes: TreeNode[], query: string): TreeNode[] => {
     if (!query) return nodes;
-
     return nodes.filter((node) => {
       const matchesKey = node.key.toLowerCase().includes(query.toLowerCase());
       const matchesValue = String(node.value).toLowerCase().includes(query.toLowerCase());
-
       if (matchesKey || matchesValue) return true;
-
       if (node.children) {
-        const filteredChildren = filterTree(node.children, query);
-        if (filteredChildren.length > 0) {
-          // Auto-expand matching branches
+        const filtered = filterTree(node.children, query);
+        if (filtered.length > 0) {
           setExpanded((prev) => new Set([...prev, node.path]));
           return true;
         }
       }
-
       return false;
     });
   };
 
-  const filteredVariables = useMemo(
-    () => filterTree(variableTree, search),
-    [variableTree, search]
-  );
-
-  const filteredOutputs = useMemo(
-    () => filterTree(outputTree, search),
-    [outputTree, search]
-  );
+  const filteredVariables = useMemo(() => filterTree(variableTree, search), [variableTree, search]);
+  const filteredOutputs = useMemo(() => filterTree(outputTree, search), [outputTree, search]);
 
   const handleToggle = (path: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
+      if (next.has(path)) { next.delete(path); } else { next.add(path); }
       return next;
     });
   };
@@ -248,19 +199,14 @@ export default function VariableInspector({
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Ignore copy errors
-    }
+    } catch { /* ignore */ }
   };
 
   const expandAll = () => {
     const allPaths = new Set<string>();
     const collect = (nodes: TreeNode[]) => {
       nodes.forEach((node) => {
-        if (node.children) {
-          allPaths.add(node.path);
-          collect(node.children);
-        }
+        if (node.children) { allPaths.add(node.path); collect(node.children); }
       });
     };
     collect(variableTree);
@@ -268,16 +214,11 @@ export default function VariableInspector({
     setExpanded(allPaths);
   };
 
-  const collapseAll = () => {
-    setExpanded(new Set());
-  };
-
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      {/* Search */}
-      <div className="p-2 border-b">
+      <div className="p-2 border-b border-[#1a2332]">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#4a6480]" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -286,14 +227,20 @@ export default function VariableInspector({
           />
         </div>
         <div className="flex gap-2 mt-2">
-          <Button variant="ghost" size="sm" onClick={expandAll} className="h-6 text-[10px] px-2">
+          <button
+            onClick={expandAll}
+            className="h-6 px-2 rounded text-[10px] text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+          >
             Expand All
-          </Button>
-          <Button variant="ghost" size="sm" onClick={collapseAll} className="h-6 text-[10px] px-2">
+          </button>
+          <button
+            onClick={() => setExpanded(new Set())}
+            className="h-6 px-2 rounded text-[10px] text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#1a2d3d] transition-colors"
+          >
             Collapse All
-          </Button>
+          </button>
           {copied && (
-            <span className="flex items-center gap-1 text-[10px] text-green-600 ml-auto">
+            <span className="flex items-center gap-1 text-[10px] text-teal-400 ml-auto">
               <Check className="w-3 h-3" />
               Copied!
             </span>
@@ -301,72 +248,49 @@ export default function VariableInspector({
         </div>
       </div>
 
-      {/* Content */}
-      <Tabs defaultValue="variables" className="flex-1 flex flex-col">
-        <TabsList className="w-full justify-start rounded-none border-b px-2 h-8">
-          <TabsTrigger value="variables" className="text-xs h-6">
-            Variables
-            <span className="ml-1 text-[10px] text-muted-foreground">
-              ({Object.keys(variables).length})
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="outputs" className="text-xs h-6">
-            Step Outputs
-            <span className="ml-1 text-[10px] text-muted-foreground">
-              ({Object.keys(stepOutputs).length})
-            </span>
-          </TabsTrigger>
-        </TabsList>
+      <div className="flex gap-0.5 px-2 py-1.5 border-b border-[#1a2332]">
+        {([['variables', 'Variables', Object.keys(variables).length], ['outputs', 'Step Outputs', Object.keys(stepOutputs).length]] as const).map(([id, label, count]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            className={cn(
+              'flex items-center gap-1.5 h-6 px-2 rounded text-xs transition-colors',
+              tab === id
+                ? 'bg-[#1a2332] text-[#c8dce8]'
+                : 'text-[#4a6480] hover:text-[#7fa8c8] hover:bg-[#131b26]'
+            )}
+          >
+            {label}
+            <span className="text-[10px] text-[#4a6480]">({count})</span>
+          </button>
+        ))}
+      </div>
 
-        <TabsContent value="variables" className="flex-1 m-0">
-          <ScrollArea className="h-full">
-            <div className="p-2">
-              {filteredVariables.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Braces className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-xs">No variables</p>
-                </div>
-              ) : (
-                filteredVariables.map((node) => (
-                  <TreeNodeView
-                    key={node.path}
-                    node={node}
-                    expanded={expanded}
-                    onToggle={handleToggle}
-                    onCopy={handleCopy}
-                  />
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="outputs" className="flex-1 m-0">
-          <ScrollArea className="h-full">
-            <div className="p-2">
-              {filteredOutputs.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <List className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-xs">No step outputs yet</p>
-                  <p className="text-[10px] mt-1">
-                    Outputs appear as steps complete
-                  </p>
-                </div>
-              ) : (
-                filteredOutputs.map((node) => (
-                  <TreeNodeView
-                    key={node.path}
-                    node={node}
-                    expanded={expanded}
-                    onToggle={handleToggle}
-                    onCopy={handleCopy}
-                  />
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </TabsContent>
-      </Tabs>
+      <ScrollArea className="flex-1">
+        <div className="p-2">
+          {tab === 'variables' && (
+            filteredVariables.length === 0 ? (
+              <div className="text-center py-8">
+                <Braces className="w-8 h-8 mx-auto mb-2 text-[#3d5670]" />
+                <p className="text-xs text-[#4a6480]">No variables</p>
+              </div>
+            ) : filteredVariables.map((node) => (
+              <TreeNodeView key={node.path} node={node} expanded={expanded} onToggle={handleToggle} onCopy={handleCopy} />
+            ))
+          )}
+          {tab === 'outputs' && (
+            filteredOutputs.length === 0 ? (
+              <div className="text-center py-8">
+                <List className="w-8 h-8 mx-auto mb-2 text-[#3d5670]" />
+                <p className="text-xs text-[#4a6480]">No step outputs yet</p>
+                <p className="text-[10px] text-[#3d5670] mt-1">Outputs appear as steps complete</p>
+              </div>
+            ) : filteredOutputs.map((node) => (
+              <TreeNodeView key={node.path} node={node} expanded={expanded} onToggle={handleToggle} onCopy={handleCopy} />
+            ))
+          )}
+        </div>
+      </ScrollArea>
     </div>
   );
 }
