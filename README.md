@@ -1,8 +1,45 @@
 # TestMesh
 
-> **A platform for writing and running end-to-end integration tests**
+> **Verify workflows that span APIs, message brokers, databases, and asynchronous services.**
 
-TestMesh makes it easy to write, manage, and execute integration tests across multiple protocols. Define tests in YAML, run them locally or in CI/CD, and get detailed execution results.
+Call an API, wait for the Kafka event it causes, and check the database state a
+consumer writes, all in one YAML file. You don't need custom consumer scripts,
+`sleep`, or retry loops:
+
+```yaml
+flow:
+  name: "Place order → order.placed → inventory reserved"
+  env:
+    DATABASE_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+  steps:
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "http://localhost:5003/api/v1/orders"
+        body: { user_id: "{{user_id}}", items: [{ product_id: "{{product_id}}", quantity: 2 }] }
+      assert: [status == 201]
+      output: { order_id: $.body.id }
+
+    - id: order_placed_event          # the event THIS order produced
+      action: kafka_consumer
+      config:
+        topic: order.placed
+        match: { order_id: "{{order_id}}" }
+        timeout: 10s
+      assert: [event.items[0].quantity == 2]
+
+    - id: inventory_reserved          # re-checked until the consumer catches up
+      action: database_query
+      eventually: 15s
+      config:
+        query: "SELECT inventory FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert: [first_row.inventory == 8]
+```
+
+See [Testing API → Kafka → Database Workflows](docs/guides/API_KAFKA_DB.md) for how it works and what failures look like.
 
 ## Installation
 

@@ -130,6 +130,7 @@ type Step struct {
 	Timeout     string                 `json:"timeout,omitempty" yaml:"timeout,omitempty"`
 	When        string                 `json:"when,omitempty" yaml:"when,omitempty"`
 	OnError     *OnErrorConfig         `json:"on_error,omitempty" yaml:"on_error,omitempty"`
+	Eventually  *EventuallyConfig      `json:"eventually,omitempty" yaml:"eventually,omitempty"`
 }
 
 // RetryConfig defines retry behavior for a step

@@ -14,6 +14,7 @@ type Context struct {
 	stepOutputs     map[string]map[string]interface{}
 	routingHeaders  map[string]string            // auto-injected into all http_request steps
 	routingOverrides map[string]map[string]string // per-action-type config defaults
+	startedAt        time.Time                    // when the flow run began
 }
 
 // NewContext creates a new execution context.
@@ -25,6 +26,7 @@ func NewContext(variables map[string]string, envVars map[string]interface{}) *Co
 		stepOutputs:      make(map[string]map[string]interface{}),
 		routingHeaders:   make(map[string]string),
 		routingOverrides: make(map[string]map[string]string),
+		startedAt:        time.Now(),
 	}
 
 	// Add user-provided variables, extracting routing metadata.
@@ -65,6 +67,11 @@ func (c *Context) GetRoutingHeaders() map[string]string {
 // Step-level config takes precedence over these defaults.
 func (c *Context) GetRoutingOverrides(actionType string) map[string]string {
 	return c.routingOverrides[actionType]
+}
+
+// StartedAt returns the time the flow run began.
+func (c *Context) StartedAt() time.Time {
+	return c.startedAt
 }
 
 // Get retrieves a variable value

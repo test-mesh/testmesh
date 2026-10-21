@@ -4,11 +4,14 @@ Welcome to the TestMesh documentation. This directory contains architecture, fea
 
 ## 📚 Documentation Structure
 
+**Start here:** [PRODUCT_FOCUS.md](./PRODUCT_FOCUS.md) explains what TestMesh optimises for and why.
+
 ### 📖 Guides (`/guides/`)
 Practical how-to guides for getting things done.
 
 - **[GETTING_STARTED.md](./guides/GETTING_STARTED.md)** - Install, run, and execute your first test
 - **[WRITING_YOUR_FIRST_FLOW.md](./guides/WRITING_YOUR_FIRST_FLOW.md)** - Learn the YAML flow format with examples
+- **[API_KAFKA_DB.md](./guides/API_KAFKA_DB.md)** - Test an API → Kafka event → database workflow in one file
 - **[USING_THE_CLI.md](./guides/USING_THE_CLI.md)** - CLI commands: run, debug, watch, generate, chat
 
 ### 🏗️ Architecture (`/architecture/`)
@@ -73,6 +76,7 @@ Guidelines and standards for contributing to TestMesh.
 ### For Users
 - [Getting Started](./guides/GETTING_STARTED.md)
 - [Writing Your First Flow](./guides/WRITING_YOUR_FIRST_FLOW.md)
+- [Testing API → Kafka → Database Workflows](./guides/API_KAFKA_DB.md)
 - [Using the CLI](./guides/USING_THE_CLI.md)
 - [YAML Schema Reference](./features/YAML_SCHEMA.md)
 - [Dashboard UI Guide](./features/DASHBOARD_UI_SPECIFICATION.md)

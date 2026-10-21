@@ -55,14 +55,22 @@ assert:
 
 ### Kafka Assertions
 ` + "```yaml" + `
-assert:
-  - "len(messages) == 1"                          # Exactly one message
-  - "messages[0].value.user_id == user_id"        # Verify payload content
-  - "messages[0].value.email == email"            # Fields match what triggered the event
-  - "messages[0].value.status == 'active'"        # Verify state field
+- id: order_placed
+  action: kafka_consumer
+  config:
+    topic: "order.placed"
+    match:                                # wait for THIS test's event
+      order_id: "{{order_id}}"
+    timeout: "10s"
+  assert:
+    - "event.user_id == user_id"          # event = parsed JSON payload of the matched message
+    - "event.total > 0"
+    - "message.key == order_id"           # message = key, headers, partition, offset, timestamp
 ` + "```" + `
-Always use a unique ` + "`group_id`" + ` per test run (e.g., ` + "`testmesh-e2e-{{RANDOM_ID}}`" + `) to prevent
-reading stale messages from prior executions.
+Always use ` + "`match`" + ` with an ID from an earlier step: the consumer reads events published since the
+flow started (so it never misses an event emitted before the step began) and ` + "`match`" + ` picks out the
+one your test caused. When nothing matches before the timeout, the step fails and shows the events it
+did see. Do not set ` + "`group_id`" + ` or ` + "`from_beginning`" + ` — they disable this behaviour.
 ` + "`len(messages) > 0`" + ` only proves delivery — always verify payload fields match what triggered the event.
 
 ### Database Assertions
@@ -233,48 +241,38 @@ teardown:
 When a step triggers an asynchronous process (e.g., order placement triggers a Kafka event
 that updates inventory), you need to wait before verifying the result.
 
-### Option A: delay (Simple)
-Use for simple cases where timing is predictable (2-5 seconds):
+### Option A: eventually (Preferred)
+Add ` + "`eventually: <timeout>`" + ` to any step to re-run it until its assertions pass. Use it to verify
+state written by an asynchronous consumer — it replaces db_poll + database_query pairs and fixed delays:
 ` + "```yaml" + `
-- id: wait_for_processing
-  action: delay
+- id: inventory_reserved
+  action: database_query
+  eventually: 15s                  # or { timeout: 15s, interval: 250ms }
   config:
-    duration: "3s"
-` + "```" + `
-**Pros:** Simple, no dependencies. **Cons:** May be flaky if processing takes longer.
-
-### Option B: db_poll (Preferred for Consistency)
-Polls a database query until a condition is met. Much more reliable than fixed delays:
-` + "```yaml" + `
-- id: wait_for_notification
-  action: db_poll
-  config:
-    connection: "${DB_URL}"
-    query: "SELECT id FROM notification_service.notifications WHERE user_id = '{{user_id}}' LIMIT 1"
-    interval: "1s"
-    timeout: "15s"
-` + "```" + `
-Polling stops when the query returns at least one row. No ` + "`condition`" + ` field needed.
-
-### Option C: kafka_consumer (Event Verification)
-When you need to verify that a specific event was published:
-` + "```yaml" + `
-- id: verify_order_event
-  action: kafka_consumer
-  config:
-    brokers:
-      - "${KAFKA_BROKERS}"
-    topic: "order.placed"
-    group_id: "testmesh-verify-{{RANDOM_ID}}"
-    auto_offset_reset: "earliest"
-    from_beginning: true
-    timeout: "10s"
-    count: 1
+    query: "SELECT inventory FROM product_service.products WHERE id = $1"
+    params: ["{{product_id}}"]
   assert:
-    - "len(messages) > 0"
+    - "first_row.inventory == 8"
 ` + "```" + `
-**Important:** Always use a unique ` + "`group_id`" + ` with ` + "`{{RANDOM_ID}}`" + ` to prevent reading
-messages from prior test runs.
+On timeout the step fails with the last assertion error, e.g. ` + "`got first_row.inventory = 10`" + `.
+
+### Option B: kafka_consumer with match (Event Verification)
+When you need to verify that a specific event was published, see **Kafka Assertions** above.
+
+### Shared connections
+Declare connections once instead of repeating them in every step. ` + "`database_query`" + ` and ` + "`db_poll`" + `
+default ` + "`connection`" + ` to ` + "`DATABASE_URL`" + `; ` + "`kafka_producer`" + ` and ` + "`kafka_consumer`" + ` default ` + "`brokers`" + `
+to ` + "`KAFKA_BROKERS`" + `:
+` + "```yaml" + `
+flow:
+  name: "..."
+  env:
+    DATABASE_URL: "postgres://user:pass@localhost:5432/app?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+` + "```" + `
+
+### Avoid: delay
+Fixed delays (` + "`action: delay`" + `) are either too short (flaky) or too long (slow). Prefer ` + "`eventually`" + `.
 
 ## 5. Variable Chaining
 

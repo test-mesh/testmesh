@@ -181,6 +181,14 @@ All steps share this common structure:
       - status >= 500
       - timeout
 
+  # Wait for asynchronous effects
+  eventually: duration          # Optional, e.g. "15s" — re-run the action and its
+                                # assertions until they pass or the timeout expires
+  # or
+  eventually:
+    timeout: duration           # Required
+    interval: duration          # Optional, default: "500ms"
+
   # Timeout
   timeout: duration             # Optional, default: "30s"
 
@@ -404,47 +412,63 @@ All steps share this common structure:
     offset: "result.offset"
     partition: "result.partition"
 
-# Kafka Consume (with timeout and filtering)
-- id: consume_event
-  action: kafka_consume
+# Kafka Consume — wait for the event your test caused
+- id: order_placed
+  action: kafka_consumer
   config:
-    brokers:
-      - "localhost:9092"
-
+    brokers: ["localhost:9092"]           # Optional when KAFKA_BROKERS is set
     topic: string                         # Required
 
-    # Consumer group (use unique per test execution)
-    group_id: string                      # Required, e.g., "test-${EXECUTION_ID}"
+    # Wait for a specific event: JSON payload fields that must all match.
+    # Paths use dot notation ("items.0.sku"); values compare by string form.
+    match:
+      order_id: "{{order_id}}"
+      status: "placed"
 
-    # Consume options
-    timeout: duration                     # How long to wait for message (e.g., "10s", "1m")
-    max_messages: number                  # Max messages to consume (default: 1)
+    # Additional criteria (all optional, combined with match)
+    filter:
+      key: "{{order_id}}"                 # Message key equals
+      key_pattern: "^order-.*"            # Message key matches regex
+      headers:
+        event-type: "OrderPlaced"
 
-    # Offset
-    from_beginning: boolean               # Start from beginning (default: false)
+    count: 1                              # Messages to wait for (default: 1)
+    timeout: duration                     # How long to wait (default: "30s")
 
-    # Match/Filter (wait for specific message)
-    match:                                # Optional, wait for message matching criteria
-      key: string                         # Message key equals this value
-      json_path:                          # JSONPath conditions (all must match)
-        - "$.event_type == 'user.created'"
-        - "$.user.id == '${user_id}'"
+    # Where to start reading (default: when the flow started, so events emitted
+    # by earlier steps are caught and events from previous runs are ignored)
+    since: string                         # earliest | latest | RFC 3339 timestamp | duration ago ("5m")
 
-    # Alternative: Simple filter (returns first matching)
-    filter:                               # Only return messages matching
-      key: "expected_key"
-      header:
-        correlation-id: "${CORRELATION_ID}"
+    # Fail when fewer than `count` messages match before the timeout.
+    # Default: true when match/filter is set, false otherwise.
+    fail_on_timeout: boolean
 
-  output:
-    messages: "result.messages"
-    message_count: "result.count"
-    first_message: "result.messages[0].value"
+    # Legacy consumer-group mode: committed offsets, rebalancing. Setting
+    # group_id disables the flow-start anchoring above.
+    group_id: string
+    from_beginning: boolean
 
   assert:
-    - result.count > 0
-    - result.messages[0].value.event_type == "user.created"
+    - event.user_id == user_id            # event: parsed JSON payload of the first match
+    - message.key == order_id             # message: key, value, headers, partition, offset, timestamp
+    - count == 1                          # also: messages, scanned, timed_out, duration_ms
 ```
+
+On timeout, a waiting consumer reports what it saw, which tells a wrong
+topic, a wrong match value and a missing event apart:
+
+```
+timed out after 10s waiting for 1 message(s) on topic "order.placed" matching order_id=7f3c…:
+3 message(s) read, 0 matched; most recent non-matching:
+    key="a91e…" value={"order_id":"a91e…","status":"placed"}
+```
+
+### Shared Connections
+
+`database_query` and `db_poll` default `connection` to the `DATABASE_URL`
+variable; `kafka_producer` and `kafka_consumer` default `brokers` to
+`KAFKA_BROKERS`. Declare them once in `env:` or an `env_file:`, or export them
+in the shell when running `testmesh run` (a flow's own `env:` wins).
 
 ### 4. gRPC Call
 
