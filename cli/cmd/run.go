@@ -93,7 +93,7 @@ func runLocally(definition *models.FlowDefinition) error {
 
 	exec := runner.NewExecutor(nil, logger, nil, nil)
 	exec.SetPluginRegistry(registry)
-	result, err := exec.ExecuteInline(definition, nil)
+	result, err := exec.ExecuteInline(definition, connectionVarsFromEnv())
 	if err != nil {
 		return fmt.Errorf("execution error: %w", err)
 	}
@@ -200,4 +200,16 @@ func printResult(steps []runner.InlineStepResult, status, errMsg string, total, 
 	fmt.Printf("   Passed: %d\n", passed)
 	fmt.Printf("   Failed: %d\n", failed)
 	fmt.Println()
+}
+
+// connectionVarsFromEnv passes shared connection settings from the shell (e.g.
+// in CI) to the runner, so flows can omit them. A flow's own env: wins.
+func connectionVarsFromEnv() map[string]string {
+	vars := map[string]string{}
+	for _, name := range []string{"DATABASE_URL", "KAFKA_BROKERS"} {
+		if v := os.Getenv(name); v != "" {
+			vars[name] = v
+		}
+	}
+	return vars
 }

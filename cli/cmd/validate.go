@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/test-mesh/testmesh/internal/storage/models"
 	"gopkg.in/yaml.v3"
 )
 
@@ -55,6 +56,33 @@ var validActions = map[string][]string{
 	"redis.set":    {"key", "value"},
 	"redis.del":    {"key"},
 	"redis.exists": {"key"},
+}
+
+// connectionDefaults maps config keys to the flow variable the runner falls
+// back to when a step omits them.
+var connectionDefaults = map[string]string{
+	"connection": "DATABASE_URL",
+	"brokers":    "KAFKA_BROKERS",
+}
+
+// validateEventually checks the `eventually:` step field (a duration, or a
+// mapping with timeout and optional interval).
+func validateEventually(raw interface{}) error {
+	if raw == nil {
+		return nil
+	}
+	var cfg models.EventuallyConfig
+	switch v := raw.(type) {
+	case string:
+		cfg.Timeout = v
+	case map[string]interface{}:
+		cfg.Timeout, _ = v["timeout"].(string)
+		cfg.Interval, _ = v["interval"].(string)
+	default:
+		return fmt.Errorf("eventually must be a duration (e.g. 15s) or a mapping with timeout/interval")
+	}
+	_, _, err := cfg.Durations()
+	return err
 }
 
 func validateFlow(cmd *cobra.Command, args []string) error {
@@ -161,14 +189,26 @@ func validateFlow(cmd *cobra.Command, args []string) error {
 			// Check required config fields
 			config, _ := step["config"].(map[string]interface{})
 			for _, key := range requiredKeys {
+				defaultVar := connectionDefaults[key]
+				if defaultVar != "" && (definedVars[defaultVar] || os.Getenv(defaultVar) != "") {
+					continue // filled in at run time from the shared variable
+				}
+				hint := ""
+				if defaultVar != "" {
+					hint = fmt.Sprintf(" (or set %s once in env:)", defaultVar)
+				}
 				if config == nil {
-					errs = append(errs, fmt.Sprintf("%s: config is required (missing '%s')", prefix, key))
+					errs = append(errs, fmt.Sprintf("%s: config is required (missing '%s')%s", prefix, key, hint))
 					break
 				}
 				v, exists := config[key]
 				if !exists || v == nil || v == "" {
-					errs = append(errs, fmt.Sprintf("%s: config.%s is required", prefix, key))
+					errs = append(errs, fmt.Sprintf("%s: config.%s is required%s", prefix, key, hint))
 				}
+			}
+
+			if err := validateEventually(step["eventually"]); err != nil {
+				errs = append(errs, fmt.Sprintf("%s: %v", prefix, err))
 			}
 
 			// Check {{variable}} references in config against known defined vars

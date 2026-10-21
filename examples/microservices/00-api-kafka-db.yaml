@@ -1,0 +1,88 @@
+# The canonical TestMesh test: call an API, wait for the Kafka event it
+# causes, and verify the database state an asynchronous consumer produces.
+#
+#   order-service  ──POST /orders──▶  order.placed  ──▶  product-service
+#                                                         (decrements inventory)
+#
+# Start the services:
+#   docker-compose up postgres kafka user-service product-service order-service
+# Run:
+#   testmesh run examples/microservices/00-api-kafka-db.yaml
+flow:
+  name: "Place order → order.placed event → inventory reserved"
+  tags: [e2e, async, kafka]
+
+  # Declared once; every database / Kafka step picks these up.
+  env:
+    DATABASE_URL: "postgres://root:admin@localhost:5432/postgres?sslmode=disable"
+    KAFKA_BROKERS: "localhost:9092"
+    USERS_API: "http://localhost:5001/api/v1"
+    PRODUCTS_API: "http://localhost:5002/api/v1"
+    ORDERS_API: "http://localhost:5003/api/v1"
+
+  setup:
+    - id: create_product
+      action: http_request
+      config:
+        method: POST
+        url: "{{PRODUCTS_API}}/products"
+        body: { name: "Widget {{RANDOM_ID}}", price: 19.99, inventory: 10 }
+      assert:
+        - status == 201
+      output:
+        product_id: $.body.id
+
+    - id: create_user
+      action: http_request
+      config:
+        method: POST
+        url: "{{USERS_API}}/users"
+        body: { name: "Buyer", email: "buyer-{{RANDOM_ID}}@example.com" }
+      assert:
+        - status == 201
+      output:
+        user_id: $.body.id
+
+  steps:
+    # 1. Call the API
+    - id: place_order
+      action: http_request
+      config:
+        method: POST
+        url: "{{ORDERS_API}}/orders"
+        body:
+          user_id: "{{user_id}}"
+          items:
+            - product_id: "{{product_id}}"
+              quantity: 2
+      assert:
+        - status == 201
+      output:
+        order_id: $.body.id
+
+    # 2. Wait for the event this order produced. Reading starts at flow start,
+    #    so the event is caught even though it was published before this step
+    #    ran, and `match` ignores events from other orders and earlier runs.
+    - id: order_placed_event
+      action: kafka_consumer
+      config:
+        topic: order.placed
+        match:
+          order_id: "{{order_id}}"
+        timeout: 10s
+      assert:
+        - event.user_id == user_id
+        - event.items[0].product_id == product_id
+        - event.items[0].quantity == 2
+
+    # 3. Verify the state the async consumer wrote. `eventually` re-runs the
+    #    query until the assertions pass — no poll step, no sleep.
+    - id: inventory_reserved
+      action: database_query
+      eventually: 15s
+      config:
+        query: "SELECT inventory FROM product_service.products WHERE id = $1"
+        params: ["{{product_id}}"]
+      assert:
+        - row_count == 1
+        - first_row.inventory == 8

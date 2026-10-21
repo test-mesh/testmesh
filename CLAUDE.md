@@ -217,6 +217,11 @@ Each action handler expects specific config structure:
 - **kafka_consumer**: `brokers`, `topic`, `group_id`, `timeout`
 - **redis_get/set**: `host`, `port`, `key`, `value`, `ttl`
 
+`connection` falls back to the `DATABASE_URL` variable and `brokers` to `KAFKA_BROKERS`.
+`kafka_consumer` reads from flow start and waits for the event selected by `match:`.
+Any step can use `eventually: 15s` to re-run until its assertions pass.
+See `docs/guides/API_KAFKA_DB.md`, which covers the core use case (`docs/PRODUCT_FOCUS.md`).
+
 ### Microservices Architecture
 
 The demo microservices (`demo-services/`) follow consistent patterns:

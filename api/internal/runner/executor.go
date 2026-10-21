@@ -607,6 +607,8 @@ func (e *Executor) executeStepWithDebug(ctx context.Context, step *models.Step, 
 		config = merged
 	}
 
+	applyConnectionDefaults(step.Action, config, execCtx)
+
 	// For HTTP requests, also inject environment-level routing headers.
 	// Step-level headers take precedence over routing headers.
 	if step.Action == "http_request" {
@@ -650,28 +652,113 @@ func (e *Executor) executeStepWithDebug(ctx context.Context, step *models.Step, 
 		return nil, err
 	}
 
-	// Execute action
-	result, err := handler.Execute(ctx, config)
+	// Execute action and assertions — repeatedly when the step is marked `eventually`
+	var result models.OutputData
+	if step.Eventually != nil {
+		result, err = e.executeEventually(ctx, step, handler, config, execCtx)
+	} else {
+		result, err = e.executeAndAssert(ctx, step, handler, config, execCtx)
+	}
 	if err != nil {
 		e.notifyDebugAfterStep(executionID, step.ID, result, err, time.Since(startTime))
-		return nil, err
-	}
-
-	// Run assertions if any
-	if len(step.Assert) > 0 {
-		evaluator := assertions.NewEvaluatorWithVars(result, execCtx.variables)
-		if err := evaluator.Evaluate(step.Assert); err != nil {
-			assertErr := fmt.Errorf("assertion failed: %w", err)
-			e.notifyDebugAfterStep(executionID, step.ID, result, assertErr, time.Since(startTime))
-			return result, assertErr
-		}
-		e.logger.Info("All assertions passed", zap.Int("count", len(step.Assert)))
+		return result, err
 	}
 
 	// Debug: Notify after successful step
 	e.notifyDebugAfterStep(executionID, step.ID, result, nil, time.Since(startTime))
 
 	return result, nil
+}
+
+// executeAndAssert runs the action once and evaluates the step's assertions
+// against its output.
+func (e *Executor) executeAndAssert(ctx context.Context, step *models.Step, handler actions.Handler, config map[string]interface{}, execCtx *Context) (models.OutputData, error) {
+	result, err := handler.Execute(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(step.Assert) > 0 {
+		evaluator := assertions.NewEvaluatorWithVars(result, execCtx.variables)
+		if err := evaluator.Evaluate(step.Assert); err != nil {
+			return result, fmt.Errorf("assertion failed: %w", err)
+		}
+		e.logger.Info("All assertions passed", zap.Int("count", len(step.Assert)))
+	}
+
+	return result, nil
+}
+
+// executeEventually re-runs the action and its assertions until they pass or
+// the step's eventually timeout expires. The last failure is reported, so the
+// user sees the state the system was actually in when the test gave up.
+func (e *Executor) executeEventually(ctx context.Context, step *models.Step, handler actions.Handler, config map[string]interface{}, execCtx *Context) (models.OutputData, error) {
+	timeout, interval, err := step.Eventually.Durations()
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastResult models.OutputData
+	var lastErr error
+	for attempt := 1; ; attempt++ {
+		result, err := e.executeAndAssert(ctx, step, handler, config, execCtx)
+		if err == nil {
+			if attempt > 1 {
+				e.logger.Info("Eventually condition satisfied",
+					zap.String("step_id", step.ID),
+					zap.Int("attempts", attempt),
+				)
+			}
+			return result, nil
+		}
+		// An attempt cut short by the deadline only says "context deadline
+		// exceeded"; keep the previous, more useful failure instead.
+		if ctx.Err() == nil || lastErr == nil {
+			lastResult, lastErr = result, err
+		}
+
+		select {
+		case <-ctx.Done():
+			return lastResult, fmt.Errorf("still failing after %s (%d attempts); last error: %w", timeout, attempt, lastErr)
+		case <-time.After(interval):
+		}
+	}
+}
+
+// applyConnectionDefaults fills in connection settings that a flow declares
+// once (in env:, an env file or run variables) instead of repeating them on
+// every step:
+//   - DATABASE_URL  → connection for database_query / db_poll
+//   - KAFKA_BROKERS → brokers for kafka_producer / kafka_consumer
+//
+// It also anchors kafka_consumer steps to the flow start time, so an event
+// published by an earlier step is never missed and events from previous runs
+// are never picked up.
+func applyConnectionDefaults(action string, config map[string]interface{}, execCtx *Context) {
+	setDefault := func(key, variable string) {
+		if v, ok := config[key]; ok && v != nil && v != "" {
+			return
+		}
+		if value, ok := execCtx.Get(variable); ok && value != "" {
+			config[key] = value
+		}
+	}
+
+	switch action {
+	case "database_query", "db_poll":
+		setDefault("connection", "DATABASE_URL")
+	case "kafka_producer":
+		setDefault("brokers", "KAFKA_BROKERS")
+	case "kafka_consumer":
+		setDefault("brokers", "KAFKA_BROKERS")
+		_, hasGroup := config["group_id"]
+		if _, hasSince := config["since"]; !hasSince && !hasGroup {
+			config["since"] = execCtx.StartedAt().Format(time.RFC3339Nano)
+		}
+	}
 }
 
 // notifyDebugAfterStep notifies the debugger after step completion
